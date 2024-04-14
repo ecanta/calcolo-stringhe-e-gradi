@@ -300,7 +300,7 @@ int Convert(string input) {
 }
 
 // Funzione per ottenere l'input positivo, minore o uguale a n
-int get_user_num(string txt, int bound) {
+int get_user_num(string txt, int lw, int bound) {
 
 	int user_num;
 	string check;
@@ -321,7 +321,7 @@ int get_user_num(string txt, int bound) {
 		if (general_error) user_num = 0;
 		else user_num = stoi(check);
 
-	} while (user_num < 1 || user_num > bound);
+	} while (user_num < lw || user_num > bound);
 
 	return user_num;
 }
@@ -337,7 +337,7 @@ void degree() {
 
 	do {
 		string txt = "inserire un numero tra 2 e " + n_ + " (1 = fine input)\n";
-		input = get_user_num(txt, n);
+		input = get_user_num(txt, 1, n);
 
 		//calcolo
 		if (input != 1) {
@@ -370,10 +370,10 @@ void loop_degree() {
 	cout << "gli estremi dell'intervallo devono essere compresi tra 1 e " << n_ << "\n\n";
 
 	string txt = "inserisci il valore di inizio della ricerca\n";
-	int lower_bound = get_user_num(txt, n);
+	int lower_bound = get_user_num(txt, 1, n);
 
 	txt = "inserisci il valore finale della ricerca\n";
-	int upper_bound = get_user_num(txt, n);
+	int upper_bound = get_user_num(txt, 1, n);
 
 	if (upper_bound < lower_bound) {
 		change = upper_bound;
@@ -411,7 +411,7 @@ int main()
 	int cdswitch;
 	text = "fino a quale numero cercare i numeri primi?\n";
 	text.append("un limite piu' alto comporta un tempo di attesa piu' lungo\n");
-	n = get_user_num(text, n);
+	n = get_user_num(text, 3, n);
 	cout << '\n';
 	do {
 		cout << "calcolo (c) o debug (d)? \n";
