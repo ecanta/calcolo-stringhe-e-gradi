@@ -402,33 +402,178 @@ void loop_degree() {
 	}
 }
 
+// Funzione di scomposizione
+string fact(int input) {
+
+	vector <int> PrimeNumber = crivelloEratostene();
+
+	int PrimeFactors[15];
+	for (int e = 0; e < 10; e++)
+		PrimeFactors[e] = 0;
+	int exponents[15];
+	for (int f = 0; f < 10; f++)
+		exponents[f] = 1;
+	int index = 0;
+
+	//scomposizione in fattori primi
+	for (int d = 0; d < size(PrimeNumber); d++) {
+		if (input != 1) {
+			if (input % PrimeNumber[d] == 0) {
+				if (PrimeFactors[index] == PrimeNumber[d])
+					exponents[index]++;
+				else PrimeFactors[index] = PrimeNumber[d];
+				input /= PrimeNumber[d];
+				if (input % PrimeNumber[d] != 0) {
+					index++;
+				}
+				d--;
+			}
+		}
+	}
+	//
+
+	//conta dei fattori primi
+	int factors;
+	bool tag2 = 1;
+	for (int count = 0; count < 10; count++) {
+		if (tag2) {
+			if (PrimeFactors[count] == 0) {
+				factors = count;
+				tag2 = 0;
+			}
+		}
+	}
+	//
+
+	//costruzione dell'output
+	string output = "";
+	for (int i = 0; i < factors; i++) {
+		if (exponents[i] != 1) {
+			output = output + to_string(PrimeFactors[i]) + "^" + to_string(exponents[i]) + " * ";
+		}
+		else output = output + to_string(PrimeFactors[i]) + " * ";
+	}
+	output.erase(output.size() - 2);
+	//
+
+	return output;
+}
+
+// Funzione per scomporre un numero in fattori primi
+void factor() {
+
+	string n_ = to_string(n);
+
+	int input = 0;
+	cout << "il programma scompone un numero in fattori primi\n\n";
+
+	do {
+		string txt = "inserire un numero tra 2 e " + n_ + " (1 = fine input)\n";
+		input = get_user_num(txt, 1, n);
+
+		//calcolo
+		if (input != 1) {
+			string ALGO = fact(input);
+			cout << input << " = " << ALGO << '\n';
+		}
+
+	} while (input != 1);
+}
+
+// Funzione per scomporre una serie di numeri in fattori primi
+void loop_factor() {
+	string n_ = to_string(n);
+
+	int input;
+	int change;
+	cout << "debug::\n\n";
+	cout << "il programma calcola la fattorizzazione di una serie di numeri\n";
+	cout << "gli estremi dell'intervallo devono essere compresi tra 1 e " << n_ << "\n\n";
+
+	string txt = "inserisci il valore di inizio della ricerca\n";
+	int lower_bound = get_user_num(txt, 1, n);
+
+	txt = "inserisci il valore finale della ricerca\n";
+	int upper_bound = get_user_num(txt, 1, n);
+
+	if (upper_bound < lower_bound) {
+		change = upper_bound;
+		upper_bound = lower_bound;
+		lower_bound = change;
+	}
+
+	for (int set = lower_bound + 1; set <= upper_bound; set++) {
+		input = set;
+
+		//calcolo
+		if (input != 1) {
+			string ALGO = fact(input);
+			cout << input << " = " << ALGO << '\n';
+		}
+	}
+}
+
 // Programma principale
 int main()
 {
 	cout << "CALCOLATRICE::\n\n";
 	string c_vel_d;
 	string text;
-	int cdswitch;
+	char cdswitch;
 	text = "fino a quale numero cercare i numeri primi?\n";
 	text.append("un limite piu' alto comporta un tempo di attesa piu' lungo\n");
-	n = get_user_num(text, 3, n);
+	n = get_user_num(text, 2, n);
 	cout << '\n';
+
+	string c_vel_f;
+	char cfswitch;
+
 	do {
-		cout << "calcolo (c) o debug (d)? \n";
-		cin >> c_vel_d;
-		cdswitch = (int)c_vel_d.at(0);
+		cout << "codifica (c) oppure scomposizione in fattori primi (f)\n";
+		cin >> c_vel_f;
+		cfswitch = c_vel_f.at(0);
 		cout << '\n';
 
-		switch (cdswitch) {
-		case 99: degree();
+		switch (cfswitch) {
+		case 'f': do {
+						cout << "calcolo (c) o debug (d)? \n";
+						cin >> c_vel_d;
+						cdswitch = c_vel_d.at(0);
+						cout << '\n';
+
+						switch (cdswitch) {
+						case 'c': factor();
+							break;
+						case 'd': loop_factor();
+							break;
+						default: cout << "non corretto\n";
+							break;
+						}
+
+					} while (cdswitch != 'c' && cdswitch != 'd');
 			break;
-		case 100: loop_degree();
+		case 'c': do {
+						cout << "calcolo (c) o debug (d)? \n";
+						cin >> c_vel_d;
+						cdswitch = c_vel_d.at(0);
+						cout << '\n';
+
+						switch (cdswitch) {
+						case 'c': degree();
+							break;
+						case 'd': loop_degree();
+							break;
+						default: cout << "non corretto\n";
+							break;
+						}
+
+					} while (cdswitch != 'c' && cdswitch != 'd');
 			break;
 		default: cout << "non corretto\n";
 			break;
 		}
 
-	} while (cdswitch != 99 && cdswitch != 100);
+	} while (cfswitch != 'c' && cfswitch != 'f');
 	
 	return 0;
 }
