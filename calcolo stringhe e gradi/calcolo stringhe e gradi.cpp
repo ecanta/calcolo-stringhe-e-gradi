@@ -29,13 +29,6 @@ int position_in_vector(int number, vector <int> vect) {
 		if (vect[a] == number) return a;
 }
 
-// Funzione per trovare la posizione di un elemento in un vettore
-int position_in_vector2(int number, vector <int> vect) {
-	for (int a = 0; a < size(vect); a++)
-		if (vect[a] == number) return a;
-}
-
-
 // Funzione per trovare tutti i numeri primi fino a N
 vector<int> crivelloEratostene() {
 	vector<bool> isPrime(n + 1, true);
