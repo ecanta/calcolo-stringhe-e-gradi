@@ -4,7 +4,6 @@
 #include <cstdio>
 #include <cmath>
 #include <vector>
-#include <omp.h>
 #include <chrono>
 #include <ppl.h>
 
@@ -41,6 +40,28 @@ vector<int> crivelloEratostene() {
 		if (isPrime[p]) primes.push_back(p);
 
 	return primes;
+}
+
+typedef struct {
+	int number;
+	string code;
+} data_t;
+
+// Funzione per ordinare un vettore in ordine crescente
+vector <data_t> sort(vector <data_t> vect){
+
+	for (int i = 0; i < size(vect) - 1; i++) {
+		for (int j = 0; j < size(vect); j++) {
+			if (vect[i].number < vect[j].number) {
+				data_t change;
+				change = vect[i];
+				vect[i] = vect[j];
+				vect[j] = change;
+			}
+		}
+	}
+
+	return vect;
 }
 
 // Funzione per creare la criptatura di un numero
@@ -217,7 +238,6 @@ string Algorithm(int input, vector <int> PrimeNumber) {
 	//
 
 	return thenumber;
-
 }
 
 // Funzione per sommare la criptatura
@@ -382,9 +402,8 @@ void loop_degree() {
 		lower_bound = change;
 	}
 
-	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-	//#pragma omp parallel for
-	for (int set = lower_bound + 1; set <= upper_bound; set++) {
+	chrono::steady_clock::time_point begin = chrono::steady_clock::now();
+	for (int set = lower_bound + 1; set < upper_bound + 1; set++) {
 		input = set;
 
 		//calcolo
@@ -394,18 +413,15 @@ void loop_degree() {
 
 			int counter = 1;
 			do {
-
 				input = Convert(Algorithm(input, PrimeNumber));
 				counter++;
 				if (input == 1) cout << "il grado e' " << counter << '\n';
 
 			} while (input != 1);
 		}
-
 	}
-	//#pragma
-	std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-	std::cout << "Time difference = " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "[ms]" << std::endl;
+	chrono::steady_clock::time_point end = chrono::steady_clock::now();
+	cout << "Time difference = " << chrono::duration_cast<chrono::milliseconds>(end - begin).count() << "[ms]" << '\n';
 }
 
 // Funzione di scomposizione
@@ -494,6 +510,8 @@ void factor() {
 // Funzione per scomporre una serie di numeri in fattori primi
 void loop_factor() {
 	string n_ = to_string(n);
+	vector <data_t> data;
+	data_t data_element;
 
 	int input;
 	int change;
@@ -513,19 +531,25 @@ void loop_factor() {
 		lower_bound = change;
 	}
 
-	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-
-	Concurrency::parallel_for(int(lower_bound + 1), upper_bound + 1, [&](int set) {
-		//for (int set = lower_bound + 1; set <= upper_bound; set++) {
+	chrono::steady_clock::time_point begin = chrono::steady_clock::now();
+	for (int set = lower_bound + 1; set < upper_bound + 1; set++) {
 		input = set;
-
+			
 		//calcolo
 		if (input != 1) {
-			string ALGO = fact(input);
-			cout << input << " = " << ALGO << '\n';
+			data_element.number = input;
+			data_element.code = fact(input);
+			data.push_back(data_element);
 		}
-	});
+	}
 	chrono::steady_clock::time_point end = chrono::steady_clock::now();
+
+	//output
+	sort(data);
+	for (int x = 0; x < size(data); x++) {
+		cout << data[x].number << " = " << data[x].code << '\n';
+	}
+
 	cout << "Time difference = " << chrono::duration_cast<chrono::milliseconds>(end - begin).count() << "[ms]" << '\n';
 }
 
