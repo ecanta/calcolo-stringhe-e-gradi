@@ -4,28 +4,25 @@
 #include <cstdio>
 #include <cmath>
 #include <vector>
+#include <omp.h>
+#include <chrono>
+#include <ppl.h>
+
 using namespace std;
 int n = 2147483647;
 
 // Funzione per controllare se un numero è primo
 bool prime(int variable) {
 	bool tag = 1;
-	if (variable != 1) {
-		for (int a = 2; a < variable; a++) {
-			if (variable % a == 0) {
-				tag = 0;
-			}
-		}
-	}
-	else {
-		tag = 0;
-	}
+	if (variable == 1) tag = 0;
+	for (int a = 2; a < variable; a++)
+		if (variable % a == 0) tag = 0;
 	return tag;
 }
 
 // Funzione per trovare la posizione di un elemento in un vettore
 int position_in_vector(int number, vector <int> vect) {
-	for (int a = 0; a < size(vect); a++) 
+	for (int a = 0; a < size(vect); a++)
 		if (vect[a] == number) return a;
 }
 
@@ -35,7 +32,7 @@ vector<int> crivelloEratostene() {
 	vector<int> primes;
 
 	for (int p = 2; p * p <= n; p++) {
-		if (isPrime[p] == true) {
+		if (isPrime[p]) {
 			for (int i = pow(p, 2); i <= n; i += p)
 				isPrime[i] = false;
 		}
@@ -50,15 +47,16 @@ vector<int> crivelloEratostene() {
 string Algorithm(int input, vector <int> PrimeNumber) {
 
 	int PrimeFactors[15];
-	for (int e = 0; e < 10; e++)
+	for (int e = 0; e < 15; e++)
 		PrimeFactors[e] = 0;
 	int exponents[15];
-	for (int f = 0; f < 10; f++)
+	for (int f = 0; f < 15; f++)
 		exponents[f] = 1;
 	int index = 0;
+	int d;
 
 	//scomposizione in fattori primi
-	for (int d = 0; d < size(PrimeNumber); d++) {
+	for (d = 0; pow(PrimeNumber[d], 2) <= input; d++) {
 		if (input != 1) {
 			if (input % PrimeNumber[d] == 0) {
 				if (PrimeFactors[index] == PrimeNumber[d])
@@ -72,12 +70,16 @@ string Algorithm(int input, vector <int> PrimeNumber) {
 			}
 		}
 	}
+	if (PrimeFactors[index] == input)
+		exponents[index]++;
+	else PrimeFactors[index] = input;
+	input = 1;
 	//
 
 	//conta dei fattori primi
 	int factors;
 	bool tag2 = 1;
-	for (int count = 0; count < 10; count++) {
+	for (int count = 0; count < 15; count++) {
 		if (tag2) {
 			if (PrimeFactors[count] == 0) {
 				factors = count;
@@ -173,7 +175,6 @@ string Algorithm(int input, vector <int> PrimeNumber) {
 
 		} while (analyse != 1);
 		monomials[WhatFactor] = thenumber;
-
 	}
 	//
 
@@ -343,7 +344,7 @@ void degree() {
 		if (input != 1) {
 			string ALGO = Algorithm(input, PrimeNumber);
 			cout << "il codice di " << input << " e' " << '<' << ALGO << '>' << '\n';
-			
+
 			int counter = 1;
 			do {
 
@@ -381,6 +382,8 @@ void loop_degree() {
 		lower_bound = change;
 	}
 
+	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+	//#pragma omp parallel for
 	for (int set = lower_bound + 1; set <= upper_bound; set++) {
 		input = set;
 
@@ -400,6 +403,9 @@ void loop_degree() {
 		}
 
 	}
+	//#pragma
+	std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+	std::cout << "Time difference = " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "[ms]" << std::endl;
 }
 
 // Funzione di scomposizione
@@ -408,15 +414,16 @@ string fact(int input) {
 	vector <int> PrimeNumber = crivelloEratostene();
 
 	int PrimeFactors[15];
-	for (int e = 0; e < 10; e++)
+	for (int e = 0; e < 15; e++)
 		PrimeFactors[e] = 0;
 	int exponents[15];
-	for (int f = 0; f < 10; f++)
+	for (int f = 0; f < 15; f++)
 		exponents[f] = 1;
 	int index = 0;
+	int d;
 
 	//scomposizione in fattori primi
-	for (int d = 0; d < size(PrimeNumber); d++) {
+	for (d = 0; pow(PrimeNumber[d], 2) <= input; d++) {
 		if (input != 1) {
 			if (input % PrimeNumber[d] == 0) {
 				if (PrimeFactors[index] == PrimeNumber[d])
@@ -430,12 +437,16 @@ string fact(int input) {
 			}
 		}
 	}
+	if (PrimeFactors[index] == input)
+		exponents[index]++;
+	else PrimeFactors[index] = input;
+	input = 1;
 	//
 
 	//conta dei fattori primi
 	int factors;
 	bool tag2 = 1;
-	for (int count = 0; count < 10; count++) {
+	for (int count = 0; count < 15; count++) {
 		if (tag2) {
 			if (PrimeFactors[count] == 0) {
 				factors = count;
@@ -502,7 +513,10 @@ void loop_factor() {
 		lower_bound = change;
 	}
 
-	for (int set = lower_bound + 1; set <= upper_bound; set++) {
+	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+
+	Concurrency::parallel_for(int(lower_bound + 1), upper_bound + 1, [&](int set) {
+		//for (int set = lower_bound + 1; set <= upper_bound; set++) {
 		input = set;
 
 		//calcolo
@@ -510,7 +524,9 @@ void loop_factor() {
 			string ALGO = fact(input);
 			cout << input << " = " << ALGO << '\n';
 		}
-	}
+	});
+	chrono::steady_clock::time_point end = chrono::steady_clock::now();
+	cout << "Time difference = " << chrono::duration_cast<chrono::milliseconds>(end - begin).count() << "[ms]" << '\n';
 }
 
 // Programma principale
@@ -536,44 +552,44 @@ int main()
 
 		switch (cfswitch) {
 		case 'f': do {
-						cout << "calcolo (c) o debug (d)? \n";
-						cin >> c_vel_d;
-						cdswitch = c_vel_d.at(0);
-						cout << '\n';
+			cout << "calcolo (c) o debug (d)? \n";
+			cin >> c_vel_d;
+			cdswitch = c_vel_d.at(0);
+			cout << '\n';
 
-						switch (cdswitch) {
-						case 'c': factor();
-							break;
-						case 'd': loop_factor();
-							break;
-						default: cout << "non corretto\n";
-							break;
-						}
+			switch (cdswitch) {
+			case 'c': factor();
+				break;
+			case 'd': loop_factor();
+				break;
+			default: cout << "non corretto\n";
+				break;
+			}
 
-					} while (cdswitch != 'c' && cdswitch != 'd');
-			break;
+		} while (cdswitch != 'c' && cdswitch != 'd');
+		break;
 		case 'c': do {
-						cout << "calcolo (c) o debug (d)? \n";
-						cin >> c_vel_d;
-						cdswitch = c_vel_d.at(0);
-						cout << '\n';
+			cout << "calcolo (c) o debug (d)? \n";
+			cin >> c_vel_d;
+			cdswitch = c_vel_d.at(0);
+			cout << '\n';
 
-						switch (cdswitch) {
-						case 'c': degree();
-							break;
-						case 'd': loop_degree();
-							break;
-						default: cout << "non corretto\n";
-							break;
-						}
+			switch (cdswitch) {
+			case 'c': degree();
+				break;
+			case 'd': loop_degree();
+				break;
+			default: cout << "non corretto\n";
+				break;
+			}
 
-					} while (cdswitch != 'c' && cdswitch != 'd');
-			break;
+		} while (cdswitch != 'c' && cdswitch != 'd');
+		break;
 		default: cout << "non corretto\n";
 			break;
 		}
 
 	} while (cfswitch != 'c' && cfswitch != 'f');
-	
+
 	return 0;
 }
