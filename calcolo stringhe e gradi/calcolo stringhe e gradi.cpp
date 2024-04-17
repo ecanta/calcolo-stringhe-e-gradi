@@ -6,7 +6,7 @@
 #include <vector>
 #include <chrono>
 #include <ppl.h>
-
+#define USE_PARALLEL_FOR
 using namespace std;
 int n = 2147483647;
 
@@ -47,13 +47,36 @@ typedef struct {
 	string code;
 } data_t;
 
-// Funzione per ordinare un vettore in ordine crescente
-vector <data_t> sort(vector <data_t> vect){
+typedef struct {
+	int number;
+	string code;
+	int deg;
+} codedata_t;
+
+// Funzione per ordinare un vettore di data_t in ordine crescente
+vector <data_t> SortData(vector <data_t> vect){
 
 	for (int i = 0; i < size(vect) - 1; i++) {
 		for (int j = 0; j < size(vect); j++) {
 			if (vect[i].number < vect[j].number) {
 				data_t change;
+				change = vect[i];
+				vect[i] = vect[j];
+				vect[j] = change;
+			}
+		}
+	}
+
+	return vect;
+}
+
+// Funzione per ordinare un vettore di codedata_t in ordine crescente
+vector <codedata_t> SortCData(vector <codedata_t> vect) {
+
+	for (int i = 0; i < size(vect) - 1; i++) {
+		for (int j = 0; j < size(vect); j++) {
+			if (vect[i].number < vect[j].number) {
+				codedata_t change;
 				change = vect[i];
 				vect[i] = vect[j];
 				vect[j] = change;
@@ -383,6 +406,8 @@ void loop_degree() {
 
 	string n_ = to_string(n);
 	vector <int> PrimeNumber = crivelloEratostene();
+	vector<codedata_t> codedata;
+	mutex mtx;
 
 	int input;
 	int change;
@@ -403,25 +428,46 @@ void loop_degree() {
 	}
 
 	chrono::steady_clock::time_point begin = chrono::steady_clock::now();
+#ifdef USE_PARALLEL_FOR
+	Concurrency::parallel_for(int(lower_bound + 1), upper_bound + 1, [&](int set) {
+#else
 	for (int set = lower_bound + 1; set < upper_bound + 1; set++) {
+#endif
+		codedata_t codedata_element;
 		input = set;
 
 		//calcolo
-		if (input != 1) {
-			string ALGO = Algorithm(input, PrimeNumber);
-			cout << "il codice di " << input << " e' " << '<' << ALGO << '>' << '\n';
+		codedata_element.number = input;
+		codedata_element.code = Algorithm(input, PrimeNumber);
 
-			int counter = 1;
-			do {
-				input = Convert(Algorithm(input, PrimeNumber));
-				counter++;
-				if (input == 1) cout << "il grado e' " << counter << '\n';
+		int counter = 0;
+		do {
+			input = Convert(Algorithm(input, PrimeNumber));
+			counter++;
+			if (input < 4) codedata_element.deg = counter + input;
 
-			} while (input != 1);
-		}
-	}
+		} while (input != 1);
+
+		mtx.lock();
+		codedata.push_back(codedata_element);
+		mtx.unlock();
+
+#ifdef USE_PARALLEL_FOR
+		});
+#endif
+#ifndef USE_PARALLEL_FOR
+}
+#endif
 	chrono::steady_clock::time_point end = chrono::steady_clock::now();
-	cout << "Time difference = " << chrono::duration_cast<chrono::milliseconds>(end - begin).count() << "[ms]" << '\n';
+
+	//output
+	SortCData(codedata);
+	for (int x = 0; x < size(codedata); ++x) {
+		cout << "il codice di " << codedata[x].number << " e' " 
+			 << codedata[x].code << ", il grado e' " << codedata[x].deg << '\n';
+	}
+	cout << "tempo di calcolo = " << chrono::duration_cast<chrono::milliseconds>(end - begin).count() 
+		 << "[ms]" << '\n';
 }
 
 // Funzione di scomposizione
@@ -519,7 +565,7 @@ void loop_factor() {
 	cout << "il programma calcola la fattorizzazione di una serie di numeri\n";
 	cout << "gli estremi dell'intervallo devono essere compresi tra 1 e " << n_ << "\n\n";
 
-	string txt = "inserisci il valore di inizio della ricerca\n";
+	string txt = "inserisci il valore iniziale della ricerca\n";
 	int lower_bound = get_user_num(txt, 1, n);
 
 	txt = "inserisci il valore finale della ricerca\n";
@@ -530,7 +576,7 @@ void loop_factor() {
 		upper_bound = lower_bound;
 		lower_bound = change;
 	}
-
+	
 	chrono::steady_clock::time_point begin = chrono::steady_clock::now();
 	for (int set = lower_bound + 1; set < upper_bound + 1; set++) {
 		input = set;
@@ -545,29 +591,29 @@ void loop_factor() {
 	chrono::steady_clock::time_point end = chrono::steady_clock::now();
 
 	//output
-	sort(data);
-	for (int x = 0; x < size(data); x++) {
+	SortData(data);
+	for (int x = 0; x < size(data); ++x) {
 		cout << data[x].number << " = " << data[x].code << '\n';
 	}
 
-	cout << "Time difference = " << chrono::duration_cast<chrono::milliseconds>(end - begin).count() << "[ms]" << '\n';
+	cout << "tempo di calcolo = " << chrono::duration_cast<chrono::milliseconds>(end - begin).count()
+		 << "[ms]" << '\n';
 }
 
 // Programma principale
 int main()
 {
 	cout << "CALCOLATRICE::\n\n";
-	string c_vel_d;
 	string text;
+	string c_vel_d;
 	char cdswitch;
+	string c_vel_f;
+	char cfswitch;
+
 	text = "fino a quale numero cercare i numeri primi?\n";
 	text.append("un limite piu' alto comporta un tempo di attesa piu' lungo\n");
 	n = get_user_num(text, 2, n);
 	cout << '\n';
-
-	string c_vel_f;
-	char cfswitch;
-
 	do {
 		cout << "codifica (c) oppure scomposizione in fattori primi (f)\n";
 		cin >> c_vel_f;
