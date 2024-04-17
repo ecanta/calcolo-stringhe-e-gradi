@@ -558,6 +558,7 @@ void loop_factor() {
 	string n_ = to_string(n);
 	vector <data_t> data;
 	data_t data_element;
+	mutex mtx;
 
 	int input;
 	int change;
@@ -578,16 +579,27 @@ void loop_factor() {
 	}
 	
 	chrono::steady_clock::time_point begin = chrono::steady_clock::now();
+#ifdef USE_PARALLEL_FOR
+	Concurrency::parallel_for(int(lower_bound + 1), upper_bound + 1, [&](int set) {
+#else
 	for (int set = lower_bound + 1; set < upper_bound + 1; set++) {
+#endif
 		input = set;
 			
 		//calcolo
 		if (input != 1) {
 			data_element.number = input;
 			data_element.code = fact(input);
+			mtx.lock();
 			data.push_back(data_element);
+			mtx.unlock();
 		}
-	}
+#ifdef USE_PARALLEL_FOR
+		});
+#endif
+#ifndef USE_PARALLEL_FOR
+}
+#endif
 	chrono::steady_clock::time_point end = chrono::steady_clock::now();
 
 	//output
