@@ -1,14 +1,32 @@
-//Calcolo stringhe e gradi.cpp, programma per criptare i numeri
+//Calcolo stringhe e gradi.cpp, programma per scomporre i numeri
+
+#define FACTOR_PARALLEL_FOR
+//#define CODE_PARALLEL_FOR
 #include <iostream>
 #include <string>
 #include <cstdio>
 #include <cmath>
 #include <vector>
 #include <chrono>
+#include <thread>
 #include <ppl.h>
-#define USE_PARALLEL_FOR
 using namespace std;
 int n = 2147483647;
+
+// Funzione per creare una barra di progresso
+void progress_Bar(float ratio) {
+	int barWidth = 50;
+
+	cout << "[[";
+	int pos = static_cast<int>(barWidth * ratio);
+	for (int i = 0; i < barWidth; ++i) {
+		if (i < pos) cout << "=";
+		else if (i == pos) cout << ">";
+		else cout << " ";
+	}
+	cout << "]] " << static_cast<int>(ratio * 100.0) << "%\r";
+	cout.flush();
+}
 
 // Funzione per controllare se un numero è primo
 bool prime(int variable) {
@@ -56,7 +74,7 @@ typedef struct {
 // Funzione per ordinare un vettore di data_t in ordine crescente
 vector <data_t> SortData(vector <data_t> vect){
 
-	for (int i = 0; i < size(vect) - 1; i++) {
+	for (int i = 0; i < size(vect); i++) {
 		for (int j = 0; j < size(vect); j++) {
 			if (vect[i].number < vect[j].number) {
 				data_t change;
@@ -73,7 +91,7 @@ vector <data_t> SortData(vector <data_t> vect){
 // Funzione per ordinare un vettore di codedata_t in ordine crescente
 vector <codedata_t> SortCData(vector <codedata_t> vect) {
 
-	for (int i = 0; i < size(vect) - 1; i++) {
+	for (int i = 0; i < size(vect); i++) {
 		for (int j = 0; j < size(vect); j++) {
 			if (vect[i].number < vect[j].number) {
 				codedata_t change;
@@ -426,20 +444,18 @@ void loop_degree() {
 		upper_bound = lower_bound;
 		lower_bound = change;
 	}
+	int codedatalenght = upper_bound - lower_bound;
 
 	chrono::steady_clock::time_point begin = chrono::steady_clock::now();
-#ifdef USE_PARALLEL_FOR
+#ifdef CODE_PARALLEL_FOR
 	Concurrency::parallel_for(int(lower_bound + 1), upper_bound + 1, [&](int set) {
 #else
 	for (int set = lower_bound + 1; set < upper_bound + 1; set++) {
 #endif
-		codedata_t codedata_element;
 		input = set;
 
 		//calcolo
-		codedata_element.number = input;
-		codedata_element.code = Algorithm(input, PrimeNumber);
-
+		codedata_t codedata_element;
 		int counter = 0;
 		do {
 			input = Convert(Algorithm(input, PrimeNumber));
@@ -447,26 +463,31 @@ void loop_degree() {
 			if (input < 4) codedata_element.deg = counter + input;
 
 		} while (input != 1);
+		input = set;
 
+		codedata_element.number = input;
+		codedata_element.code = Algorithm(input, PrimeNumber);
 		mtx.lock();
 		codedata.push_back(codedata_element);
+		float Progress = (float)size(codedata) / codedatalenght;
+		progress_Bar(Progress);
 		mtx.unlock();
 
-#ifdef USE_PARALLEL_FOR
+#ifdef CODE_PARALLEL_FOR
 		});
-#endif
-#ifndef USE_PARALLEL_FOR
+#else
 }
 #endif
 	chrono::steady_clock::time_point end = chrono::steady_clock::now();
 
 	//output
 	SortCData(codedata);
+	cout << "[\n\n";
 	for (int x = 0; x < size(codedata); ++x) {
 		cout << "il codice di " << codedata[x].number << " e' " 
 			 << codedata[x].code << ", il grado e' " << codedata[x].deg << '\n';
 	}
-	cout << "tempo di calcolo = " << chrono::duration_cast<chrono::milliseconds>(end - begin).count() 
+	cout << "\ntempo di calcolo = " << chrono::duration_cast<chrono::milliseconds>(end - begin).count() 
 		 << "[ms]" << '\n';
 }
 
@@ -557,7 +578,7 @@ void factor() {
 void loop_factor() {
 	string n_ = to_string(n);
 	vector <data_t> data;
-	data_t data_element;
+	
 	mutex mtx;
 
 	int input;
@@ -577,9 +598,10 @@ void loop_factor() {
 		upper_bound = lower_bound;
 		lower_bound = change;
 	}
-	
+	int datalenght = upper_bound - lower_bound;
+
 	chrono::steady_clock::time_point begin = chrono::steady_clock::now();
-#ifdef USE_PARALLEL_FOR
+#ifdef FACTOR_PARALLEL_FOR
 	Concurrency::parallel_for(int(lower_bound + 1), upper_bound + 1, [&](int set) {
 #else
 	for (int set = lower_bound + 1; set < upper_bound + 1; set++) {
@@ -587,28 +609,29 @@ void loop_factor() {
 		input = set;
 			
 		//calcolo
-		if (input != 1) {
-			data_element.number = input;
-			data_element.code = fact(input);
-			mtx.lock();
-			data.push_back(data_element);
-			mtx.unlock();
-		}
-#ifdef USE_PARALLEL_FOR
+		data_t data_element;
+		data_element.number = input;
+		data_element.code = fact(input);
+		mtx.lock();
+		data.push_back(data_element);
+		float progress = (float)size(data) / datalenght;
+		progress_Bar(progress);
+		mtx.unlock();
+		
+#ifdef FACTOR_PARALLEL_FOR
 		});
-#endif
-#ifndef USE_PARALLEL_FOR
+#else
 }
 #endif
 	chrono::steady_clock::time_point end = chrono::steady_clock::now();
 
 	//output
-	SortData(data);
+	data = SortData(data);
+	cout << "[\n\n";
 	for (int x = 0; x < size(data); ++x) {
 		cout << data[x].number << " = " << data[x].code << '\n';
 	}
-
-	cout << "tempo di calcolo = " << chrono::duration_cast<chrono::milliseconds>(end - begin).count()
+	cout << "\ntempo di calcolo = " << chrono::duration_cast<chrono::milliseconds>(end - begin).count()
 		 << "[ms]" << '\n';
 }
 
