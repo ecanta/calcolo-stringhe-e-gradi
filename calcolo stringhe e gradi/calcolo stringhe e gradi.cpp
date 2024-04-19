@@ -640,9 +640,8 @@ int main()
 {
 	cout << "CALCOLATRICE::\n\n";
 	string text;
-	string c_vel_d;
+	string vel;
 	char cdswitch;
-	string c_vel_f;
 	char cfswitch;
 
 	text = "fino a quale numero cercare i numeri primi?\n";
@@ -650,18 +649,18 @@ int main()
 	n = get_user_num(text, 2, n);
 	cout << '\n';
 	do {
+		cout << "inserire una stringa di due caratteri seguendo le seguenti regole\n";
+		cout << "primo carattere: \n";
 		cout << "codifica (c) oppure scomposizione in fattori primi (f)\n";
-		cin >> c_vel_f;
-		cfswitch = c_vel_f.at(0);
-		cout << '\n';
+		cout << "secondo carattere: \n";
+		cout << "calcolo (c) oppure debug (d)\n";
+		cin >> vel;
+		if (vel.size() == 1) vel += ' ';
+		cfswitch = vel.at(0);
+		cdswitch = vel.at(1);
 
 		switch (cfswitch) {
 		case 'f': do {
-			cout << "calcolo (c) o debug (d)? \n";
-			cin >> c_vel_d;
-			cdswitch = c_vel_d.at(0);
-			cout << '\n';
-
 			switch (cdswitch) {
 			case 'c': factor();
 				break;
@@ -674,11 +673,6 @@ int main()
 		} while (cdswitch != 'c' && cdswitch != 'd');
 		break;
 		case 'c': do {
-			cout << "calcolo (c) o debug (d)? \n";
-			cin >> c_vel_d;
-			cdswitch = c_vel_d.at(0);
-			cout << '\n';
-
 			switch (cdswitch) {
 			case 'c': degree();
 				break;
