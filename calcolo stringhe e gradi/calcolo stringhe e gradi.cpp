@@ -22,7 +22,7 @@ void progress_Bar(float ratio, int barWidth) {
 		else cout << " ";
 	}
 	int ratio2 = (int)(ratio * 1000.0);
-	float ratio3 = (float)((int)(ratio * 1000.0) / 10);
+	float ratio3 = (float)ratio2 / 10;
 	cout << "]] " << ratio3 << "%\r";
 	cout.flush();
 }
@@ -639,7 +639,14 @@ int main()
 	text = "fino a quale numero cercare i numeri primi?\n";
 	text.append("un limite piu' alto comporta un tempo di attesa piu' lungo\n");
 	n = get_user_num(text, 2, n);
+
+	chrono::steady_clock::time_point begin = chrono::steady_clock::now();
 	vector <int> PrimeNumber = crivelloEratostene();
+	chrono::steady_clock::time_point end = chrono::steady_clock::now();
+
+	cout << "tempo di calcolo numeri primi = " 
+		 << chrono::duration_cast<chrono::milliseconds>(end - begin).count()
+		 << "[ms]" << "\n\n";
 
 	do {
 		cout << "inserire una stringa di due caratteri seguendo le seguenti regole\n";
