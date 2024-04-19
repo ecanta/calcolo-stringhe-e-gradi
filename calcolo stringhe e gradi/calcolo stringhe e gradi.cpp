@@ -651,9 +651,9 @@ int main()
 	do {
 		cout << "inserire una stringa di due caratteri seguendo le seguenti regole\n";
 		cout << "primo carattere: \n";
-		cout << "codifica (c) oppure scomposizione in fattori primi (f)\n";
+		cout << "'c' = codifica e 'f' = scomposizione in fattori primi\n";
 		cout << "secondo carattere: \n";
-		cout << "calcolo (c) oppure debug (d)\n";
+		cout << "'c' = calcolo e 'd' = debug\n";
 		cin >> vel;
 		if (vel.size() == 1) vel += ' ';
 		cfswitch = vel.at(0);
