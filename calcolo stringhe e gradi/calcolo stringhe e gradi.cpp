@@ -630,58 +630,95 @@ void loop_factor(vector <int> PrimeNumber) {
 
 // Programma principale
 int main()
-{
-	cout << "CALCOLATRICE::\n\n";
+{	
 	bool stop = 0;
-	string text;
-	string vel;
-
-	text = "fino a quale numero cercare i numeri primi?\n";
-	text.append("un limite piu' alto comporta un tempo di attesa piu' lungo\n");
-	n = get_user_num(text, 2, n);
-
-	chrono::steady_clock::time_point begin = chrono::steady_clock::now();
-	vector <int> PrimeNumber = crivelloEratostene();
-	chrono::steady_clock::time_point end = chrono::steady_clock::now();
-
-	cout << "tempo di calcolo numeri primi = " 
-		 << chrono::duration_cast<chrono::milliseconds>(end - begin).count()
-		 << "[ms]" << "\n\n";
-
+	bool do_not_skip = 1;
+	bool Unlock_prime_input = 1;
 	do {
-		cout << "inserire una stringa di due caratteri seguendo le seguenti regole\n";
-		cout << "primo carattere: \n";
-		cout << "'c' = codifica e 'f' = scomposizione in fattori primi\n";
-		cout << "secondo carattere: \n";
-		cout << "'c' = calcolo e 'd' = debug\n";
-		cin >> vel;
-		if (vel.size() == 1) vel += ' ';
+		vector <int> PrimeNumber;
+		cout << "CALCOLATRICE::\n\n";
+		string text;
+		string vel;
 
-		switch (vel.at(0)) {
-		case 'f': switch (vel.at(1)) {
-					case 'c': factor(PrimeNumber);
-						break;
-					case 'd': loop_factor(PrimeNumber);
-						break;
-					default: cout << "non corretto\n";
-						stop = 1;
-						break;
-					}
-		break;
-		case 'c': switch (vel.at(1)) {
-					case 'c': degree(PrimeNumber);
-						break;
-					case 'd': loop_degree(PrimeNumber);
-						break;
-					default: cout << "non corretto\n";
-						stop = 1;
-						break;
-					}
-		break;
-		default: cout << "non corretto\n";
-			stop = 1;
-			break;
+		if (Unlock_prime_input) {
+			text = "fino a quale numero cercare i numeri primi?\n";
+			text.append("un limite piu' alto comporta un tempo di attesa piu' lungo\n");
+			n = get_user_num(text, 2, n);
+		
+			chrono::steady_clock::time_point begin = chrono::steady_clock::now();
+			PrimeNumber = crivelloEratostene();
+			chrono::steady_clock::time_point end = chrono::steady_clock::now();
+
+			cout << "tempo di calcolo numeri primi = " 
+				 << chrono::duration_cast<chrono::milliseconds>(end - begin).count()
+				 << "[ms]" << "\n\n";
 		}
-	} while (stop);
-	return 0;
+		do {
+			cout << "scegli opzioni::\n";
+			cout << "inserire una stringa di almeno due caratteri seguendo le seguenti regole\n";
+			cout << "primo carattere: \n";
+			cout << "'0' = blocca input numeri primi\n";
+			cout << "'1' = sblocca input numeri primi\n";
+			cout << "'.' = fine programma\n";
+			cout << "'c' = codifica e 'f' = scomposizione in fattori primi\n";
+			cout << "secondo carattere: \n";
+			cout << "'c' = calcolo e 'd' = debug\n";
+			cin >> vel;
+
+			if (vel.size() == 1) {
+				switch (vel.at(0)) {
+				case '0': Unlock_prime_input = 0;
+					cout << "input numeri primi bloccato\n";
+					do_not_skip = 0;
+					break;
+				case '1': Unlock_prime_input = 1;
+					cout << "input numeri primi sbloccato\n";
+					break;
+				case '.': return 0;
+					break;
+				default: vel += ' ';
+					break;
+				}
+			}
+			if (vel.at(0) == '1') {
+				do {
+					cout << "scegli opzioni:: (...)\n";
+					cin >> vel;
+					if (vel.size() > 1) {
+						stop = vel.at(1) != 'c' && vel.at(1) != 'd';
+					}
+					if (stop == 0) {
+						stop = vel.at(0) != 'c' && vel.at(0) != 'f';
+					}
+				} while (stop);
+			}
+			stop = 0;
+			if (do_not_skip) switch (vel.at(0)) {
+			case 'f': switch (vel.at(1)) {
+						case 'c': factor(PrimeNumber);
+							break;
+						case 'd': loop_factor(PrimeNumber);
+							break;
+						default: cout << "non corretto\n";
+							stop = 1;
+							break;
+						}
+			break;
+			case 'c': switch (vel.at(1)) {
+						case 'c': degree(PrimeNumber);
+							break;
+						case 'd': loop_degree(PrimeNumber);
+							break;
+						default: cout << "non corretto\n";
+							stop = 1;
+							break;
+						}
+			break;
+			default: cout << "non corretto\n";
+				stop = 1;
+				break;
+			}
+		} while (stop);
+
+	} while (1 == 1);
 }
