@@ -1,6 +1,7 @@
 //Calcolo stringhe e gradi.cpp, programma per scomporre i numeri
 
 //#define CODE_PARALLEL_FOR
+
 #include <iostream>
 #include <string>
 #include <cstdio>
@@ -13,7 +14,7 @@ using namespace std;
 int n = 2147483647;
 
 // Funzione per creare una barra di progresso
-void progress_Bar(float ratio, int barWidth) {
+void progress_Bar(double ratio, int barWidth) {
 	cout << "[[";
 	int pos = (int)(barWidth * ratio);
 	for (int i = 0; i < barWidth; ++i) {
@@ -22,7 +23,7 @@ void progress_Bar(float ratio, int barWidth) {
 		else cout << " ";
 	}
 	int ratio2 = (int)(ratio * 1000.0);
-	float ratio3 = (float)ratio2 / 10;
+	double ratio3 = (double)ratio2 / 10;
 	cout << "]] " << ratio3 << "%\r";
 	cout.flush();
 }
@@ -37,7 +38,7 @@ bool prime(int variable) {
 }
 
 // Funzione per trovare la posizione di un elemento in un vettore
-int position_in_vector(int number, vector <int> vect) {
+int position_in_the_vector(int number, vector <int> vect) {
 	for (int a = 0; a < size(vect); a++)
 		if (vect[a] == number) return a;
 }
@@ -48,13 +49,13 @@ vector<int> crivelloEratostene() {
 	vector<int> primes;
 	int Barwidth = 80;
 
-	for (int p = 2; p * p <= n; p++) {
+	for (int p = 2; pow(p, 2) <= n; p++) {
 		if (isPrime[p]) {
 			for (int i = pow(p, 2); i <= n; i += p)
 				isPrime[i] = false;
 		}
-		if (n > 150000) {
-			float progress = ((float)(p * p) / n) + (float) 1/100;
+		if (n > 200000) {
+			float progress = ((float)(pow(p, 2)) / n) + (float) 1/100;
 			progress_Bar(progress, Barwidth);
 		}
 	}
@@ -193,7 +194,7 @@ string Algorithm(int input, vector <int> PrimeNumber) {
 
 		do {
 			while (prime(analyse)) {
-				analyse = 1 + position_in_vector(analyse, PrimeNumber);
+				analyse = 1 + position_in_the_vector(analyse, PrimeNumber);
 				iso_analyse = to_string(analyse);
 				bound_while = thenumber.find(')');
 				thenumber.erase(0, bound_while);
@@ -472,7 +473,7 @@ void loop_degree(vector <int> PrimeNumber) {
 		codedata_element.code = Algorithm(input, PrimeNumber);
 		mtx.lock();
 		codedata.push_back(codedata_element);
-		float Progress = (float)size(codedata) / codedatalenght;
+		double Progress = (double)size(codedata) / codedatalenght;
 		progress_Bar(Progress, Barwidth);
 		mtx.unlock();
 
@@ -610,7 +611,7 @@ void loop_factor(vector <int> PrimeNumber) {
 		data_element.code = fact(input, PrimeNumber);
 		mtx.lock();
 		data.push_back(data_element);
-		float progress = (float)size(data) / datalenght;
+		double progress = (double)size(data) / datalenght;
 		progress_Bar(progress, Barwidth);
 		mtx.unlock();
 		
