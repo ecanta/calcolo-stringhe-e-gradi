@@ -673,6 +673,7 @@ int main()
 			}
 			if (vel.at(0) == '1') {
 				do {
+					do_not_skip = 1;
 					cout << "scegli opzioni:: (...)\n";
 					cin >> vel;
 					if (vel.size() > 1) {
