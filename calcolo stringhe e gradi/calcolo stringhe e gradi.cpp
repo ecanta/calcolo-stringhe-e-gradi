@@ -10,7 +10,9 @@
 #include <chrono>
 #include <thread>
 #include <ppl.h>
+
 using namespace std;
+using namespace chrono;
 int n = 2147483647;
 
 // Funzione per creare una barra di progresso
@@ -70,12 +72,15 @@ typedef struct {
 	int number;
 	string code;
 } data_t;
-
 typedef struct {
 	int number;
 	string code;
 	int deg;
 } codedata_t;
+typedef struct {
+	int factors;
+	int exp;
+} compost_t;
 
 // Funzione per ordinare un vettore di data_t in ordine crescente
 vector <data_t> SortData(vector <data_t> vect){
@@ -111,15 +116,13 @@ vector <codedata_t> SortCData(vector <codedata_t> vect) {
 	return vect;
 }
 
-// Funzione per creare la criptatura di un numero
-string Algorithm(int input, vector <int> PrimeNumber) {
-
-	int PrimeFactors[15];
-	for (int e = 0; e < 15; e++)
-		PrimeFactors[e] = 0;
-	int exponents[15];
-	for (int f = 0; f < 15; f++)
-		exponents[f] = 1;
+// Funzione per scomporre un numero in fattori primi
+vector <compost_t> decompose(int input, vector <int> PrimeNumber) {
+	vector <compost_t> output;
+	compost_t outelement;
+	outelement.factors = 0;
+	outelement.exp = 1;
+	for (int i = 0; i < 15; i++) output.push_back(outelement);
 	int index = 0;
 	int d;
 
@@ -127,9 +130,9 @@ string Algorithm(int input, vector <int> PrimeNumber) {
 	for (d = 0; pow(PrimeNumber[d], 2) <= input; d++) {
 		if (input != 1) {
 			if (input % PrimeNumber[d] == 0) {
-				if (PrimeFactors[index] == PrimeNumber[d])
-					exponents[index]++;
-				else PrimeFactors[index] = PrimeNumber[d];
+				if (output[index].factors == PrimeNumber[d])
+					output[index].exp++;
+				else output[index].factors = PrimeNumber[d];
 				input /= PrimeNumber[d];
 				if (input % PrimeNumber[d] != 0) {
 					index++;
@@ -138,23 +141,34 @@ string Algorithm(int input, vector <int> PrimeNumber) {
 			}
 		}
 	}
-	if (PrimeFactors[index] == input)
-		exponents[index]++;
-	else PrimeFactors[index] = input;
+	if (output[index].factors == input)
+		output[index].exp++;
+	else output[index].factors = input;
 	input = 1;
 	//
 
-	//conta dei fattori primi
+	return output;
+}
+
+// Funzione per creare la criptatura di un numero
+string Algorithm(int input, vector <int> PrimeNumber) 
+{
+	//inizializzazione
+	vector <compost_t> expfactors = decompose(input, PrimeNumber);
+	int PrimeFactors[15];
+	int exponents[15];
 	int factors;
 	bool tag2 = 1;
-	for (int count = 0; count < 15; count++) {
-		if (tag2) {
-			if (PrimeFactors[count] == 0) {
-				factors = count;
-				tag2 = 0;
-			}
+	for (int e = 0; e < 15; e++) {
+		PrimeFactors[e] = expfactors[e].factors;
+		exponents[e] = expfactors[e].exp;
+		if (tag2 && (PrimeFactors[e] == 0)) {
+			factors = e;
+			tag2 = 0;
 		}
 	}
+	int index = 0;
+	int d;
 	//
 
 	//calcolo dei monomi
@@ -288,8 +302,8 @@ string Algorithm(int input, vector <int> PrimeNumber) {
 }
 
 // Funzione per sommare la criptatura
-int Convert(string input) {
-
+int Convert(string input) 
+{
 	int output = 0;
 
 	//rimozione punti
@@ -450,7 +464,7 @@ void loop_degree(vector <int> PrimeNumber) {
 	}
 	int codedatalenght = upper_bound - lower_bound;
 
-	chrono::steady_clock::time_point begin = chrono::steady_clock::now();
+	steady_clock::time_point begin = steady_clock::now();
 #ifdef CODE_PARALLEL_FOR
 	Concurrency::parallel_for(int(lower_bound + 1), upper_bound + 1, [&](int set) {
 #else
@@ -482,7 +496,7 @@ void loop_degree(vector <int> PrimeNumber) {
 #else
 }
 #endif
-	chrono::steady_clock::time_point end = chrono::steady_clock::now();
+	steady_clock::time_point end = steady_clock::now();
 
 	//output
 	SortCData(codedata);
@@ -491,53 +505,29 @@ void loop_degree(vector <int> PrimeNumber) {
 		cout << "il codice di " << codedata[x].number << " e' " 
 			 << codedata[x].code << ", il grado e' " << codedata[x].deg << '\n';
 	}
-	cout << "\ntempo di calcolo = " << chrono::duration_cast<chrono::milliseconds>(end - begin).count() 
+	cout << "\ntempo di calcolo = " << duration_cast<milliseconds>(end - begin).count() 
 		 << "[ms]" << '\n';
 }
 
-// Funzione di scomposizione
+// Funzione per stampare la fattorizzazione di un numero
 string fact(int input, vector <int> PrimeNumber) {
+
+	//inizializzazione
+	vector <compost_t> expfactors = decompose(input, PrimeNumber);
 	int PrimeFactors[15];
-	for (int e = 0; e < 15; e++)
-		PrimeFactors[e] = 0;
 	int exponents[15];
-	for (int f = 0; f < 15; f++)
-		exponents[f] = 1;
-	int index = 0;
-	int d;
-
-	//scomposizione in fattori primi
-	for (d = 0; pow(PrimeNumber[d], 2) <= input; d++) {
-		if (input != 1) {
-			if (input % PrimeNumber[d] == 0) {
-				if (PrimeFactors[index] == PrimeNumber[d])
-					exponents[index]++;
-				else PrimeFactors[index] = PrimeNumber[d];
-				input /= PrimeNumber[d];
-				if (input % PrimeNumber[d] != 0) {
-					index++;
-				}
-				d--;
-			}
-		}
-	}
-	if (PrimeFactors[index] == input)
-		exponents[index]++;
-	else PrimeFactors[index] = input;
-	input = 1;
-	//
-
-	//conta dei fattori primi
 	int factors;
 	bool tag2 = 1;
-	for (int count = 0; count < 15; count++) {
-		if (tag2) {
-			if (PrimeFactors[count] == 0) {
-				factors = count;
-				tag2 = 0;
-			}
+	for (int e = 0; e < 15; e++) {
+		PrimeFactors[e] = expfactors[e].factors;
+		exponents[e] = expfactors[e].exp;
+		if (tag2 && (PrimeFactors[e] == 0)) {
+			factors = e;
+			tag2 = 0;
 		}
 	}
+	int index = 0;
+	int d;
 	//
 
 	//costruzione dell'output
@@ -601,7 +591,7 @@ void loop_factor(vector <int> PrimeNumber) {
 	}
 	int datalenght = upper_bound - lower_bound;
 
-	chrono::steady_clock::time_point begin = chrono::steady_clock::now();
+	steady_clock::time_point begin = steady_clock::now();
 	Concurrency::parallel_for(int(lower_bound + 1), upper_bound + 1, [&](int set) {
 		
 		//calcolo
@@ -617,7 +607,7 @@ void loop_factor(vector <int> PrimeNumber) {
 		
 		});
 
-	chrono::steady_clock::time_point end = chrono::steady_clock::now();
+	steady_clock::time_point end = steady_clock::now();
 
 	//output
 	data = SortData(data);
@@ -625,7 +615,7 @@ void loop_factor(vector <int> PrimeNumber) {
 	for (int x = 0; x < size(data); ++x) {
 		cout << data[x].number << " = " << data[x].code << '\n';
 	}
-	cout << "\ntempo di calcolo = " << chrono::duration_cast<chrono::milliseconds>(end - begin).count()
+	cout << "\ntempo di calcolo = " << duration_cast<milliseconds>(end - begin).count()
 		 << "[ms]" << '\n';
 }
 
@@ -646,12 +636,12 @@ int main()
 			text.append("un limite piu' alto comporta un tempo di attesa piu' lungo\n");
 			n = get_user_num(text, 2, n);
 		
-			chrono::steady_clock::time_point begin = chrono::steady_clock::now();
+			steady_clock::time_point begin = steady_clock::now();
 			PrimeNumber = crivelloEratostene();
-			chrono::steady_clock::time_point end = chrono::steady_clock::now();
+			steady_clock::time_point end = steady_clock::now();
 
 			cout << "tempo di calcolo numeri primi = " 
-				 << chrono::duration_cast<chrono::milliseconds>(end - begin).count()
+				 << duration_cast<milliseconds>(end - begin).count()
 				 << "[ms]" << "\n\n";
 		}
 		do {
