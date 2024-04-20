@@ -10,10 +10,10 @@
 #include <chrono>
 #include <thread>
 #include <ppl.h>
-
 using namespace std;
 using namespace chrono;
-int n = 2147483647;
+
+__int64 n = 2147483647;
 
 // Funzione per creare una barra di progresso
 void progress_Bar(double ratio, int barWidth) {
@@ -623,11 +623,11 @@ void loop_factor(vector <int> PrimeNumber) {
 int main()
 {	
 	bool stop = 0;
-	bool do_not_skip = 1;
 	bool Unlock_prime_input = 1;
+	vector <int> PrimeNumber;
 	do {
-		vector <int> PrimeNumber;
 		cout << "CALCOLATRICE::\n\n";
+		bool do_not_skip = 1;
 		string text;
 		string vel;
 
