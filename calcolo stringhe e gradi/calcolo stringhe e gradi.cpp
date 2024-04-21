@@ -5,20 +5,19 @@
 #include <cstdio>
 #include <cmath>
 #include <vector>
+#include <unordered_map>
 #include <chrono>
 #include <thread>
 #include <ppl.h>
 using namespace std;
 using namespace chrono;
-
-__int64 n = 2147483647;
-
 /*class ResultPrinters {
 	public:
 		ResultPrinters() {
 		}
 		void Void(){}
 };*/
+__int64 n = 2147483647;
 
 // Funzione per creare una barra di progresso
 void progress_Bar(double ratio, int barWidth) {
@@ -77,6 +76,7 @@ typedef struct {
 	int number;
 	string code;
 	int deg;
+	string expression;
 } data_t;
 typedef struct {
 	int factors;
@@ -445,6 +445,7 @@ data_t coredegree(int set, vector <int> PrimeNumber) {
 	input = set;
 	output.number = input;
 	output.code = Algorithm(input, PrimeNumber);
+	output.expression = "";
 	return output;
 }
 
@@ -452,16 +453,28 @@ data_t coredegree(int set, vector <int> PrimeNumber) {
 data_t corefactor(int set, vector <int> PrimeNumber) {
 	data_t output;
 	output.number = set;
-	output.code = fact(set, PrimeNumber);
+	output.code = "";
 	output.deg = 0;
+	output.expression = fact(set, PrimeNumber);
+	return output;
+}
+
+//Algoritmo che combina scomposizione e codifica
+data_t NucleusAll(int set, vector <int> PrimeNumber) {
+	data_t A = coredegree(set, PrimeNumber);
+	data_t B = corefactor(set, PrimeNumber);
+	data_t output;
+	output.number = set;
+	output.code = A.code;
+	output.deg = A.deg;
+	output.expression = B.expression;
 	return output;
 }
 
 // Funzione per ripetere un certo algoritmo
-void repeater(vector <int> PrimeNumber, string message, 
-	string message2, data_t nucleus(int input, vector <int> PrimeNumber))
+void repeater(vector <int> PrimeNumber, string message
+	, data_t nucleus(int input, vector <int> PrimeNumber))
 {
-
 	string n_ = to_string(n);
 	int input;
 	data_t result;
@@ -471,19 +484,23 @@ void repeater(vector <int> PrimeNumber, string message,
 		input = get_user_num(txt, 1, n);
 		if (input != 1) {
 			result = nucleus(input, PrimeNumber);
-			cout << message2 << " di " << result.number << " e' <"
-				<< result.code << '>';
-			if (result.deg != 0) {
-				cout << ", il grado e' " << result.deg;
+			cout << "numero " << result.number << ":\n";
+			if (!result.code.empty()) {
+				cout << "il codice e' <" << result.code << ">\n";
 			}
-			cout << '\n';
+			if (result.deg != 0) {
+				cout << "il grado e' " << result.deg << '\n';
+			}
+			if (!result.expression.empty()) {
+				cout << "la fattorizzazione e' " << result.expression << '\n';
+			}
 		}
 	} while (input != 1);
 }
 
 // Funzione per ripetere su una serie un certo algoritmo
-void loop(vector <int> PrimeNumber, string message, string messagecout, 
-	      data_t nucleus(int set, vector <int> PrimeNumber))
+void loop(vector <int> PrimeNumber, string message
+	,data_t nucleus(int set, vector <int> PrimeNumber))
 {
 	string n_ = to_string(n);
 	vector <data_t> data;
@@ -525,15 +542,39 @@ void loop(vector <int> PrimeNumber, string message, string messagecout,
 	data = SortData(data);
 	for (int c = 0; c < Barwidth + 11; c++) cout << ' '; cout << '\n';
 	for (int x = 0; x < size(data); ++x) {
-		cout << messagecout << " di " << data[x].number << " e' <"
-			 << data[x].code << '>';
-		if (data[x].deg != 0) {
-			cout << ", il grado e' " << data[x].deg;
+		cout << "numero " << data[x].number << ":\n";
+		if (!data[x].code.empty()) {
+			cout << "il codice e' <" << data[x].code << ">\n";
 		}
-		cout << '\n';
+		if (data[x].deg != 0) {
+			cout << "il grado e' " << data[x].deg << '\n';
+		}
+		if (!data[x].expression.empty()) {
+			cout << "la fattorizzazione e' " << data[x].expression << '\n';
+		}
 	}
 	cout << "\ntempo di calcolo = " << duration_cast<milliseconds>(end - begin).count()
 		 << "[ms]" << '\n';
+}
+
+enum switchcase { cc, cf, ccf, dc, df, dcf, r };
+static unordered_map<string, switchcase> stringToEnumMap = {
+	{"cc", switchcase::cc},
+	{"cf", switchcase::cf},
+	{"ccf", switchcase::ccf},
+	{"dc", switchcase::dc },
+	{"df", switchcase::df},
+	{"dcf", switchcase::dcf}
+};
+switchcase convertStringToEnum(string& str) {
+	auto it = stringToEnumMap.find(str);
+	if (it != stringToEnumMap.end())
+		return it->second;
+	else {
+		stringToEnumMap.insert({ str , r });
+		it = stringToEnumMap.find(str);
+		return it->second;
+	}
 }
 
 // Programma principale
@@ -543,17 +584,19 @@ int main()
 	string deg_message = "il programma calcola il codice e il grado di una serie di numeri";
 	string fact_message = "il programma scompone un numero in fattori primi";
 	string message = "il programma converte un numero nel corrispondente codice e ne calcola il grado";
+	string AllMessage = "il programma calcola factor, codice e grado";
 	// ResultPrinters print;
 	// print.Void();
 	
-	bool stop = 0;
 	bool lock_prime_input = 0;
 	vector <int> PrimeNumber;
 	do {
 		cout << "CALCOLATRICE::\n\n";
-		bool skip = 0;
+		bool stop = 0;
+		bool skip = 1;
 		string text;
 		string vel;
+		switchcase option;
 
 		if (!lock_prime_input) {
 			n = 2147483647;
@@ -569,25 +612,32 @@ int main()
 				 << duration_cast<milliseconds>(end - begin).count() - 1
 				 << "[ms]" << "\n\n";
 		}
-		do {
-			cout << "scegli opzioni::\n";
-			cout << "inserire una stringa di almeno due caratteri seguendo le seguenti regole\n";
-			cout << "primo carattere: \n";
-			cout << "'0' = blocca input numeri primi\n";
-			cout << "'1' = sblocca input numeri primi\n";
-			cout << "'.' = fine programma\n";
-			cout << "'c' = codifica e 'f' = scomposizione in fattori primi\n";
-			cout << "secondo carattere: \n";
-			cout << "'c' = calcolo e 'd' = debug\n";
-			cin >> vel;
+		cout << "scegli opzioni::\n";
+		cout << "se stringa di un carattere:\n";
+		cout << "'0' = blocca input numeri primi\n";
+		cout << "'1' = sblocca input numeri primi\n";
+		cout << "'.' = fine programma\n";
+		cout << "altrimenti:\n";
+		cout << "primo carattere: \n";
+		cout << "'c' = calcolo\n";
+		cout << "'d' = debug\n";
+		cout << "caratteri seguenti:\n";
+		cout << "'c' = codifica\n";
+		cout << "'f' = scomposizione in fattori primi\n";
+		cout << "'cf' = codifica e scomposizione (impiega piu' tempo)\n\n";
+		cin >> vel;
+		option = convertStringToEnum(vel);
 
+		do {
 			if (vel.size() == 1) {
+				skip = 0;
 				switch (vel.at(0)) {
-				case '0': lock_prime_input = 1;
+				case '0': 
+					lock_prime_input = 1;
 					cout << "input numeri primi bloccato\n";
-					skip = 1;
 					break;
-				case '1': lock_prime_input = 0;
+				case '1': 
+					lock_prime_input = 0;
 					cout << "input numeri primi sbloccato\n";
 					break;
 				case '.': return 0;
@@ -596,51 +646,45 @@ int main()
 					break;
 				}
 			}
-			if (vel.at(0) == '1') {
-				do {
-					skip = 0;
-					cout << "scegli opzioni:: (...)\n";
-					cin >> vel;
-					if (vel.size() > 1) {
-						stop = vel.at(1) != 'c' && vel.at(1) != 'd';
-					}
-					if (!stop) {
-						stop = vel.at(0) != 'c' && vel.at(0) != 'f';
-					}
-				} while (stop);
-			}
+			if (option == r) do {
+				skip = 0;
+				cout << "scegli opzioni:: (...)\n";
+				cin >> vel;
+				if (vel.size() == 1) {
+					stop = vel.at(0) != '0' 
+						&& vel.at(0) != '1' && vel.at(0) != '.';
+				}
+				else {
+					option = convertStringToEnum(vel);
+					stop = option == r;
+					skip = option != r;
+				}
+				if(stop) cout << "non corretto\n";
+			} while (stop);
 			stop = 0;
-			if (!skip) switch (vel.at(0)) {
-			case 'f': switch (vel.at(1)) {
-						case 'c': repeater(PrimeNumber, fact_message
-							, "la fattorizzazione", corefactor);
-							break;
-						case 'd': loop(PrimeNumber, defact_message,
-							"la fattorizzazione", corefactor);
-							break;
-						default: cout << "non corretto\n";
-							stop = 1;
-							break;
-						}
-			break;
-			case 'c': switch (vel.at(1)) {
-						case 'c': repeater(PrimeNumber, message
-							, "il codice", coredegree);
-							break;
-						case 'd': loop(PrimeNumber, deg_message,
-							"il codice", coredegree);
-							break;
-						default: cout << "non corretto\n";
-							stop = 1;
-							break;
-						}
-			break;
-			default: cout << "non corretto\n";
-				stop = 1;
-				break;
-			}
-		} while (stop);
 
+		} while (!skip);
+		cout << "\n\n";
+		switch (option) {
+		case cc:
+			repeater(PrimeNumber, message, coredegree);
+			break;
+		case cf:
+			repeater(PrimeNumber, fact_message, corefactor);
+			break;
+		case ccf:
+			repeater(PrimeNumber, AllMessage, NucleusAll);
+			break;
+		case dc:
+			loop(PrimeNumber, deg_message, coredegree); 
+			break;
+		case df:
+			loop(PrimeNumber, defact_message, corefactor);
+			break;
+		case dcf:
+			loop(PrimeNumber, AllMessage, NucleusAll);
+			break;
+		}
 	} while (0 == 0);
 }
 // FINE...
