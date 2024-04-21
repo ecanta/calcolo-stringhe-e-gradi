@@ -1,7 +1,5 @@
 //Calcolo stringhe e gradi.cpp, programma per scomporre i numeri
 
-//#define CODE_PARALLEL_FOR
-
 #include <iostream>
 #include <string>
 #include <cstdio>
@@ -14,6 +12,13 @@ using namespace std;
 using namespace chrono;
 
 __int64 n = 2147483647;
+
+/*class ResultPrinters {
+	public:
+		ResultPrinters() {
+		}
+		void Void(){}
+};*/
 
 // Funzione per creare una barra di progresso
 void progress_Bar(double ratio, int barWidth) {
@@ -71,41 +76,20 @@ vector<int> crivelloEratostene() {
 typedef struct {
 	int number;
 	string code;
-} data_t;
-typedef struct {
-	int number;
-	string code;
 	int deg;
-} codedata_t;
+} data_t;
 typedef struct {
 	int factors;
 	int exp;
 } compost_t;
 
-// Funzione per ordinare un vettore di data_t in ordine crescente
-vector <data_t> SortData(vector <data_t> vect){
+// Funzione per ordinare un vettore di struct in ordine crescente
+vector <data_t> SortData(vector <data_t> vect) {
 
 	for (int i = 0; i < size(vect); i++) {
 		for (int j = 0; j < size(vect); j++) {
 			if (vect[i].number < vect[j].number) {
 				data_t change;
-				change = vect[i];
-				vect[i] = vect[j];
-				vect[j] = change;
-			}
-		}
-	}
-
-	return vect;
-}
-
-// Funzione per ordinare un vettore di codedata_t in ordine crescente
-vector <codedata_t> SortCData(vector <codedata_t> vect) {
-
-	for (int i = 0; i < size(vect); i++) {
-		for (int j = 0; j < size(vect); j++) {
-			if (vect[i].number < vect[j].number) {
-				codedata_t change;
 				change = vect[i];
 				vect[i] = vect[j];
 				vect[j] = change;
@@ -247,7 +231,7 @@ string Algorithm(int input, vector <int> PrimeNumber)
 				}
 				repeat = 1;
 			}
-			if ((analyse != 1) && (prime(analyse) == 0)) {
+			if ((analyse != 1) && !prime(analyse)) {
 				iso_analyse = Algorithm(analyse, PrimeNumber);
 				bound = thenumber.find(')');
 				thenumber.erase(0, bound);
@@ -384,129 +368,32 @@ int Convert(string input)
 // Funzione per ottenere l'input controllato
 int get_user_num(string txt, int lw, int bound) {
 
-	int user_num;
+	__int64 user_num;
 	string check;
 	do {
 		bool error = 1;
 		bool general_error = 0;
 		cout << txt;
 		cin >> check;
-
-		char digits[] = { '0','1','2','3','4','5','6','7','8','9' };
-		for (int ch = 0; ch < check.size(); ch++) {
-			for (int chi = 0; chi < 10; chi++) {
-				if (check.at(ch) == digits[chi]) error = 0;
+		if (check.size() > 10) user_num = 0;
+		else {
+			char digits[] = { '0','1','2','3','4','5','6','7','8','9' };
+			for (int ch = 0; ch < check.size(); ch++) {
+				for (int chi = 0; chi < 10; chi++) {
+					if (check.at(ch) == digits[chi]) {
+						error = 0;
+					}
+				}
+				if (error) general_error = 1;
+				error = 1;
 			}
-			if (error) general_error = 1;
-			error = 1;
+			if (general_error) user_num = 0;
+			else user_num = stoull(check);
 		}
-		if (general_error) user_num = 0;
-		else user_num = stoi(check);
 
 	} while (user_num < lw || user_num > bound);
 
 	return user_num;
-}
-
-// Funzione per calcolare il grado di un numero
-void degree(vector <int> PrimeNumber) {
-
-	string n_ = to_string(n);
-	int input;
-	cout << "il programma converte un numero nel corrispondente codice e ne calcola il grado\n\n";
-
-	do {
-		string txt = "inserire un numero tra 2 e " + n_ + " (1 = fine input)\n";
-		input = get_user_num(txt, 1, n);
-
-		//calcolo
-		if (input != 1) {
-			string ALGO = Algorithm(input, PrimeNumber);
-			cout << "il codice di " << input << " e' " << '<' << ALGO << '>' << '\n';
-
-			int counter = 1;
-			do {
-
-				input = Convert(Algorithm(input, PrimeNumber));
-				counter++;
-				if (input == 1) cout << "il grado e' " << counter << '\n';
-
-			} while (input != 1);
-			input = 0;
-		}
-	} while (input != 1);
-}
-
-// Funzione per calcolare il grado di una serie di numeri
-void loop_degree(vector <int> PrimeNumber) {
-
-	string n_ = to_string(n);
-	vector<codedata_t> codedata;
-	mutex mtx;
-	int Barwidth = 60;
-
-	int input;
-	int change;
-	cout << "debug::\n\n";
-	cout << "il programma calcola il codice e il grado di una serie di numeri\n";
-	cout << "gli estremi dell'intervallo devono essere compresi tra 1 e " << n_ << "\n\n";
-
-	string txt = "inserisci il valore di inizio della ricerca\n";
-	int lower_bound = get_user_num(txt, 1, n);
-
-	txt = "inserisci il valore finale della ricerca\n";
-	int upper_bound = get_user_num(txt, 1, n);
-
-	if (upper_bound < lower_bound) {
-		change = upper_bound;
-		upper_bound = lower_bound;
-		lower_bound = change;
-	}
-	int codedatalenght = upper_bound - lower_bound;
-
-	steady_clock::time_point begin = steady_clock::now();
-#ifdef CODE_PARALLEL_FOR
-	Concurrency::parallel_for(int(lower_bound + 1), upper_bound + 1, [&](int set) {
-#else
-	for (int set = lower_bound + 1; set < upper_bound + 1; set++) {
-#endif
-		input = set;
-
-		//calcolo
-		codedata_t codedata_element;
-		int counter = 0;
-		do {
-			input = Convert(Algorithm(input, PrimeNumber));
-			counter++;
-			if (input < 4) codedata_element.deg = counter + input;
-
-		} while (input != 1);
-		input = set;
-
-		codedata_element.number = input;
-		codedata_element.code = Algorithm(input, PrimeNumber);
-		mtx.lock();
-		codedata.push_back(codedata_element);
-		double Progress = (double)size(codedata) / codedatalenght;
-		progress_Bar(Progress, Barwidth);
-		mtx.unlock();
-
-#ifdef CODE_PARALLEL_FOR
-		});
-#else
-}
-#endif
-	steady_clock::time_point end = steady_clock::now();
-
-	//output
-	SortCData(codedata);
-	for (int c = 0; c < Barwidth + 11; c++) cout << ' '; cout << '\n';
-	for (int x = 0; x < size(codedata); ++x) {
-		cout << "il codice di " << codedata[x].number << " e' " 
-			 << codedata[x].code << ", il grado e' " << codedata[x].deg << '\n';
-	}
-	cout << "\ntempo di calcolo = " << duration_cast<milliseconds>(end - begin).count() 
-		 << "[ms]" << '\n';
 }
 
 // Funzione per stampare la fattorizzazione di un numero
@@ -538,47 +425,77 @@ string fact(int input, vector <int> PrimeNumber) {
 		}
 		else output = output + to_string(PrimeFactors[i]) + " * ";
 	}
-	output.erase(output.size() - 2);
+	output.erase(output.size() - 3);
 	//
 
 	return output;
 }
 
-// Funzione per scomporre un numero in fattori primi
-void factor(vector <int> PrimeNumber) {
+// Algoritmo fondamentale della codifica
+data_t coredegree(int set, vector <int> PrimeNumber) {
+	data_t output;
+	int counter = 0;
+	int input = set;
+	do {
+		input = Convert(Algorithm(input, PrimeNumber));
+		counter++;
+		if (input < 4) output.deg = counter + input;
+
+	} while (input != 1);
+	input = set;
+	output.number = input;
+	output.code = Algorithm(input, PrimeNumber);
+	return output;
+}
+
+// Algoritmo fondamentale della scomposizione
+data_t corefactor(int set, vector <int> PrimeNumber) {
+	data_t output;
+	output.number = set;
+	output.code = fact(set, PrimeNumber);
+	output.deg = 0;
+	return output;
+}
+
+// Funzione per ripetere un certo algoritmo
+void repeater(vector <int> PrimeNumber, string message, 
+	string message2, data_t nucleus(int input, vector <int> PrimeNumber))
+{
 
 	string n_ = to_string(n);
-
-	int input = 0;
-	cout << "il programma scompone un numero in fattori primi\n\n";
-
+	int input;
+	data_t result;
+	cout << message << "\n\n";
 	do {
 		string txt = "inserire un numero tra 2 e " + n_ + " (1 = fine input)\n";
 		input = get_user_num(txt, 1, n);
-
-		//calcolo
 		if (input != 1) {
-			string ALGO = fact(input, PrimeNumber);
-			cout << input << " = " << ALGO << '\n';
+			result = nucleus(input, PrimeNumber);
+			cout << message2 << " di " << result.number << " e' <"
+				<< result.code << '>';
+			if (result.deg != 0) {
+				cout << ", il grado e' " << result.deg;
+			}
+			cout << '\n';
 		}
-
 	} while (input != 1);
 }
 
-// Funzione per scomporre una serie di numeri in fattori primi
-void loop_factor(vector <int> PrimeNumber) {
+// Funzione per ripetere su una serie un certo algoritmo
+void loop(vector <int> PrimeNumber, string message, string messagecout, 
+	      data_t nucleus(int set, vector <int> PrimeNumber))
+{
 	string n_ = to_string(n);
 	vector <data_t> data;
 	mutex mtx;
 	int Barwidth = 60;
-
 	int input;
 	int change;
 	cout << "debug::\n\n";
-	cout << "il programma calcola la fattorizzazione di una serie di numeri\n";
+	cout << message << '\n';
 	cout << "gli estremi dell'intervallo devono essere compresi tra 1 e " << n_ << "\n\n";
 
-	string txt = "inserisci il valore iniziale della ricerca\n";
+	string txt = "inserisci il valore di inizio della ricerca\n";
 	int lower_bound = get_user_num(txt, 1, n);
 
 	txt = "inserisci il valore finale della ricerca\n";
@@ -593,27 +510,27 @@ void loop_factor(vector <int> PrimeNumber) {
 
 	steady_clock::time_point begin = steady_clock::now();
 	Concurrency::parallel_for(int(lower_bound + 1), upper_bound + 1, [&](int set) {
-		
-		//calcolo
-		input = set;
-		data_t data_element;
-		data_element.number = input;
-		data_element.code = fact(input, PrimeNumber);
+
+		data_t data_element = nucleus(set, PrimeNumber);
 		mtx.lock();
 		data.push_back(data_element);
-		double progress = (double)size(data) / datalenght;
-		progress_Bar(progress, Barwidth);
+		double Progress = (double)size(data) / datalenght;
+		progress_Bar(Progress, Barwidth);
 		mtx.unlock();
-		
-		});
 
+	});
 	steady_clock::time_point end = steady_clock::now();
 
 	//output
 	data = SortData(data);
 	for (int c = 0; c < Barwidth + 11; c++) cout << ' '; cout << '\n';
 	for (int x = 0; x < size(data); ++x) {
-		cout << data[x].number << " = " << data[x].code << '\n';
+		cout << messagecout << " di " << data[x].number << " e' <"
+			 << data[x].code << '>';
+		if (data[x].deg != 0) {
+			cout << ", il grado e' " << data[x].deg;
+		}
+		cout << '\n';
 	}
 	cout << "\ntempo di calcolo = " << duration_cast<milliseconds>(end - begin).count()
 		 << "[ms]" << '\n';
@@ -622,16 +539,24 @@ void loop_factor(vector <int> PrimeNumber) {
 // Programma principale
 int main()
 {	
+	string defact_message = "il programma calcola la fattorizzazione di una serie di numeri";
+	string deg_message = "il programma calcola il codice e il grado di una serie di numeri";
+	string fact_message = "il programma scompone un numero in fattori primi";
+	string message = "il programma converte un numero nel corrispondente codice e ne calcola il grado";
+	// ResultPrinters print;
+	// print.Void();
+	
 	bool stop = 0;
-	bool Unlock_prime_input = 1;
+	bool lock_prime_input = 0;
 	vector <int> PrimeNumber;
 	do {
 		cout << "CALCOLATRICE::\n\n";
-		bool do_not_skip = 1;
+		bool skip = 0;
 		string text;
 		string vel;
 
-		if (Unlock_prime_input) {
+		if (!lock_prime_input) {
+			n = 2147483647;
 			text = "fino a quale numero cercare i numeri primi?\n";
 			text.append("un limite piu' alto comporta un tempo di attesa piu' lungo\n");
 			n = get_user_num(text, 2, n);
@@ -640,8 +565,8 @@ int main()
 			PrimeNumber = crivelloEratostene();
 			steady_clock::time_point end = steady_clock::now();
 
-			cout << "tempo di calcolo numeri primi = " 
-				 << duration_cast<milliseconds>(end - begin).count()
+			cout << "tempo di calcolo numeri primi = "
+				 << duration_cast<milliseconds>(end - begin).count() - 1
 				 << "[ms]" << "\n\n";
 		}
 		do {
@@ -658,11 +583,11 @@ int main()
 
 			if (vel.size() == 1) {
 				switch (vel.at(0)) {
-				case '0': Unlock_prime_input = 0;
+				case '0': lock_prime_input = 1;
 					cout << "input numeri primi bloccato\n";
-					do_not_skip = 0;
+					skip = 1;
 					break;
-				case '1': Unlock_prime_input = 1;
+				case '1': lock_prime_input = 0;
 					cout << "input numeri primi sbloccato\n";
 					break;
 				case '.': return 0;
@@ -673,23 +598,25 @@ int main()
 			}
 			if (vel.at(0) == '1') {
 				do {
-					do_not_skip = 1;
+					skip = 0;
 					cout << "scegli opzioni:: (...)\n";
 					cin >> vel;
 					if (vel.size() > 1) {
 						stop = vel.at(1) != 'c' && vel.at(1) != 'd';
 					}
-					if (stop == 0) {
+					if (!stop) {
 						stop = vel.at(0) != 'c' && vel.at(0) != 'f';
 					}
 				} while (stop);
 			}
 			stop = 0;
-			if (do_not_skip) switch (vel.at(0)) {
+			if (!skip) switch (vel.at(0)) {
 			case 'f': switch (vel.at(1)) {
-						case 'c': factor(PrimeNumber);
+						case 'c': repeater(PrimeNumber, fact_message
+							, "la fattorizzazione", corefactor);
 							break;
-						case 'd': loop_factor(PrimeNumber);
+						case 'd': loop(PrimeNumber, defact_message,
+							"la fattorizzazione", corefactor);
 							break;
 						default: cout << "non corretto\n";
 							stop = 1;
@@ -697,9 +624,11 @@ int main()
 						}
 			break;
 			case 'c': switch (vel.at(1)) {
-						case 'c': degree(PrimeNumber);
+						case 'c': repeater(PrimeNumber, message
+							, "il codice", coredegree);
 							break;
-						case 'd': loop_degree(PrimeNumber);
+						case 'd': loop(PrimeNumber, deg_message,
+							"il codice", coredegree);
 							break;
 						default: cout << "non corretto\n";
 							stop = 1;
@@ -712,5 +641,6 @@ int main()
 			}
 		} while (stop);
 
-	} while (1 == 1);
+	} while (0 == 0);
 }
+// FINE...
