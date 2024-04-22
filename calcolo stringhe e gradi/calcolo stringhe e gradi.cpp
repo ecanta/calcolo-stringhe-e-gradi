@@ -374,7 +374,7 @@ int get_user_num(string txt, int lw, int bound) {
 		bool error = 1;
 		bool general_error = 0;
 		cout << txt;
-		cin >> check;
+		getline(cin, check);
 		if (check.size() > 10) user_num = 0;
 		else {
 			char digits[] = { '0','1','2','3','4','5','6','7','8','9' };
@@ -625,7 +625,7 @@ int main()
 		cout << "'c' = codifica\n";
 		cout << "'f' = scomposizione in fattori primi\n";
 		cout << "'cf' = codifica e scomposizione (impiega piu' tempo)\n\n";
-		cin >> vel;
+		getline(cin, vel);
 		option = convertStringToEnum(vel);
 
 		do {
@@ -649,7 +649,7 @@ int main()
 			if (option == r) do {
 				skip = 0;
 				cout << "scegli opzioni:: (...)\n";
-				cin >> vel;
+				getline(cin, vel);
 				if (vel.size() == 1) {
 					stop = vel.at(0) != '0' 
 						&& vel.at(0) != '1' && vel.at(0) != '.';
