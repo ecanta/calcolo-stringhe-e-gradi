@@ -4,10 +4,10 @@
 #include <string>
 #include <cstdio>
 #include <cmath>
+#include <random>
 #include <vector>
 #include <unordered_map>
 #include <chrono>
-#include <thread>
 #include <ppl.h>
 using namespace std;
 using namespace chrono;
@@ -31,7 +31,6 @@ void progress_Bar(double ratio, int barWidth) {
 	int ratio2 = (int)(ratio * 1000.0);
 	double ratio3 = (double)ratio2 / 10;
 	cout << "]] " << ratio3 << "%\r";
-	cout.flush();
 }
 
 // Funzione per controllare se un numero è primo
@@ -61,7 +60,7 @@ vector<int> crivelloEratostene() {
 				isPrime[i] = false;
 		}
 		if (n > 200000) {
-			float progress = ((float)(pow(p, 2)) / n) + (float) 1/100;
+			double progress = ((double)(pow(p, 2)) / n) + (double) 1/100;
 			progress_Bar(progress, Barwidth);
 		}
 	}
@@ -557,14 +556,15 @@ void loop(vector <int> PrimeNumber, string message
 		 << "[ms]" << '\n';
 }
 
-enum switchcase { cc, cf, ccf, dc, df, dcf, r };
+enum switchcase { cc, cf, ccf, dc, df, dcf, rnd, r };
 static unordered_map<string, switchcase> stringToEnumMap = {
 	{"cc", switchcase::cc},
 	{"cf", switchcase::cf},
 	{"ccf", switchcase::ccf},
 	{"dc", switchcase::dc },
 	{"df", switchcase::df},
-	{"dcf", switchcase::dcf}
+	{"dcf", switchcase::dcf},
+	{"rnd", switchcase::rnd}
 };
 switchcase convertStringToEnum(string& str) {
 	auto it = stringToEnumMap.find(str);
@@ -618,7 +618,9 @@ int main()
 		cout << "'1' = sblocca input numeri primi\n";
 		cout << "'.' = fine programma\n";
 		cout << "altrimenti:\n";
-		cout << "primo carattere: \n";
+		cout << "'rnd' = casuale\n";
+		cout << "oppure:\n";
+		cout << "primo carattere:\n";
 		cout << "'c' = calcolo\n";
 		cout << "'d' = debug\n";
 		cout << "caratteri seguenti:\n";
@@ -665,6 +667,25 @@ int main()
 
 		} while (!skip);
 		cout << "\n\n";
+		if (option == rnd) {
+			random_device rng;
+			mt19937 gen(rng());
+			uniform_int_distribution<> dis(0, 5);
+			switch (dis(gen)) {
+			case 0: option = cc;
+				break;
+			case 1: option = cf;
+				break;
+			case 2: option = ccf;
+				break;
+			case 3: option = dc;
+				break;
+			case 4: option = df;
+				break;
+			case 5: option = dcf;
+				break;
+			}
+		}
 		switch (option) {
 		case cc:
 			repeater(PrimeNumber, message, coredegree);
