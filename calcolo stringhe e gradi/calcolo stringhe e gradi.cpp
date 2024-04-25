@@ -1,43 +1,57 @@
 //Calcolo stringhe e gradi.cpp, programma per scomporre i numeri
 
-#include <iostream>
-#include <string>
-#include <cstdio>
-#include <cmath>
-#include <random>
-#include <vector>
-#include <unordered_map>
+#include <atomic>
 #include <chrono>
+#include <cmath>
+#include <cstdio>
+#include <iostream>
+#include <iomanip>
 #include <ppl.h>
+#include <random>
+#include <sstream>
+#include <string>
+#include <unordered_map>
+#include <vector>
 using namespace std;
+using namespace Concurrency;
 using namespace chrono;
 
-__int64 Global_N = 2147483647;
+long long Global_N = pow(10, 10);
+vector <bool> IsPrime;
+vector <int> PrimeNumber;
 
 // Funzioni utilizzate
 namespace FUNCTIONS {
 
+	// Funzione per controllare se un numero è primo
+	bool prime(int variable) {
+		bool tag = 1;
+		if (variable == 1) return 0;
+		else if (variable < size(IsPrime)) {
+			return IsPrime[variable];
+		}
+		else {
+			if (variable == 1) tag = 0;
+			for (int a = 2; a < variable; a++)
+				if (variable % a == 0) tag = 0;
+		}
+		return tag;
+	}
+
 	// Funzione per creare una barra di progresso
-	void progress_Bar(double ratio, int barWidth) {
+	void progress_Bar(double ratio, double barWidth) {
 		cout << "[[";
 		int pos = (int)(barWidth * ratio);
 		for (int i = 0; i < barWidth; ++i) {
 			if (i < pos) cout << "=";
-			else if (i == pos) cout << ">";
-			else cout << " ";
+			else (i == pos) ? cout << ">" : cout << " ";
 		}
-		int ratio2 = (int)(ratio * 1000.0);
-		double ratio3 = (double)ratio2 / 10;
-		cout << "]] " << ratio3 << "%\r";
-	}
+		ratio *= 100.0;
+		stringstream stream;
+		stream << fixed << setprecision(1) << ratio;
+		string s = stream.str();
 
-	// Funzione per controllare se un numero è primo
-	bool prime(int variable) {
-		bool tag = 1;
-		if (variable == 1) tag = 0;
-		for (int a = 2; a < variable; a++)
-			if (variable % a == 0) tag = 0;
-		return tag;
+		cout << "]] " << s << "%\r";
 	}
 
 	// Funzione per trovare la posizione di un elemento in un vettore
@@ -46,26 +60,31 @@ namespace FUNCTIONS {
 			if (vect[a] == number) return a;
 	}
 
-	// Funzione per trovare tutti i numeri primi fino a n
-	vector<int> crivelloEratostene() {
-		vector<bool> isPrime(Global_N + 1, true);
+	// Funzione per annotare se i numeri sono primi
+	vector <bool> Sieve(long long N, bool USE_pro_bar) {
+		vector<bool> isPrime(N + 1, 1);
 		vector<int> primes;
-		int Barwidth = 80;
+		double Barwidth = 80;
 
-		for (int p = 2; pow(p, 2) <= Global_N; p++) {
+		for (int p = 2; pow(p, 2) <= N; p++) {
 			if (isPrime[p]) {
-				for (int i = pow(p, 2); i <= Global_N; i += p)
-					isPrime[i] = false;
+				for (int i = pow(p, 2); i <= N; i += p)
+					isPrime[i] = 0;
 			}
-			if (Global_N > 200000) {
-				double progress = ((double)(pow(p, 2)) / Global_N) + (double)1 / 100;
+			if (N > 200000 && USE_pro_bar) {
+				double progress = ((double)(pow(p, 2)) / N);
 				progress_Bar(progress, Barwidth);
 			}
 		}
 		for (int c = 0; c < Barwidth + 11; c++) cout << ' '; cout << '\n';
-		for (int p = 2; p <= Global_N; p++)
-			if (isPrime[p]) primes.push_back(p);
+		return isPrime;
+	}
 
+	// Funzione per trovare tutti i numeri primi fino a n
+	vector <int> Sieve_of_Erastothens(vector <bool> isPrime, long long N) {
+		vector<int> primes;
+		for (int p = 2; p <= N; p++)
+			if (isPrime[p]) primes.push_back(p);
 		return primes;
 	}
 
@@ -98,7 +117,14 @@ namespace FUNCTIONS {
 	}
 
 	// Funzione per scomporre un numero in fattori primi
-	vector <compost_t> decompose(int input, vector <int> PrimeNumber) {
+	vector <compost_t> decompose(int input) {
+		
+		if (input > PrimeNumber[size(PrimeNumber) - 1]) {
+			vector <int> PrimeN = Sieve_of_Erastothens(Sieve(input, 0), input);
+			for (int a = size(PrimeNumber); a < size(PrimeN); a++) {
+				PrimeNumber.push_back(PrimeN[a]);
+			}
+		}
 		vector <compost_t> output;
 		compost_t outelement;
 		outelement.factors = 0;
@@ -132,10 +158,10 @@ namespace FUNCTIONS {
 	}
 
 	// Funzione per creare la criptatura di un numero
-	string Algorithm(int input, vector <int> PrimeNumber)
+	string Algorithm(int input)
 	{
 		//inizializzazione
-		vector <compost_t> expfactors = decompose(input, PrimeNumber);
+		vector <compost_t> expfactors = decompose(input);
 		int PrimeFactors[15];
 		int exponents[15];
 		int factors;
@@ -153,19 +179,11 @@ namespace FUNCTIONS {
 		//
 
 		//calcolo dei monomi
-		string thenumber;
-		string iso_i;
-		string iso_g;
-		string iso_h;
-		int iso_hh;
-		int analyse;
-		int sizenumber;
-		int size0;
+		string thenumber, iso_i, iso_g, iso_h;
+		int iso_hh, analyse, sizenumber;
 		bool repeat;
-		int presence;
 
-		int bound;
-		int bound_while;
+		int presence, bound, bound_while;
 		string monomials[15];
 		for (int WhatFactor = 0; WhatFactor < factors; WhatFactor++) {
 			repeat = 0;
@@ -195,23 +213,21 @@ namespace FUNCTIONS {
 					thenumber.erase(0, bound_while);
 					thenumber = the_n1 + iso_analyse + thenumber;
 					sizenumber = thenumber.size();
-					size0 = sizenumber - 1;
 
 					if (presence == 1) {
-						iso_g = string(1, thenumber.at(size0));
-						thenumber.erase(size0);
+						iso_g = string(1, thenumber.at(sizenumber - 1));
+						thenumber.erase(sizenumber - 1);
 						sizenumber--;
-						size0--;
 					}
 					else if (presence == 2) {
-						iso_g = "." + string(1, thenumber.at(size0 - 1)) + string(1, thenumber.at(size0));
-						thenumber.erase(size0 - 2);
+						iso_g = "." + string(1, thenumber.at(sizenumber - 2)) 
+									+ string(1, thenumber.at(sizenumber - 1));
+						thenumber.erase(sizenumber - 3);
 						sizenumber--;
-						size0--;
 					}
 					if (repeat) {
-						iso_h = string(1, thenumber.at(size0));
-						thenumber.erase(size0);
+						iso_h = string(1, thenumber.at(sizenumber - 1));
+						thenumber.erase(sizenumber - 1);
 						iso_hh = stoi(iso_h);
 						iso_hh++;
 						iso_h = to_string(iso_hh);
@@ -229,7 +245,7 @@ namespace FUNCTIONS {
 					repeat = 1;
 				}
 				if ((analyse != 1) && !prime(analyse)) {
-					iso_analyse = Algorithm(analyse, PrimeNumber);
+					iso_analyse = Algorithm(analyse);
 					bound = thenumber.find(')');
 					thenumber.erase(0, bound);
 					thenumber = the_n1 + iso_analyse + thenumber;
@@ -363,9 +379,9 @@ namespace FUNCTIONS {
 	}
 
 	// Funzione per ottenere l'input controllato
-	int get_user_num(string txt, int lw, int bound) {
+	long long get_user_num(string txt, long long lw, long long bound) {
 
-		__int64 user_num;
+		long long user_num;
 		string check;
 		do {
 			bool error = 1;
@@ -394,10 +410,10 @@ namespace FUNCTIONS {
 	}
 
 	// Funzione per stampare la fattorizzazione di un numero
-	string fact(int input, vector <int> PrimeNumber) {
+	string fact(int input) {
 
 		//inizializzazione
-		vector <compost_t> expfactors = decompose(input, PrimeNumber);
+		vector <compost_t> expfactors = decompose(input);
 		int PrimeFactors[15];
 		int exponents[15];
 		int factors;
@@ -429,37 +445,37 @@ namespace FUNCTIONS {
 	}
 
 	// Algoritmo fondamentale della codifica
-	data_t coredegree(int set, vector <int> PrimeNumber) {
+	data_t coredegree(int set) {
 		data_t output;
 		int counter = 0;
 		int input = set;
 		do {
-			input = Convert(Algorithm(input, PrimeNumber));
+			input = Convert(Algorithm(input));
 			counter++;
 			if (input < 4) output.deg = counter + input;
 
 		} while (input != 1);
 		input = set;
 		output.number = input;
-		output.code = Algorithm(input, PrimeNumber);
+		output.code = Algorithm(input);
 		output.expression = "";
 		return output;
 	}
 
 	// Algoritmo fondamentale della scomposizione
-	data_t corefactor(int set, vector <int> PrimeNumber) {
+	data_t corefactor(int set) {
 		data_t output;
 		output.number = set;
 		output.code = "";
 		output.deg = 0;
-		output.expression = fact(set, PrimeNumber);
+		output.expression = fact(set);
 		return output;
 	}
 
 	//Algoritmo che combina scomposizione e codifica
-	data_t NucleusAll(int set, vector <int> PrimeNumber) {
-		data_t A = coredegree(set, PrimeNumber);
-		data_t B = corefactor(set, PrimeNumber);
+	data_t NucleusAll(int set) {
+		data_t A = coredegree(set);
+		data_t B = corefactor(set);
 		data_t output;
 		output.number = set;
 		output.code = A.code;
@@ -468,9 +484,25 @@ namespace FUNCTIONS {
 		return output;
 	}
 
+	// Funzione per stampare correttamente una struttura
+	void printf(data_t structure) {
+		cout << "numero " << structure.number << ":\n";
+		if (!structure.code.empty()) {
+			cout << "il codice e' <" << structure.code << ">\n";
+		}
+		if (structure.deg != 0) {
+			cout << "il grado e' " << structure.deg << '\n';
+		}
+		if (!structure.expression.empty()) {
+			if (IsPrime[structure.number]) cout << "il numero e' primo\n";
+			else {
+				cout << "la fattorizzazione e' " << structure.expression << '\n';
+			}
+		}
+	}
+
 	// Funzione per ripetere un certo algoritmo
-	void repeater(vector <int> PrimeNumber, string message
-		, data_t nucleus(int input, vector <int> PrimeNumber))
+	void repeater(string message, data_t nucleus(int input))
 	{
 		string n_ = to_string(Global_N);
 		int input;
@@ -480,40 +512,29 @@ namespace FUNCTIONS {
 			string txt = "inserire un numero tra 2 e " + n_ + " (1 = fine input)\n";
 			input = get_user_num(txt, 1, Global_N);
 			if (input != 1) {
-				result = nucleus(input, PrimeNumber);
-				cout << "numero " << result.number << ":\n";
-				if (!result.code.empty()) {
-					cout << "il codice e' <" << result.code << ">\n";
-				}
-				if (result.deg != 0) {
-					cout << "il grado e' " << result.deg << '\n';
-				}
-				if (!result.expression.empty()) {
-					cout << "la fattorizzazione e' " << result.expression << '\n';
-				}
+				result = nucleus(input);
+				printf(result);
 			}
 		} while (input != 1);
 	}
 
 	// Funzione per ripetere su una serie un certo algoritmo
-	void loop(vector <int> PrimeNumber, string message
-		, data_t nucleus(int set, vector <int> PrimeNumber))
+	void loop(string message, data_t nucleus(int set))
 	{
 		string n_ = to_string(Global_N);
 		vector <data_t> data;
 		mutex mtx;
-		int Barwidth = 60;
-		int input;
-		int change;
+		double Barwidth = 60;
+		int input, change;
 		cout << "debug::\n\n";
 		cout << message << '\n';
 		cout << "gli estremi dell'intervallo devono essere compresi tra 1 e " << n_ << "\n\n";
 
 		string txt = "inserisci il valore di inizio della ricerca\n";
-		int lower_bound = get_user_num(txt, 1, Global_N);
+		int lower_bound = get_user_num(txt, 1, Global_N) + 1;
 
 		txt = "inserisci il valore finale della ricerca\n";
-		int upper_bound = get_user_num(txt, 1, Global_N);
+		int upper_bound = get_user_num(txt, 1, Global_N) + 1;
 
 		if (upper_bound < lower_bound) {
 			change = upper_bound;
@@ -522,36 +543,45 @@ namespace FUNCTIONS {
 		}
 		int datalenght = upper_bound - lower_bound;
 
-		steady_clock::time_point begin = steady_clock::now();
-		Concurrency::parallel_for(int(lower_bound + 1), upper_bound + 1, [&](int set) {
+		string choice;
+		cout << "vuoi utilizzare la ricerca veloce (non stampa direttamente i numeri)\n";
+		cout << "immetti s = si oppure n = no  ";
+		getline(cin, choice);
+		cout << '\n';
 
-			data_t data_element = nucleus(set, PrimeNumber);
-			mtx.lock();
-			data.push_back(data_element);
-			double Progress = (double)size(data) / datalenght;
-			progress_Bar(Progress, Barwidth);
-			mtx.unlock();
+		if (choice == "s") {
+
+			steady_clock::time_point begin = steady_clock::now();
+			parallel_for(int(lower_bound), upper_bound, [&](int set) {
+
+				data_t data_element = nucleus(set);
+				mtx.lock();
+				data.push_back(data_element);
+				atomic <double> Progress = (double)size(data) / datalenght;
+				progress_Bar(Progress, Barwidth);
+				mtx.unlock();
 
 			});
-		steady_clock::time_point end = steady_clock::now();
+			steady_clock::time_point end = steady_clock::now();
+			cout << "\ntempo di calcolo = " << duration_cast<milliseconds>(end - begin).count()
+				 << "[ms]" << '\n';
+			this_thread::sleep_for(seconds(1));
 
-		//output
-		data = SortData(data);
-		for (int c = 0; c < Barwidth + 11; c++) cout << ' '; cout << '\n';
-		for (int x = 0; x < size(data); ++x) {
-			cout << "numero " << data[x].number << ":\n";
-			if (!data[x].code.empty()) {
-				cout << "il codice e' <" << data[x].code << ">\n";
-			}
-			if (data[x].deg != 0) {
-				cout << "il grado e' " << data[x].deg << '\n';
-			}
-			if (!data[x].expression.empty()) {
-				cout << "la fattorizzazione e' " << data[x].expression << '\n';
-			}
+			//output
+			data = SortData(data);
+			for (int c = 0; c < Barwidth + 11; c++) cout << ' '; cout << '\n';
+			for (int x = 0; x < size(data); ++x) printf(data[x]);
 		}
-		cout << "\ntempo di calcolo = " << duration_cast<milliseconds>(end - begin).count()
-			<< "[ms]" << '\n';
+		else {
+			steady_clock::time_point begin = steady_clock::now();
+			for (int set = lower_bound; set < upper_bound; set++) {
+				data_t data_element = nucleus(set);
+				printf(data_element);
+			}
+			steady_clock::time_point end = steady_clock::now();
+			cout << "\ntempo di calcolo = " << duration_cast<milliseconds>(end - begin).count()
+				 << "[ms]" << '\n';
+		}
 	}
 
 	enum switchcase { cc, cf, ccf, dc, df, dcf, rnd, r };
@@ -586,30 +616,28 @@ int main()
 	string fact_message = "il programma scompone un numero in fattori primi";
 	string message = "il programma converte un numero nel corrispondente codice e ne calcola il grado";
 	string AllMessage = "il programma calcola factor, codice e grado";
-	
+
 	bool lock_prime_input = 0;
-	vector <int> PrimeNumber;
 	do {
 		cout << "CALCOLATRICE::\n\n";
 		bool stop = 0;
 		bool skip = 1;
-		string text;
-		string vel;
+		string text, vel;
 		switchcase option;
 
 		if (!lock_prime_input) {
-			Global_N = 2147483647;
+			Global_N = pow(10, 10);
 			text = "fino a quale numero cercare i numeri primi?\n";
 			text.append("un limite piu' alto comporta un tempo di attesa piu' lungo\n");
 			Global_N = get_user_num(text, 2, Global_N);
-		
-			steady_clock::time_point begin = steady_clock::now();
-			PrimeNumber = crivelloEratostene();
-			steady_clock::time_point end = steady_clock::now();
 
+			steady_clock::time_point begin = steady_clock::now();
+			IsPrime = Sieve(Global_N, 1);
+			PrimeNumber = Sieve_of_Erastothens(IsPrime, Global_N);
+			steady_clock::time_point end = steady_clock::now();
 			cout << "tempo di calcolo numeri primi = "
-				 << duration_cast<milliseconds>(end - begin).count() - 1
-				 << "[ms]" << "\n\n";
+				<< duration_cast<milliseconds>(end - begin).count() - 1
+				<< "[ms]" << "\n\n";
 		}
 		cout << "scegli opzioni::\n";
 		cout << "se stringa di un carattere:\n";
@@ -625,19 +653,18 @@ int main()
 		cout << "caratteri seguenti:\n";
 		cout << "'c' = codifica\n";
 		cout << "'f' = scomposizione in fattori primi\n";
-		cout << "'cf' = codifica e scomposizione (impiega piu' tempo)\n\n";
+		cout << "'cf' = codifica e scomposizione (impiega piu' tempo)\n";
 		getline(cin, vel);
 		option = convertStringToEnum(vel);
-
 		do {
 			if (vel.size() == 1) {
 				skip = 0;
 				switch (vel.at(0)) {
-				case '0': 
+				case '0':
 					lock_prime_input = 1;
 					cout << "input numeri primi bloccato\n";
 					break;
-				case '1': 
+				case '1':
 					lock_prime_input = 0;
 					cout << "input numeri primi sbloccato\n";
 					break;
@@ -652,7 +679,7 @@ int main()
 				cout << "scegli opzioni:: (...)\n";
 				getline(cin, vel);
 				if (vel.size() == 1) {
-					stop = vel.at(0) != '0' 
+					stop = vel.at(0) != '0'
 						&& vel.at(0) != '1' && vel.at(0) != '.';
 				}
 				else {
@@ -660,10 +687,9 @@ int main()
 					stop = option == r;
 					skip = option != r;
 				}
-				if(stop) cout << "non corretto\n";
+				if (stop) cout << "non corretto\n";
 			} while (stop);
 			stop = 0;
-
 		} while (!skip);
 		cout << "\n\n";
 		if (option == rnd) {
@@ -687,22 +713,22 @@ int main()
 		}
 		switch (option) {
 		case cc:
-			repeater(PrimeNumber, message, coredegree);
+			repeater(message, coredegree);
 			break;
 		case cf:
-			repeater(PrimeNumber, fact_message, corefactor);
+			repeater(fact_message, corefactor);
 			break;
 		case ccf:
-			repeater(PrimeNumber, AllMessage, NucleusAll);
+			repeater(AllMessage, NucleusAll);
 			break;
 		case dc:
-			loop(PrimeNumber, deg_message, coredegree); 
+			loop(deg_message, coredegree);
 			break;
 		case df:
-			loop(PrimeNumber, defact_message, corefactor);
+			loop(defact_message, corefactor);
 			break;
 		case dcf:
-			loop(PrimeNumber, AllMessage, NucleusAll);
+			loop(AllMessage, NucleusAll);
 			break;
 		}
 	} while (0 == 0);
