@@ -490,9 +490,10 @@ namespace FUNCTIONS {
 	bool Grammarly(string ToEvaluate) {
 		bool error;
 		vector <string> mono;
-		char charsAllowed[] = { '0','1','2','3','4','5','6','7','8','9','(',')','+','.' };
+		char charsAllowed[] = { '0','1','2','3','4','5','6','7','8','9','(',')','+', };
 		error = 0;
 		bool local_error = 1;
+		bool TAG = 1;
 		bool stable = 0;
 		int start = -1;
 		int end = -1;
@@ -552,6 +553,16 @@ namespace FUNCTIONS {
 						if (mono[monomial].at(checkplus) == '+') local_error = 0;
 					}
 					if (local_error) error = 1;
+					string stack = mono[monomial];
+					int finder;
+					for (int j = stack.size() - 1; j > 0; j--) {
+						if (TAG && stack.at(j) == ')') {
+							finder = j;
+							TAG = 0;
+						}
+					}
+					stack.erase(0, 1);
+					stack.erase(finder);
 					if (Grammarly("<" + mono[monomial] + ">")) error = 1;
 				}
 				else if (mono[monomial].at(0) == ')') error = 1;
@@ -567,19 +578,56 @@ namespace FUNCTIONS {
 	// Funzione che converte un codice del rispettivo numero
 	void CodeToNumber() {
 		bool error;
+		bool XOutOfRange = 0;
 		string ToEvaluate;
 		vector <string> mono;
-		char charsAllowed[] = { '0','1','2','3','4','5','6','7','8','9','(',')','+','.' };
 		cout << "il programma traduce una stringa di codice\n";
 		cout << "il codice deve essere compreso tra <>\n";
-		cout << "unici caratteri non numerici ammessi: '(', ')', '+', '.'\n\n";
+		cout << "unici caratteri non numerici ammessi: '(', ')', '+', \n\n";
 		do{
 			cout << "inserire una stringa\n";
 			getline(cin, ToEvaluate);
 			error = Grammarly(ToEvaluate);
 		} while (error);
+		int start = 0;
+		int end = 0;
+		for (int find = 0; find < ToEvaluate.size(); find++) {
+			if (ToEvaluate.at(find) == '<') start = find + 1;
+			else if (ToEvaluate.at(find) == '>') end = find;
+		}
+		ToEvaluate.erase(end);
+		ToEvaluate.erase(0, start);
+		for (int space = 0; space < ToEvaluate.size(); space++) {
+			if (ToEvaluate.at(space) == ' ')
+				ToEvaluate.erase(space, 1);
+		}
 		mono = fractioner(ToEvaluate);
-		// {...}
+		for (int monomial = 0; monomial < size(mono); monomial++) {
+			string M = mono[monomial];
+			int root;
+			bool WhichWay = 0;
+			if (M.at(0) != '(') {
+				root = PrimeNumber[M.at(0)];
+				for (int iter = 1; iter < M.size(); iter++) {
+					WhichWay = !WhichWay;
+					if (WhichWay) root = pow(root, M.at(iter));
+					else {
+						int sizeP = size(PrimeNumber);
+						int nums = M.at(iter);
+						do {
+							if (root < sizeP) {
+								root = PrimeNumber[root];
+								nums--;
+							}
+							else XOutOfRange = 1;
+						} while (XOutOfRange == 0 || nums != 0);
+					}
+				}
+			}
+			else {
+
+			}
+		}
 	}
 
 	// Funzione per stampare correttamente una struttura
