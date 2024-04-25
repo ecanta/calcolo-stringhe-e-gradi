@@ -15,10 +15,12 @@
 using namespace std;
 using namespace Concurrency;
 using namespace chrono;
+using namespace this_thread;
 
 long long Global_N = pow(10, 10);
 vector <bool> IsPrime;
 vector <int> PrimeNumber;
+mutex mtx;
 
 // Funzioni utilizzate
 namespace FUNCTIONS {
@@ -76,13 +78,17 @@ namespace FUNCTIONS {
 				progress_Bar(progress, Barwidth);
 			}
 		}
-		for (int c = 0; c < Barwidth + 11; c++) cout << ' '; cout << '\n';
+		if (USE_pro_bar) {
+			for (int c = 0; c < Barwidth + 11; c++) 
+				cout << ' '; 
+			cout << '\n';
+		}		
 		return isPrime;
 	}
 
 	// Funzione per trovare tutti i numeri primi fino a n
 	vector <int> Sieve_of_Erastothens(vector <bool> isPrime, long long N) {
-		vector<int> primes;
+		vector <int> primes;
 		for (int p = 2; p <= N; p++)
 			if (isPrime[p]) primes.push_back(p);
 		return primes;
@@ -122,7 +128,9 @@ namespace FUNCTIONS {
 		if (input > PrimeNumber[size(PrimeNumber) - 1]) {
 			vector <int> PrimeN = Sieve_of_Erastothens(Sieve(input, 0), input);
 			for (int a = size(PrimeNumber); a < size(PrimeN); a++) {
+				mtx.lock();
 				PrimeNumber.push_back(PrimeN[a]);
+				mtx.unlock();
 			}
 		}
 		vector <compost_t> output;
@@ -301,9 +309,8 @@ namespace FUNCTIONS {
 	// Funzione per sommare la criptatura
 	int Convert(string input)
 	{
-		int output = 0;
-
 		//rimozione punti
+		int output = 0;
 		string monomials[15];
 		int values[15];
 		for (int i = 0; i < input.size(); i++) {
@@ -368,13 +375,7 @@ namespace FUNCTIONS {
 			presence = 1;
 		}
 		//
-
-		//somma monomi
-		for (int end = 0; end <= index; end++) {
-			output += values[end];
-		}
-		//
-
+		for (int end = 0; end <= index; end++) output += values[end];
 		return output;
 	}
 
@@ -388,7 +389,8 @@ namespace FUNCTIONS {
 			bool general_error = 0;
 			cout << txt;
 			getline(cin, check);
-			if (check.size() > 10) user_num = 0;
+			if (check.empty()) user_num = lw - 1;
+			else if (check.size() > 10) user_num = lw - 1;
 			else {
 				char digits[] = { '0','1','2','3','4','5','6','7','8','9' };
 				for (int ch = 0; ch < check.size(); ch++) {
@@ -472,7 +474,7 @@ namespace FUNCTIONS {
 		return output;
 	}
 
-	//Algoritmo che combina scomposizione e codifica
+	// Algoritmo che combina scomposizione e codifica
 	data_t NucleusAll(int set) {
 		data_t A = coredegree(set);
 		data_t B = corefactor(set);
@@ -482,6 +484,19 @@ namespace FUNCTIONS {
 		output.deg = A.deg;
 		output.expression = B.expression;
 		return output;
+	}
+
+	// Funzione che converte un codice del rispettivo numero
+	void CodeToNumber() {
+		string ToEvaluate;
+		cout << "il programma traduce una stringa di codice\n";
+		cout << "il codice deve essere compreso tra <>\n";
+		cout << "unici caratteri non numerici ammessi: '(', ')', '+'\n\n";
+		cout << "inserire una stringa\n";
+		cin >> ToEvaluate;
+
+		int start = ToEvaluate.find('<');
+		int end = ToEvaluate.find('>');
 	}
 
 	// Funzione per stampare correttamente una struttura
@@ -523,7 +538,8 @@ namespace FUNCTIONS {
 	{
 		string n_ = to_string(Global_N);
 		vector <data_t> data;
-		mutex mtx;
+		vector <thread> threads;
+		
 		double Barwidth = 60;
 		int input, change;
 		cout << "debug::\n\n";
@@ -550,22 +566,25 @@ namespace FUNCTIONS {
 		cout << '\n';
 
 		if (choice == "s") {
-
+			int iter = 0;
+			atomic <double> Progress = 0;
 			steady_clock::time_point begin = steady_clock::now();
 			parallel_for(int(lower_bound), upper_bound, [&](int set) {
 
 				data_t data_element = nucleus(set);
 				mtx.lock();
 				data.push_back(data_element);
-				atomic <double> Progress = (double)size(data) / datalenght;
-				progress_Bar(Progress, Barwidth);
+				if (iter % 100 == 0) {
+					double Progress = (double)size(data) / datalenght;
+					progress_Bar(Progress, Barwidth);
+				}
+				iter++;
 				mtx.unlock();
 
 			});
 			steady_clock::time_point end = steady_clock::now();
-			cout << "\ntempo di calcolo = " << duration_cast<milliseconds>(end - begin).count()
+			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
 				 << "[ms]" << '\n';
-			this_thread::sleep_for(seconds(1));
 
 			//output
 			data = SortData(data);
@@ -584,7 +603,7 @@ namespace FUNCTIONS {
 		}
 	}
 
-	enum switchcase { cc, cf, ccf, dc, df, dcf, rnd, r };
+	enum switchcase { cc, cf, ccf, dc, df, dcf, ctn, rnd, r };
 	static unordered_map<string, switchcase> stringToEnumMap = {
 		{"cc", switchcase::cc},
 		{"cf", switchcase::cf},
@@ -592,6 +611,7 @@ namespace FUNCTIONS {
 		{"dc", switchcase::dc },
 		{"df", switchcase::df},
 		{"dcf", switchcase::dcf},
+		{"ctn", switchcase::ctn},
 		{"rnd", switchcase::rnd}
 	};
 	switchcase convertStringToEnum(string& str) {
@@ -604,7 +624,6 @@ namespace FUNCTIONS {
 			return it->second;
 		}
 	}
-
 }
 
 // Programma principale
@@ -636,8 +655,8 @@ int main()
 			PrimeNumber = Sieve_of_Erastothens(IsPrime, Global_N);
 			steady_clock::time_point end = steady_clock::now();
 			cout << "tempo di calcolo numeri primi = "
-				<< duration_cast<milliseconds>(end - begin).count() - 1
-				<< "[ms]" << "\n\n";
+				 << duration_cast <milliseconds> (end - begin).count() - 1
+				 << "[ms]" << "\n\n";
 		}
 		cout << "scegli opzioni::\n";
 		cout << "se stringa di un carattere:\n";
@@ -646,6 +665,7 @@ int main()
 		cout << "'.' = fine programma\n";
 		cout << "altrimenti:\n";
 		cout << "'rnd' = casuale\n";
+		cout << "'ctn' = da codice a numero\n";
 		cout << "oppure:\n";
 		cout << "primo carattere:\n";
 		cout << "'c' = calcolo\n";
@@ -695,7 +715,7 @@ int main()
 		if (option == rnd) {
 			random_device rng;
 			mt19937 gen(rng());
-			uniform_int_distribution<> dis(0, 5);
+			uniform_int_distribution<> dis(0, 6);
 			switch (dis(gen)) {
 			case 0: option = cc;
 				break;
@@ -708,6 +728,8 @@ int main()
 			case 4: option = df;
 				break;
 			case 5: option = dcf;
+				break;
+			case 6: option = ctn;
 				break;
 			}
 		}
@@ -729,6 +751,9 @@ int main()
 			break;
 		case dcf:
 			loop(AllMessage, NucleusAll);
+			break;
+		case ctn:
+			CodeToNumber();
 			break;
 		}
 	} while (0 == 0);
