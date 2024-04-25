@@ -306,31 +306,18 @@ namespace FUNCTIONS {
 		return thenumber;
 	}
 
-	// Funzione per sommare la criptatura
-	int Convert(string input)
-	{
-		//rimozione punti
-		int output = 0;
-		string monomials[15];
-		int values[15];
-		for (int i = 0; i < input.size(); i++) {
-			if (input.at(i) == '.') {
-				input.erase(i, 1);
-			}
-		}
-		//
-
-		//scomposizione dell'input
-		string backup = input;
+	// Funzione per estrarre i monomi da un polinomio
+	vector <string> fractioner(string polynomial) {
+		vector <string> monomials;
+		string backup = polynomial;
 		string temp;
 		int noparenthesis = 0;
 		int nop = 0;
 		int find = 0;
-		int index = 0;
 		for (int j = 0; j < backup.size(); j++) {
 			if (backup.at(j) == '(') noparenthesis++;
 			if ((noparenthesis == 0) && (backup.at(j) == '+')) {
-				temp = input;
+				temp = polynomial;
 				for (int finder = 0; finder < temp.size(); finder++) {
 					if (find == 0) {
 						if (temp.at(finder) == '(') nop++;
@@ -341,20 +328,34 @@ namespace FUNCTIONS {
 					}
 				}
 				temp.erase(find);
-				monomials[index] = temp;
-				index++;
-				input.erase(0, find + 1);
+				monomials.push_back(temp);
+				polynomial.erase(0, find + 1);
 				find = 0;
 			}
 			if (backup.at(j) == ')') noparenthesis--;
 		}
-		monomials[index] = input;
+		monomials.push_back(polynomial);
+		return monomials;
+	}
+
+	// Funzione per sommare la criptatura
+	int Convert(string input)
+	{
+		//rimozione punti
+		int output = 0;
+		int values[15];
+		for (int i = 0; i < input.size(); i++) {
+			if (input.at(i) == '.') {
+				input.erase(i, 1);
+			}
+		}
 		//
+		vector <string> monomials = fractioner(input);
 
 		//elaborazione monomi
 		int location;
 		bool presence = 1;
-		for (int A = 0; A <= index; A++) {
+		for (int A = 0; A < size(monomials); A++) {
 			if (monomials[A].at(0) == '(') {
 				for (int B = monomials[A].size() - 1; B >= 0; B--) {
 
@@ -363,7 +364,7 @@ namespace FUNCTIONS {
 						location = B;
 					}
 				}
-				temp = monomials[A];
+				string temp = monomials[A];
 				temp.erase(location);
 				temp.erase(0, 1);
 				monomials[A].erase(0, location + 1);
@@ -375,7 +376,7 @@ namespace FUNCTIONS {
 			presence = 1;
 		}
 		//
-		for (int end = 0; end <= index; end++) output += values[end];
+		for (int end = 0; end < size(monomials); end++) output += values[end];
 		return output;
 	}
 
@@ -394,10 +395,9 @@ namespace FUNCTIONS {
 			else {
 				char digits[] = { '0','1','2','3','4','5','6','7','8','9' };
 				for (int ch = 0; ch < check.size(); ch++) {
-					for (int chi = 0; chi < 10; chi++) {
-						if (check.at(ch) == digits[chi]) {
+					for (int chi = 0; chi < size(digits); chi++) {
+						if (check.at(ch) == digits[chi])
 							error = 0;
-						}
 					}
 					if (error) general_error = 1;
 					error = 1;
@@ -486,19 +486,17 @@ namespace FUNCTIONS {
 		return output;
 	}
 
-	// Funzione che converte un codice del rispettivo numero
-	void CodeToNumber() {
-
-		string ToEvaluate;
-		cout << "il programma traduce una stringa di codice\n";
-		cout << "il codice deve essere compreso tra <>\n";
-		cout << "unici caratteri non numerici ammessi: '(', ')', '+'\n\n";
-		cout << "inserire una stringa\n";
-		getline(cin, ToEvaluate);
-
-		bool error = 0;
+	// Funzione per controllare se una stringa è corretta
+	bool Grammarly(string ToEvaluate) {
+		bool error;
+		vector <string> mono;
+		char charsAllowed[] = { '0','1','2','3','4','5','6','7','8','9','(',')','+','.' };
+		error = 0;
+		bool local_error = 1;
+		bool stable = 0;
 		int start = -1;
 		int end = -1;
+		int noparenthesis = 0;
 		for (int find = 0; find < ToEvaluate.size(); find++) {
 			if (ToEvaluate.at(find) == '<') start = find + 1;
 			else if (ToEvaluate.at(find) == '>') end = find;
@@ -508,8 +506,80 @@ namespace FUNCTIONS {
 		if (!error) {
 			ToEvaluate.erase(end);
 			ToEvaluate.erase(0, start);
+			for (int ch = 0; ch < ToEvaluate.size(); ch++) {
+				if (ToEvaluate.at(ch) == '(') {
+					noparenthesis++;
+					stable++;
+				}
+				if (ToEvaluate.at(ch) == ')') noparenthesis--;
+			}
 		}
+		if (noparenthesis != 0) error = 1;
+		if (!error) {
+			for (int space = 0; space < ToEvaluate.size(); space++) {
+				if (ToEvaluate.at(space) == ' ')
+					ToEvaluate.erase(space, 1);
+			}
+		}
+		if (ToEvaluate.empty()) error = 1;
+		if (!error) for (int chi = 0; chi < ToEvaluate.size(); chi++) {
+			for (int ch_i = 0; ch_i <= size(charsAllowed); ch_i++) {
+				if (ToEvaluate.at(chi) == charsAllowed[ch_i])
+					local_error = 0;
+			}
+			if (local_error) error = 1;
+			local_error = 1;
+		}
+		if (!error && ToEvaluate.at(0) == '+') error = 1;
+		if (!error && ToEvaluate.at(0) == ')') error = 1;
+		if (!error && ToEvaluate.at(ToEvaluate.size() - 1) == '+')
+			error = 1;
+		if (!error) for (int std = 0; std < ToEvaluate.size() - 1; std++) {
+			if (ToEvaluate.at(std) == '+' && ToEvaluate.at(std + 1) == '+')
+				error = 1;
+		}
+		if (!error) {
+			mono = fractioner(ToEvaluate);
+			for (int monomial = 0; monomial < size(mono); monomial++) {
+				if (mono[monomial].at(size(mono[monomial]) - 1) == ')')
+					error = 1;
+				if (mono[monomial].at(size(mono[monomial]) - 1) == '(')
+					error = 1;
+				if (mono[monomial].at(0) == '(') {
+					int find = mono[monomial].find(')');
+					local_error = 1;
+					for (int checkplus = 1; checkplus < find; checkplus++) {
+						if (mono[monomial].at(checkplus) == '+') local_error = 0;
+					}
+					if (local_error) error = 1;
+					if (Grammarly("<" + mono[monomial] + ">")) error = 1;
+				}
+				else if (mono[monomial].at(0) == ')') error = 1;
+				else for (int check = 1; check < mono[monomial].size(); check++) {
+					if (mono[monomial].at(check) == '(') error = 1;
+					if (mono[monomial].at(check) == ')') error = 1;
+				}
+			}
+		}
+		return error;
+	}
 
+	// Funzione che converte un codice del rispettivo numero
+	void CodeToNumber() {
+		bool error;
+		string ToEvaluate;
+		vector <string> mono;
+		char charsAllowed[] = { '0','1','2','3','4','5','6','7','8','9','(',')','+','.' };
+		cout << "il programma traduce una stringa di codice\n";
+		cout << "il codice deve essere compreso tra <>\n";
+		cout << "unici caratteri non numerici ammessi: '(', ')', '+', '.'\n\n";
+		do{
+			cout << "inserire una stringa\n";
+			getline(cin, ToEvaluate);
+			error = Grammarly(ToEvaluate);
+		} while (error);
+		mono = fractioner(ToEvaluate);
+		// {...}
 	}
 
 	// Funzione per stampare correttamente una struttura
