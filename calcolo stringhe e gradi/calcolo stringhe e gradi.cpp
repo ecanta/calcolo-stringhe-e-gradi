@@ -15,7 +15,6 @@
 using namespace std;
 using namespace Concurrency;
 using namespace chrono;
-using namespace this_thread;
 
 long long Global_N = pow(10, 10);
 vector <bool> IsPrime;
@@ -575,61 +574,98 @@ namespace FUNCTIONS {
 		return error;
 	}
 
-	// Funzione che converte un codice del rispettivo numero
-	void CodeToNumber() {
-		bool error;
+	// Funzione che traduce un codice numerico
+	long long Simplifier(string M) {
 		bool XOutOfRange = 0;
-		string ToEvaluate;
-		vector <string> mono;
-		cout << "il programma traduce una stringa di codice\n";
-		cout << "il codice deve essere compreso tra <>\n";
-		cout << "unici caratteri non numerici ammessi: '(', ')', '+', \n\n";
-		do{
-			cout << "inserire una stringa\n";
-			getline(cin, ToEvaluate);
-			error = Grammarly(ToEvaluate);
-		} while (error);
-		int start = 0;
-		int end = 0;
-		for (int find = 0; find < ToEvaluate.size(); find++) {
-			if (ToEvaluate.at(find) == '<') start = find + 1;
-			else if (ToEvaluate.at(find) == '>') end = find;
-		}
-		ToEvaluate.erase(end);
-		ToEvaluate.erase(0, start);
-		for (int space = 0; space < ToEvaluate.size(); space++) {
-			if (ToEvaluate.at(space) == ' ')
-				ToEvaluate.erase(space, 1);
-		}
-		mono = fractioner(ToEvaluate);
-		for (int monomial = 0; monomial < size(mono); monomial++) {
-			string M = mono[monomial];
-			int root;
-			bool WhichWay = 0;
-			if (M.at(0) != '(') {
-				root = PrimeNumber[M.at(0)];
-				for (int iter = 1; iter < M.size(); iter++) {
-					WhichWay = !WhichWay;
-					if (WhichWay) root = pow(root, M.at(iter));
-					else {
-						int sizeP = size(PrimeNumber);
-						int nums = M.at(iter);
-						do {
-							if (root < sizeP) {
-								root = PrimeNumber[root];
-								nums--;
-							}
-							else XOutOfRange = 1;
-						} while (XOutOfRange == 0 || nums != 0);
-					}
-				}
-			}
+		bool WhichWay = 0;
+		long long root = M.at(0) - '0';
+		int sizeP = size(PrimeNumber);
+		if (root < sizeP) root = PrimeNumber[root - 1];
+		else XOutOfRange = 1;
+		if (!XOutOfRange) for (int iter = 1; iter < M.size(); iter++) {
+			WhichWay = !WhichWay;
+			if (WhichWay) root = pow(root, M.at(iter) - '0');
 			else {
-
+				int nums = M.at(iter) - '0';
+				do {
+					if (root < sizeP) {
+						root = PrimeNumber[root - 1];
+						nums--;
+					}
+					else XOutOfRange = 1;
+				} while (XOutOfRange != 1 && nums != 0);
 			}
 		}
+		if (XOutOfRange) return -1;
+		return root;
 	}
 
+	// Funzione che traduce un codice
+	long long Converter(string ToEvaluate) {
+		long long integer = 1;
+		string backup;
+		vector <string> mono = fractioner(ToEvaluate);
+		int sizeP = size(PrimeNumber);
+		int finder;
+		bool TAG;
+		for (int monomial = 0; monomial < size(mono); monomial++) {
+			string M = mono[monomial];
+			long long root;
+			bool WhichWay = 0;
+			if (M.at(0) != '(') root = Simplifier(M);
+			else {
+				for (int i = M.size() - 1; i > 0; i--) {
+					if (TAG && M.at(i) == ')') {
+						finder = i + 1;
+						TAG = 0;
+					}
+				}
+				backup = M;
+				backup.erase(0, finder);
+				//{...}
+			}
+			if (root == -1) return -1;
+			else integer *= root;
+		}
+		return integer;
+	}
+
+	// Funzione che esegue la traduzione
+	void CodeToNumber() {
+		bool error;
+		string ToEvaluate;
+		vector <string> mono;
+		long long NUMBER;
+		cout << "il programma traduce una stringa di codice\n";
+		cout << "il codice deve essere compreso tra <>\n";
+		cout << "0 = fine input\n";
+		cout << "unici caratteri non numerici ammessi: '(', ')', '+' \n\n";
+		do {
+			do {
+				cout << "inserire una stringa\n";
+				getline(cin, ToEvaluate);
+				error = Grammarly(ToEvaluate);
+			} while (error);
+			int start = 0;
+			int end = 0;
+			for (int find = 0; find < ToEvaluate.size(); find++) {
+				if (ToEvaluate.at(find) == '<') start = find + 1;
+				else if (ToEvaluate.at(find) == '>') end = find;
+			}
+			ToEvaluate.erase(end);
+			ToEvaluate.erase(0, start);
+			for (int space = 0; space < ToEvaluate.size(); space++) {
+				if (ToEvaluate.at(space) == ' ')
+					ToEvaluate.erase(space, 1);
+			}
+			if (ToEvaluate != "0") {
+				NUMBER = Converter(ToEvaluate);
+				if (NUMBER == -1) cout << "ERRORE: XOutOfRange\n";
+				else cout << "il numero corrispondente e' " << NUMBER << '\n';
+			}
+		} while (ToEvaluate != "0");
+	} 
+	
 	// Funzione per stampare correttamente una struttura
 	void printf(data_t structure) {
 		cout << "numero " << structure.number << ":\n";
