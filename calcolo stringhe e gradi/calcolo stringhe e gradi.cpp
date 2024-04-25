@@ -488,15 +488,28 @@ namespace FUNCTIONS {
 
 	// Funzione che converte un codice del rispettivo numero
 	void CodeToNumber() {
+
 		string ToEvaluate;
 		cout << "il programma traduce una stringa di codice\n";
 		cout << "il codice deve essere compreso tra <>\n";
 		cout << "unici caratteri non numerici ammessi: '(', ')', '+'\n\n";
 		cout << "inserire una stringa\n";
-		cin >> ToEvaluate;
+		getline(cin, ToEvaluate);
 
-		int start = ToEvaluate.find('<');
-		int end = ToEvaluate.find('>');
+		bool error = 0;
+		int start = -1;
+		int end = -1;
+		for (int find = 0; find < ToEvaluate.size(); find++) {
+			if (ToEvaluate.at(find) == '<') start = find + 1;
+			else if (ToEvaluate.at(find) == '>') end = find;
+		}
+		if (start == -1 || end == -1) error = 1;
+		if (end < start) error = 1;
+		if (!error) {
+			ToEvaluate.erase(end);
+			ToEvaluate.erase(0, start);
+		}
+
 	}
 
 	// Funzione per stampare correttamente una struttura
