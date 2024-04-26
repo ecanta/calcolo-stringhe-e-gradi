@@ -1,5 +1,4 @@
-//Calcolo stringhe e gradi.cpp, programma per scomporre i numeri
-
+// program_START
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -21,10 +20,8 @@ vector <bool> IsPrime;
 vector <int> PrimeNumber;
 mutex mtx;
 
-// Funzioni utilizzate
 namespace FUNCTIONS {
 
-	// Funzione per controllare se un numero è primo
 	bool prime(int variable) {
 		bool tag = 1;
 		if (variable == 1) return 0;
@@ -39,7 +36,6 @@ namespace FUNCTIONS {
 		return tag;
 	}
 
-	// Funzione per creare una barra di progresso
 	void progress_Bar(double ratio, double barWidth) {
 		cout << "[[";
 		int pos = (int)(barWidth * ratio);
@@ -55,13 +51,6 @@ namespace FUNCTIONS {
 		cout << "]] " << s << "%\r";
 	}
 
-	// Funzione per trovare la posizione di un elemento in un vettore
-	int position_in_the_vector(int number, vector <int> vect) {
-		for (int a = 0; a < size(vect); a++)
-			if (vect[a] == number) return a;
-	}
-
-	// Funzione per annotare se i numeri sono primi
 	vector <bool> Sieve(long long N, bool USE_pro_bar) {
 		vector<bool> isPrime(N + 1, 1);
 		vector<int> primes;
@@ -85,7 +74,6 @@ namespace FUNCTIONS {
 		return isPrime;
 	}
 
-	// Funzione per trovare tutti i numeri primi fino a n
 	vector <int> Sieve_of_Erastothens(vector <bool> isPrime, long long N) {
 		vector <int> primes;
 		for (int p = 2; p <= N; p++)
@@ -104,7 +92,6 @@ namespace FUNCTIONS {
 		int exp;
 	} compost_t;
 
-	// Funzione per ordinare un vettore di struct in ordine crescente
 	vector <data_t> SortData(vector <data_t> vect) {
 
 		for (int i = 0; i < size(vect); i++) {
@@ -121,7 +108,6 @@ namespace FUNCTIONS {
 		return vect;
 	}
 
-	// Funzione per scomporre un numero in fattori primi
 	vector <compost_t> decompose(int input) {
 		
 		if (input > PrimeNumber[size(PrimeNumber) - 1]) {
@@ -140,7 +126,6 @@ namespace FUNCTIONS {
 		int index = 0;
 		int d;
 
-		//scomposizione in fattori primi
 		for (d = 0; pow(PrimeNumber[d], 2) <= input; d++) {
 			if (input != 1) {
 				if (input % PrimeNumber[d] == 0) {
@@ -159,15 +144,12 @@ namespace FUNCTIONS {
 			output[index].exp++;
 		else output[index].factors = input;
 		input = 1;
-		//
 
 		return output;
 	}
 
-	// Funzione per creare la criptatura di un numero
 	string Algorithm(int input)
 	{
-		//inizializzazione
 		vector <compost_t> expfactors = decompose(input);
 		int PrimeFactors[15];
 		int exponents[15];
@@ -183,9 +165,7 @@ namespace FUNCTIONS {
 		}
 		int index = 0;
 		int d;
-		//
 
-		//calcolo dei monomi
 		string thenumber, iso_i, iso_g, iso_h;
 		int iso_hh, analyse, sizenumber;
 		bool repeat;
@@ -214,7 +194,14 @@ namespace FUNCTIONS {
 
 			do {
 				while (prime(analyse)) {
-					analyse = 1 + position_in_the_vector(analyse, PrimeNumber);
+					int position = -1;
+					int a = 1;
+					do {
+						if (PrimeNumber[a - 1] == analyse)
+							position = a;
+						a++;
+					} while (position < 0);
+					analyse = position;
 					iso_analyse = to_string(analyse);
 					bound_while = thenumber.find(')');
 					thenumber.erase(0, bound_while);
@@ -262,17 +249,13 @@ namespace FUNCTIONS {
 			} while (analyse != 1);
 			monomials[WhatFactor] = thenumber;
 		}
-		//
 
-		//unione dei monomi
 		thenumber = "";
 		for (int s = 0; s < factors; s++) {
 			thenumber = thenumber + "+" + monomials[s];
 		}
 		thenumber.erase(0, 1);
-		//
 
-		//rimozione basi
 		int position[15];
 		int j = 0;
 		for (int i1 = 0; i1 < (thenumber.size() - 2); i1++) {
@@ -283,9 +266,7 @@ namespace FUNCTIONS {
 		}
 		for (int i2 = j - 1; i2 >= 0; i2--)
 			thenumber.erase(position[i2], 3);
-		//
 
-		//rimozione parentesi in più
 		int j2 = 0;
 		sizenumber = thenumber.size();
 		if (sizenumber > 4) {
@@ -300,12 +281,10 @@ namespace FUNCTIONS {
 				thenumber.erase(position[i3], 1);
 			}
 		}
-		//
 
 		return thenumber;
 	}
 
-	// Funzione per estrarre i monomi da un polinomio
 	vector <string> fractioner(string polynomial) {
 		vector <string> monomials;
 		string backup = polynomial;
@@ -337,10 +316,8 @@ namespace FUNCTIONS {
 		return monomials;
 	}
 
-	// Funzione per sommare la criptatura
 	int Convert(string input)
 	{
-		//rimozione punti
 		int output = 0;
 		int values[15];
 		for (int i = 0; i < input.size(); i++) {
@@ -348,10 +325,8 @@ namespace FUNCTIONS {
 				input.erase(i, 1);
 			}
 		}
-		//
 		vector <string> monomials = fractioner(input);
 
-		//elaborazione monomi
 		int location;
 		bool presence = 1;
 		for (int A = 0; A < size(monomials); A++) {
@@ -374,13 +349,11 @@ namespace FUNCTIONS {
 			}
 			presence = 1;
 		}
-		//
 		for (int end = 0; end < size(monomials); end++) output += values[end];
 		return output;
 	}
 
-	// Funzione per ottenere l'input controllato
-	long long get_user_num(string txt, long long lw, long long bound) {
+	long long get_user_num(string txt, int lw, long long bound) {
 
 		long long user_num;
 		string check;
@@ -392,10 +365,10 @@ namespace FUNCTIONS {
 			if (check.empty()) user_num = lw - 1;
 			else if (check.size() > 10) user_num = lw - 1;
 			else {
-				char digits[] = { '0','1','2','3','4','5','6','7','8','9' };
+				string digits = "0123456789";
 				for (int ch = 0; ch < check.size(); ch++) {
-					for (int chi = 0; chi < size(digits); chi++) {
-						if (check.at(ch) == digits[chi])
+					for (int chi = 0; chi < digits.size(); chi++) {
+						if (check.at(ch) == digits.at(chi))
 							error = 0;
 					}
 					if (error) general_error = 1;
@@ -410,10 +383,8 @@ namespace FUNCTIONS {
 		return user_num;
 	}
 
-	// Funzione per stampare la fattorizzazione di un numero
 	string fact(int input) {
 
-		//inizializzazione
 		vector <compost_t> expfactors = decompose(input);
 		int PrimeFactors[15];
 		int exponents[15];
@@ -429,9 +400,7 @@ namespace FUNCTIONS {
 		}
 		int index = 0;
 		int d;
-		//
 
-		//costruzione dell'output
 		string output = "";
 		for (int i = 0; i < factors; i++) {
 			if (exponents[i] != 1) {
@@ -440,12 +409,10 @@ namespace FUNCTIONS {
 			else output = output + to_string(PrimeFactors[i]) + " * ";
 		}
 		output.erase(output.size() - 3);
-		//
 
 		return output;
 	}
 
-	// Algoritmo fondamentale della codifica
 	data_t coredegree(int set) {
 		data_t output;
 		int counter = 0;
@@ -463,7 +430,6 @@ namespace FUNCTIONS {
 		return output;
 	}
 
-	// Algoritmo fondamentale della scomposizione
 	data_t corefactor(int set) {
 		data_t output;
 		output.number = set;
@@ -473,7 +439,6 @@ namespace FUNCTIONS {
 		return output;
 	}
 
-	// Algoritmo che combina scomposizione e codifica
 	data_t NucleusAll(int set) {
 		data_t A = coredegree(set);
 		data_t B = corefactor(set);
@@ -485,12 +450,9 @@ namespace FUNCTIONS {
 		return output;
 	}
 
-	// Funzione per controllare se una stringa è corretta
 	bool Grammarly(string ToEvaluate) {
-		bool error;
 		vector <string> mono;
-		char charsAllowed[] = { '0','1','2','3','4','5','6','7','8','9','(',')','+', };
-		error = 0;
+		string charsAllowed = "0123456789()+";
 		bool local_error = 1;
 		bool TAG = 1;
 		bool stable = 0;
@@ -501,80 +463,95 @@ namespace FUNCTIONS {
 			if (ToEvaluate.at(find) == '<') start = find + 1;
 			else if (ToEvaluate.at(find) == '>') end = find;
 		}
-		if (start == -1 || end == -1) error = 1;
-		if (end < start) error = 1;
-		if (!error) {
-			ToEvaluate.erase(end);
-			ToEvaluate.erase(0, start);
-			for (int ch = 0; ch < ToEvaluate.size(); ch++) {
-				if (ToEvaluate.at(ch) == '(') {
-					noparenthesis++;
-					stable++;
-				}
-				if (ToEvaluate.at(ch) == ')') noparenthesis--;
+		if (start == -1 || end == -1) return 1;
+		if (end < start) return 1;
+		ToEvaluate.erase(end);
+		ToEvaluate.erase(0, start);
+		for (int ch = 0; ch < ToEvaluate.size(); ch++) {
+			if (ToEvaluate.at(ch) == '(') {
+				noparenthesis++;
+				stable++;
 			}
+			if (ToEvaluate.at(ch) == ')') noparenthesis--;
 		}
-		if (noparenthesis != 0) error = 1;
-		if (!error) {
-			for (int space = 0; space < ToEvaluate.size(); space++) {
-				if (ToEvaluate.at(space) == ' ')
-					ToEvaluate.erase(space, 1);
-			}
+		if (noparenthesis != 0) return 1;
+		for (int space = ToEvaluate.size() - 1; space >= 0; space--) {
+			if (ToEvaluate.at(space) == ' ')
+				ToEvaluate.erase(space, 1);
 		}
-		if (ToEvaluate.empty()) error = 1;
-		if (!error) for (int chi = 0; chi < ToEvaluate.size(); chi++) {
-			for (int ch_i = 0; ch_i <= size(charsAllowed); ch_i++) {
-				if (ToEvaluate.at(chi) == charsAllowed[ch_i])
+		if (ToEvaluate.empty()) return 1;
+		for (int chi = 0; chi < ToEvaluate.size(); chi++) {
+			for (int ch_i = 0; ch_i < charsAllowed.size(); ch_i++) {
+				if (ToEvaluate.at(chi) == charsAllowed.at(ch_i))
 					local_error = 0;
 			}
-			if (local_error) error = 1;
+			if (local_error) return 1;
 			local_error = 1;
 		}
-		if (!error && ToEvaluate.at(0) == '+') error = 1;
-		if (!error && ToEvaluate.at(0) == ')') error = 1;
-		if (!error && ToEvaluate.at(ToEvaluate.size() - 1) == '+')
-			error = 1;
-		if (!error) for (int std = 0; std < ToEvaluate.size() - 1; std++) {
+		if (ToEvaluate.at(0) == '+') return 1;
+		if (ToEvaluate.at(0) == ')') return 1;
+		if (ToEvaluate.at(ToEvaluate.size() - 1) == '+')
+			return 1;
+		for (int std = 0; std < ToEvaluate.size() - 1; std++) {
 			if (ToEvaluate.at(std) == '+' && ToEvaluate.at(std + 1) == '+')
-				error = 1;
+				return 1;
 		}
-		if (!error) {
-			mono = fractioner(ToEvaluate);
-			for (int monomial = 0; monomial < size(mono); monomial++) {
-				if (mono[monomial].at(size(mono[monomial]) - 1) == ')')
-					error = 1;
-				if (mono[monomial].at(size(mono[monomial]) - 1) == '(')
-					error = 1;
-				if (mono[monomial].at(0) == '(') {
-					int finder;
-					string stack = mono[monomial];
+		mono = fractioner(ToEvaluate);
+		for (int monomial = 0; monomial < size(mono); monomial++) {
+			int finder;
+			bool stop = 1;
+			int res = 0;
+			for (int second = 1; second < size(mono); second++) {
+				if (mono[monomial] == mono[second]) {
+					if (monomial != second) return 1;
+				}
+				string stack = mono[monomial];
+				string stick = mono[second];
+				if (stack.at(0) == '(') {
 					for (int j = stack.size() - 1; j > 0; j--) {
 						if (TAG && stack.at(j) == ')') {
 							finder = j - 1;
 							TAG = 0;
 						}
 					}
-					local_error = 1;
-					for (int checkplus = 1; checkplus < finder; checkplus++) {
-						if (stack.at(checkplus) == '+') local_error = 0;
+					for (int l = 0; l < stack.size(); l++) {
+
 					}
-					if (local_error) error = 1;
-					stack.erase(0, 1);
-					stack.erase(finder);
-					if (Grammarly("<" + stack + ">")) error = 1;
 				}
-				else if (mono[monomial].at(0) == ')') error = 1;
-				else for (int check = 1; check < mono[monomial].size(); check++) {
-					if (mono[monomial].at(check) == '(') error = 1;
-					if (mono[monomial].at(check) == ')') error = 1;
+				else {
+					for (int m = 0; m < stack.size(); m++) {
+						if (stop && stick.at(m) == stack.at(m)) {
+							res++;
+							if (stick.at(m) != stack.at(m))
+								stop = 0;
+						}
+					}
 				}
 			}
+			if (mono[monomial].at(size(mono[monomial]) - 1) == ')')
+				return 1;
+			if (mono[monomial].at(size(mono[monomial]) - 1) == '(')
+				return 1;
+			if (mono[monomial].at(0) == '(') {
+				local_error = 1;
+				for (int checkplus = 1; checkplus < finder; checkplus++) {
+					if (stack.at(checkplus) == '+') local_error = 0;
+				}
+				if (local_error) return 1;
+				stack.erase(0, 1);
+				stack.erase(finder);
+				if (Grammarly("<" + stack + ">")) return 1;
+			}
+			else if (mono[monomial].at(0) == ')') return 1;
+			else for (int check = 1; check < mono[monomial].size(); check++) {
+				if (mono[monomial].at(check) == '(') return 1;
+				if (mono[monomial].at(check) == ')') return 1;
+			}
 		}
-		return error;
+		return 0;
 	}
 
-	// Funzione che traduce un codice numerico rispetto alle parentesi
-	long long Parenthesis(long long root, string M) {
+	long long Simplifier(long long root, string M) {
 		bool WhichWay = 1;
 		bool XOutOfRange = 0;
 		int sizeP = size(PrimeNumber);
@@ -596,33 +573,6 @@ namespace FUNCTIONS {
 		return root;
 	}
 
-	// Funzione che traduce un codice numerico
-	long long Simplifier(string M) {
-		bool WhichWay = 0;
-		bool XOutOfRange = 0;
-		int sizeP = size(PrimeNumber);
-		long long root = M.at(0) - '0';
-		if (root < sizeP) root = PrimeNumber[root - 1];
-		else XOutOfRange = 1;
-		if (!XOutOfRange) for (int iter = 1; iter < M.size(); iter++) {
-			WhichWay = !WhichWay;
-			if (WhichWay) root = pow(root, M.at(iter) - '0');
-			else {
-				int nums = M.at(iter) - '0';
-				do {
-					if (root < sizeP) {
-						root = PrimeNumber[root - 1];
-						nums--;
-					}
-					else XOutOfRange = 1;
-				} while (XOutOfRange != 1 && nums != 0);
-			}
-		}
-		if (XOutOfRange) return -1;
-		return root;
-	}
-
-	// Funzione che traduce un codice
 	long long Converter(string ToEvaluate) {
 		long long integer = 1;
 		string backup, back;
@@ -634,7 +584,7 @@ namespace FUNCTIONS {
 			string M = mono[monomial];
 			long long root;
 			bool WhichWay = 0;
-			if (M.at(0) != '(') root = Simplifier(M);
+			if (M.at(0) != '(') root = Simplifier(1, M);
 			else {
 				for (int i = M.size() - 1; i > 0; i--) {
 					if (TAG && M.at(i) == ')') {
@@ -648,7 +598,7 @@ namespace FUNCTIONS {
 				back.erase(finder - 1);
 				back.erase(0, 1);
 				root = Converter(back);
-				root = Parenthesis(root, backup);
+				root = Simplifier(root, backup);
 			}
 			if (root == -1) return -1;
 			else integer *= root;
@@ -656,7 +606,6 @@ namespace FUNCTIONS {
 		return integer;
 	}
 
-	// Funzione che esegue la traduzione
 	void CodeToNumber() {
 		bool error;
 		string ToEvaluate;
@@ -680,7 +629,7 @@ namespace FUNCTIONS {
 			}
 			ToEvaluate.erase(end);
 			ToEvaluate.erase(0, start);
-			for (int space = 0; space < ToEvaluate.size(); space++) {
+			for (int space = ToEvaluate.size() - 1; space >= 0; space--) {
 				if (ToEvaluate.at(space) == ' ')
 					ToEvaluate.erase(space, 1);
 			}
@@ -692,7 +641,6 @@ namespace FUNCTIONS {
 		} while (ToEvaluate != "0");
 	} 
 	
-	// Funzione per stampare correttamente una struttura
 	void printf(data_t structure) {
 		cout << "numero " << structure.number << ":\n";
 		if (!structure.code.empty()) {
@@ -709,7 +657,6 @@ namespace FUNCTIONS {
 		}
 	}
 
-	// Funzione per ripetere un certo algoritmo
 	void repeater(string message, data_t nucleus(int input))
 	{
 		string n_ = to_string(Global_N);
@@ -726,7 +673,6 @@ namespace FUNCTIONS {
 		} while (input != 1);
 	}
 
-	// Funzione per ripetere su una serie un certo algoritmo
 	void loop(string message, data_t nucleus(int set))
 	{
 		string n_ = to_string(Global_N);
@@ -779,7 +725,6 @@ namespace FUNCTIONS {
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
 				 << "[ms]" << '\n';
 
-			//output
 			data = SortData(data);
 			for (int c = 0; c < Barwidth + 11; c++) cout << ' '; cout << '\n';
 			for (int x = 0; x < size(data); ++x) printf(data[x]);
@@ -819,7 +764,6 @@ namespace FUNCTIONS {
 	}
 }
 
-// Programma principale
 int main()
 {	
 	using namespace FUNCTIONS;
@@ -927,28 +871,21 @@ int main()
 			}
 		}
 		switch (option) {
-		case cc:
-			repeater(message, coredegree);
+		case cc: repeater(message, coredegree);
 			break;
-		case cf:
-			repeater(fact_message, corefactor);
+		case cf: repeater(fact_message, corefactor);
 			break;
-		case ccf:
-			repeater(AllMessage, NucleusAll);
+		case ccf: repeater(AllMessage, NucleusAll);
 			break;
-		case dc:
-			loop(deg_message, coredegree);
+		case dc: loop(deg_message, coredegree);
 			break;
-		case df:
-			loop(defact_message, corefactor);
+		case df: loop(defact_message, corefactor);
 			break;
-		case dcf:
-			loop(AllMessage, NucleusAll);
+		case dcf: loop(AllMessage, NucleusAll);
 			break;
-		case ctn:
-			CodeToNumber();
+		case ctn: CodeToNumber();
 			break;
 		}
 	} while (0 == 0);
 }
-// FINE...
+// program_END
