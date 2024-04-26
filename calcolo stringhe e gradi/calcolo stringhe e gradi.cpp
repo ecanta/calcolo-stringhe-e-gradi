@@ -450,21 +450,17 @@ namespace FUNCTIONS {
 		return output;
 	}
 
-	bool Grammarly(string ToEvaluate) {
+	string Grammarly(string ToEvaluate) {
 		vector <string> mono;
 		string charsAllowed = "0123456789()+";
-		bool local_error = 1;
-		bool TAG = 1;
-		bool stable = 0;
-		int start = -1;
-		int end = -1;
-		int noparenthesis = 0;
+		bool local_error = 1, TAG = 1, stable = 0;
+		int start = -1, end = -1, noparenthesis = 0;
 		for (int find = 0; find < ToEvaluate.size(); find++) {
 			if (ToEvaluate.at(find) == '<') start = find + 1;
 			else if (ToEvaluate.at(find) == '>') end = find;
 		}
-		if (start == -1 || end == -1) return 1;
-		if (end < start) return 1;
+		if (start == -1 || end == -1) return "NoBoundary";
+		if (end < start) return "BoundaryInversion";
 		ToEvaluate.erase(end);
 		ToEvaluate.erase(0, start);
 		for (int ch = 0; ch < ToEvaluate.size(); ch++) {
@@ -474,81 +470,118 @@ namespace FUNCTIONS {
 			}
 			if (ToEvaluate.at(ch) == ')') noparenthesis--;
 		}
-		if (noparenthesis != 0) return 1;
+		if (noparenthesis != 0) return "UnbalancedBrackets";
 		for (int space = ToEvaluate.size() - 1; space >= 0; space--) {
 			if (ToEvaluate.at(space) == ' ')
 				ToEvaluate.erase(space, 1);
 		}
-		if (ToEvaluate.empty()) return 1;
+		if (ToEvaluate.empty()) return "EmptyInput";
 		for (int chi = 0; chi < ToEvaluate.size(); chi++) {
 			for (int ch_i = 0; ch_i < charsAllowed.size(); ch_i++) {
 				if (ToEvaluate.at(chi) == charsAllowed.at(ch_i))
 					local_error = 0;
 			}
-			if (local_error) return 1;
+			if (local_error) return "UnallowedCharacters";
 			local_error = 1;
 		}
-		if (ToEvaluate.at(0) == '+') return 1;
-		if (ToEvaluate.at(0) == ')') return 1;
+		if (ToEvaluate.at(0) == '+') return "'+'AtStart";
+		if (ToEvaluate.at(0) == ')') return "InvertedBrackets";
 		if (ToEvaluate.at(ToEvaluate.size() - 1) == '+')
-			return 1;
+			return "'+'AtEnd";
 		for (int std = 0; std < ToEvaluate.size() - 1; std++) {
 			if (ToEvaluate.at(std) == '+' && ToEvaluate.at(std + 1) == '+')
-				return 1;
+				return "Double'+'";
 		}
 		mono = fractioner(ToEvaluate);
 		for (int monomial = 0; monomial < size(mono); monomial++) {
-			int finder;
-			bool stop = 1;
+			int stackfinder = -1, stickfinder = -1, finder;
+			bool stop = 0;
 			int res = 0;
+			string stack = mono[monomial];
 			for (int second = 1; second < size(mono); second++) {
-				if (mono[monomial] == mono[second]) {
-					if (monomial != second) return 1;
-				}
-				string stack = mono[monomial];
-				string stick = mono[second];
-				if (stack.at(0) == '(') {
-					for (int j = stack.size() - 1; j > 0; j--) {
-						if (TAG && stack.at(j) == ')') {
-							finder = j - 1;
-							TAG = 0;
+				if (monomial != second) {
+					if (mono[monomial] == mono[second]) return "EqualMonomials";
+					string stick = mono[second];
+					int size_st;
+					if (stack.size() < stick.size()) size_st = stack.size();
+					else size_st = stick.size();
+					if (stack.at(0) == '(' || stick.at(0) == ')') {
+						TAG = 1;
+						for (int j = stack.size() - 1; j > 0; j--) {
+							if (TAG && stack.at(j) == ')') {
+								stackfinder = j - 1;
+								TAG = 0;
+							}
+						}
+						TAG = 1;
+						for (int k = stick.size() - 1; k > 0; k--) {
+							if (TAG && stick.at(k) == ')') {
+								stickfinder = k - 1;
+								TAG = 0;
+							}
+						}
+						if (stackfinder * stickfinder < 0) {
+							if (stackfinder > 0) finder = stackfinder;
+							else finder = stickfinder;
+						}
+						else if (stickfinder == stackfinder) {
+							finder = stackfinder;
+							for (int l = 0; l <= finder + 1; l++) {
+								if (l < size_st) {
+									if (stick.at(l) != stack.at(l))
+										stop = 1;
+								}
+							}
+							for (int l = finder + 2; l < size_st; l++) {
+								if (!stop && stick.at(l) == stack.at(l)) {
+									res++;
+									if (stick.at(l) != stack.at(l))
+										stop = 1;
+								}
+								else stop = 1;
+							}
 						}
 					}
-					for (int l = 0; l < stack.size(); l++) {
-
-					}
-				}
-				else {
-					for (int m = 0; m < stack.size(); m++) {
-						if (stop && stick.at(m) == stack.at(m)) {
+					else for (int m = 0; m < size_st; m++) {
+						if (!stop && stick.at(m) == stack.at(m)) {
 							res++;
 							if (stick.at(m) != stack.at(m))
-								stop = 0;
+								stop = 1;
 						}
+						else stop = 1;
 					}
+					if (res % 2 == 1) return "SimiliarMonomials";
 				}
 			}
-			if (mono[monomial].at(size(mono[monomial]) - 1) == ')')
-				return 1;
-			if (mono[monomial].at(size(mono[monomial]) - 1) == '(')
-				return 1;
-			if (mono[monomial].at(0) == '(') {
+			TAG = 1;
+			for (int j = stack.size() - 1; j > 0; j--) {
+				if (TAG && stack.at(j) == ')') {
+					finder = j - 1;
+					TAG = 0;
+				}
+			}
+			if (stack.at(stack.size() - 1) == ')')
+				return "MissingObject";
+			if (stack.at(stack.size() - 1) == '(')
+				return "InvertedBrackets";
+			if (stack.at(0) == '(') {
 				local_error = 1;
 				for (int checkplus = 1; checkplus < finder; checkplus++) {
 					if (stack.at(checkplus) == '+') local_error = 0;
 				}
-				if (local_error) return 1;
+				if (local_error) return "UselessBrackets";
 				stack.erase(0, 1);
 				stack.erase(finder);
-				if (Grammarly("<" + stack + ">")) return 1;
+				string message = Grammarly("<" + stack + ">"); 
+				if (!message.empty()) return message;
 			}
-			else if (mono[monomial].at(0) == ')') return 1;
+			else if (mono[monomial].at(0) == ')') return "InvertedBrackets";
 			else for (int check = 1; check < mono[monomial].size(); check++) {
-				if (mono[monomial].at(check) == '(') return 1;
-				if (mono[monomial].at(check) == ')') return 1;
+				if (mono[monomial].at(check) == '(') return "MissingObject";
+				if (mono[monomial].at(check) == ')') return "InvertedObject";
 			}
 		}
-		return 0;
+		return "";
 	}
 
 	long long Simplifier(long long root, string M) {
@@ -586,6 +619,7 @@ namespace FUNCTIONS {
 			bool WhichWay = 0;
 			if (M.at(0) != '(') root = Simplifier(1, M);
 			else {
+				TAG = 1;
 				for (int i = M.size() - 1; i > 0; i--) {
 					if (TAG && M.at(i) == ')') {
 						finder = i + 1;
@@ -607,20 +641,20 @@ namespace FUNCTIONS {
 	}
 
 	void CodeToNumber() {
-		bool error;
-		string ToEvaluate;
+		string ToEvaluate, message;
 		vector <string> mono;
 		long long NUMBER;
 		cout << "il programma traduce una stringa di codice\n";
 		cout << "il codice deve essere compreso tra <>\n";
-		cout << "0 = fine input\n";
 		cout << "unici caratteri non numerici ammessi: '(', ')', '+' \n\n";
 		do {
 			do {
-				cout << "inserire una stringa\n";
+				cout << "inserire una stringa (0 = fine input)\n";
 				getline(cin, ToEvaluate);
-				error = Grammarly(ToEvaluate);
-			} while (error);
+				message = Grammarly(ToEvaluate);
+				if (!message.empty())
+					cout << "ERROR-404: " << message << '\n';
+			} while (!message.empty());
 			int start = 0;
 			int end = 0;
 			for (int find = 0; find < ToEvaluate.size(); find++) {
@@ -635,7 +669,7 @@ namespace FUNCTIONS {
 			}
 			if (ToEvaluate != "0") {
 				NUMBER = Converter(ToEvaluate);
-				if (NUMBER == -1) cout << "ERRORE: XOutOfRange\n";
+				if (NUMBER == -1) cout << "ERROR-413: XOutOfRange\n";
 				else cout << "il numero corrispondente e' " << NUMBER << '\n';
 			}
 		} while (ToEvaluate != "0");
@@ -791,9 +825,13 @@ int main()
 			IsPrime = Sieve(Global_N, 1);
 			PrimeNumber = Sieve_of_Erastothens(IsPrime, Global_N);
 			steady_clock::time_point end = steady_clock::now();
-			cout << "tempo di calcolo numeri primi = "
-				 << duration_cast <milliseconds> (end - begin).count() - 1
-				 << "[ms]" << "\n\n";
+			int delta = duration_cast <milliseconds> (end - begin).count();
+			int exception_delta = duration_cast <microseconds> (end - begin).count();
+			if (delta <= 10) {
+				cout << "tempo di calcolo numeri primi = " << exception_delta 
+					 << " microsecondi" << "\n\n";
+			}
+			else cout << "tempo di calcolo numeri primi = " << delta << "[ms]" << "\n\n";
 		}
 		cout << "scegli opzioni::\n";
 		cout << "se stringa di un carattere:\n";
