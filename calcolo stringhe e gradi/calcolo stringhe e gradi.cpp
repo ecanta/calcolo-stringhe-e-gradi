@@ -546,23 +546,22 @@ namespace FUNCTIONS {
 				if (mono[monomial].at(size(mono[monomial]) - 1) == '(')
 					error = 1;
 				if (mono[monomial].at(0) == '(') {
-					int find = mono[monomial].find(')');
-					local_error = 1;
-					for (int checkplus = 1; checkplus < find; checkplus++) {
-						if (mono[monomial].at(checkplus) == '+') local_error = 0;
-					}
-					if (local_error) error = 1;
-					string stack = mono[monomial];
 					int finder;
+					string stack = mono[monomial];
 					for (int j = stack.size() - 1; j > 0; j--) {
 						if (TAG && stack.at(j) == ')') {
-							finder = j;
+							finder = j - 1;
 							TAG = 0;
 						}
 					}
+					local_error = 1;
+					for (int checkplus = 1; checkplus < finder; checkplus++) {
+						if (stack.at(checkplus) == '+') local_error = 0;
+					}
+					if (local_error) error = 1;
 					stack.erase(0, 1);
 					stack.erase(finder);
-					if (Grammarly("<" + mono[monomial] + ">")) error = 1;
+					if (Grammarly("<" + stack + ">")) error = 1;
 				}
 				else if (mono[monomial].at(0) == ')') error = 1;
 				else for (int check = 1; check < mono[monomial].size(); check++) {
@@ -574,12 +573,35 @@ namespace FUNCTIONS {
 		return error;
 	}
 
+	// Funzione che traduce un codice numerico rispetto alle parentesi
+	long long Parenthesis(long long root, string M) {
+		bool WhichWay = 1;
+		bool XOutOfRange = 0;
+		int sizeP = size(PrimeNumber);
+		if (!XOutOfRange) for (int iter = 0; iter < M.size(); iter++) {
+			WhichWay = !WhichWay;
+			if (WhichWay) root = pow(root, M.at(iter) - '0');
+			else {
+				int nums = M.at(iter) - '0';
+				do {
+					if (root < sizeP) {
+						root = PrimeNumber[root - 1];
+						nums--;
+					}
+					else XOutOfRange = 1;
+				} while (XOutOfRange != 1 && nums != 0);
+			}
+		}
+		if (XOutOfRange) return -1;
+		return root;
+	}
+
 	// Funzione che traduce un codice numerico
 	long long Simplifier(string M) {
-		bool XOutOfRange = 0;
 		bool WhichWay = 0;
-		long long root = M.at(0) - '0';
+		bool XOutOfRange = 0;
 		int sizeP = size(PrimeNumber);
+		long long root = M.at(0) - '0';
 		if (root < sizeP) root = PrimeNumber[root - 1];
 		else XOutOfRange = 1;
 		if (!XOutOfRange) for (int iter = 1; iter < M.size(); iter++) {
@@ -603,11 +625,11 @@ namespace FUNCTIONS {
 	// Funzione che traduce un codice
 	long long Converter(string ToEvaluate) {
 		long long integer = 1;
-		string backup;
+		string backup, back;
 		vector <string> mono = fractioner(ToEvaluate);
 		int sizeP = size(PrimeNumber);
 		int finder;
-		bool TAG;
+		bool TAG = 1;
 		for (int monomial = 0; monomial < size(mono); monomial++) {
 			string M = mono[monomial];
 			long long root;
@@ -620,9 +642,13 @@ namespace FUNCTIONS {
 						TAG = 0;
 					}
 				}
+				back = M;
 				backup = M;
 				backup.erase(0, finder);
-				//{...}
+				back.erase(finder - 1);
+				back.erase(0, 1);
+				root = Converter(back);
+				root = Parenthesis(root, backup);
 			}
 			if (root == -1) return -1;
 			else integer *= root;
