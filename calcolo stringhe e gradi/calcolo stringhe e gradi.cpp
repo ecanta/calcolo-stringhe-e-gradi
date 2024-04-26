@@ -1,5 +1,4 @@
 // program_START
-#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -20,9 +19,10 @@ vector <bool> IsPrime;
 vector <int> PrimeNumber;
 mutex mtx;
 
-namespace FUNCTIONS {
-
-	bool prime(int variable) {
+namespace FUNCTIONS 
+{
+	bool static prime(int variable) 
+	{
 		bool tag = 1;
 		if (variable == 1) return 0;
 		else if (variable < size(IsPrime)) {
@@ -36,7 +36,8 @@ namespace FUNCTIONS {
 		return tag;
 	}
 
-	void progress_Bar(double ratio, double barWidth) {
+	void static progress_Bar(double ratio, double barWidth) 
+	{
 		cout << "[[";
 		int pos = (int)(barWidth * ratio);
 		for (int i = 0; i < barWidth; ++i) {
@@ -51,19 +52,23 @@ namespace FUNCTIONS {
 		cout << "]] " << s << "%\r";
 	}
 
-	vector <bool> Sieve(long long N, bool USE_pro_bar) {
+	vector <bool> static Sieve(long long N, bool USE_pro_bar) 
+	{
 		vector<bool> isPrime(N + 1, 1);
 		vector<int> primes;
 		double Barwidth = 80;
-
+		int iter = 0;
 		for (int p = 2; pow(p, 2) <= N; p++) {
 			if (isPrime[p]) {
 				for (int i = pow(p, 2); i <= N; i += p)
 					isPrime[i] = 0;
 			}
 			if (N > 200000 && USE_pro_bar) {
-				double progress = ((double)(pow(p, 2)) / N);
-				progress_Bar(progress, Barwidth);
+				if (iter % 200 == 0) {
+					double progress = ((double)(pow(p, 2)) / N);
+					progress_Bar(progress, Barwidth);
+				}
+				iter++;
 			}
 		}
 		if (USE_pro_bar) {
@@ -74,7 +79,8 @@ namespace FUNCTIONS {
 		return isPrime;
 	}
 
-	vector <int> Sieve_of_Erastothens(vector <bool> isPrime, long long N) {
+	vector <int> static Sieve_of_Erastothens(vector <bool> isPrime, long long N) 
+	{
 		vector <int> primes;
 		for (int p = 2; p <= N; p++)
 			if (isPrime[p]) primes.push_back(p);
@@ -92,8 +98,8 @@ namespace FUNCTIONS {
 		int exp;
 	} compost_t;
 
-	vector <data_t> SortData(vector <data_t> vect) {
-
+	vector <data_t> static SortData(vector <data_t> vect) 
+	{
 		for (int i = 0; i < size(vect); i++) {
 			for (int j = 0; j < size(vect); j++) {
 				if (vect[i].number < vect[j].number) {
@@ -108,8 +114,8 @@ namespace FUNCTIONS {
 		return vect;
 	}
 
-	vector <compost_t> decompose(int input) {
-		
+	vector <compost_t> static decompose(int input) 
+	{
 		if (input > PrimeNumber[size(PrimeNumber) - 1]) {
 			vector <int> PrimeN = Sieve_of_Erastothens(Sieve(input, 0), input);
 			for (int a = size(PrimeNumber); a < size(PrimeN); a++) {
@@ -148,7 +154,7 @@ namespace FUNCTIONS {
 		return output;
 	}
 
-	string Algorithm(int input)
+	string static Algorithm(int input)
 	{
 		vector <compost_t> expfactors = decompose(input);
 		int PrimeFactors[15];
@@ -158,7 +164,7 @@ namespace FUNCTIONS {
 		for (int e = 0; e < 15; e++) {
 			PrimeFactors[e] = expfactors[e].factors;
 			exponents[e] = expfactors[e].exp;
-			if (tag2 && (PrimeFactors[e] == 0)) {
+			if (tag2 && PrimeFactors[e] == 0) {
 				factors = e;
 				tag2 = 0;
 			}
@@ -180,7 +186,7 @@ namespace FUNCTIONS {
 			analyse = PrimeFactors[WhatFactor];
 			string the_n1 = "(";
 			string the_n2 = ")";
-			if ((exponents[WhatFactor] != 1) && (exponents[WhatFactor] < 11)) {
+			if (exponents[WhatFactor] != 1 && exponents[WhatFactor] < 11) {
 				the_n2.append(iso_i);
 				presence = 1;
 			}
@@ -238,7 +244,7 @@ namespace FUNCTIONS {
 					}
 					repeat = 1;
 				}
-				if ((analyse != 1) && !prime(analyse)) {
+				if (analyse != 1 && !prime(analyse)) {
 					iso_analyse = Algorithm(analyse);
 					bound = thenumber.find(')');
 					thenumber.erase(0, bound);
@@ -285,7 +291,8 @@ namespace FUNCTIONS {
 		return thenumber;
 	}
 
-	vector <string> fractioner(string polynomial) {
+	vector <string> static fractioner(string polynomial) 
+	{
 		vector <string> monomials;
 		string backup = polynomial;
 		string temp;
@@ -316,7 +323,7 @@ namespace FUNCTIONS {
 		return monomials;
 	}
 
-	int Convert(string input)
+	int static Convert(string input)
 	{
 		int output = 0;
 		int values[15];
@@ -353,8 +360,8 @@ namespace FUNCTIONS {
 		return output;
 	}
 
-	long long get_user_num(string txt, int lw, long long bound) {
-
+	long long static get_user_num(string txt, int lw, long long bound) 
+	{
 		long long user_num;
 		string check;
 		do {
@@ -383,8 +390,8 @@ namespace FUNCTIONS {
 		return user_num;
 	}
 
-	string fact(int input) {
-
+	string static fact(int input) 
+	{
 		vector <compost_t> expfactors = decompose(input);
 		int PrimeFactors[15];
 		int exponents[15];
@@ -413,7 +420,8 @@ namespace FUNCTIONS {
 		return output;
 	}
 
-	data_t coredegree(int set) {
+	data_t static coredegree(int set) 
+	{
 		data_t output;
 		int counter = 0;
 		int input = set;
@@ -430,7 +438,8 @@ namespace FUNCTIONS {
 		return output;
 	}
 
-	data_t corefactor(int set) {
+	data_t static corefactor(int set) 
+	{
 		data_t output;
 		output.number = set;
 		output.code = "";
@@ -439,7 +448,8 @@ namespace FUNCTIONS {
 		return output;
 	}
 
-	data_t NucleusAll(int set) {
+	data_t static NucleusAll(int set) 
+	{
 		data_t A = coredegree(set);
 		data_t B = corefactor(set);
 		data_t output;
@@ -450,7 +460,8 @@ namespace FUNCTIONS {
 		return output;
 	}
 
-	string Grammarly(string ToEvaluate) {
+	string static Grammarly(string ToEvaluate) 
+	{
 		vector <string> mono;
 		string charsAllowed = "0123456789()+";
 		bool local_error = 1, TAG = 1, stable = 0;
@@ -584,17 +595,22 @@ namespace FUNCTIONS {
 		return "";
 	}
 
-	long long Simplifier(long long root, string M) {
+	long long static Simplifier(long long root, string M) 
+	{
 		bool WhichWay = 1;
 		bool XOutOfRange = 0;
+		bool UselessExponent = 0;
 		int sizeP = size(PrimeNumber);
-		if (!XOutOfRange) for (int iter = 0; iter < M.size(); iter++) {
+		for (int iter = 0; iter < M.size(); iter++) {
 			WhichWay = !WhichWay;
-			if (WhichWay) root = pow(root, M.at(iter) - '0');
+			if (!XOutOfRange && WhichWay) {
+				UselessExponent = M.at(iter) - '0' == 1;
+				root = pow(root, M.at(iter) - '0');
+			}
 			else {
 				int nums = M.at(iter) - '0';
 				do {
-					if (root < sizeP) {
+					if (!XOutOfRange && root < sizeP) {
 						root = PrimeNumber[root - 1];
 						nums--;
 					}
@@ -602,11 +618,13 @@ namespace FUNCTIONS {
 				} while (XOutOfRange != 1 && nums != 0);
 			}
 		}
+		if (UselessExponent) return -2;
 		if (XOutOfRange) return -1;
 		return root;
 	}
 
-	long long Converter(string ToEvaluate) {
+	long long static Converter(string ToEvaluate) 
+	{
 		long long integer = 1;
 		string backup, back;
 		vector <string> mono = fractioner(ToEvaluate);
@@ -634,13 +652,14 @@ namespace FUNCTIONS {
 				root = Converter(back);
 				root = Simplifier(root, backup);
 			}
-			if (root == -1) return -1;
+			if (root < 0) return root;
 			else integer *= root;
 		}
 		return integer;
 	}
 
-	void CodeToNumber() {
+	void static CodeToNumber() 
+	{
 		string ToEvaluate, message;
 		vector <string> mono;
 		long long NUMBER;
@@ -670,12 +689,15 @@ namespace FUNCTIONS {
 			if (ToEvaluate != "0") {
 				NUMBER = Converter(ToEvaluate);
 				if (NUMBER == -1) cout << "ERROR-413: XOutOfRange\n";
-				else cout << "il numero corrispondente e' " << NUMBER << '\n';
+				if (NUMBER == -2) cout << "ERROR-413: UselessExponent\n";
+				if (NUMBER > 0) 
+					cout << "il numero corrispondente e' " << NUMBER << '\n';
 			}
 		} while (ToEvaluate != "0");
 	} 
 	
-	void printf(data_t structure) {
+	void static printf(data_t structure) 
+	{
 		cout << "numero " << structure.number << ":\n";
 		if (!structure.code.empty()) {
 			cout << "il codice e' <" << structure.code << ">\n";
@@ -691,7 +713,7 @@ namespace FUNCTIONS {
 		}
 	}
 
-	void repeater(string message, data_t nucleus(int input))
+	void static repeater(string message, data_t nucleus(int input))
 	{
 		string n_ = to_string(Global_N);
 		int input;
@@ -707,7 +729,7 @@ namespace FUNCTIONS {
 		} while (input != 1);
 	}
 
-	void loop(string message, data_t nucleus(int set))
+	void static loop(string message, data_t nucleus(int set))
 	{
 		string n_ = to_string(Global_N);
 		vector <data_t> data;
