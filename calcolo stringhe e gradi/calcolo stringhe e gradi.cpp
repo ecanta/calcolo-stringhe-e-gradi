@@ -14,26 +14,39 @@ using namespace std;
 using namespace Concurrency;
 using namespace chrono;
 
-long long Global_N = pow(10, 10);
-vector <bool> IsPrime;
-vector <int> PrimeNumber;
+long long GlobalMax = pow(10, 10);
+typedef struct {
+	vector <bool> is_prime;
+	vector <int> list_primes;
+} vector_t;
+typedef struct {
+	int number;
+	string code;
+	int degree;
+	string expression;
+} data_t;
+typedef struct {
+	int factors;
+	int exp;
+} compost_t;
+vector_t PrimeNumbers;
 mutex mtx;
 
 namespace FUNCTIONS 
 {
-	bool static prime(int variable) 
+	bool static prime(int number) 
 	{
-		bool tag = 1;
-		if (variable == 1) return 0;
-		else if (variable < size(IsPrime)) {
-			return IsPrime[variable];
+		bool is_prime = 1;
+		if (number == 1) return 0;
+		else if (number < size(PrimeNumbers.is_prime)) {
+			return PrimeNumbers.is_prime[number];
 		}
 		else {
-			if (variable == 1) tag = 0;
-			for (int a = 2; a < variable; a++)
-				if (variable % a == 0) tag = 0;
+			if (number == 1) is_prime = 0;
+			for (int a = 2; a < number; a++)
+				if (number % a == 0) is_prime = 0;
 		}
-		return tag;
+		return is_prime;
 	}
 
 	void static progress_Bar(double ratio, double barWidth) 
@@ -48,65 +61,68 @@ namespace FUNCTIONS
 		stringstream stream;
 		stream << fixed << setprecision(1) << ratio;
 		string s = stream.str();
-
 		cout << "]] " << s << "%\r";
 	}
 
-	vector <bool> static Sieve(long long N, bool USE_pro_bar) 
-	{
-		vector<bool> isPrime(N + 1, 1);
-		vector<int> primes;
-		double Barwidth = 80;
+	vector_t static Sieve_of_Erastothens(long long N, bool USE_pro_bar) 
+	{	
+		vector_t output;
+		vector <bool> is_prime(N + 1, 1);
+		vector <int> primes;
+		vector <int> counter;
+		const double BARWIDTH = 75;
+		const int SQUARE = ((int)sqrt(N)) + 2;
+		const double PRIMESIZE = (N / (log(N) - 1));
 		int iter = 0;
-		for (int p = 2; pow(p, 2) <= N; p++) {
-			if (isPrime[p]) {
-				for (int i = pow(p, 2); i <= N; i += p)
-					isPrime[i] = 0;
-			}
-			if (N > 200000 && USE_pro_bar) {
-				if (iter % 200 == 0) {
-					double progress = ((double)(pow(p, 2)) / N);
-					progress_Bar(progress, Barwidth);
+		parallel_for(int(2), SQUARE, [&](int p) {
+			if (N >= 100000 && USE_pro_bar) {
+				if (is_prime[p]) {
+					for (int i = pow(p, 2); i <= N; i += p) {
+						is_prime[i] = 0;
+						mtx.lock();
+						counter.push_back(0);
+						mtx.unlock();
+					}
+				}
+				if (iter % 40 == 0) {
+					mtx.lock();
+					double progress = ((double)100 * size(counter) / (N * BARWIDTH));
+					if (progress > 1) progress = 1;
+					progress_Bar(progress, BARWIDTH);
+					mtx.unlock();
 				}
 				iter++;
 			}
-		}
+			else for (int i = pow(p, 2); i <= N; i += p)
+				is_prime[i] = 0;
+		});
 		if (USE_pro_bar) {
-			for (int c = 0; c < Barwidth + 11; c++) 
+			for (int i = 0; i < BARWIDTH + 11; i++) 
 				cout << ' '; 
 			cout << '\n';
-		}		
-		return isPrime;
+		}
+		cout << "attendere\r";
+		parallel_for(long long(2), N + 1, [&](long long p) {
+			if (is_prime[p]) {
+				mtx.lock();
+				primes.push_back(p);
+				mtx.unlock();
+			}
+		});
+		output.is_prime = is_prime;
+		output.list_primes = primes;
+		return output;
 	}
-
-	vector <int> static Sieve_of_Erastothens(vector <bool> isPrime, long long N) 
-	{
-		vector <int> primes;
-		for (int p = 2; p <= N; p++)
-			if (isPrime[p]) primes.push_back(p);
-		return primes;
-	}
-
-	typedef struct {
-		int number;
-		string code;
-		int deg;
-		string expression;
-	} data_t;
-	typedef struct {
-		int factors;
-		int exp;
-	} compost_t;
 
 	vector <data_t> static SortData(vector <data_t> vect) 
 	{
 		for (int i = 0; i < size(vect); i++) {
 			for (int j = 0; j < size(vect); j++) {
 				if (vect[i].number < vect[j].number) {
-					data_t change;
-					change = vect[i];
+					data_t transfert;
+					transfert = vect[i];
 					vect[i] = vect[j];
-					vect[j] = change;
+					vect[j] = transfert;
 				}
 			}
 		}
@@ -116,33 +132,32 @@ namespace FUNCTIONS
 
 	vector <compost_t> static decompose(int input) 
 	{
-		if (input > PrimeNumber[size(PrimeNumber) - 1]) {
-			vector <int> PrimeN = Sieve_of_Erastothens(Sieve(input, 0), input);
-			for (int a = size(PrimeNumber); a < size(PrimeN); a++) {
+		if (input > PrimeNumbers.list_primes[size(PrimeNumbers.list_primes) - 1]) {
+			vector_t PrimeN = Sieve_of_Erastothens(input, 0);
+			for (int i = size(PrimeNumbers.list_primes); i < size(PrimeN.list_primes); i++) {
 				mtx.lock();
-				PrimeNumber.push_back(PrimeN[a]);
+				PrimeNumbers.list_primes.push_back(PrimeN.list_primes[i]);
 				mtx.unlock();
 			}
 		}
 		vector <compost_t> output;
-		compost_t outelement;
-		outelement.factors = 0;
-		outelement.exp = 1;
-		for (int i = 0; i < 15; i++) output.push_back(outelement);
+		compost_t output_element;
+		output_element.factors = 0;
+		output_element.exp = 1;
+		for (int i = 0; i < 15; i++) output.push_back(output_element);
 		int index = 0;
-		int d;
 
-		for (d = 0; pow(PrimeNumber[d], 2) <= input; d++) {
+		for (int i = 0; pow(PrimeNumbers.list_primes[i], 2) <= input; i++) {
 			if (input != 1) {
-				if (input % PrimeNumber[d] == 0) {
-					if (output[index].factors == PrimeNumber[d])
+				if (input % PrimeNumbers.list_primes[i] == 0) {
+					if (output[index].factors == PrimeNumbers.list_primes[i])
 						output[index].exp++;
-					else output[index].factors = PrimeNumber[d];
-					input /= PrimeNumber[d];
-					if (input % PrimeNumber[d] != 0) {
+					else output[index].factors = PrimeNumbers.list_primes[i];
+					input /= PrimeNumbers.list_primes[i];
+					if (input % PrimeNumbers.list_primes[i] != 0) {
 						index++;
 					}
-					d--;
+					i--;
 				}
 			}
 		}
@@ -161,11 +176,11 @@ namespace FUNCTIONS
 		int exponents[15];
 		int factors;
 		bool tag2 = 1;
-		for (int e = 0; e < 15; e++) {
-			PrimeFactors[e] = expfactors[e].factors;
-			exponents[e] = expfactors[e].exp;
-			if (tag2 && PrimeFactors[e] == 0) {
-				factors = e;
+		for (int i = 0; i < 15; i++) {
+			PrimeFactors[i] = expfactors[i].factors;
+			exponents[i] = expfactors[i].exp;
+			if (tag2 && PrimeFactors[i] == 0) {
+				factors = i;
 				tag2 = 0;
 			}
 		}
@@ -203,7 +218,7 @@ namespace FUNCTIONS
 					int position = -1;
 					int a = 1;
 					do {
-						if (PrimeNumber[a - 1] == analyse)
+						if (PrimeNumbers.list_primes[a - 1] == analyse)
 							position = a;
 						a++;
 					} while (position < 0);
@@ -265,7 +280,8 @@ namespace FUNCTIONS
 		int position[15];
 		int j = 0;
 		for (int i1 = 0; i1 < (thenumber.size() - 2); i1++) {
-			if ((thenumber.at(i1) == '(') && (thenumber.at(i1 + 1) == '1') && (thenumber.at(i1 + 2) == ')')) {
+			if ((thenumber.at(i1) == '(') && (thenumber.at(i1 + 1) == '1') 
+				&& (thenumber.at(i1 + 2) == ')')) {
 				position[j] = i1;
 				j++;
 			}
@@ -411,7 +427,8 @@ namespace FUNCTIONS
 		string output = "";
 		for (int i = 0; i < factors; i++) {
 			if (exponents[i] != 1) {
-				output = output + to_string(PrimeFactors[i]) + "^" + to_string(exponents[i]) + " * ";
+				output = output + to_string(PrimeFactors[i]) 
+					+ "^" + to_string(exponents[i]) + " * ";
 			}
 			else output = output + to_string(PrimeFactors[i]) + " * ";
 		}
@@ -428,7 +445,7 @@ namespace FUNCTIONS
 		do {
 			input = Convert(Algorithm(input));
 			counter++;
-			if (input < 4) output.deg = counter + input;
+			if (input < 4) output.degree = counter + input;
 
 		} while (input != 1);
 		input = set;
@@ -443,7 +460,7 @@ namespace FUNCTIONS
 		data_t output;
 		output.number = set;
 		output.code = "";
-		output.deg = 0;
+		output.degree = 0;
 		output.expression = fact(set);
 		return output;
 	}
@@ -455,7 +472,7 @@ namespace FUNCTIONS
 		data_t output;
 		output.number = set;
 		output.code = A.code;
-		output.deg = A.deg;
+		output.degree = A.degree;
 		output.expression = B.expression;
 		return output;
 	}
@@ -650,7 +667,7 @@ namespace FUNCTIONS
 	{
 		bool WhichWay = 1, XOutOfRange = 0;
 		bool UselessExponent = 0, pass = 0;
-		int sizeP = size(PrimeNumber), nums;
+		int sizeP = size(PrimeNumbers.list_primes), nums;
 		for (int iter = 0; iter < M.size(); iter++) {
 			if (pass) continue;
 			pass = 0;
@@ -669,7 +686,7 @@ namespace FUNCTIONS
 			else {
 				do {
 					if (!XOutOfRange && root < sizeP) {
-						root = PrimeNumber[root - 1];
+						root = PrimeNumbers.list_primes[root - 1];
 						nums--;
 					}
 					else XOutOfRange = 1;
@@ -686,7 +703,7 @@ namespace FUNCTIONS
 		long long integer = 1;
 		string backup, back;
 		vector <string> mono = fractioner(ToEvaluate);
-		int sizeP = size(PrimeNumber);
+		int sizeP = size(PrimeNumbers.list_primes);
 		int finder;
 		bool TAG = 1;
 		for (int monomial = 0; monomial < size(mono); monomial++) {
@@ -761,11 +778,11 @@ namespace FUNCTIONS
 		if (!structure.code.empty()) {
 			cout << "il codice e' <" << structure.code << ">\n";
 		}
-		if (structure.deg != 0) {
-			cout << "il grado e' " << structure.deg << '\n';
+		if (structure.degree != 0) {
+			cout << "il grado e' " << structure.degree << '\n';
 		}
 		if (!structure.expression.empty()) {
-			if (IsPrime[structure.number]) cout << "il numero e' primo\n";
+			if (PrimeNumbers.is_prime[structure.number]) cout << "il numero e' primo\n";
 			else {
 				cout << "la fattorizzazione e' " << structure.expression << '\n';
 			}
@@ -774,13 +791,13 @@ namespace FUNCTIONS
 
 	void static repeater(string message, data_t nucleus(int input))
 	{
-		string n_ = to_string(Global_N);
+		string n_ = to_string(GlobalMax);
 		int input;
 		data_t result;
 		cout << message << "\n\n";
 		do {
 			string txt = "inserire un numero tra 2 e " + n_ + " (1 = fine input)\n";
-			input = get_user_num(txt, 1, Global_N);
+			input = get_user_num(txt, 1, GlobalMax);
 			if (input != 1) {
 				result = nucleus(input);
 				printf(result);
@@ -790,7 +807,7 @@ namespace FUNCTIONS
 
 	void static loop(string message, data_t nucleus(int set))
 	{
-		string n_ = to_string(Global_N);
+		string n_ = to_string(GlobalMax);
 		vector <data_t> data;
 		vector <thread> threads;
 		
@@ -801,10 +818,10 @@ namespace FUNCTIONS
 		cout << "gli estremi dell'intervallo devono essere compresi tra 1 e " << n_ << "\n\n";
 
 		string txt = "inserisci il valore di inizio della ricerca\n";
-		int lower_bound = get_user_num(txt, 1, Global_N) + 1;
+		int lower_bound = get_user_num(txt, 1, GlobalMax) + 1;
 
 		txt = "inserisci il valore finale della ricerca\n";
-		int upper_bound = get_user_num(txt, 1, Global_N) + 1;
+		int upper_bound = get_user_num(txt, 1, GlobalMax) + 1;
 
 		if (upper_bound < lower_bound) {
 			change = upper_bound;
@@ -851,7 +868,7 @@ namespace FUNCTIONS
 				printf(data_element);
 			}
 			steady_clock::time_point end = steady_clock::now();
-			cout << "\ntempo di calcolo = " << duration_cast<milliseconds>(end - begin).count()
+			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
 				 << "[ms]" << '\n';
 		}
 	}
@@ -882,6 +899,7 @@ namespace FUNCTIONS
 int main()
 {	
 	using namespace FUNCTIONS;
+	cout << "CALCOLATRICE::\n\n";
 	string defact_message = "il programma calcola la fattorizzazione di una serie di numeri";
 	string deg_message = "il programma calcola il codice e il grado di una serie di numeri";
 	string fact_message = "il programma scompone un numero in fattori primi";
@@ -890,21 +908,19 @@ int main()
 
 	bool lock_prime_input = 0;
 	do {
-		cout << "CALCOLATRICE::\n\n";
 		bool stop = 0;
 		bool skip = 1;
 		string text, vel;
 		switchcase option;
 
 		if (!lock_prime_input) {
-			Global_N = pow(10, 10);
+			GlobalMax = pow(10, 10);
 			text = "fino a quale numero cercare i numeri primi?\n";
 			text.append("un limite piu' alto comporta un tempo di attesa piu' lungo\n");
-			Global_N = get_user_num(text, 2, Global_N);
+			GlobalMax = get_user_num(text, 2, GlobalMax);
 
 			steady_clock::time_point begin = steady_clock::now();
-			IsPrime = Sieve(Global_N, 1);
-			PrimeNumber = Sieve_of_Erastothens(IsPrime, Global_N);
+			PrimeNumbers = Sieve_of_Erastothens(GlobalMax, 1);
 			steady_clock::time_point end = steady_clock::now();
 			int delta = duration_cast <milliseconds> (end - begin).count();
 			int exception_delta = duration_cast <microseconds> (end - begin).count();
