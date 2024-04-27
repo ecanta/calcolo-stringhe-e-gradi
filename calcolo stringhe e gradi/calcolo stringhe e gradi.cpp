@@ -231,7 +231,7 @@ namespace FUNCTIONS
 						iso_hh = stoi(iso_h);
 						iso_hh++;
 						iso_h = to_string(iso_hh);
-						if (iso_hh > 9) {
+						if (iso_hh > 10) {
 							iso_h = "." + iso_h;
 						}
 						thenumber.append(iso_h);
@@ -461,7 +461,8 @@ namespace FUNCTIONS
 	}
 
 	string static Grammarly(string ToEvaluate) 
-	{
+	{	
+		if (ToEvaluate == "f") return "";
 		vector <string> mono;
 		string charsAllowed = "0123456789()+";
 		bool local_error = 1, TAG = 1, stable = 0;
@@ -495,27 +496,45 @@ namespace FUNCTIONS
 			if (local_error) return "UnallowedCharacters";
 			local_error = 1;
 		}
-		if (ToEvaluate.at(0) == '+') return "'+'AtStart";
+		if (ToEvaluate.at(0) == '+') return "NoStartString";
+		if (ToEvaluate.at(0) == '0') return "NullDigit";
 		if (ToEvaluate.at(0) == ')') return "InvertedBrackets";
 		if (ToEvaluate.at(ToEvaluate.size() - 1) == '+')
-			return "'+'AtEnd";
+			return "NoEndString";
 		for (int std = 0; std < ToEvaluate.size() - 1; std++) {
 			if (ToEvaluate.at(std) == '+' && ToEvaluate.at(std + 1) == '+')
-				return "Double'+'";
+				return "MissingMonomial";
+		}
+		for (int std = 0; std < ToEvaluate.size() - 1; std++) {
+			if (ToEvaluate.at(std) == '0' && ToEvaluate.at(std + 1) == '0')
+				return "ConsecutiveNullDigits";
+		}
+		for (int st = 1; st < ToEvaluate.size(); st++) {
+			char short_1 = ToEvaluate.at(st - 1);
+			bool short_2 = short_1 == '+' || short_1 == ')' || short_1 == '(';
+			if (ToEvaluate.at(st) == '0' && short_2)
+				return "NullDigits";
 		}
 		mono = fractioner(ToEvaluate);
 		for (int monomial = 0; monomial < size(mono); monomial++) {
 			int stackfinder = -1, stickfinder = -1, finder;
-			bool stop = 0;
+			bool stop = 0, pass = 0;
 			int res = 0;
+			char conf_min, conf_max;
+			string min, max;
 			string stack = mono[monomial];
 			for (int second = 1; second < size(mono); second++) {
 				if (monomial != second) {
 					if (mono[monomial] == mono[second]) return "EqualMonomials";
 					string stick = mono[second];
-					int size_st;
-					if (stack.size() < stick.size()) size_st = stack.size();
-					else size_st = stick.size();
+					if (stack.size() < stick.size()) {
+						min = stack;
+						max = stick;
+					}
+					else {
+						min = stick;
+						max = stack;
+					}
 					if (stack.at(0) == '(' || stick.at(0) == ')') {
 						TAG = 1;
 						for (int j = stack.size() - 1; j > 0; j--) {
@@ -538,25 +557,57 @@ namespace FUNCTIONS
 						else if (stickfinder == stackfinder) {
 							finder = stackfinder;
 							for (int l = 0; l <= finder + 1; l++) {
-								if (l < size_st) {
+								if (l < min.size()) {
 									if (stick.at(l) != stack.at(l))
 										stop = 1;
 								}
 							}
-							for (int l = finder + 2; l < size_st; l++) {
-								if (!stop && stick.at(l) == stack.at(l)) {
+							for (int l = finder + 2; l < min.size(); l++) {
+								if (pass) continue;
+								pass = 0;
+								if (l == min.size() - 1)
+									conf_min = min.at(l);
+								else if (min.at(l + 1) == '0') {
+									conf_min = 10 * min.at(l);
+									pass = 1;
+								}
+								else conf_min = min.at(l);
+								if (l == max.size() - 1)
+									conf_max = max.at(l);
+								else if (max.at(l + 1) == '0') {
+									conf_max = 10 * max.at(l);
+									pass = 1;
+								}
+								else conf_max = max.at(l);
+								if (!stop && conf_min == conf_max) {
 									res++;
-									if (stick.at(l) != stack.at(l))
+									if (conf_min != conf_max)
 										stop = 1;
 								}
 								else stop = 1;
 							}
 						}
 					}
-					else for (int m = 0; m < size_st; m++) {
-						if (!stop && stick.at(m) == stack.at(m)) {
+					else for (int m = 0; m < min.size(); m++) {
+						if (pass) continue;
+						pass = 0;
+						if (m == min.size() - 1)
+							conf_min = min.at(m);
+						else if (min.at(m + 1) == '0') {
+							conf_min = 10 * min.at(m);
+							pass = 1;
+						}
+						else conf_min = min.at(m);
+						if (m == max.size() - 1)
+							conf_max = max.at(m);
+						else if (max.at(m + 1) == '0') {
+							conf_max = 10 * max.at(m);
+							pass = 1;
+						}
+						else conf_max = max.at(m);
+						if (!stop && conf_min == conf_max) {
 							res++;
-							if (stick.at(m) != stack.at(m))
+							if (conf_min != conf_max)
 								stop = 1;
 						}
 						else stop = 1;
@@ -588,8 +639,8 @@ namespace FUNCTIONS
 			}
 			else if (mono[monomial].at(0) == ')') return "InvertedBrackets";
 			else for (int check = 1; check < mono[monomial].size(); check++) {
-				if (mono[monomial].at(check) == '(') return "MissingObject";
-				if (mono[monomial].at(check) == ')') return "InvertedObject";
+				if (mono[monomial].at(check) == '(') return "WrongObject";
+				if (mono[monomial].at(check) == ')') return "WrongObject";
 			}
 		}
 		return "";
@@ -597,18 +648,25 @@ namespace FUNCTIONS
 
 	long long static Simplifier(long long root, string M) 
 	{
-		bool WhichWay = 1;
-		bool XOutOfRange = 0;
-		bool UselessExponent = 0;
-		int sizeP = size(PrimeNumber);
+		bool WhichWay = 1, XOutOfRange = 0;
+		bool UselessExponent = 0, pass = 0;
+		int sizeP = size(PrimeNumber), nums;
 		for (int iter = 0; iter < M.size(); iter++) {
+			if (pass) continue;
+			pass = 0;
 			WhichWay = !WhichWay;
+			if (iter == M.size() - 1)
+				nums = M.at(iter) - '0';
+			else if (M.at(iter + 1) == '0') {
+				nums = 10 * (M.at(iter) - '0');
+				pass = 1;
+			}
+			else nums = M.at(iter) - '0';
 			if (!XOutOfRange && WhichWay) {
-				UselessExponent = M.at(iter) - '0' == 1;
-				root = pow(root, M.at(iter) - '0');
+				UselessExponent = nums == 1;
+				root = pow(root, nums);
 			}
 			else {
-				int nums = M.at(iter) - '0';
 				do {
 					if (!XOutOfRange && root < sizeP) {
 						root = PrimeNumber[root - 1];
@@ -668,7 +726,7 @@ namespace FUNCTIONS
 		cout << "unici caratteri non numerici ammessi: '(', ')', '+' \n\n";
 		do {
 			do {
-				cout << "inserire una stringa (0 = fine input)\n";
+				cout << "inserire una stringa (f = fine input)\n";
 				getline(cin, ToEvaluate);
 				message = Grammarly(ToEvaluate);
 				if (!message.empty())
@@ -676,24 +734,25 @@ namespace FUNCTIONS
 			} while (!message.empty());
 			int start = 0;
 			int end = 0;
-			for (int find = 0; find < ToEvaluate.size(); find++) {
-				if (ToEvaluate.at(find) == '<') start = find + 1;
-				else if (ToEvaluate.at(find) == '>') end = find;
-			}
-			ToEvaluate.erase(end);
-			ToEvaluate.erase(0, start);
-			for (int space = ToEvaluate.size() - 1; space >= 0; space--) {
-				if (ToEvaluate.at(space) == ' ')
-					ToEvaluate.erase(space, 1);
-			}
-			if (ToEvaluate != "0") {
+			
+			if (ToEvaluate != "f") {
+				for (int find = 0; find < ToEvaluate.size(); find++) {
+					if (ToEvaluate.at(find) == '<') start = find + 1;
+					else if (ToEvaluate.at(find) == '>') end = find;
+				}
+				ToEvaluate.erase(end);
+				ToEvaluate.erase(0, start);
+				for (int space = ToEvaluate.size() - 1; space >= 0; space--) {
+					if (ToEvaluate.at(space) == ' ')
+						ToEvaluate.erase(space, 1);
+				}
 				NUMBER = Converter(ToEvaluate);
 				if (NUMBER == -1) cout << "ERROR-413: XOutOfRange\n";
 				if (NUMBER == -2) cout << "ERROR-413: UselessExponent\n";
 				if (NUMBER > 0) 
 					cout << "il numero corrispondente e' " << NUMBER << '\n';
 			}
-		} while (ToEvaluate != "0");
+		} while (ToEvaluate != "f");
 	} 
 	
 	void static printf(data_t structure) 
