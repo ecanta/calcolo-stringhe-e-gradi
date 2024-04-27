@@ -32,7 +32,7 @@ typedef struct {
 vector_t PrimeNumbers;
 mutex mtx;
 
-namespace FUNCTIONS 
+namespace STATIC_Functions
 {
 	bool static prime(int number) 
 	{
@@ -169,49 +169,45 @@ namespace FUNCTIONS
 		return output;
 	}
 
-	string static Algorithm(int input)
+	string static Cript(int input)
 	{
 		vector <compost_t> expfactors = decompose(input);
 		int PrimeFactors[15];
 		int exponents[15];
-		int factors;
-		bool tag2 = 1;
+		int factor_number;
+		bool when_null = 1;
 		for (int i = 0; i < 15; i++) {
 			PrimeFactors[i] = expfactors[i].factors;
 			exponents[i] = expfactors[i].exp;
-			if (tag2 && PrimeFactors[i] == 0) {
-				factors = i;
-				tag2 = 0;
+			if (when_null && PrimeFactors[i] == 0) {
+				factor_number = i;
+				when_null = 0;
 			}
 		}
-		int index = 0;
-		int d;
 
-		string thenumber, iso_i, iso_g, iso_h;
-		int iso_hh, analyse, sizenumber;
+		string the_string, exp_verify, exp_string, prime_exp_string;
+		int prime_exp, analyse, sizestring, presence;
 		bool repeat;
-
-		int presence, bound, bound_while;
 		string monomials[15];
-		for (int WhatFactor = 0; WhatFactor < factors; WhatFactor++) {
+		for (int what_factor = 0; what_factor < factor_number; what_factor++) {
 			repeat = 0;
 			presence = 0;
 
-			iso_i = to_string(exponents[WhatFactor]);
-			analyse = PrimeFactors[WhatFactor];
-			string the_n1 = "(";
-			string the_n2 = ")";
-			if (exponents[WhatFactor] != 1 && exponents[WhatFactor] < 11) {
-				the_n2.append(iso_i);
+			exp_verify = to_string(exponents[what_factor]);
+			analyse = PrimeFactors[what_factor];
+			string part_of1 = "(";
+			string part_of2 = ")";
+			if (exponents[what_factor] != 1 && exponents[what_factor] < 11) {
+				part_of2.append(exp_verify);
 				presence = 1;
 			}
-			else if (exponents[WhatFactor] > 10) {
-				the_n2.append(".");
-				the_n2.append(iso_i);
+			else if (exponents[what_factor] > 10) {
+				part_of2.append(".");
+				part_of2.append(exp_verify);
 				presence = 2;
 			}
-			string iso_analyse = to_string(analyse);
-			thenumber = the_n1 + iso_analyse + the_n2;
+			string analyse_string = to_string(analyse);
+			the_string = part_of1 + analyse_string + part_of2;
 
 			do {
 				while (prime(analyse)) {
@@ -223,123 +219,121 @@ namespace FUNCTIONS
 						a++;
 					} while (position < 0);
 					analyse = position;
-					iso_analyse = to_string(analyse);
-					bound_while = thenumber.find(')');
-					thenumber.erase(0, bound_while);
-					thenumber = the_n1 + iso_analyse + thenumber;
-					sizenumber = thenumber.size();
+					analyse_string = to_string(analyse);
+					the_string.erase(0, the_string.find(')'));
+					the_string = part_of1 + analyse_string + the_string;
+					sizestring = the_string.size();
 
 					if (presence == 1) {
-						iso_g = string(1, thenumber.at(sizenumber - 1));
-						thenumber.erase(sizenumber - 1);
-						sizenumber--;
+						exp_string = string(1, the_string.at(sizestring - 1));
+						the_string.erase(sizestring - 1);
+						sizestring--;
 					}
 					else if (presence == 2) {
-						iso_g = "." + string(1, thenumber.at(sizenumber - 2)) 
-									+ string(1, thenumber.at(sizenumber - 1));
-						thenumber.erase(sizenumber - 3);
-						sizenumber--;
+						exp_string = "." + string(1, the_string.at(sizestring - 2)) 
+									+ string(1, the_string.at(sizestring - 1));
+						the_string.erase(sizestring - 3);
+						sizestring--;
 					}
 					if (repeat) {
-						iso_h = string(1, thenumber.at(sizenumber - 1));
-						thenumber.erase(sizenumber - 1);
-						iso_hh = stoi(iso_h);
-						iso_hh++;
-						iso_h = to_string(iso_hh);
-						if (iso_hh > 10) {
-							iso_h = "." + iso_h;
+						prime_exp_string = string(1, the_string.at(sizestring - 1));
+						the_string.erase(sizestring - 1);
+						prime_exp = stoi(prime_exp_string);
+						prime_exp++;
+						prime_exp_string = to_string(prime_exp);
+						if (prime_exp > 10) {
+							prime_exp_string = "." + prime_exp_string;
 						}
-						thenumber.append(iso_h);
+						the_string.append(prime_exp_string);
 					}
 					else {
-						thenumber.append("1");
+						the_string.append("1");
 					}
 					if (presence > 0) {
-						thenumber.append(iso_g);
+						the_string.append(exp_string);
 					}
 					repeat = 1;
 				}
 				if (analyse != 1 && !prime(analyse)) {
-					iso_analyse = Algorithm(analyse);
-					bound = thenumber.find(')');
-					thenumber.erase(0, bound);
-					thenumber = the_n1 + iso_analyse + thenumber;
+					analyse_string = Cript(analyse);
+					the_string.erase(0, the_string.find(')'));
+					the_string = part_of1 + analyse_string + the_string;
 					analyse = 1;
 				}
 
 			} while (analyse != 1);
-			monomials[WhatFactor] = thenumber;
+			monomials[what_factor] = the_string;
 		}
 
-		thenumber = "";
-		for (int s = 0; s < factors; s++) {
-			thenumber = thenumber + "+" + monomials[s];
+		the_string = "";
+		for (int i = 0; i < factor_number; i++) {
+			the_string = the_string + "+" + monomials[i];
 		}
-		thenumber.erase(0, 1);
+		the_string.erase(0, 1);
 
 		int position[15];
 		int j = 0;
-		for (int i1 = 0; i1 < (thenumber.size() - 2); i1++) {
-			if ((thenumber.at(i1) == '(') && (thenumber.at(i1 + 1) == '1') 
-				&& (thenumber.at(i1 + 2) == ')')) {
-				position[j] = i1;
+		for (int i = 0; i < (the_string.size() - 2); i++) {
+			if ((the_string.at(i) == '(') && (the_string.at(i + 1) == '1') 
+				&& (the_string.at(i + 2) == ')')) {
+				position[j] = i;
 				j++;
 			}
 		}
-		for (int i2 = j - 1; i2 >= 0; i2--)
-			thenumber.erase(position[i2], 3);
+		for (int k = j - 1; k >= 0; k--)
+			the_string.erase(position[k], 3);
 
-		int j2 = 0;
-		sizenumber = thenumber.size();
-		if (sizenumber > 4) {
-			for (int i3 = 0; i3 < (thenumber.size() - 3); i3++) {
-				if ((thenumber.at(i3) == '(') && (thenumber.at(i3 + 3) == ')')) {
-					position[j2] = i3;
-					j2++;
+		int l = 0;
+		sizestring = the_string.size();
+		if (sizestring > 4) {
+			for (int m = 0; m < (the_string.size() - 3); m++) {
+				if ((the_string.at(m) == '(') && (the_string.at(m + 3) == ')')) {
+					position[l] = m;
+					l++;
 				}
 			}
-			for (int i3 = j2 - 1; i3 >= 0; i3--) {
-				thenumber.erase(position[i3] + 3, 1);
-				thenumber.erase(position[i3], 1);
+			for (int m = l - 1; m >= 0; m--) {
+				the_string.erase(position[m] + 3, 1);
+				the_string.erase(position[m], 1);
 			}
 		}
 
-		return thenumber;
+		return the_string;
 	}
 
-	vector <string> static fractioner(string polynomial) 
+	vector <string> static fractioner(string polinomial) 
 	{
 		vector <string> monomials;
-		string backup = polynomial;
+		string backup = polinomial;
 		string temp;
-		int noparenthesis = 0;
-		int nop = 0;
+		int parenthesis_balance = 0;
+		int p_balance = 0;
 		int find = 0;
-		for (int j = 0; j < backup.size(); j++) {
-			if (backup.at(j) == '(') noparenthesis++;
-			if ((noparenthesis == 0) && (backup.at(j) == '+')) {
-				temp = polynomial;
+		for (int i = 0; i < backup.size(); i++) {
+			if (backup.at(i) == '(') parenthesis_balance++;
+			if ((parenthesis_balance == 0) && (backup.at(i) == '+')) {
+				temp = polinomial;
 				for (int finder = 0; finder < temp.size(); finder++) {
 					if (find == 0) {
-						if (temp.at(finder) == '(') nop++;
-						if ((nop == 0) && (temp.at(finder) == '+')) {
+						if (temp.at(finder) == '(') p_balance++;
+						if ((p_balance == 0) && (temp.at(finder) == '+')) {
 							find = finder;
 						}
-						if (temp.at(finder) == ')') nop--;
+						if (temp.at(finder) == ')') p_balance--;
 					}
 				}
 				temp.erase(find);
 				monomials.push_back(temp);
-				polynomial.erase(0, find + 1);
+				polinomial.erase(0, find + 1);
 				find = 0;
 			}
-			if (backup.at(j) == ')') noparenthesis--;
+			if (backup.at(i) == ')') parenthesis_balance--;
 		}
-		monomials.push_back(polynomial);
+		monomials.push_back(polinomial);
 		return monomials;
 	}
 
-	int static Convert(string input)
+	int static ExecuteStrings(string input)
 	{
 		int output = 0;
 		int values[15];
@@ -352,23 +346,23 @@ namespace FUNCTIONS
 
 		int location;
 		bool presence = 1;
-		for (int A = 0; A < size(monomials); A++) {
-			if (monomials[A].at(0) == '(') {
-				for (int B = monomials[A].size() - 1; B >= 0; B--) {
+		for (int i = 0; i < size(monomials); i++) {
+			if (monomials[i].at(0) == '(') {
+				for (int j = monomials[i].size() - 1; j >= 0; j--) {
 
-					if ((presence) && (monomials[A].at(B) == ')')) {
+					if ((presence) && (monomials[i].at(j) == ')')) {
 						presence = 0;
-						location = B;
+						location = j;
 					}
 				}
-				string temp = monomials[A];
+				string temp = monomials[i];
 				temp.erase(location);
 				temp.erase(0, 1);
-				monomials[A].erase(0, location + 1);
-				values[A] = Convert(temp) * (stoi(monomials[A]));
+				monomials[i].erase(0, location + 1);
+				values[i] = ExecuteStrings(temp) * (stoi(monomials[i]));
 			}
 			else {
-				values[A] = stoi(monomials[A]);
+				values[i] = stoi(monomials[i]);
 			}
 			presence = 1;
 		}
@@ -376,7 +370,7 @@ namespace FUNCTIONS
 		return output;
 	}
 
-	long long static get_user_num(string txt, int lw, long long bound) 
+	long long static get_user_num(string txt, int lw, long long Bound) 
 	{
 		long long user_num;
 		string check;
@@ -401,28 +395,26 @@ namespace FUNCTIONS
 				else user_num = stoull(check);
 			}
 
-		} while (user_num < lw || user_num > bound);
+		} while (user_num < lw || user_num > Bound);
 
 		return user_num;
 	}
 
-	string static fact(int input) 
+	string static Fact_Number(int input) 
 	{
 		vector <compost_t> expfactors = decompose(input);
 		int PrimeFactors[15];
 		int exponents[15];
 		int factors;
 		bool tag2 = 1;
-		for (int e = 0; e < 15; e++) {
-			PrimeFactors[e] = expfactors[e].factors;
-			exponents[e] = expfactors[e].exp;
-			if (tag2 && (PrimeFactors[e] == 0)) {
-				factors = e;
+		for (int i = 0; i < 15; i++) {
+			PrimeFactors[i] = expfactors[i].factors;
+			exponents[i] = expfactors[i].exp;
+			if (tag2 && (PrimeFactors[i] == 0)) {
+				factors = i;
 				tag2 = 0;
 			}
 		}
-		int index = 0;
-		int d;
 
 		string output = "";
 		for (int i = 0; i < factors; i++) {
@@ -437,53 +429,53 @@ namespace FUNCTIONS
 		return output;
 	}
 
-	data_t static coredegree(int set) 
+	data_t static coredegree(int input) 
 	{
 		data_t output;
 		int counter = 0;
-		int input = set;
+		int copy = input;
 		do {
-			input = Convert(Algorithm(input));
+			copy = ExecuteStrings(Cript(copy));
 			counter++;
-			if (input < 4) output.degree = counter + input;
+			if (copy < 4) output.degree = counter + copy;
 
-		} while (input != 1);
-		input = set;
-		output.number = input;
-		output.code = Algorithm(input);
+		} while (copy != 1);
+		copy = input;
+		output.number = copy;
+		output.code = Cript(copy);
 		output.expression = "";
 		return output;
 	}
 
-	data_t static corefactor(int set) 
+	data_t static corefactor(int input) 
 	{
 		data_t output;
-		output.number = set;
+		output.number = input;
 		output.code = "";
 		output.degree = 0;
-		output.expression = fact(set);
+		output.expression = Fact_Number(input);
 		return output;
 	}
 
-	data_t static NucleusAll(int set) 
+	data_t static coredegfactor(int input) 
 	{
-		data_t A = coredegree(set);
-		data_t B = corefactor(set);
+		data_t A = coredegree(input);
+		data_t B = corefactor(input);
 		data_t output;
-		output.number = set;
+		output.number = input;
 		output.code = A.code;
 		output.degree = A.degree;
 		output.expression = B.expression;
 		return output;
 	}
 
-	string static Grammarly(string ToEvaluate) 
+	string static Syntax_Envalider(string ToEvaluate) 
 	{	
 		if (ToEvaluate == "f") return "";
 		vector <string> mono;
 		string charsAllowed = "0123456789()+";
-		bool local_error = 1, TAG = 1, stable = 0;
-		int start = -1, end = -1, noparenthesis = 0;
+		bool local_error = 1, boolean = 1, stable = 0;
+		int start = -1, end = -1, parenthesis_balance = 0;
 		for (int find = 0; find < ToEvaluate.size(); find++) {
 			if (ToEvaluate.at(find) == '<') start = find + 1;
 			else if (ToEvaluate.at(find) == '>') end = find;
@@ -492,22 +484,22 @@ namespace FUNCTIONS
 		if (end < start) return "BoundaryInversion";
 		ToEvaluate.erase(end);
 		ToEvaluate.erase(0, start);
-		for (int ch = 0; ch < ToEvaluate.size(); ch++) {
-			if (ToEvaluate.at(ch) == '(') {
-				noparenthesis++;
+		for (int i = 0; i < ToEvaluate.size(); i++) {
+			if (ToEvaluate.at(i) == '(') {
+				parenthesis_balance++;
 				stable++;
 			}
-			if (ToEvaluate.at(ch) == ')') noparenthesis--;
+			if (ToEvaluate.at(i) == ')') parenthesis_balance--;
 		}
-		if (noparenthesis != 0) return "UnbalancedBrackets";
+		if (parenthesis_balance != 0) return "UnbalancedBrackets";
 		for (int space = ToEvaluate.size() - 1; space >= 0; space--) {
 			if (ToEvaluate.at(space) == ' ')
 				ToEvaluate.erase(space, 1);
 		}
 		if (ToEvaluate.empty()) return "EmptyInput";
-		for (int chi = 0; chi < ToEvaluate.size(); chi++) {
-			for (int ch_i = 0; ch_i < charsAllowed.size(); ch_i++) {
-				if (ToEvaluate.at(chi) == charsAllowed.at(ch_i))
+		for (int i = 0; i < ToEvaluate.size(); i++) {
+			for (int j = 0; j < charsAllowed.size(); j++) {
+				if (ToEvaluate.at(i) == charsAllowed.at(j))
 					local_error = 0;
 			}
 			if (local_error) return "UnallowedCharacters";
@@ -518,18 +510,18 @@ namespace FUNCTIONS
 		if (ToEvaluate.at(0) == ')') return "InvertedBrackets";
 		if (ToEvaluate.at(ToEvaluate.size() - 1) == '+')
 			return "NoEndString";
-		for (int std = 0; std < ToEvaluate.size() - 1; std++) {
-			if (ToEvaluate.at(std) == '+' && ToEvaluate.at(std + 1) == '+')
+		for (int i = 0; i < ToEvaluate.size() - 1; i++) {
+			if (ToEvaluate.at(i) == '+' && ToEvaluate.at(i + 1) == '+')
 				return "MissingMonomial";
 		}
-		for (int std = 0; std < ToEvaluate.size() - 1; std++) {
-			if (ToEvaluate.at(std) == '0' && ToEvaluate.at(std + 1) == '0')
+		for (int i = 0; i < ToEvaluate.size() - 1; i++) {
+			if (ToEvaluate.at(i) == '0' && ToEvaluate.at(i + 1) == '0')
 				return "ConsecutiveNullDigits";
 		}
-		for (int st = 1; st < ToEvaluate.size(); st++) {
-			char short_1 = ToEvaluate.at(st - 1);
+		for (int i = 1; i < ToEvaluate.size(); i++) {
+			char short_1 = ToEvaluate.at(i - 1);
 			bool short_2 = short_1 == '+' || short_1 == ')' || short_1 == '(';
-			if (ToEvaluate.at(st) == '0' && short_2)
+			if (ToEvaluate.at(i) == '0' && short_2)
 				return "NullDigits";
 		}
 		mono = fractioner(ToEvaluate);
@@ -553,18 +545,18 @@ namespace FUNCTIONS
 						max = stack;
 					}
 					if (stack.at(0) == '(' || stick.at(0) == ')') {
-						TAG = 1;
+						boolean = 1;
 						for (int j = stack.size() - 1; j > 0; j--) {
-							if (TAG && stack.at(j) == ')') {
+							if (boolean && stack.at(j) == ')') {
 								stackfinder = j - 1;
-								TAG = 0;
+								boolean = 0;
 							}
 						}
-						TAG = 1;
+						boolean = 1;
 						for (int k = stick.size() - 1; k > 0; k--) {
-							if (TAG && stick.at(k) == ')') {
+							if (boolean && stick.at(k) == ')') {
 								stickfinder = k - 1;
-								TAG = 0;
+								boolean = 0;
 							}
 						}
 						if (stackfinder * stickfinder < 0) {
@@ -632,11 +624,11 @@ namespace FUNCTIONS
 					if (res % 2 == 1) return "SimiliarMonomials";
 				}
 			}
-			TAG = 1;
+			boolean = 1;
 			for (int j = stack.size() - 1; j > 0; j--) {
-				if (TAG && stack.at(j) == ')') {
+				if (boolean && stack.at(j) == ')') {
 					finder = j - 1;
-					TAG = 0;
+					boolean = 0;
 				}
 			}
 			if (stack.at(stack.size() - 1) == ')')
@@ -651,7 +643,7 @@ namespace FUNCTIONS
 				if (local_error) return "UselessBrackets";
 				stack.erase(0, 1);
 				stack.erase(finder);
-				string message = Grammarly("<" + stack + ">"); 
+				string message = Syntax_Envalider("<" + stack + ">"); 
 				if (!message.empty()) return message;
 			}
 			else if (mono[monomial].at(0) == ')') return "InvertedBrackets";
@@ -663,7 +655,7 @@ namespace FUNCTIONS
 		return "";
 	}
 
-	long long static Simplifier(long long root, string M) 
+	long long static NumberConverter(long long root, string M) 
 	{
 		bool WhichWay = 1, XOutOfRange = 0;
 		bool UselessExponent = 0, pass = 0;
@@ -698,7 +690,7 @@ namespace FUNCTIONS
 		return root;
 	}
 
-	long long static Converter(string ToEvaluate) 
+	long long static StringConverter(string ToEvaluate) 
 	{
 		long long integer = 1;
 		string backup, back;
@@ -710,7 +702,7 @@ namespace FUNCTIONS
 			string M = mono[monomial];
 			long long root;
 			bool WhichWay = 0;
-			if (M.at(0) != '(') root = Simplifier(1, M);
+			if (M.at(0) != '(') root = NumberConverter(1, M);
 			else {
 				TAG = 1;
 				for (int i = M.size() - 1; i > 0; i--) {
@@ -724,8 +716,8 @@ namespace FUNCTIONS
 				backup.erase(0, finder);
 				back.erase(finder - 1);
 				back.erase(0, 1);
-				root = Converter(back);
-				root = Simplifier(root, backup);
+				root = StringConverter(back);
+				root = NumberConverter(root, backup);
 			}
 			if (root < 0) return root;
 			else integer *= root;
@@ -737,7 +729,7 @@ namespace FUNCTIONS
 	{
 		string ToEvaluate, message;
 		vector <string> mono;
-		long long NUMBER;
+		long long number;
 		cout << "il programma traduce una stringa di codice\n";
 		cout << "il codice deve essere compreso tra <>\n";
 		cout << "unici caratteri non numerici ammessi: '(', ')', '+' \n\n";
@@ -745,7 +737,7 @@ namespace FUNCTIONS
 			do {
 				cout << "inserire una stringa (f = fine input)\n";
 				getline(cin, ToEvaluate);
-				message = Grammarly(ToEvaluate);
+				message = Syntax_Envalider(ToEvaluate);
 				if (!message.empty())
 					cout << "ERROR-404: " << message << '\n';
 			} while (!message.empty());
@@ -763,11 +755,11 @@ namespace FUNCTIONS
 					if (ToEvaluate.at(space) == ' ')
 						ToEvaluate.erase(space, 1);
 				}
-				NUMBER = Converter(ToEvaluate);
-				if (NUMBER == -1) cout << "ERROR-413: XOutOfRange\n";
-				if (NUMBER == -2) cout << "ERROR-413: UselessExponent\n";
-				if (NUMBER > 0) 
-					cout << "il numero corrispondente e' " << NUMBER << '\n';
+				number = StringConverter(ToEvaluate);
+				if (number == -1) cout << "ERROR-413: XOutOfRange\n";
+				if (number == -2) cout << "ERROR-413: UselessExponent\n";
+				if (number > 0) 
+					cout << "il numero corrispondente e' " << number << '\n';
 			}
 		} while (ToEvaluate != "f");
 	} 
@@ -884,7 +876,7 @@ namespace FUNCTIONS
 		{"ctn", switchcase::ctn},
 		{"rnd", switchcase::rnd}
 	};
-	switchcase convertStringToEnum(string& str) {
+	switchcase ConvertStringToEnum(string& str) {
 		auto it = stringToEnumMap.find(str);
 		if (it != stringToEnumMap.end())
 			return it->second;
@@ -898,7 +890,7 @@ namespace FUNCTIONS
 
 int main()
 {	
-	using namespace FUNCTIONS;
+	using namespace STATIC_Functions;
 	cout << "CALCOLATRICE::\n\n";
 	string defact_message = "il programma calcola la fattorizzazione di una serie di numeri";
 	string deg_message = "il programma calcola il codice e il grado di una serie di numeri";
@@ -947,7 +939,7 @@ int main()
 		cout << "'f' = scomposizione in fattori primi\n";
 		cout << "'cf' = codifica e scomposizione (impiega piu' tempo)\n";
 		getline(cin, vel);
-		option = convertStringToEnum(vel);
+		option = ConvertStringToEnum(vel);
 		do {
 			if (vel.size() == 1) {
 				skip = 0;
@@ -975,7 +967,7 @@ int main()
 						&& vel.at(0) != '1' && vel.at(0) != '.';
 				}
 				else {
-					option = convertStringToEnum(vel);
+					option = ConvertStringToEnum(vel);
 					stop = option == r;
 					skip = option != r;
 				}
@@ -1010,13 +1002,13 @@ int main()
 			break;
 		case cf: repeater(fact_message, corefactor);
 			break;
-		case ccf: repeater(AllMessage, NucleusAll);
+		case ccf: repeater(AllMessage, coredegfactor);
 			break;
 		case dc: loop(deg_message, coredegree);
 			break;
 		case df: loop(defact_message, corefactor);
 			break;
-		case dcf: loop(AllMessage, NucleusAll);
+		case dcf: loop(AllMessage, coredegfactor);
 			break;
 		case ctn: CodeToNumber();
 			break;
