@@ -1,7 +1,6 @@
 // program_START
 #include <chrono>
 #include <cmath>
-#include <cstdio>
 #include <iostream>
 #include <iomanip>
 #include <ppl.h>
@@ -10,8 +9,8 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-using namespace std;
 using namespace Concurrency;
+using namespace std;
 using namespace chrono;
 
 long long GlobalMax = pow(10, 10);
@@ -70,6 +69,7 @@ namespace STATIC_Functions
 		vector <bool> is_prime(N + 1, 1);
 		vector <int> primes;
 		vector <int> counter;
+		const int VELOCITY = 75;
 		const double BARWIDTH = 75;
 		const int SQUARE = ((int)sqrt(N)) + 2;
 		const double PRIMESIZE = (N / (log(N) - 1));
@@ -84,7 +84,7 @@ namespace STATIC_Functions
 						mtx.unlock();
 					}
 				}
-				if (iter % 40 == 0) {
+				if (iter % VELOCITY == 0) {
 					mtx.lock();
 					double progress = ((double)100 * size(counter) / (N * BARWIDTH));
 					if (progress > 1) progress = 1;
@@ -102,13 +102,9 @@ namespace STATIC_Functions
 			cout << '\n';
 		}
 		cout << "attendere\r";
-		parallel_for(long long(2), N + 1, [&](long long p) {
-			if (is_prime[p]) {
-				mtx.lock();
-				primes.push_back(p);
-				mtx.unlock();
-			}
-		});
+		for (long long p = 2; p < N + 1; p++) {
+			if (is_prime[p]) primes.push_back(p);
+		}
 		output.is_prime = is_prime;
 		output.list_primes = primes;
 		return output;
@@ -126,11 +122,10 @@ namespace STATIC_Functions
 				}
 			}
 		}
-
 		return vect;
 	}
 
-	vector <compost_t> static decompose(int input) 
+	vector <compost_t> static decompose_number(int input) 
 	{
 		if (input > PrimeNumbers.list_primes[size(PrimeNumbers.list_primes) - 1]) {
 			vector_t PrimeN = Sieve_of_Erastothens(input, 0);
@@ -171,7 +166,7 @@ namespace STATIC_Functions
 
 	string static Cript(int input)
 	{
-		vector <compost_t> expfactors = decompose(input);
+		vector <compost_t> expfactors = decompose_number(input);
 		int PrimeFactors[15];
 		int exponents[15];
 		int factor_number;
@@ -402,7 +397,7 @@ namespace STATIC_Functions
 
 	string static Fact_Number(int input) 
 	{
-		vector <compost_t> expfactors = decompose(input);
+		vector <compost_t> expfactors = decompose_number(input);
 		int PrimeFactors[15];
 		int exponents[15];
 		int factors;
@@ -469,11 +464,30 @@ namespace STATIC_Functions
 		return output;
 	}
 
+	vector <int> decompose_string(string Terminal) {
+		bool pass = 0;
+		int ciphres_element;
+		vector <int> ciphres;
+		for (int i = 0; i < Terminal.size(); i++) {
+			if (pass) continue;
+			pass = 0;
+			if (i == Terminal.size() - 1)
+				ciphres_element = Terminal.at(i) - '0';
+			else if (Terminal.at(i + 1) == '0') {
+				ciphres_element = 10 * (Terminal.at(i) - '0');
+				pass = 1;
+			}
+			else ciphres_element = Terminal.at(i) - '0';
+			ciphres.push_back(ciphres_element);
+		}
+		return ciphres;
+	}
+
 	string static Syntax_Envalider(string ToEvaluate) 
 	{	
 		if (ToEvaluate == "f") return "";
 		vector <string> mono;
-		string charsAllowed = "0123456789()+";
+		string charsAllowed = "0123456789+(.)";
 		bool local_error = 1, boolean = 1, stable = 0;
 		int start = -1, end = -1, parenthesis_balance = 0;
 		for (int find = 0; find < ToEvaluate.size(); find++) {
@@ -518,6 +532,14 @@ namespace STATIC_Functions
 			if (ToEvaluate.at(i) == '0' && ToEvaluate.at(i + 1) == '0')
 				return "ConsecutiveNullDigits";
 		}
+		for (int i = 0; i < ToEvaluate.size(); i++) {
+			if (ToEvaluate.at(i) == '.') {
+				for (int j = i + 1; j < ToEvaluate.size(); j++) {
+					if (ToEvaluate.at(j) == '.' && j - i <= 2)
+						return "MissingDigits";
+				}
+			}
+		}
 		for (int i = 1; i < ToEvaluate.size(); i++) {
 			char short_1 = ToEvaluate.at(i - 1);
 			bool short_2 = short_1 == '+' || short_1 == ')' || short_1 == '(';
@@ -529,8 +551,9 @@ namespace STATIC_Functions
 			int stackfinder = -1, stickfinder = -1, finder;
 			bool stop = 0, pass = 0;
 			int res = 0;
-			char conf_min, conf_max;
 			string min, max;
+			vector <int> min_ciphres, max_ciphres;
+			vector <int> ciphr_min, ciphr_max;
 			string stack = mono[monomial];
 			for (int second = 1; second < size(mono); second++) {
 				if (monomial != second) {
@@ -571,55 +594,49 @@ namespace STATIC_Functions
 										stop = 1;
 								}
 							}
-							for (int l = finder + 2; l < min.size(); l++) {
-								if (pass) continue;
-								pass = 0;
-								if (l == min.size() - 1)
-									conf_min = min.at(l);
-								else if (min.at(l + 1) == '0') {
-									conf_min = 10 * min.at(l);
-									pass = 1;
-								}
-								else conf_min = min.at(l);
-								if (l == max.size() - 1)
-									conf_max = max.at(l);
-								else if (max.at(l + 1) == '0') {
-									conf_max = 10 * max.at(l);
-									pass = 1;
-								}
-								else conf_max = max.at(l);
-								if (!stop && conf_min == conf_max) {
+							string min_backup = min;
+							string max_backup = max;
+							min_backup.erase(0, finder + 2);
+							max_backup.erase(0, finder + 2);
+							min_ciphres = decompose_string(min_backup);
+							max_ciphres = decompose_string(max_backup);
+							if (size(min_ciphres) < size(max_ciphres)) {
+								ciphr_min = min_ciphres;
+								ciphr_max = max_ciphres;
+							}
+							else {
+								ciphr_min = max_ciphres;
+								ciphr_max = min_ciphres;
+							}
+							for (int l = 0; l < size(ciphr_min); l++) {
+								if (!stop && ciphr_min[l] == ciphr_max[l]) {
 									res++;
-									if (conf_min != conf_max)
+									if (ciphr_min[l] != ciphr_max[l])
 										stop = 1;
 								}
 								else stop = 1;
 							}
 						}
 					}
-					else for (int m = 0; m < min.size(); m++) {
-						if (pass) continue;
-						pass = 0;
-						if (m == min.size() - 1)
-							conf_min = min.at(m);
-						else if (min.at(m + 1) == '0') {
-							conf_min = 10 * min.at(m);
-							pass = 1;
+					else {
+						min_ciphres = decompose_string(min);
+						max_ciphres = decompose_string(max);
+						if (size(min_ciphres) < size(max_ciphres)) {
+							ciphr_min = min_ciphres;
+							ciphr_max = max_ciphres;
 						}
-						else conf_min = min.at(m);
-						if (m == max.size() - 1)
-							conf_max = max.at(m);
-						else if (max.at(m + 1) == '0') {
-							conf_max = 10 * max.at(m);
-							pass = 1;
+						else {
+							ciphr_min = max_ciphres;
+							ciphr_max = min_ciphres;
 						}
-						else conf_max = max.at(m);
-						if (!stop && conf_min == conf_max) {
-							res++;
-							if (conf_min != conf_max)
-								stop = 1;
+						for (int l = 0; l < size(ciphr_min); l++) {
+							if (!stop && ciphr_min[l] == ciphr_max[l]) {
+								res++;
+								if (ciphr_min[l] != ciphr_max[l])
+									stop = 1;
+							}
+							else stop = 1;
 						}
-						else stop = 1;
 					}
 					if (res % 2 == 1) return "SimiliarMonomials";
 				}
@@ -660,17 +677,10 @@ namespace STATIC_Functions
 		bool WhichWay = 1, XOutOfRange = 0;
 		bool UselessExponent = 0, pass = 0;
 		int sizeP = size(PrimeNumbers.list_primes), nums;
-		for (int iter = 0; iter < M.size(); iter++) {
-			if (pass) continue;
-			pass = 0;
+		vector <int> ciphres = decompose_string(M);
+		for (int iter = 0; iter < size(ciphres); iter++) {
 			WhichWay = !WhichWay;
-			if (iter == M.size() - 1)
-				nums = M.at(iter) - '0';
-			else if (M.at(iter + 1) == '0') {
-				nums = 10 * (M.at(iter) - '0');
-				pass = 1;
-			}
-			else nums = M.at(iter) - '0';
+			nums = ciphres[iter];
 			if (!XOutOfRange && WhichWay) {
 				UselessExponent = nums == 1;
 				root = pow(root, nums);
@@ -801,8 +811,6 @@ namespace STATIC_Functions
 	{
 		string n_ = to_string(GlobalMax);
 		vector <data_t> data;
-		vector <thread> threads;
-		
 		double Barwidth = 60;
 		int input, change;
 		cout << "debug::\n\n";
