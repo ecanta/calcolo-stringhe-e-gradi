@@ -33,7 +33,7 @@ mutex mtx;
 
 namespace STATIC_Functions
 {
-	bool static prime(int number) 
+	bool static prime(long long number) 
 	{
 		bool is_prime = 1;
 		if (number == 1) return 0;
@@ -125,7 +125,7 @@ namespace STATIC_Functions
 		return vect;
 	}
 
-	vector <compost_t> static decompose_number(int input) 
+	vector <compost_t> static decompose_number(long long input) 
 	{
 		if (input > PrimeNumbers.list_primes[size(PrimeNumbers.list_primes) - 1]) {
 			vector_t PrimeN = Sieve_of_Erastothens(input, 0);
@@ -164,10 +164,10 @@ namespace STATIC_Functions
 		return output;
 	}
 
-	string static Cript(int input)
+	string static Cript(long long input)
 	{
 		vector <compost_t> expfactors = decompose_number(input);
-		int PrimeFactors[15];
+		long long PrimeFactors[15];
 		int exponents[15];
 		int factor_number;
 		bool when_null = 1;
@@ -181,7 +181,8 @@ namespace STATIC_Functions
 		}
 
 		string the_string, exp_verify, exp_string, prime_exp_string;
-		int prime_exp, analyse, sizestring, presence;
+		int prime_exp, sizestring, presence;
+		long long analyse;
 		bool repeat;
 		string monomials[15];
 		for (int what_factor = 0; what_factor < factor_number; what_factor++) {
@@ -206,7 +207,7 @@ namespace STATIC_Functions
 
 			do {
 				while (prime(analyse)) {
-					int position = -1;
+					long long position = -1;
 					int a = 1;
 					do {
 						if (PrimeNumbers.list_primes[a - 1] == analyse)
@@ -395,7 +396,7 @@ namespace STATIC_Functions
 		return user_num;
 	}
 
-	string static Fact_Number(int input) 
+	string static Fact_Number(long long input)
 	{
 		vector <compost_t> expfactors = decompose_number(input);
 		int PrimeFactors[15];
@@ -424,7 +425,7 @@ namespace STATIC_Functions
 		return output;
 	}
 
-	data_t static coredegree(int input) 
+	data_t static coredegree(long long input)
 	{
 		data_t output;
 		int counter = 0;
@@ -442,7 +443,7 @@ namespace STATIC_Functions
 		return output;
 	}
 
-	data_t static corefactor(int input) 
+	data_t static corefactor(long long input)
 	{
 		data_t output;
 		output.number = input;
@@ -452,7 +453,7 @@ namespace STATIC_Functions
 		return output;
 	}
 
-	data_t static coredegfactor(int input) 
+	data_t static coredegfactor(long long input)
 	{
 		data_t A = coredegree(input);
 		data_t B = corefactor(input);
@@ -464,26 +465,43 @@ namespace STATIC_Functions
 		return output;
 	}
 
-	vector <int> decompose_string(string Terminal) {
-		bool pass = 0;
+	vector <int> static decompose_string(string Terminal) {
+		int pass = 0;
 		int ciphres_element;
 		vector <int> ciphres;
 		for (int i = 0; i < Terminal.size(); i++) {
-			if (pass) continue;
-			pass = 0;
+			while (pass != 0) {
+				i++;
+				pass--;
+			}
+			if (i >= Terminal.size()) return ciphres;
 			if (i == Terminal.size() - 1)
 				ciphres_element = Terminal.at(i) - '0';
-			else if (Terminal.at(i + 1) == '0') {
-				ciphres_element = 10 * (Terminal.at(i) - '0');
-				pass = 1;
+			else if (i > Terminal.size() - 3) {
+				if (Terminal.at(i + 1) == '0') {
+					ciphres_element = 10 * (Terminal.at(i) - '0');
+					pass = 1;
+				}
+				else ciphres_element = Terminal.at(i) - '0';
 			}
-			else ciphres_element = Terminal.at(i) - '0';
+			else if (Terminal.at(i) == '.') {
+				ciphres_element = 10 * (Terminal.at(i + 1) - '0')
+									 + (Terminal.at(i + 2) - '0');
+				pass = 2;
+			}
+			else {
+				if (Terminal.at(i + 1) == '0') {
+					ciphres_element = 10 * (Terminal.at(i) - '0');
+					pass = 1;
+				}
+				else ciphres_element = Terminal.at(i) - '0';
+			}
 			ciphres.push_back(ciphres_element);
 		}
 		return ciphres;
 	}
 
-	string static Syntax_Envalider(string ToEvaluate) 
+	string static Syntax_Validator(string ToEvaluate) 
 	{	
 		if (ToEvaluate == "f") return "";
 		vector <string> mono;
@@ -494,8 +512,8 @@ namespace STATIC_Functions
 			if (ToEvaluate.at(find) == '<') start = find + 1;
 			else if (ToEvaluate.at(find) == '>') end = find;
 		}
-		if (start == -1 || end == -1) return "NoBoundary";
-		if (end < start) return "BoundaryInversion";
+		if (start == -1 || end == -1) return "NO_BOUNDARY";
+		if (end < start) return "BOUNDARY_INVERSION";
 		ToEvaluate.erase(end);
 		ToEvaluate.erase(0, start);
 		for (int i = 0; i < ToEvaluate.size(); i++) {
@@ -505,46 +523,58 @@ namespace STATIC_Functions
 			}
 			if (ToEvaluate.at(i) == ')') parenthesis_balance--;
 		}
-		if (parenthesis_balance != 0) return "UnbalancedBrackets";
+		if (parenthesis_balance != 0) return "UNBALANCED_BRACKETS";
 		for (int space = ToEvaluate.size() - 1; space >= 0; space--) {
 			if (ToEvaluate.at(space) == ' ')
 				ToEvaluate.erase(space, 1);
 		}
-		if (ToEvaluate.empty()) return "EmptyInput";
+		if (ToEvaluate.empty()) return "EMPTY_IMPUT";
 		for (int i = 0; i < ToEvaluate.size(); i++) {
 			for (int j = 0; j < charsAllowed.size(); j++) {
 				if (ToEvaluate.at(i) == charsAllowed.at(j))
 					local_error = 0;
 			}
-			if (local_error) return "UnallowedCharacters";
+			if (local_error) return "UNALLOWED_CHARACTERS";
 			local_error = 1;
 		}
-		if (ToEvaluate.at(0) == '+') return "NoStartString";
-		if (ToEvaluate.at(0) == '0') return "NullDigit";
-		if (ToEvaluate.at(0) == ')') return "InvertedBrackets";
+		if (ToEvaluate.at(0) == '+') return "NO_START_STRING";
+		if (ToEvaluate.at(0) == '0') return "NULL_DIGIT";
+		if (ToEvaluate.at(0) == ')') return "INVERTED_BRACKETS";
 		if (ToEvaluate.at(ToEvaluate.size() - 1) == '+')
-			return "NoEndString";
+			return "NO_END_STRING";
 		for (int i = 0; i < ToEvaluate.size() - 1; i++) {
 			if (ToEvaluate.at(i) == '+' && ToEvaluate.at(i + 1) == '+')
-				return "MissingMonomial";
+				return "MISSING_MONOMIAL";
 		}
 		for (int i = 0; i < ToEvaluate.size() - 1; i++) {
 			if (ToEvaluate.at(i) == '0' && ToEvaluate.at(i + 1) == '0')
-				return "ConsecutiveNullDigits";
+				return "CONSECUTIVE_NULL_DIGITS";
 		}
 		for (int i = 0; i < ToEvaluate.size(); i++) {
-			if (ToEvaluate.at(i) == '.') {
-				for (int j = i + 1; j < ToEvaluate.size(); j++) {
-					if (ToEvaluate.at(j) == '.' && j - i <= 2)
-						return "MissingDigits";
-				}
+			if (ToEvaluate.size() == 1) {
+				if (ToEvaluate.at(0) == '.')
+					return "MISSING_DIGITS";
+			}
+			else if (i >= (ToEvaluate.size() - 2)) {
+				if (ToEvaluate.at(i) == '.')
+					return "MISSING_DIGITS";
+			}
+			else {
+				char short_1 = ToEvaluate.at(i + 1);
+				bool short_2 = short_1 == '+' || short_1 == ')'
+					|| short_1 == '(' || short_1 == '0';
+				char short_3 = ToEvaluate.at(i + 2);
+				bool short_4 = short_3 == '+' || short_3 == ')'
+					|| short_3 == '(' || short_3 == '0';
+				if (ToEvaluate.at(i) == '.' && short_2 && short_4)
+					return "MISSING_DIGITS";
 			}
 		}
 		for (int i = 1; i < ToEvaluate.size(); i++) {
 			char short_1 = ToEvaluate.at(i - 1);
 			bool short_2 = short_1 == '+' || short_1 == ')' || short_1 == '(';
 			if (ToEvaluate.at(i) == '0' && short_2)
-				return "NullDigits";
+				return "NULL_DIGITS";
 		}
 		mono = fractioner(ToEvaluate);
 		for (int monomial = 0; monomial < size(mono); monomial++) {
@@ -557,7 +587,7 @@ namespace STATIC_Functions
 			string stack = mono[monomial];
 			for (int second = 1; second < size(mono); second++) {
 				if (monomial != second) {
-					if (mono[monomial] == mono[second]) return "EqualMonomials";
+					if (mono[monomial] == mono[second]) return "EQUAL_MONOMIALS";
 					string stick = mono[second];
 					if (stack.size() < stick.size()) {
 						min = stack;
@@ -638,7 +668,7 @@ namespace STATIC_Functions
 							else stop = 1;
 						}
 					}
-					if (res % 2 == 1) return "SimiliarMonomials";
+					if (res % 2 == 1) return "SIMILIAR_MONOMIALS";
 				}
 			}
 			boolean = 1;
@@ -649,24 +679,24 @@ namespace STATIC_Functions
 				}
 			}
 			if (stack.at(stack.size() - 1) == ')')
-				return "MissingObject";
+				return "MISSING_OBJECT";
 			if (stack.at(stack.size() - 1) == '(')
-				return "InvertedBrackets";
+				return "INVERTED_BRACKETS";
 			if (stack.at(0) == '(') {
 				local_error = 1;
 				for (int checkplus = 1; checkplus < finder; checkplus++) {
 					if (stack.at(checkplus) == '+') local_error = 0;
 				}
-				if (local_error) return "UselessBrackets";
+				if (local_error) return "USELESS_BRACKETS";
 				stack.erase(0, 1);
 				stack.erase(finder);
-				string message = Syntax_Envalider("<" + stack + ">"); 
+				string message = Syntax_Validator("<" + stack + ">"); 
 				if (!message.empty()) return message;
 			}
-			else if (mono[monomial].at(0) == ')') return "InvertedBrackets";
+			else if (mono[monomial].at(0) == ')') return "INVERTED_BRACKETS";
 			else for (int check = 1; check < mono[monomial].size(); check++) {
-				if (mono[monomial].at(check) == '(') return "WrongObject";
-				if (mono[monomial].at(check) == ')') return "WrongObject";
+				if (mono[monomial].at(check) == '(') return "WRONG_OBJECT";
+				if (mono[monomial].at(check) == ')') return "WRONG_OBJECT";
 			}
 		}
 		return "";
@@ -741,15 +771,18 @@ namespace STATIC_Functions
 		vector <string> mono;
 		long long number;
 		cout << "il programma traduce una stringa di codice\n";
+		cout << "il codice non deve avere errori o saranno segnalati\n";
 		cout << "il codice deve essere compreso tra <>\n";
-		cout << "unici caratteri non numerici ammessi: '(', ')', '+' \n\n";
+		cout << "se sono presenti più caratteri '<', '>',\n";
+		cout << "verranno considerati solo quelli che compaiono prima\n";
+		cout << "unici caratteri non numerici ammessi: '(', ')', '+', '.' \n\n";
 		do {
 			do {
 				cout << "inserire una stringa (f = fine input)\n";
 				getline(cin, ToEvaluate);
-				message = Syntax_Envalider(ToEvaluate);
+				message = Syntax_Validator(ToEvaluate);
 				if (!message.empty())
-					cout << "ERROR-404: " << message << '\n';
+					cout << "ERR[404]: " << message << '\n';
 			} while (!message.empty());
 			int start = 0;
 			int end = 0;
@@ -766,8 +799,8 @@ namespace STATIC_Functions
 						ToEvaluate.erase(space, 1);
 				}
 				number = StringConverter(ToEvaluate);
-				if (number == -1) cout << "ERROR-413: XOutOfRange\n";
-				if (number == -2) cout << "ERROR-413: UselessExponent\n";
+				if (number == -1) cout << "ERR[413]: XOutOfRange\n";
+				if (number == -2) cout << "ERR[413]: UselessExponent\n";
 				if (number > 0) 
 					cout << "il numero corrispondente e' " << number << '\n';
 			}
@@ -791,10 +824,10 @@ namespace STATIC_Functions
 		}
 	}
 
-	void static repeater(string message, data_t nucleus(int input))
+	void static repeater(string message, data_t nucleus(long long input))
 	{
 		string n_ = to_string(GlobalMax);
-		int input;
+		long long input;
 		data_t result;
 		cout << message << "\n\n";
 		do {
@@ -807,28 +840,28 @@ namespace STATIC_Functions
 		} while (input != 1);
 	}
 
-	void static loop(string message, data_t nucleus(int set))
+	void static loop(string message, data_t nucleus(long long input))
 	{
 		string n_ = to_string(GlobalMax);
 		vector <data_t> data;
 		double Barwidth = 60;
-		int input, change;
+		long long input, change;
 		cout << "debug::\n\n";
 		cout << message << '\n';
 		cout << "gli estremi dell'intervallo devono essere compresi tra 1 e " << n_ << "\n\n";
 
 		string txt = "inserisci il valore di inizio della ricerca\n";
-		int lower_bound = get_user_num(txt, 1, GlobalMax) + 1;
+		long long lower_bound = get_user_num(txt, 1, GlobalMax) + 1;
 
 		txt = "inserisci il valore finale della ricerca\n";
-		int upper_bound = get_user_num(txt, 1, GlobalMax) + 1;
+		long long upper_bound = get_user_num(txt, 1, GlobalMax) + 1;
 
 		if (upper_bound < lower_bound) {
 			change = upper_bound;
 			upper_bound = lower_bound;
 			lower_bound = change;
 		}
-		int datalenght = upper_bound - lower_bound;
+		long long datalenght = upper_bound - lower_bound;
 
 		string choice;
 		cout << "vuoi utilizzare la ricerca veloce (non stampa direttamente i numeri)\n";
@@ -840,7 +873,7 @@ namespace STATIC_Functions
 			int iter = 0;
 			atomic <double> Progress = 0;
 			steady_clock::time_point begin = steady_clock::now();
-			parallel_for(int(lower_bound), upper_bound, [&](int set) {
+			parallel_for(long long(lower_bound), upper_bound, [&](long long set) {
 
 				data_t data_element = nucleus(set);
 				mtx.lock();
@@ -863,7 +896,7 @@ namespace STATIC_Functions
 		}
 		else {
 			steady_clock::time_point begin = steady_clock::now();
-			for (int set = lower_bound; set < upper_bound; set++) {
+			for (long long set = lower_bound; set < upper_bound; set++) {
 				data_t data_element = nucleus(set);
 				printf(data_element);
 			}
@@ -874,7 +907,7 @@ namespace STATIC_Functions
 	}
 
 	enum switchcase { cc, cf, ccf, dc, df, dcf, ctn, rnd, r };
-	static unordered_map<string, switchcase> stringToEnumMap = {
+	static unordered_map <string, switchcase> stringToEnumMap = {
 		{"cc", switchcase::cc},
 		{"cf", switchcase::cf},
 		{"ccf", switchcase::ccf},
@@ -884,7 +917,7 @@ namespace STATIC_Functions
 		{"ctn", switchcase::ctn},
 		{"rnd", switchcase::rnd}
 	};
-	switchcase ConvertStringToEnum(string& str) {
+	switchcase static ConvertStringToEnum(string str) {
 		auto it = stringToEnumMap.find(str);
 		if (it != stringToEnumMap.end())
 			return it->second;
@@ -917,6 +950,7 @@ int main()
 			GlobalMax = pow(10, 10);
 			text = "fino a quale numero cercare i numeri primi?\n";
 			text.append("un limite piu' alto comporta un tempo di attesa piu' lungo\n");
+			text.append("ES.: 30.000.000 = 1 minuto di attesa circa\n");
 			GlobalMax = get_user_num(text, 2, GlobalMax);
 
 			steady_clock::time_point begin = steady_clock::now();
@@ -928,7 +962,18 @@ int main()
 				cout << "tempo di calcolo numeri primi = " << exception_delta 
 					 << " microsecondi" << "\n\n";
 			}
-			else cout << "tempo di calcolo numeri primi = " << delta << "[ms]" << "\n\n";
+			else if (delta > 10000 && delta <= 600000) {
+				delta = delta / 1000;
+				cout << "tempo di calcolo numeri primi = " << delta << " secondi" << "\n\n";
+			}
+			else if (delta > 600000) {
+				delta = delta / 60000;
+				cout << "tempo di calcolo numeri primi = " << delta << " minuti" << "\n\n";
+			}
+			else {
+				cout << "tempo di calcolo numeri primi = " << delta
+					 << " millisecondi" << "\n\n";
+			}
 		}
 		cout << "scegli opzioni::\n";
 		cout << "se stringa di un carattere:\n";
