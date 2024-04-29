@@ -78,9 +78,9 @@ namespace STATIC_Functions
 		vector <bool> is_prime(N + 1, 1);
 		vector <int> primes;
 		vector <int> counter;
-		const int SPEED = 75;
+		int SPEED = 75;
 		const double BARWIDTH = 75;
-		const double COEFF = 0.92;
+		const double COEFF = 0.3;
 		const int SQUARE = (int)sqrt(N) + 2;
 		const double NOTPRIMESIZE = N - IntegralLog(N);
 		int iter = 0;
@@ -96,15 +96,16 @@ namespace STATIC_Functions
 				}
 				if (iter % SPEED == 0) {
 					mtx.lock();
-					double progress = (double)size(counter) / NOTPRIMESIZE;
-					if (progress > 1)
-						progress = 1;
+					double progress = COEFF * (double)size(counter) / NOTPRIMESIZE;
+					if (progress > 0.5) SPEED = 15;
+					if (progress > 1) progress = 1;
 					progress_Bar(progress, BARWIDTH);
 					mtx.unlock();
 				}
-				iter++;				
+				iter++;
 			});
 		}
+
 		else for (int p = 2; p < SQUARE; p++) {
 			for (int i = pow(p, 2); i <= N; i += p) {
 				is_prime[i] = 0;
@@ -963,7 +964,7 @@ int main()
 			GlobalMax = pow(10, 10);
 			text = "fino a quale numero cercare i numeri primi?\n";
 			text.append("un limite piu' alto comporta un tempo di attesa piu' lungo\n");
-			text.append("ES.: 30.000.000 = 1 minuto di attesa circa\n");
+			text.append("ES.: 22'500'000 = 1 minuto di attesa circa\n");
 			GlobalMax = get_user_num(text, 2, GlobalMax);
 
 			steady_clock::time_point begin = steady_clock::now();
