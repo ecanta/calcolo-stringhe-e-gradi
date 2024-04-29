@@ -48,6 +48,15 @@ namespace STATIC_Functions
 		return is_prime;
 	}
 
+	double static IntegralLog(int N) 
+	{
+		double sum = 0;
+		for (int x = 2; x <= N; x++) {
+			sum += 1. / log(x);
+		}
+		return sum;
+	}
+	
 	void static progress_Bar(double ratio, double barWidth) 
 	{
 		cout << "[[";
@@ -63,48 +72,52 @@ namespace STATIC_Functions
 		cout << "]] " << s << "%\r";
 	}
 
-	vector_t static Sieve_of_Erastothens(long long N, bool USE_pro_bar) 
-	{	
+	vector_t static Sieve_of_Erastothens(long long N, bool USE_pro_bar)
+	{
 		vector_t output;
 		vector <bool> is_prime(N + 1, 1);
 		vector <int> primes;
 		vector <int> counter;
-		const int VELOCITY = 75;
+		const int SPEED = 75;
 		const double BARWIDTH = 75;
-		const int SQUARE = ((int)sqrt(N)) + 2;
-		const double PRIMESIZE = (N / (log(N) - 1));
+		const double COEFF = 0.92;
+		const int SQUARE = (int)sqrt(N) + 2;
+		const double NOTPRIMESIZE = N - IntegralLog(N);
 		int iter = 0;
-		parallel_for(int(2), SQUARE, [&](int p) {
-			if (N >= 100000 && USE_pro_bar) {
+		if (N >= 100 && USE_pro_bar) {
+			parallel_for(int(2), SQUARE, [&](int p) {
 				if (is_prime[p]) {
 					for (int i = pow(p, 2); i <= N; i += p) {
-						is_prime[i] = 0;
 						mtx.lock();
+						is_prime[i] = 0;
 						counter.push_back(0);
 						mtx.unlock();
 					}
 				}
-				if (iter % VELOCITY == 0) {
+				if (iter % SPEED == 0) {
 					mtx.lock();
-					double progress = ((double)100 * size(counter) / (N * BARWIDTH));
-					if (progress > 1) progress = 1;
+					double progress = (double)size(counter) / NOTPRIMESIZE;
+					if (progress > 1)
+						progress = 1;
 					progress_Bar(progress, BARWIDTH);
 					mtx.unlock();
 				}
-				iter++;
-			}
-			else for (int i = pow(p, 2); i <= N; i += p)
+				iter++;				
+			});
+		}
+		else for (int p = 2; p < SQUARE; p++) {
+			for (int i = pow(p, 2); i <= N; i += p) {
 				is_prime[i] = 0;
-		});
+			}
+		}
 		if (USE_pro_bar) {
-			for (int i = 0; i < BARWIDTH + 11; i++) 
-				cout << ' '; 
+			for (int i = 0; i < BARWIDTH + 11; i++)
+				cout << ' ';
 			cout << '\n';
 		}
 		cout << "attendere\r";
-		for (long long p = 2; p < N + 1; p++) {
+		for (long long p = 2; p < N + 1; p++)
 			if (is_prime[p]) primes.push_back(p);
-		}
 		output.is_prime = is_prime;
 		output.list_primes = primes;
 		return output;
@@ -962,12 +975,12 @@ int main()
 				cout << "tempo di calcolo numeri primi = " << exception_delta 
 					 << " microsecondi" << "\n\n";
 			}
-			else if (delta > 10000 && delta <= 600000) {
+			else if (delta > 10'000 && delta <= 600'000) {
 				delta = delta / 1000;
 				cout << "tempo di calcolo numeri primi = " << delta << " secondi" << "\n\n";
 			}
-			else if (delta > 600000) {
-				delta = delta / 60000;
+			else if (delta > 600'000) {
+				delta = delta / 60'000;
 				cout << "tempo di calcolo numeri primi = " << delta << " minuti" << "\n\n";
 			}
 			else {
