@@ -843,7 +843,7 @@ namespace STATIC_Functions
 		}
 	}
 
-	void static repeater(string message, data_t nucleus(long long input))
+	void static repeater(string message, data_t CPU(long long input))
 	{
 		string n_ = to_string(GlobalMax);
 		long long input;
@@ -853,13 +853,13 @@ namespace STATIC_Functions
 			string txt = "inserire un numero tra 2 e " + n_ + " (1 = fine input)\n";
 			input = get_user_num(txt, 1, GlobalMax);
 			if (input != 1) {
-				result = nucleus(input);
+				result = CPU(input);
 				printf(result);
 			}
 		} while (input != 1);
 	}
 
-	void static loop(string message, data_t nucleus(long long input))
+	void static loop(string message, data_t CPU(long long input))
 	{
 		string n_ = to_string(GlobalMax);
 		vector <data_t> data;
@@ -894,7 +894,7 @@ namespace STATIC_Functions
 			steady_clock::time_point begin = steady_clock::now();
 			parallel_for(long long(lower_bound), upper_bound, [&](long long set) {
 
-				data_t data_element = nucleus(set);
+				data_t data_element = CPU(set);
 				mtx.lock();
 				data.push_back(data_element);
 				if (iter % 100 == 0) {
@@ -916,7 +916,7 @@ namespace STATIC_Functions
 		else {
 			steady_clock::time_point begin = steady_clock::now();
 			for (long long set = lower_bound; set < upper_bound; set++) {
-				data_t data_element = nucleus(set);
+				data_t data_element = CPU(set);
 				printf(data_element);
 			}
 			steady_clock::time_point end = steady_clock::now();
