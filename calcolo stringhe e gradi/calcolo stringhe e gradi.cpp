@@ -601,7 +601,7 @@ namespace STATIC_Functions
 			string stack = mono[monomial];
 			for (int second = 1; second < size(mono); second++) {
 				if (monomial != second) {
-					if (mono[monomial] == mono[second]) return "EQUAL_MONOMIALS";
+					if (mono[monomial] == mono[second]) return "1";
 					string stick = mono[second];
 					if (stack.size() < stick.size()) {
 						min = stack;
@@ -682,7 +682,7 @@ namespace STATIC_Functions
 							else stop = 1;
 						}
 					}
-					if (res % 2 == 1) return "SIMILIAR_MONOMIALS";
+					if (res % 2 == 1) return "2";
 				}
 			}
 			boolean = 1;
@@ -787,7 +787,7 @@ namespace STATIC_Functions
 		cout << "il programma traduce una stringa di codice\n";
 		cout << "il codice non deve avere errori o saranno segnalati\n";
 		cout << "il codice deve essere compreso tra <>\n";
-		cout << "se sono presenti più caratteri '<', '>',\n";
+		cout << "se sono presenti piu' caratteri '<', '>',\n";
 		cout << "verranno considerati solo quelli che compaiono prima\n";
 		cout << "unici caratteri non numerici ammessi: '(', ')', '+', '.' \n\n";
 		do {
@@ -795,9 +795,9 @@ namespace STATIC_Functions
 				cout << "inserire una stringa (f = fine input)\n";
 				getline(cin, ToEvaluate);
 				message = Syntax_Validator(ToEvaluate);
-				if (!message.empty())
+				if (message.size() > 1)
 					cout << "ERR[404]: " << message << '\n';
-			} while (!message.empty());
+			} while (message.size() > 1);
 			int start = 0;
 			int end = 0;
 			
@@ -815,6 +815,11 @@ namespace STATIC_Functions
 				number = StringConverter(ToEvaluate);
 				if (number == -1) cout << "ERR[413]: XOutOfRange\n";
 				if (number == -2) cout << "ERR[413]: UselessExponent\n";
+				if (!message.empty()) {
+					cout << "ERR[400]: ";
+					message == "1" ? cout << "EqualMonomials\n" : cout << "SmiliarMonomials\n";
+					cout << "codice corretto: " << Cript(number) << '\n';
+				}
 				if (number > 0) 
 					cout << "il numero corrispondente e' " << number << '\n';
 			}
