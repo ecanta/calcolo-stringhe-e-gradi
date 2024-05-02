@@ -13,6 +13,7 @@ using namespace Concurrency;
 using namespace std;
 using namespace chrono;
 
+enum switchcase { cc, cf, ccf, dc, df, dcf, ctn, rnd, r };
 long long GlobalMax = pow(10, 10);
 typedef struct {
 	vector <bool> is_prime;
@@ -33,6 +34,70 @@ mutex mtx;
 
 namespace STATIC_Functions
 {
+	static unordered_map <string, switchcase> stringToEnumMap = {
+		{"cc", switchcase::cc},
+		{"cf", switchcase::cf},
+		{"ccf", switchcase::ccf},
+		{"dc", switchcase::dc},
+		{"df", switchcase::df},
+		{"dcf", switchcase::dcf},
+		{"ctn", switchcase::ctn},
+		{"rnd", switchcase::rnd}
+	};
+
+	static unordered_map <switchcase, string> enumToStringMap = {
+		{switchcase::cc, "cc"},
+		{switchcase::cf, "cf"},
+		{switchcase::ccf, "ccf"},
+		{switchcase::dc, "dc"},
+		{switchcase::df, "df"},
+		{switchcase::dcf, "dcf"},
+		{switchcase::ctn, "ctn"},
+		{switchcase::rnd, "rnd"}
+	};
+
+	string static ConvertEnumToString(switchcase Enum) {
+		auto it = enumToStringMap.find(Enum);
+		if (it != enumToStringMap.end())
+			return it->second;
+	}
+
+	switchcase static ConvertStringToEnum(string str) {
+		auto it = stringToEnumMap.find(str);
+		if (it != stringToEnumMap.end())
+			return it->second;
+		else {
+			stringToEnumMap.insert({ str , r });
+			it = stringToEnumMap.find(str);
+			return it->second;
+		}
+	}
+
+	switchcase static randomizer(switchcase option) {
+		if (option == rnd) {
+			random_device rng;
+			mt19937 gen(rng());
+			uniform_int_distribution<> dis(0, 6);
+			switch (dis(gen)) {
+			case 0: return cc;
+				break;
+			case 1: return cf;
+				break;
+			case 2: return ccf;
+				break;
+			case 3: return dc;
+				break;
+			case 4: return df;
+				break;
+			case 5: return dcf;
+				break;
+			case 6: return ctn;
+				break;
+			}
+		}
+		else return option;
+	}
+
 	bool static prime(long long number)
 	{
 		bool is_prime = 1;
@@ -114,8 +179,7 @@ namespace STATIC_Functions
 		if (USE_pro_bar) {
 			for (int i = 0; i < BARWIDTH + 11; i++)
 				cout << ' ';
-			cout << '\n';
-			cout << "attendere\r";
+			cout << "\nattendere\r";
 		}
 		for (long long p = 2; p < N + 1; p++)
 			if (is_prime[p]) primes.push_back(p);
@@ -431,6 +495,39 @@ namespace STATIC_Functions
 		} while (user_num < low || user_num > high);
 
 		return user_num;
+	}
+
+	string static Get_user_enum(string txt, int low, long long high)
+	{
+		switchcase option;
+		long long user_num;
+		string check;
+		do {
+			bool error = 1;
+			bool general_error = 0;
+			cout << txt;
+			getline(cin, check);
+			option = ConvertStringToEnum(check);
+			option = randomizer(option);
+			if (option != r) return ConvertEnumToString(option);
+			if (check.empty()) user_num = low - 1;
+			else if (check.size() > 10) user_num = low - 1;
+			else {
+				string digits = "0123456789";
+				for (int ch = 0; ch < check.size(); ch++) {
+					for (int chi = 0; chi < digits.size(); chi++) {
+						if (check.at(ch) == digits.at(chi))
+							error = 0;
+					}
+					if (error) general_error = 1;
+					error = 1;
+				}
+				if (general_error) user_num = 0;
+				else user_num = stoull(check);
+			}
+
+		} while (user_num < low || user_num > high);
+		return to_string(user_num);
 	}
 
 	string static Fact_Number(long long input)
@@ -802,10 +899,11 @@ namespace STATIC_Functions
 		return integer;
 	}
 
-	void static CodeToNumber()
+	switchcase static CodeToNumber()
 	{
 		string ToEvaluate, message;
 		vector <string> mono;
+		switchcase option;
 		long long number;
 		cout << "il programma traduce una stringa di codice\n";
 		cout << "il codice non deve avere errori o saranno segnalati\n";
@@ -817,6 +915,11 @@ namespace STATIC_Functions
 			do {
 				cout << "inserire una stringa (f = fine input)\n";
 				getline(cin, ToEvaluate);
+				option = ConvertStringToEnum(ToEvaluate);
+				if (option != r) {
+					cout << '\n';
+					return option;
+				}
 				message = Syntax_Validator(ToEvaluate);
 				if (message.size() > 1)
 					cout << "ERR[404]: " << message << '\n';
@@ -836,17 +939,18 @@ namespace STATIC_Functions
 						ToEvaluate.erase(space, 1);
 				}
 				number = StringConverter(ToEvaluate);
-				if (number == -1) cout << "ERR[413]: XOutOfRange\n";
-				if (number == -2) cout << "ERR[413]: UselessExponent\n";
+				if (number == -1) cout << "ERR[413]: X_OUT_OF_RANGE\n";
+				if (number == -2) cout << "ERR[413]: USELESS_EXPONENT\n";
 				if (!message.empty()) {
 					cout << "ERR[400]: ";
-					message == "1" ? cout << "EqualMonomials\n" : cout << "SmiliarMonomials\n";
+					message == "1" ? cout << "EQUAL_MONOMIALS\n" : cout << "SIMILIAR_MONOMIALS\n";
 					cout << "codice corretto: " << Cript(number) << '\n';
 				}
 				if (number > 0)
 					cout << "il numero corrispondente e' " << number << '\n';
 			}
 		} while (ToEvaluate != "f");
+		return r;
 	}
 
 	void static printf(data_t structure)
@@ -866,25 +970,34 @@ namespace STATIC_Functions
 		}
 	}
 
-	void static repeater(string message, data_t CPU(long long input))
+	switchcase static repeater(string message, data_t CPU(long long input))
 	{
-		string n_ = to_string(GlobalMax);
+		string n_ = to_string(GlobalMax), Input;
+		switchcase option;
 		long long input;
 		data_t result;
 		cout << message << "\n\n";
 		do {
 			string txt = "inserire un numero tra 2 e " + n_ + " (1 = fine input)\n";
-			input = get_user_num(txt, 1, GlobalMax);
+			Input = Get_user_enum(txt, 1, GlobalMax);
+			option = ConvertStringToEnum(Input);
+			if (option != r) {
+				cout << '\n';
+				return option;
+			}
+			input = stoi(Input);
 			if (input != 1) {
 				result = CPU(input);
 				printf(result);
 			}
 		} while (input != 1);
+		return r;
 	}
 
-	void static loop(string message, data_t CPU(long long input))
+	switchcase static loop(string message, data_t CPU(long long input))
 	{
-		string n_ = to_string(GlobalMax);
+		string n_ = to_string(GlobalMax), txt, Input;
+		switchcase option;
 		vector <data_t> data;
 		double Barwidth = 60;
 		long long input;
@@ -892,11 +1005,23 @@ namespace STATIC_Functions
 		cout << message << '\n';
 		cout << "gli estremi dell'intervallo devono essere compresi tra 1 e " << n_ << "\n\n";
 
-		string txt = "inserisci il valore di inizio della ricerca\n";
-		long long lower_bound = get_user_num(txt, 1, GlobalMax) + 1;
+		txt = "inserisci il valore di inizio della ricerca\n";
+		Input = Get_user_enum(txt, 1, GlobalMax);
+		option = ConvertStringToEnum(Input);
+		if (option != r) {
+			cout << '\n';
+			return option;
+		}
+		long long lower_bound = stoi(Input) + 1;
 
 		txt = "inserisci il valore finale della ricerca\n";
-		long long upper_bound = get_user_num(txt, 1, GlobalMax) + 1;
+		Input = Get_user_enum(txt, 1, GlobalMax);
+		option = ConvertStringToEnum(Input);
+		if (option != r) {
+			cout << '\n';
+			return option;
+		}
+		long long upper_bound = stoi(Input) + 1;
 
 		if (upper_bound < lower_bound) swap(lower_bound, upper_bound);
 		long long datalenght = upper_bound - lower_bound;
@@ -923,7 +1048,7 @@ namespace STATIC_Functions
 				iter++;
 				mtx.unlock();
 
-				});
+			});
 			steady_clock::time_point end = steady_clock::now();
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
 				<< "[ms]" << '\n';
@@ -940,33 +1065,11 @@ namespace STATIC_Functions
 			}
 			steady_clock::time_point end = steady_clock::now();
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
-				<< "[ms]" << '\n';
+				 << "[ms]" << '\n';
 		}
-	}
-
-	enum switchcase { cc, cf, ccf, dc, df, dcf, ctn, rnd, r };
-	static unordered_map <string, switchcase> stringToEnumMap = {
-		{"cc", switchcase::cc},
-		{"cf", switchcase::cf},
-		{"ccf", switchcase::ccf},
-		{"dc", switchcase::dc },
-		{"df", switchcase::df},
-		{"dcf", switchcase::dcf},
-		{"ctn", switchcase::ctn},
-		{"rnd", switchcase::rnd}
-	};
-	switchcase static ConvertStringToEnum(string str) {
-		auto it = stringToEnumMap.find(str);
-		if (it != stringToEnumMap.end())
-			return it->second;
-		else {
-			stringToEnumMap.insert({ str , r });
-			it = stringToEnumMap.find(str);
-			return it->second;
-		}
+		return r;
 	}
 }
-
 int main()
 {
 	using namespace STATIC_Functions;
@@ -998,7 +1101,7 @@ int main()
 			int exception_delta = duration_cast <microseconds> (end - begin).count();
 			if (delta <= 10) {
 				cout << "tempo di calcolo numeri primi = " << exception_delta
-					<< " microsecondi" << "\n\n";
+					 << " microsecondi" << "\n\n";
 			}
 			else if (delta > 10'000 && delta <= 600'000) {
 				delta = delta / 1000;
@@ -1010,7 +1113,7 @@ int main()
 			}
 			else {
 				cout << "tempo di calcolo numeri primi = " << delta
-					<< " millisecondi" << "\n\n";
+					 << " millisecondi" << "\n\n";
 			}
 		}
 		cout << "scegli opzioni::\n";
@@ -1067,43 +1170,25 @@ int main()
 			stop = 0;
 		} while (!skip);
 		cout << "\n\n";
-		if (option == rnd) {
-			random_device rng;
-			mt19937 gen(rng());
-			uniform_int_distribution<> dis(0, 6);
-			switch (dis(gen)) {
-			case 0: option = cc;
+		do {
+			option = randomizer(option);
+			switch (option) {
+			case cc: option = repeater(message, coredegree);
 				break;
-			case 1: option = cf;
+			case cf: option = repeater(fact_message, corefactor);
 				break;
-			case 2: option = ccf;
+			case ccf: option = repeater(AllMessage, coredegfactor);
 				break;
-			case 3: option = dc;
+			case dc: option = loop(deg_message, coredegree);
 				break;
-			case 4: option = df;
+			case df: option = loop(defact_message, corefactor);
 				break;
-			case 5: option = dcf;
+			case dcf: option = loop(AllMessage, coredegfactor);
 				break;
-			case 6: option = ctn;
+			case ctn: option = CodeToNumber();
 				break;
 			}
-		}
-		switch (option) {
-		case cc: repeater(message, coredegree);
-			break;
-		case cf: repeater(fact_message, corefactor);
-			break;
-		case ccf: repeater(AllMessage, coredegfactor);
-			break;
-		case dc: loop(deg_message, coredegree);
-			break;
-		case df: loop(defact_message, corefactor);
-			break;
-		case dcf: loop(AllMessage, coredegfactor);
-			break;
-		case ctn: CodeToNumber();
-			break;
-		}
+		} while (option != r);
 	} while (0 == 0);
 }
 // program_END
