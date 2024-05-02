@@ -33,7 +33,7 @@ mutex mtx;
 
 namespace STATIC_Functions
 {
-	bool static prime(long long number) 
+	bool static prime(long long number)
 	{
 		bool is_prime = 1;
 		if (number == 1) return 0;
@@ -48,7 +48,7 @@ namespace STATIC_Functions
 		return is_prime;
 	}
 
-	double static IntegralLog(int N) 
+	double static IntegralLog(int N)
 	{
 		double sum = 0;
 		for (int x = 2; x <= N; x++) {
@@ -56,8 +56,8 @@ namespace STATIC_Functions
 		}
 		return sum;
 	}
-	
-	void static progress_Bar(double ratio, double barWidth) 
+
+	void static progress_Bar(double ratio, double barWidth)
 	{
 		cout << "[[";
 		int pos = (int)(barWidth * ratio);
@@ -82,9 +82,9 @@ namespace STATIC_Functions
 		const double BARWIDTH = 75;
 		const double COEFF = 0.3;
 		const int SQUARE = (int)sqrt(N) + 2;
-		const double NOTPRIMESIZE = N - IntegralLog(N);
+		const double NOTPRIMESIZE = (N - IntegralLog(N)) / COEFF;
 		int iter = 0;
-		if (N >= 100 && USE_pro_bar) {
+		if (N >= 100000 && USE_pro_bar) {
 			parallel_for(int(2), SQUARE, [&](int p) {
 				if (is_prime[p]) {
 					for (int i = pow(p, 2); i <= N; i += p) {
@@ -96,7 +96,7 @@ namespace STATIC_Functions
 				}
 				if (iter % SPEED == 0) {
 					mtx.lock();
-					double progress = COEFF * (double)size(counter) / NOTPRIMESIZE;
+					double progress = (double)size(counter) / NOTPRIMESIZE;
 					if (progress > 0.5) SPEED = 15;
 					if (progress > 1) progress = 1;
 					progress_Bar(progress, BARWIDTH);
@@ -115,8 +115,8 @@ namespace STATIC_Functions
 			for (int i = 0; i < BARWIDTH + 11; i++)
 				cout << ' ';
 			cout << '\n';
+			cout << "attendere\r";
 		}
-		cout << "attendere\r";
 		for (long long p = 2; p < N + 1; p++)
 			if (is_prime[p]) primes.push_back(p);
 		output.is_prime = is_prime;
@@ -124,7 +124,7 @@ namespace STATIC_Functions
 		return output;
 	}
 
-	vector <data_t> static SortData(vector <data_t> vect) 
+	vector <data_t> static Sort(vector <data_t> vect)
 	{
 		for (int i = 0; i < size(vect); i++) {
 			for (int j = 0; j < size(vect); j++) {
@@ -139,7 +139,32 @@ namespace STATIC_Functions
 		return vect;
 	}
 
-	vector <compost_t> static decompose_number(long long input) 
+	void static heapify(vector <data_t>& vect, int n, int i) {
+		int largest = i;
+		int left = 2 * i + 1;
+		int right = 2 * i + 2;
+		if (left < n && vect[left].number > vect[largest].number)
+			largest = left;
+		if (right < n && vect[right].number > vect[largest].number)
+			largest = right;
+		if (largest != i) {
+			swap(vect[i], vect[largest]);
+			heapify(vect, n, largest);
+		}
+	}
+
+	vector <data_t> static heapSort(vector <data_t>& vect) {
+		int n = vect.size();
+		for (int i = n / 2 - 1; i >= 0; i--)
+			heapify(vect, n, i);
+		for (int i = n - 1; i > 0; i--) {
+			swap(vect[0], vect[i]);
+			heapify(vect, i, 0);
+		}
+		return vect;
+	}
+
+	vector <compost_t> static decompose_number(long long input)
 	{
 		if (input > PrimeNumbers.list_primes[size(PrimeNumbers.list_primes) - 1]) {
 			vector_t PrimeN = Sieve_of_Erastothens(input, 0);
@@ -240,8 +265,8 @@ namespace STATIC_Functions
 						sizestring--;
 					}
 					else if (presence == 2) {
-						exp_string = "." + string(1, the_string.at(sizestring - 2)) 
-									+ string(1, the_string.at(sizestring - 1));
+						exp_string = "." + string(1, the_string.at(sizestring - 2))
+							+ string(1, the_string.at(sizestring - 1));
 						the_string.erase(sizestring - 3);
 						sizestring--;
 					}
@@ -284,7 +309,7 @@ namespace STATIC_Functions
 		int position[15];
 		int j = 0;
 		for (int i = 0; i < (the_string.size() - 2); i++) {
-			if ((the_string.at(i) == '(') && (the_string.at(i + 1) == '1') 
+			if ((the_string.at(i) == '(') && (the_string.at(i + 1) == '1')
 				&& (the_string.at(i + 2) == ')')) {
 				position[j] = i;
 				j++;
@@ -311,7 +336,7 @@ namespace STATIC_Functions
 		return the_string;
 	}
 
-	vector <string> static fractioner(string polinomial) 
+	vector <string> static fractioner(string polinomial)
 	{
 		vector <string> monomials;
 		string backup = polinomial;
@@ -371,16 +396,14 @@ namespace STATIC_Functions
 				monomials[i].erase(0, location + 1);
 				values[i] = ExecuteStrings(temp) * (stoi(monomials[i]));
 			}
-			else {
-				values[i] = stoi(monomials[i]);
-			}
+			else values[i] = stoi(monomials[i]);
 			presence = 1;
 		}
 		for (int end = 0; end < size(monomials); end++) output += values[end];
 		return output;
 	}
 
-	long long static get_user_num(string txt, int lw, long long Bound) 
+	long long static get_user_num(string txt, int low, long long high)
 	{
 		long long user_num;
 		string check;
@@ -389,8 +412,8 @@ namespace STATIC_Functions
 			bool general_error = 0;
 			cout << txt;
 			getline(cin, check);
-			if (check.empty()) user_num = lw - 1;
-			else if (check.size() > 10) user_num = lw - 1;
+			if (check.empty()) user_num = low - 1;
+			else if (check.size() > 10) user_num = low - 1;
 			else {
 				string digits = "0123456789";
 				for (int ch = 0; ch < check.size(); ch++) {
@@ -405,7 +428,7 @@ namespace STATIC_Functions
 				else user_num = stoull(check);
 			}
 
-		} while (user_num < lw || user_num > Bound);
+		} while (user_num < low || user_num > high);
 
 		return user_num;
 	}
@@ -429,7 +452,7 @@ namespace STATIC_Functions
 		string output = "";
 		for (int i = 0; i < factors; i++) {
 			if (exponents[i] != 1) {
-				output = output + to_string(PrimeFactors[i]) 
+				output = output + to_string(PrimeFactors[i])
 					+ "^" + to_string(exponents[i]) + " * ";
 			}
 			else output = output + to_string(PrimeFactors[i]) + " * ";
@@ -500,7 +523,7 @@ namespace STATIC_Functions
 			}
 			else if (Terminal.at(i) == '.') {
 				ciphres_element = 10 * (Terminal.at(i + 1) - '0')
-									 + (Terminal.at(i + 2) - '0');
+					+ (Terminal.at(i + 2) - '0');
 				pass = 2;
 			}
 			else {
@@ -515,8 +538,8 @@ namespace STATIC_Functions
 		return ciphres;
 	}
 
-	string static Syntax_Validator(string ToEvaluate) 
-	{	
+	string static Syntax_Validator(string ToEvaluate)
+	{
 		if (ToEvaluate == "f") return "";
 		vector <string> mono;
 		string charsAllowed = "0123456789+(.)";
@@ -704,7 +727,7 @@ namespace STATIC_Functions
 				if (local_error) return "USELESS_BRACKETS";
 				stack.erase(0, 1);
 				stack.erase(finder);
-				string message = Syntax_Validator("<" + stack + ">"); 
+				string message = Syntax_Validator("<" + stack + ">");
 				if (!message.empty()) return message;
 			}
 			else if (mono[monomial].at(0) == ')') return "INVERTED_BRACKETS";
@@ -716,7 +739,7 @@ namespace STATIC_Functions
 		return "";
 	}
 
-	long long static NumberConverter(long long root, string M) 
+	long long static NumberConverter(long long root, string M)
 	{
 		bool WhichWay = 1, XOutOfRange = 0;
 		bool UselessExponent = 0, pass = 0;
@@ -744,7 +767,7 @@ namespace STATIC_Functions
 		return root;
 	}
 
-	long long static StringConverter(string ToEvaluate) 
+	long long static StringConverter(string ToEvaluate)
 	{
 		long long integer = 1;
 		string backup, back;
@@ -779,7 +802,7 @@ namespace STATIC_Functions
 		return integer;
 	}
 
-	void static CodeToNumber() 
+	void static CodeToNumber()
 	{
 		string ToEvaluate, message;
 		vector <string> mono;
@@ -800,7 +823,7 @@ namespace STATIC_Functions
 			} while (message.size() > 1);
 			int start = 0;
 			int end = 0;
-			
+
 			if (ToEvaluate != "f") {
 				for (int find = 0; find < ToEvaluate.size(); find++) {
 					if (ToEvaluate.at(find) == '<') start = find + 1;
@@ -820,13 +843,13 @@ namespace STATIC_Functions
 					message == "1" ? cout << "EqualMonomials\n" : cout << "SmiliarMonomials\n";
 					cout << "codice corretto: " << Cript(number) << '\n';
 				}
-				if (number > 0) 
+				if (number > 0)
 					cout << "il numero corrispondente e' " << number << '\n';
 			}
 		} while (ToEvaluate != "f");
-	} 
-	
-	void static printf(data_t structure) 
+	}
+
+	void static printf(data_t structure)
 	{
 		cout << "numero " << structure.number << ":\n";
 		if (!structure.code.empty()) {
@@ -864,7 +887,7 @@ namespace STATIC_Functions
 		string n_ = to_string(GlobalMax);
 		vector <data_t> data;
 		double Barwidth = 60;
-		long long input, change;
+		long long input;
 		cout << "debug::\n\n";
 		cout << message << '\n';
 		cout << "gli estremi dell'intervallo devono essere compresi tra 1 e " << n_ << "\n\n";
@@ -875,16 +898,12 @@ namespace STATIC_Functions
 		txt = "inserisci il valore finale della ricerca\n";
 		long long upper_bound = get_user_num(txt, 1, GlobalMax) + 1;
 
-		if (upper_bound < lower_bound) {
-			change = upper_bound;
-			upper_bound = lower_bound;
-			lower_bound = change;
-		}
+		if (upper_bound < lower_bound) swap(lower_bound, upper_bound);
 		long long datalenght = upper_bound - lower_bound;
 
 		string choice;
 		cout << "vuoi utilizzare la ricerca veloce (non stampa direttamente i numeri)\n";
-		cout << "immetti s = si oppure n = no  ";
+		cout << "immetti s = si oppure n = no  ";
 		getline(cin, choice);
 		cout << '\n';
 
@@ -904,12 +923,12 @@ namespace STATIC_Functions
 				iter++;
 				mtx.unlock();
 
-			});
+				});
 			steady_clock::time_point end = steady_clock::now();
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
-				 << "[ms]" << '\n';
+				<< "[ms]" << '\n';
 
-			data = SortData(data);
+			data = heapSort(data);
 			for (int c = 0; c < Barwidth + 11; c++) cout << ' '; cout << '\n';
 			for (int x = 0; x < size(data); ++x) printf(data[x]);
 		}
@@ -921,7 +940,7 @@ namespace STATIC_Functions
 			}
 			steady_clock::time_point end = steady_clock::now();
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
-				 << "[ms]" << '\n';
+				<< "[ms]" << '\n';
 		}
 	}
 
@@ -949,7 +968,7 @@ namespace STATIC_Functions
 }
 
 int main()
-{	
+{
 	using namespace STATIC_Functions;
 	cout << "CALCOLATRICE::\n\n";
 	string defact_message = "il programma calcola la fattorizzazione di una serie di numeri";
@@ -978,8 +997,8 @@ int main()
 			int delta = duration_cast <milliseconds> (end - begin).count();
 			int exception_delta = duration_cast <microseconds> (end - begin).count();
 			if (delta <= 10) {
-				cout << "tempo di calcolo numeri primi = " << exception_delta 
-					 << " microsecondi" << "\n\n";
+				cout << "tempo di calcolo numeri primi = " << exception_delta
+					<< " microsecondi" << "\n\n";
 			}
 			else if (delta > 10'000 && delta <= 600'000) {
 				delta = delta / 1000;
@@ -991,7 +1010,7 @@ int main()
 			}
 			else {
 				cout << "tempo di calcolo numeri primi = " << delta
-					 << " millisecondi" << "\n\n";
+					<< " millisecondi" << "\n\n";
 			}
 		}
 		cout << "scegli opzioni::\n";
