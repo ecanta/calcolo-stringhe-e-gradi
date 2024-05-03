@@ -1080,40 +1080,52 @@ int main()
 	string message = "il programma converte un numero nel corrispondente codice e ne calcola il grado";
 	string AllMessage = "il programma calcola factor, codice e grado";
 
+	bool start = 1;
 	bool lock_prime_input = 0;
 	do {
 		bool stop = 0;
 		bool skip = 1;
+		bool redo = 0;
+		long long global;
 		string text, vel;
 		switchcase option;
 
 		if (!lock_prime_input) {
 			GlobalMax = pow(10, 10);
-			text = "fino a quale numero cercare i numeri primi?\n";
-			text.append("un limite piu' alto comporta un tempo di attesa piu' lungo\n");
-			text.append("ES.: 22'500'000 = 1 minuto di attesa circa\n");
-			GlobalMax = get_user_num(text, 2, GlobalMax);
+			do {
+				redo = 0;
+				text = "fino a quale numero cercare i numeri primi?\n";
+				text.append("un limite piu' alto comporta un tempo di attesa piu' lungo\n");
+				text.append("ES.: 22'500'000 = 1 minuto di attesa circa\n");
+				global = get_user_num(text, 0, GlobalMax);
 
-			steady_clock::time_point begin = steady_clock::now();
-			PrimeNumbers = Sieve_of_Erastothens(GlobalMax, 1);
-			steady_clock::time_point end = steady_clock::now();
-			int delta = duration_cast <milliseconds> (end - begin).count();
-			int exception_delta = duration_cast <microseconds> (end - begin).count();
-			if (delta <= 10) {
-				cout << "tempo di calcolo numeri primi = " << exception_delta
-					 << " microsecondi" << "\n\n";
-			}
-			else if (delta > 10'000 && delta <= 600'000) {
-				delta = delta / 1000;
-				cout << "tempo di calcolo numeri primi = " << delta << " secondi" << "\n\n";
-			}
-			else if (delta > 600'000) {
-				delta = delta / 60'000;
-				cout << "tempo di calcolo numeri primi = " << delta << " minuti" << "\n\n";
-			}
-			else {
-				cout << "tempo di calcolo numeri primi = " << delta
-					 << " millisecondi" << "\n\n";
+				if (global == 1) redo = 1;
+				if (global == 0 && start) redo = 1;
+			} while (redo);
+
+			if (global == 0 && !start) {
+				steady_clock::time_point begin = steady_clock::now();
+				PrimeNumbers = Sieve_of_Erastothens(GlobalMax, 1);
+				steady_clock::time_point end = steady_clock::now();
+				int delta = duration_cast <milliseconds> (end - begin).count();
+				int exception_delta = duration_cast <microseconds> (end - begin).count();
+				if (delta <= 10) {
+					cout << "tempo di calcolo numeri primi = " << exception_delta
+						<< " microsecondi" << "\n\n";
+				}
+				else if (delta > 10'000 && delta <= 600'000) {
+					delta = delta / 1000;
+					cout << "tempo di calcolo numeri primi = " << delta << " secondi" << "\n\n";
+				}
+				else if (delta > 600'000) {
+					delta = delta / 60'000;
+					cout << "tempo di calcolo numeri primi = " << delta << " minuti" << "\n\n";
+				}
+				else {
+					cout << "tempo di calcolo numeri primi = " << delta
+						<< " millisecondi" << "\n\n";
+				}
+				start = 0;
 			}
 		}
 		cout << "scegli opzioni::\n";
