@@ -512,6 +512,7 @@ namespace STATIC_Functions
 			bool general_error = 0;
 			cout << txt;
 			getline(cin, check);
+			if (check == ".") return ".";
 			option = ConvertStringToEnum(check);
 			option = randomizer(option);
 			if (option != r) return ConvertEnumToString(option);
@@ -921,6 +922,7 @@ namespace STATIC_Functions
 				cout << "inserire una stringa (f = fine input)\n";
 				getline(cin, ToEvaluate);
 				option = ConvertStringToEnum(ToEvaluate);
+				option = randomizer(option);
 				if (option != r) {
 					cout << '\n';
 					return option;
@@ -984,8 +986,7 @@ namespace STATIC_Functions
 		SetConsoleTextAttribute(hConsole, 15);
 	}
 
-	switchcase static repeater(string message, data_t CPU(long long input))
-	{
+	switchcase static repeater(string message, data_t CPU(long long input)) {
 		string n_ = to_string(GlobalMax), Input;
 		switchcase option;
 		long long input;
@@ -994,15 +995,19 @@ namespace STATIC_Functions
 		do {
 			string txt = "inserire un numero tra 2 e " + n_ + " (1 = fine input)\n";
 			Input = Get_user_enum(txt, 1, GlobalMax);
-			option = ConvertStringToEnum(Input);
-			if (option != r) {
-				cout << '\n';
-				return option;
-			}
-			input = stoi(Input);
-			if (input != 1) {
-				result = CPU(input);
-				printf(result);
+			if (Input == ".") return rnd;
+			else {
+				option = ConvertStringToEnum(Input);
+				option = randomizer(option);
+				if (option != r) {
+					cout << '\n';
+					return option;
+				}
+				input = stoi(Input);
+				if (input != 1) {
+					result = CPU(input);
+					printf(result);
+				}
 			}
 		} while (input != 1);
 		return r;
@@ -1021,7 +1026,9 @@ namespace STATIC_Functions
 
 		txt = "inserisci il valore di inizio della ricerca\n";
 		Input = Get_user_enum(txt, 1, GlobalMax);
+		if (Input == ".") return rnd;
 		option = ConvertStringToEnum(Input);
+		option = randomizer(option);
 		if (option != r) {
 			cout << '\n';
 			return option;
@@ -1030,7 +1037,9 @@ namespace STATIC_Functions
 
 		txt = "inserisci il valore finale della ricerca\n";
 		Input = Get_user_enum(txt, 1, GlobalMax);
+		if (Input == ".") return rnd;
 		option = ConvertStringToEnum(Input);
+		option = randomizer(option);
 		if (option != r) {
 			cout << '\n';
 			return option;
@@ -1155,9 +1164,9 @@ int main()
 		cout << "scegli opzioni::\n";
 		cout << "se stringa di un carattere:\n";
 		SetConsoleTextAttribute(hConsole, 4);
-		cout << "'0' = blocca input numeri primi\n";
+		cout << "'0' = blocca input numeri primi [sempre]\n";
 		cout << "'1' = sblocca input numeri primi\n";
-		cout << "'.' = fine programma\n";
+		cout << "'.' = fine programma [sempre]\n";
 		SetConsoleTextAttribute(hConsole, 9);
 		cout << "altrimenti:\n";
 		cout << "'rnd' = casuale\n";
@@ -1210,8 +1219,8 @@ int main()
 			stop = 0;
 		} while (!skip);
 		cout << "\n\n";
+		option = randomizer(option);
 		do {
-			option = randomizer(option);
 			switch (option) {
 			case cc: option = repeater(message, coredegree);
 				break;
@@ -1228,6 +1237,7 @@ int main()
 			case ctn: option = CodeToNumber();
 				break;
 			}
+			if (option == rnd) return 0;
 		} while (option != r);
 	} while (0 == 0);
 }
