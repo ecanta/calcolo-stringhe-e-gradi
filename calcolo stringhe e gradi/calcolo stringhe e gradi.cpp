@@ -472,7 +472,7 @@ namespace STATIC_Functions
 		return output;
 	}
 
-	long long static get_user_num(string txt, int low, long long high)
+	long long static Get_user_num(string txt, int low, long long high)
 	{
 		long long user_num;
 		string check;
@@ -1124,8 +1124,9 @@ int main()
 				text = "fino a quale numero cercare i numeri primi?\n";
 				text.append("un limite piu' alto comporta un tempo di attesa piu' lungo\n");
 				text.append("ES.: 22'500'000 = 1 minuto di attesa circa\n");
-				global = get_user_num(text, 0, GLOBAL_CAP);
-
+				string G = Get_user_enum(text, 0, GLOBAL_CAP);
+				if (ConvertStringToEnum(G) != r) redo = 1;
+				else global = stoi(G);
 				if (global == 1) redo = 1;
 				if (global == 0) {
 					lock_prime_input = 1;
