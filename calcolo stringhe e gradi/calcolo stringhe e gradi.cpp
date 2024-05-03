@@ -472,36 +472,6 @@ namespace STATIC_Functions
 		return output;
 	}
 
-	long long static Get_user_num(string txt, int low, long long high)
-	{
-		long long user_num;
-		string check;
-		do {
-			bool error = 1;
-			bool general_error = 0;
-			cout << txt;
-			getline(cin, check);
-			if (check.empty()) user_num = low - 1;
-			else if (check.size() > 10) user_num = low - 1;
-			else {
-				string digits = "0123456789";
-				for (int ch = 0; ch < check.size(); ch++) {
-					for (int chi = 0; chi < digits.size(); chi++) {
-						if (check.at(ch) == digits.at(chi))
-							error = 0;
-					}
-					if (error) general_error = 1;
-					error = 1;
-				}
-				if (general_error) user_num = 0;
-				else user_num = stoull(check);
-			}
-
-		} while (user_num < low || user_num > high);
-
-		return user_num;
-	}
-
 	string static Get_user_enum(string txt, int low, long long high)
 	{
 		switchcase option;
