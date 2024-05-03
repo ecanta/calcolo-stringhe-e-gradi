@@ -9,10 +9,12 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <windows.h>
 using namespace Concurrency;
 using namespace std;
 using namespace chrono;
 
+HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 enum switchcase { cc, cf, ccf, dc, df, dcf, ctn, rnd, r };
 const long long GLOBAL_CAP = pow(10, 10);
 long long GlobalMax = pow(10, 10);
@@ -151,6 +153,7 @@ namespace STATIC_Functions
 		const double NOTPRIMESIZE = (N - IntegralLog(N)) / COEFF;
 		int iter = 0;
 		if (N >= 100000 && USE_pro_bar) {
+			SetConsoleTextAttribute(hConsole, 112);
 			parallel_for(int(2), SQUARE, [&](int p) {
 				if (is_prime[p]) {
 					for (int i = pow(p, 2); i <= N; i += p) {
@@ -170,6 +173,7 @@ namespace STATIC_Functions
 				}
 				iter++;
 			});
+			SetConsoleTextAttribute(hConsole, 15);
 		}
 
 		else for (int p = 2; p < SQUARE; p++) {
@@ -958,17 +962,26 @@ namespace STATIC_Functions
 	{
 		cout << "numero " << structure.number << ":\n";
 		if (!structure.code.empty()) {
+			SetConsoleTextAttribute(hConsole, 12);
 			cout << "il codice e' <" << structure.code << ">\n";
 		}
 		if (structure.degree != 0) {
+			SetConsoleTextAttribute(hConsole, 4);
 			cout << "il grado e' " << structure.degree << '\n';
 		}
 		if (!structure.expression.empty()) {
-			if (PrimeNumbers.is_prime[structure.number]) cout << "il numero e' primo\n";
+			if (PrimeNumbers.is_prime[structure.number]) {
+				SetConsoleTextAttribute(hConsole, 240);
+				cout << "il numero e' primo";
+				SetConsoleTextAttribute(hConsole, 15);
+				cout << '\n';
+			}
 			else {
+				SetConsoleTextAttribute(hConsole, 11);
 				cout << "la fattorizzazione e' " << structure.expression << '\n';
 			}
 		}
+		SetConsoleTextAttribute(hConsole, 15);
 	}
 
 	switchcase static repeater(string message, data_t CPU(long long input))
@@ -1029,7 +1042,7 @@ namespace STATIC_Functions
 
 		string choice;
 		cout << "vuoi utilizzare la ricerca veloce (non stampa direttamente i numeri)\n";
-		cout << "immetti s = si oppure n = no  ";
+		cout << "immetti s = si oppure n = no ";
 		getline(cin, choice);
 		cout << '\n';
 
@@ -1037,6 +1050,7 @@ namespace STATIC_Functions
 			int iter = 0;
 			atomic <double> Progress = 0;
 			steady_clock::time_point begin = steady_clock::now();
+			SetConsoleTextAttribute(hConsole, 112);
 			parallel_for(long long(lower_bound), upper_bound, [&](long long set) {
 
 				data_t data_element = CPU(set);
@@ -1050,6 +1064,7 @@ namespace STATIC_Functions
 				mtx.unlock();
 
 			});
+			SetConsoleTextAttribute(hConsole, 15);
 			steady_clock::time_point end = steady_clock::now();
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
 				 << "[ms]" << '\n';
@@ -1074,7 +1089,9 @@ namespace STATIC_Functions
 int main()
 {
 	using namespace STATIC_Functions;
+	SetConsoleTextAttribute(hConsole, 10);
 	cout << "CALCOLATRICE::\n\n";
+	SetConsoleTextAttribute(hConsole, 15);
 	string defact_message = "il programma calcola la fattorizzazione di una serie di numeri";
 	string deg_message = "il programma calcola il codice e il grado di una serie di numeri";
 	string fact_message = "il programma scompone un numero in fattori primi";
@@ -1092,6 +1109,7 @@ int main()
 		bool redo = 0;
 
 		if (!lock_prime_input) {
+			SetConsoleTextAttribute(hConsole, 10);
 			do {
 				redo = 0;
 				text = "fino a quale numero cercare i numeri primi?\n";
@@ -1105,6 +1123,7 @@ int main()
 					if (start) redo = 1;
 				}
 			} while (redo);
+			SetConsoleTextAttribute(hConsole, 15);
 
 			if (global != 0 || start) {
 				steady_clock::time_point begin = steady_clock::now();
@@ -1132,14 +1151,18 @@ int main()
 				start = 0;
 			}
 		}
+		SetConsoleTextAttribute(hConsole, 15);
 		cout << "scegli opzioni::\n";
 		cout << "se stringa di un carattere:\n";
+		SetConsoleTextAttribute(hConsole, 4);
 		cout << "'0' = blocca input numeri primi\n";
 		cout << "'1' = sblocca input numeri primi\n";
 		cout << "'.' = fine programma\n";
+		SetConsoleTextAttribute(hConsole, 9);
 		cout << "altrimenti:\n";
 		cout << "'rnd' = casuale\n";
 		cout << "'ctn' = da codice a numero\n";
+		SetConsoleTextAttribute(hConsole, 11);
 		cout << "oppure:\n";
 		cout << "primo carattere:\n";
 		cout << "'c' = calcolo\n";
@@ -1148,6 +1171,7 @@ int main()
 		cout << "'c' = codifica\n";
 		cout << "'f' = scomposizione in fattori primi\n";
 		cout << "'cf' = codifica e scomposizione (impiega piu' tempo)\n";
+		SetConsoleTextAttribute(hConsole, 15);
 		getline(cin, vel);
 		option = ConvertStringToEnum(vel);
 		do {
