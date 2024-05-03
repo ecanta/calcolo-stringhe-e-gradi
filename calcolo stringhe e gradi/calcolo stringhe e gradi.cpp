@@ -14,6 +14,7 @@ using namespace std;
 using namespace chrono;
 
 enum switchcase { cc, cf, ccf, dc, df, dcf, ctn, rnd, r };
+const long long GLOBAL_CAP = pow(10, 10);
 long long GlobalMax = pow(10, 10);
 typedef struct {
 	vector <bool> is_prime;
@@ -1051,7 +1052,7 @@ namespace STATIC_Functions
 			});
 			steady_clock::time_point end = steady_clock::now();
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
-				<< "[ms]" << '\n';
+				 << "[ms]" << '\n';
 
 			data = heapSort(data);
 			for (int c = 0; c < Barwidth + 11; c++) cout << ' '; cout << '\n';
@@ -1079,39 +1080,42 @@ int main()
 	string fact_message = "il programma scompone un numero in fattori primi";
 	string message = "il programma converte un numero nel corrispondente codice e ne calcola il grado";
 	string AllMessage = "il programma calcola factor, codice e grado";
+	string text, vel;
+	switchcase option;
 
 	bool start = 1;
 	bool lock_prime_input = 0;
+	long long global = 1;
 	do {
 		bool stop = 0;
 		bool skip = 1;
 		bool redo = 0;
-		long long global;
-		string text, vel;
-		switchcase option;
 
 		if (!lock_prime_input) {
-			GlobalMax = pow(10, 10);
 			do {
 				redo = 0;
 				text = "fino a quale numero cercare i numeri primi?\n";
 				text.append("un limite piu' alto comporta un tempo di attesa piu' lungo\n");
 				text.append("ES.: 22'500'000 = 1 minuto di attesa circa\n");
-				global = get_user_num(text, 0, GlobalMax);
+				global = get_user_num(text, 0, GLOBAL_CAP);
 
 				if (global == 1) redo = 1;
-				if (global == 0 && start) redo = 1;
+				if (global == 0) {
+					lock_prime_input = 1;
+					if (start) redo = 1;
+				}
 			} while (redo);
 
-			if (global == 0 && !start) {
+			if (global != 0 || start) {
 				steady_clock::time_point begin = steady_clock::now();
+				GlobalMax = global;
 				PrimeNumbers = Sieve_of_Erastothens(GlobalMax, 1);
 				steady_clock::time_point end = steady_clock::now();
 				int delta = duration_cast <milliseconds> (end - begin).count();
 				int exception_delta = duration_cast <microseconds> (end - begin).count();
 				if (delta <= 10) {
 					cout << "tempo di calcolo numeri primi = " << exception_delta
-						<< " microsecondi" << "\n\n";
+						 << " microsecondi" << "\n\n";
 				}
 				else if (delta > 10'000 && delta <= 600'000) {
 					delta = delta / 1000;
@@ -1123,7 +1127,7 @@ int main()
 				}
 				else {
 					cout << "tempo di calcolo numeri primi = " << delta
-						<< " millisecondi" << "\n\n";
+						 << " millisecondi" << "\n\n";
 				}
 				start = 0;
 			}
