@@ -875,8 +875,11 @@ namespace STATIC_Functions
 		return integer;
 	}
 
-	void static CodeConverter(string ToEvaluate, string message) {
+	vector <string> static CodeConverter(string ToEvaluate, 
+		string message, vector <string>& tracker) 
+	{
 		long long number;
+		bool presence = 0;
 		int start = 0;
 		int end = 0;
 		if (ToEvaluate != "f") {
@@ -890,28 +893,45 @@ namespace STATIC_Functions
 				if (ToEvaluate.at(space) == ' ')
 					ToEvaluate.erase(space, 1);
 			}
-			number = StringConverter(ToEvaluate);
-			if (number == -1) cout << "ERR[413]: X_OUT_OF_RANGE\n";
-			if (number == -2) cout << "ERR[413]: USELESS_EXPONENT\n";
-			if (!message.empty()) {
-				cout << "ERR[400]: ";
-				message == "1" ? cout << "EQUAL_MONOMIALS\n" : cout << "SIMILIAR_MONOMIALS\n";
-				SetConsoleTextAttribute(hConsole, 2);
-				cout << "codice corretto: <" << Cript(number) << ">\n";
-				SetConsoleTextAttribute(hConsole, 15);
+			presence = 0;
+			for (auto i : tracker) {
+				if (i == ToEvaluate)
+					presence = 1;
 			}
-			if (number > 0) {
-				cout << "il numero corrispondente e' ";
-				SetConsoleTextAttribute(hConsole, 4);
-				cout << number << '\n';
+			if (!presence) {
+				tracker.push_back(ToEvaluate);
+				number = StringConverter(ToEvaluate);
+				SetConsoleTextAttribute(hConsole, 11);
+				cout << "codice <" << ToEvaluate << "> :\n";
 				SetConsoleTextAttribute(hConsole, 15);
+				if (number == -1) cout << "ERR[413]: X_OUT_OF_RANGE\n";
+				if (number == -2) {
+					SetConsoleTextAttribute(hConsole, 6);
+					cout << "ERR[413]: USELESS_EXPONENT\n";
+					SetConsoleTextAttribute(hConsole, 15);
+				}
+				if (!message.empty()) {
+					cout << "ERR[400]: ";
+					message == "1" ? cout << "EQUAL_MONOMIALS\n" : cout << "SIMILIAR_MONOMIALS\n";
+					SetConsoleTextAttribute(hConsole, 2);
+					cout << "codice corretto: <" << Cript(number) << ">\n";
+					SetConsoleTextAttribute(hConsole, 15);
+				}
+				if (number > 0) {
+					cout << "il numero corrispondente e' ";
+					SetConsoleTextAttribute(hConsole, 4);
+					cout << number << '\n';
+					SetConsoleTextAttribute(hConsole, 15);
+				}
 			}
 		}
+		return tracker;
 	}
 
 	switchcase static CodeToNumber()
 	{
 		string ToEvaluate, message;
+		vector <string> tracker;
 		switchcase option;
 		int counter = 0;
 		cout << "il programma traduce una stringa di codice\n";
@@ -932,11 +952,16 @@ namespace STATIC_Functions
 				}
 				if (ToEvaluate == ".") return rnd;
 				message = Syntax_Validator(ToEvaluate);
-				if (message.size() > 1)
+				if (message.size() > 1) {
+					SetConsoleTextAttribute(hConsole, 4);
 					cout << "ERR[404]: " << message << '\n';
+					SetConsoleTextAttribute(hConsole, 15);
+				}
+				vector <string> tracker;
 			} while (message.size() > 1);
 
 			counter = 0;
+			string backup = ToEvaluate;
 			vector <int> pos;
 			for (int i = 0; i < size(ToEvaluate); i++) {
 				if (ToEvaluate.at(i) == '_') {
@@ -944,7 +969,8 @@ namespace STATIC_Functions
 					counter++;
 				}
 			}
-			if (counter == 0) CodeConverter(ToEvaluate, message);
+			if (counter == 0)
+				tracker = CodeConverter(ToEvaluate, message, tracker);
 			else for (int i = 0; i < pow(10, counter); i++) {
 				string j = to_string(i);
 				int zero_counter = counter - j.size();
@@ -952,17 +978,16 @@ namespace STATIC_Functions
 					j = "0" + j;
 				}
 				for (int k = 0; k < j.size(); k++) {
-					string To1 = ToEvaluate;
-					string To2 = ToEvaluate;
-					string backup = ToEvaluate;
+					string To1 = backup;
+					string To2 = backup;
 					To1.erase(pos[k]);
 					To2.erase(0, pos[k] + 1);
 					backup = To1 + j.at(k) + To2;
-					message = Syntax_Validator(ToEvaluate);
-					if (message.size() > 1)
-						cout << "ERR[404]: " << message << '\n';
-					else CodeConverter(backup, message);
 				}
+				message = Syntax_Validator(ToEvaluate);
+				if (message.size() > 1)
+					cout << "ERR[404]: " << message << '\n';
+				else tracker = CodeConverter(backup, message, tracker);
 			}
 		} while (ToEvaluate != "f");
 		return r;
@@ -1169,10 +1194,9 @@ int main()
 				start = 0;
 			}
 		}
-		SetConsoleTextAttribute(hConsole, 15);
 		cout << "scegli opzioni::\n";
-		cout << "se stringa di un carattere:\n";
 		SetConsoleTextAttribute(hConsole, 4);
+		cout << "se stringa di un carattere:\n";
 		cout << "'0' = blocca input numeri primi [sempre]\n";
 		cout << "'1' = sblocca input numeri primi\n";
 		cout << "'.' = fine programma [sempre]\n";
