@@ -47,7 +47,6 @@ namespace STATIC_Functions
 		{"ctn", switchcase::ctn},
 		{"rnd", switchcase::rnd}
 	};
-
 	static unordered_map <switchcase, string> enumToStringMap = {
 		{switchcase::cc, "cc"},
 		{switchcase::cf, "cf"},
@@ -64,7 +63,6 @@ namespace STATIC_Functions
 		if (it != enumToStringMap.end())
 			return it->second;
 	}
-
 	switchcase static ConvertStringToEnum(string str) {
 		auto it = stringToEnumMap.find(str);
 		if (it != stringToEnumMap.end())
@@ -1043,9 +1041,13 @@ namespace STATIC_Functions
 		switchcase option;
 		long long input;
 		data_t result;
+		SetConsoleTextAttribute(hConsole, 14);
 		cout << message << "\n\n";
+		SetConsoleTextAttribute(hConsole, 15);
 		do {
+			SetConsoleTextAttribute(hConsole, 14);
 			string txt = "inserire un numero tra 2 e " + n_ + " (1 = fine input)\n";
+			SetConsoleTextAttribute(hConsole, 15);
 			Input = Get_user_enum(txt, 1, GlobalMax);
 			if (Input == ".") return rnd;
 			else {
@@ -1073,9 +1075,10 @@ namespace STATIC_Functions
 		double Barwidth = 60;
 		long long input;
 		cout << "debug::\n\n";
+		SetConsoleTextAttribute(hConsole, 14);
 		cout << message << '\n';
 		cout << "gli estremi dell'intervallo devono essere compresi tra 1 e " << n_ << "\n\n";
-
+		SetConsoleTextAttribute(hConsole, 15);
 		txt = "inserisci il valore di inizio della ricerca\n";
 		Input = Get_user_enum(txt, 1, GlobalMax);
 		if (Input == ".") return rnd;
@@ -1266,8 +1269,14 @@ int main()
 					stop = option == r;
 					skip = option != r;
 				}
-				if (stop) cout << "non corretto\n";
+				if (stop) {
+					SetConsoleTextAttribute(hConsole, 64);
+					cout << "NON CORRETTO !!";
+					SetConsoleTextAttribute(hConsole, 4);
+					cout << '\n';
+				}
 			} while (stop);
+			SetConsoleTextAttribute(hConsole, 15);
 			stop = 0;
 		} while (!skip);
 		cout << "\n\n";
