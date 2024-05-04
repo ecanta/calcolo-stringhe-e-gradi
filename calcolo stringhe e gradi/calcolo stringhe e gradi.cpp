@@ -615,7 +615,7 @@ namespace STATIC_Functions
 	{
 		if (ToEvaluate == "f") return "";
 		vector <string> mono;
-		string charsAllowed = "0123456789+(.)";
+		string charsAllowed = "0123456789+(_).";
 		bool local_error = 1, boolean = 1, stable = 0;
 		int start = -1, end = -1, parenthesis_balance = 0;
 		for (int find = 0; find < ToEvaluate.size(); find++) {
@@ -875,12 +875,45 @@ namespace STATIC_Functions
 		return integer;
 	}
 
+	void static CodeConverter(string ToEvaluate, string message) {
+		long long number;
+		int start = 0;
+		int end = 0;
+		if (ToEvaluate != "f") {
+			for (int find = 0; find < ToEvaluate.size(); find++) {
+				if (ToEvaluate.at(find) == '<') start = find + 1;
+				else if (ToEvaluate.at(find) == '>') end = find;
+			}
+			ToEvaluate.erase(end);
+			ToEvaluate.erase(0, start);
+			for (int space = ToEvaluate.size() - 1; space >= 0; space--) {
+				if (ToEvaluate.at(space) == ' ')
+					ToEvaluate.erase(space, 1);
+			}
+			number = StringConverter(ToEvaluate);
+			if (number == -1) cout << "ERR[413]: X_OUT_OF_RANGE\n";
+			if (number == -2) cout << "ERR[413]: USELESS_EXPONENT\n";
+			if (!message.empty()) {
+				cout << "ERR[400]: ";
+				message == "1" ? cout << "EQUAL_MONOMIALS\n" : cout << "SIMILIAR_MONOMIALS\n";
+				SetConsoleTextAttribute(hConsole, 2);
+				cout << "codice corretto: <" << Cript(number) << ">\n";
+				SetConsoleTextAttribute(hConsole, 15);
+			}
+			if (number > 0) {
+				cout << "il numero corrispondente e' ";
+				SetConsoleTextAttribute(hConsole, 4);
+				cout << number << '\n';
+				SetConsoleTextAttribute(hConsole, 15);
+			}
+		}
+	}
+
 	switchcase static CodeToNumber()
 	{
 		string ToEvaluate, message;
-		vector <string> mono;
 		switchcase option;
-		long long number;
+		int counter = 0;
 		cout << "il programma traduce una stringa di codice\n";
 		cout << "il codice non deve avere errori o saranno segnalati\n";
 		cout << "il codice deve essere compreso tra <>\n";
@@ -897,34 +930,39 @@ namespace STATIC_Functions
 					cout << '\n';
 					return option;
 				}
+				if (ToEvaluate == ".") return rnd;
 				message = Syntax_Validator(ToEvaluate);
 				if (message.size() > 1)
 					cout << "ERR[404]: " << message << '\n';
 			} while (message.size() > 1);
-			int start = 0;
-			int end = 0;
 
-			if (ToEvaluate != "f") {
-				for (int find = 0; find < ToEvaluate.size(); find++) {
-					if (ToEvaluate.at(find) == '<') start = find + 1;
-					else if (ToEvaluate.at(find) == '>') end = find;
+			counter = 0;
+			vector <int> pos;
+			for (int i = 0; i < size(ToEvaluate); i++) {
+				if (ToEvaluate.at(i) == '_') {
+					pos.push_back(i);
+					counter++;
 				}
-				ToEvaluate.erase(end);
-				ToEvaluate.erase(0, start);
-				for (int space = ToEvaluate.size() - 1; space >= 0; space--) {
-					if (ToEvaluate.at(space) == ' ')
-						ToEvaluate.erase(space, 1);
+			}
+			if (counter == 0) CodeConverter(ToEvaluate, message);
+			else for (int i = 0; i < pow(10, counter); i++) {
+				string j = to_string(i);
+				int zero_counter = counter - j.size();
+				for (int k = 0; k < zero_counter; k++) {
+					j = "0" + j;
 				}
-				number = StringConverter(ToEvaluate);
-				if (number == -1) cout << "ERR[413]: X_OUT_OF_RANGE\n";
-				if (number == -2) cout << "ERR[413]: USELESS_EXPONENT\n";
-				if (!message.empty()) {
-					cout << "ERR[400]: ";
-					message == "1" ? cout << "EQUAL_MONOMIALS\n" : cout << "SIMILIAR_MONOMIALS\n";
-					cout << "codice corretto: " << Cript(number) << '\n';
+				for (int k = 0; k < j.size(); k++) {
+					string To1 = ToEvaluate;
+					string To2 = ToEvaluate;
+					string backup = ToEvaluate;
+					To1.erase(pos[k]);
+					To2.erase(0, pos[k] + 1);
+					backup = To1 + j.at(k) + To2;
+					message = Syntax_Validator(ToEvaluate);
+					if (message.size() > 1)
+						cout << "ERR[404]: " << message << '\n';
+					else CodeConverter(backup, message);
 				}
-				if (number > 0)
-					cout << "il numero corrispondente e' " << number << '\n';
 			}
 		} while (ToEvaluate != "f");
 		return r;
