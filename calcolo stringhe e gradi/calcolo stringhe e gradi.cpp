@@ -611,6 +611,23 @@ namespace STATIC_Functions
 		return ciphres;
 	}
 
+	string static standardize(string ToEvaluate) 
+	{
+		int start = 0;
+		int end = 0;
+		for (int find = 0; find < ToEvaluate.size(); find++) {
+			if (ToEvaluate.at(find) == '<') start = find + 1;
+			else if (ToEvaluate.at(find) == '>') end = find;
+		}
+		ToEvaluate.erase(end);
+		ToEvaluate.erase(0, start);
+		for (int space = ToEvaluate.size() - 1; space >= 0; space--) {
+			if (ToEvaluate.at(space) == ' ')
+				ToEvaluate.erase(space, 1);
+		}
+		return ToEvaluate;
+	}
+
 	string static Syntax_Validator(string ToEvaluate)
 	{
 		if (ToEvaluate == "f") return "";
@@ -816,6 +833,7 @@ namespace STATIC_Functions
 	{
 		bool WhichWay = 1, XOutOfRange = 0;
 		bool UselessExponent = 0, pass = 0;
+		bool XSubscriptOutOfRange = 0;
 		int sizeP = size(PrimeNumbers.list_primes), nums;
 		vector <int> ciphres = decompose_string(M);
 		for (int iter = 0; iter < size(ciphres); iter++) {
@@ -828,13 +846,16 @@ namespace STATIC_Functions
 			else {
 				do {
 					if (!XOutOfRange && root < sizeP) {
-						root = PrimeNumbers.list_primes[root - 1];
+						if (root > 0)
+							root = PrimeNumbers.list_primes[root - 1];
+						else XSubscriptOutOfRange = 1;
 						nums--;
 					}
 					else XOutOfRange = 1;
-				} while (XOutOfRange != 1 && nums != 0);
+				} while (XSubscriptOutOfRange != 1 && XOutOfRange != 1 && nums != 0);
 			}
 		}
+		if (XSubscriptOutOfRange) return -3;
 		if (UselessExponent) return -2;
 		if (XOutOfRange) return -1;
 		return root;
@@ -875,71 +896,64 @@ namespace STATIC_Functions
 		return integer;
 	}
 
-	vector <string> static CodeConverter(string ToEvaluate, 
-		string message, vector <string>& tracker) 
+	void static CodeConverter(string ToEvaluate, string message, bool ShowErrors) 
 	{
 		long long number;
-		bool presence = 0;
-		int start = 0;
-		int end = 0;
 		if (ToEvaluate != "f") {
-			for (int find = 0; find < ToEvaluate.size(); find++) {
-				if (ToEvaluate.at(find) == '<') start = find + 1;
-				else if (ToEvaluate.at(find) == '>') end = find;
-			}
-			ToEvaluate.erase(end);
-			ToEvaluate.erase(0, start);
-			for (int space = ToEvaluate.size() - 1; space >= 0; space--) {
-				if (ToEvaluate.at(space) == ' ')
-					ToEvaluate.erase(space, 1);
-			}
-			presence = 0;
-			for (auto i : tracker) {
-				if (i == ToEvaluate)
-					presence = 1;
-			}
-			if (!presence) {
-				tracker.push_back(ToEvaluate);
-				number = StringConverter(ToEvaluate);
+			ToEvaluate = standardize(ToEvaluate);
+			number = StringConverter(ToEvaluate);
+			if (ShowErrors || number > 0) {
 				SetConsoleTextAttribute(hConsole, 11);
 				cout << "codice <" << ToEvaluate << "> :\n";
 				SetConsoleTextAttribute(hConsole, 15);
-				if (number == -1) cout << "ERR[413]: X_OUT_OF_RANGE\n";
-				if (number == -2) {
-					SetConsoleTextAttribute(hConsole, 6);
-					cout << "ERR[413]: USELESS_EXPONENT\n";
-					SetConsoleTextAttribute(hConsole, 15);
-				}
-				if (!message.empty()) {
-					cout << "ERR[400]: ";
-					message == "1" ? cout << "EQUAL_MONOMIALS\n" : cout << "SIMILIAR_MONOMIALS\n";
-					SetConsoleTextAttribute(hConsole, 2);
-					cout << "codice corretto: <" << Cript(number) << ">\n";
-					SetConsoleTextAttribute(hConsole, 15);
-				}
-				if (number > 0) {
-					cout << "il numero corrispondente e' ";
-					SetConsoleTextAttribute(hConsole, 4);
-					cout << number << '\n';
-					SetConsoleTextAttribute(hConsole, 15);
-				}
+			}
+			if (number == -1 && ShowErrors) {
+				SetConsoleTextAttribute(hConsole, 12);
+				cout << "ERR[413]: X_OUT_OF_RANGE\n";
+				SetConsoleTextAttribute(hConsole, 15);
+			}
+			if (number == -2 && ShowErrors) {
+				SetConsoleTextAttribute(hConsole, 6);
+				cout << "ERR[413]: USELESS_EXPONENT\n";
+				SetConsoleTextAttribute(hConsole, 15);
+			}
+			if (number < -2 && ShowErrors) {
+				SetConsoleTextAttribute(hConsole, 12);
+				cout << "ERR[413]: X_SUBSCRIPT_OUT_OF_RANGE\n";
+				SetConsoleTextAttribute(hConsole, 15);
+			}
+			if (!message.empty() && ShowErrors && number > 0) {
+				cout << "ERR[400]: ";
+				message == "1" ? cout << "EQUAL_MONOMIALS\n" : cout << "SIMILIAR_MONOMIALS\n";
+				SetConsoleTextAttribute(hConsole, 2);
+				cout << "codice corretto: <" << Cript(number) << ">\n";
+				SetConsoleTextAttribute(hConsole, 15);
+			}
+			if (number > 0) {
+				cout << "il numero corrispondente e' ";
+				SetConsoleTextAttribute(hConsole, 4);
+				cout << number << '\n';
+				SetConsoleTextAttribute(hConsole, 15);
 			}
 		}
-		return tracker;
 	}
 
 	switchcase static CodeToNumber()
 	{
 		string ToEvaluate, message;
-		vector <string> tracker;
 		switchcase option;
 		int counter = 0;
+		bool ShowErrors;
 		cout << "il programma traduce una stringa di codice\n";
 		cout << "il codice non deve avere errori o saranno segnalati\n";
 		cout << "il codice deve essere compreso tra <>\n";
 		cout << "se sono presenti piu' caratteri '<', '>',\n";
 		cout << "verranno considerati solo quelli che compaiono prima\n";
-		cout << "unici caratteri non numerici ammessi: '(', ')', '+', '.' \n\n";
+		cout << "unici caratteri non numerici ammessi: '(', ')', '+', '.' \n";
+		SetConsoleTextAttribute(hConsole, 9);
+		cout << "si indichino le cifre incognite con caratteri '_'\n";
+		cout << "aggiungendo '$' come primo carattere, non vengono mostrati gli errori\n\n";
+		SetConsoleTextAttribute(hConsole, 15);
 		do {
 			do {
 				cout << "inserire una stringa (f = fine input)\n";
@@ -957,10 +971,11 @@ namespace STATIC_Functions
 					cout << "ERR[404]: " << message << '\n';
 					SetConsoleTextAttribute(hConsole, 15);
 				}
-				vector <string> tracker;
 			} while (message.size() > 1);
 
 			counter = 0;
+			ShowErrors = ToEvaluate.at(0) != '$';
+			ToEvaluate = '<' + standardize(ToEvaluate) + '>';
 			string backup = ToEvaluate;
 			vector <int> pos;
 			for (int i = 0; i < size(ToEvaluate); i++) {
@@ -969,8 +984,7 @@ namespace STATIC_Functions
 					counter++;
 				}
 			}
-			if (counter == 0)
-				tracker = CodeConverter(ToEvaluate, message, tracker);
+			if (counter == 0) CodeConverter(ToEvaluate, message, ShowErrors);
 			else for (int i = 0; i < pow(10, counter); i++) {
 				string j = to_string(i);
 				int zero_counter = counter - j.size();
@@ -984,10 +998,15 @@ namespace STATIC_Functions
 					To2.erase(0, pos[k] + 1);
 					backup = To1 + j.at(k) + To2;
 				}
-				message = Syntax_Validator(ToEvaluate);
-				if (message.size() > 1)
+				message = Syntax_Validator(backup);
+				if (message.size() > 1 && ShowErrors) {
+					SetConsoleTextAttribute(hConsole, 11);
+					cout << "codice " << backup << " :\n";
+					SetConsoleTextAttribute(hConsole, 4);
 					cout << "ERR[404]: " << message << '\n';
-				else tracker = CodeConverter(backup, message, tracker);
+					SetConsoleTextAttribute(hConsole, 15);
+				}
+				else CodeConverter(backup, message, ShowErrors);
 			}
 		} while (ToEvaluate != "f");
 		return r;
