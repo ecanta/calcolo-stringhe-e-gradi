@@ -58,12 +58,12 @@ namespace STATIC_Functions
 		{switchcase::rnd, "rnd"}
 	};
 
-	string static ConvertEnumToString(switchcase Enum) {
+	static string ConvertEnumToString(switchcase Enum) {
 		auto it = enumToStringMap.find(Enum);
 		if (it != enumToStringMap.end())
 			return it->second;
 	}
-	switchcase static ConvertStringToEnum(string str) {
+	static switchcase ConvertStringToEnum(string str) {
 		auto it = stringToEnumMap.find(str);
 		if (it != stringToEnumMap.end())
 			return it->second;
@@ -74,7 +74,7 @@ namespace STATIC_Functions
 		}
 	}
 
-	switchcase static randomizer(switchcase option) {
+	static switchcase randomizer(switchcase option) {
 		if (option == rnd) {
 			random_device rng;
 			mt19937 gen(rng());
@@ -99,7 +99,7 @@ namespace STATIC_Functions
 		else return option;
 	}
 
-	bool static prime(long long number)
+	static bool prime(long long number)
 	{
 		bool is_prime = 1;
 		if (number == 1) return 0;
@@ -114,7 +114,7 @@ namespace STATIC_Functions
 		return is_prime;
 	}
 
-	double static IntegralLog(int N)
+	static double IntegralLog(int N)
 	{
 		double sum = 0;
 		for (int x = 2; x <= N; x++) {
@@ -123,7 +123,7 @@ namespace STATIC_Functions
 		return sum;
 	}
 
-	void static progress_Bar(double ratio, double barWidth)
+	static void progress_Bar(double ratio, double barWidth)
 	{
 		cout << "[[";
 		int pos = (int)(barWidth * ratio);
@@ -138,7 +138,7 @@ namespace STATIC_Functions
 		cout << "]] " << s << "%\r";
 	}
 
-	vector_t static Sieve_of_Erastothens(long long N, bool USE_pro_bar)
+	static vector_t Sieve_of_Erastothens(long long N, bool USE_pro_bar)
 	{
 		vector_t output;
 		vector <bool> is_prime(N + 1, 1);
@@ -191,7 +191,7 @@ namespace STATIC_Functions
 		return output;
 	}
 
-	vector <data_t> static Sort(vector <data_t> vect)
+	static vector <data_t> Sort(vector <data_t> vect)
 	{
 		for (int i = 0; i < size(vect); i++) {
 			for (int j = 0; j < size(vect); j++) {
@@ -206,7 +206,7 @@ namespace STATIC_Functions
 		return vect;
 	}
 
-	void static heapify(vector <data_t>& vect, int n, int i) {
+	static void heapify(vector <data_t>& vect, int n, int i) {
 		int largest = i;
 		int left = 2 * i + 1;
 		int right = 2 * i + 2;
@@ -220,7 +220,7 @@ namespace STATIC_Functions
 		}
 	}
 
-	vector <data_t> static heapSort(vector <data_t>& vect) {
+	static vector <data_t> heapSort(vector <data_t>& vect) {
 		int n = vect.size();
 		for (int i = n / 2 - 1; i >= 0; i--)
 			heapify(vect, n, i);
@@ -231,7 +231,7 @@ namespace STATIC_Functions
 		return vect;
 	}
 
-	vector <compost_t> static decompose_number(long long input)
+	static vector <compost_t> decompose_number(long long input)
 	{
 		if (input > PrimeNumbers.list_primes[size(PrimeNumbers.list_primes) - 1]) {
 			vector_t PrimeN = Sieve_of_Erastothens(input, 0);
@@ -270,7 +270,7 @@ namespace STATIC_Functions
 		return output;
 	}
 
-	string static Cript(long long input)
+	static string Cript(long long input)
 	{
 		vector <compost_t> expfactors = decompose_number(input);
 		long long PrimeFactors[15];
@@ -403,7 +403,7 @@ namespace STATIC_Functions
 		return the_string;
 	}
 
-	vector <string> static fractioner(string polinomial)
+	static vector <string> fractioner(string polinomial)
 	{
 		vector <string> monomials;
 		string backup = polinomial;
@@ -435,7 +435,7 @@ namespace STATIC_Functions
 		return monomials;
 	}
 
-	int static ExecuteStrings(string input)
+	static int ExecuteStrings(string input)
 	{
 		int output = 0;
 		int values[15];
@@ -470,7 +470,7 @@ namespace STATIC_Functions
 		return output;
 	}
 
-	string static Get_user_enum(string txt, int low, long long high)
+	static string Get_user_enum(string txt, int low, long long high)
 	{
 		switchcase option;
 		long long user_num;
@@ -504,7 +504,7 @@ namespace STATIC_Functions
 		return to_string(user_num);
 	}
 
-	string static Fact_Number(long long input)
+	static string Fact_Number(long long input)
 	{
 		vector <compost_t> expfactors = decompose_number(input);
 		int PrimeFactors[15];
@@ -533,7 +533,7 @@ namespace STATIC_Functions
 		return output;
 	}
 
-	data_t static coredegree(long long input)
+	static data_t  coredegree(long long input)
 	{
 		data_t output;
 		int counter = 0;
@@ -551,7 +551,7 @@ namespace STATIC_Functions
 		return output;
 	}
 
-	data_t static corefactor(long long input)
+	static data_t corefactor(long long input)
 	{
 		data_t output;
 		output.number = input;
@@ -561,7 +561,7 @@ namespace STATIC_Functions
 		return output;
 	}
 
-	data_t static coredegfactor(long long input)
+	static data_t coredegfactor(long long input)
 	{
 		data_t A = coredegree(input);
 		data_t B = corefactor(input);
@@ -573,7 +573,7 @@ namespace STATIC_Functions
 		return output;
 	}
 
-	vector <int> static decompose_string(string Terminal) {
+	static vector <int> decompose_string(string Terminal) {
 		int pass = 0;
 		int ciphres_element;
 		vector <int> ciphres;
@@ -609,7 +609,7 @@ namespace STATIC_Functions
 		return ciphres;
 	}
 
-	string static standardize(string ToEvaluate) 
+	static string standardize(string ToEvaluate)
 	{
 		int start = 0;
 		int end = 0;
@@ -626,7 +626,7 @@ namespace STATIC_Functions
 		return ToEvaluate;
 	}
 
-	string static Syntax_Validator(string ToEvaluate)
+	static string Syntax_Validator(string ToEvaluate)
 	{
 		if (ToEvaluate == "f") return "";
 		vector <string> mono;
@@ -827,7 +827,7 @@ namespace STATIC_Functions
 		return "";
 	}
 
-	long long static NumberConverter(long long root, string M)
+	static long long NumberConverter(long long root, string M)
 	{
 		bool WhichWay = 1, XOutOfRange = 0;
 		bool UselessExponent = 0, pass = 0;
@@ -859,7 +859,7 @@ namespace STATIC_Functions
 		return root;
 	}
 
-	long long static StringConverter(string ToEvaluate)
+	static long long StringConverter(string ToEvaluate)
 	{
 		long long integer = 1;
 		string backup, back;
@@ -894,7 +894,7 @@ namespace STATIC_Functions
 		return integer;
 	}
 
-	void static CodeConverter(string ToEvaluate, string message, bool ShowErrors) 
+	static void CodeConverter(string ToEvaluate, string message, bool ShowErrors)
 	{
 		long long number;
 		if (ToEvaluate != "f") {
@@ -936,7 +936,7 @@ namespace STATIC_Functions
 		}
 	}
 
-	switchcase static CodeToNumber()
+	static switchcase CodeToNumber()
 	{
 		string ToEvaluate, message;
 		switchcase option;
@@ -1010,7 +1010,7 @@ namespace STATIC_Functions
 		return r;
 	}
 
-	void static printf(data_t structure)
+	static void printf(data_t structure)
 	{
 		cout << "numero " << structure.number << ":\n";
 		if (!structure.code.empty()) {
@@ -1036,7 +1036,7 @@ namespace STATIC_Functions
 		SetConsoleTextAttribute(hConsole, 15);
 	}
 
-	switchcase static repeater(string message, data_t CPU(long long input)) {
+	static switchcase repeater(string message, data_t CPU(long long input)) {
 		string n_ = to_string(GlobalMax), Input;
 		switchcase option;
 		long long input;
@@ -1067,7 +1067,7 @@ namespace STATIC_Functions
 		return r;
 	}
 
-	switchcase static loop(string message, data_t CPU(long long input))
+	static switchcase loop(string message, data_t CPU(long long input))
 	{
 		string n_ = to_string(GlobalMax), txt, Input;
 		switchcase option;
