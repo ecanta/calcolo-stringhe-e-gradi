@@ -117,9 +117,8 @@ namespace STATIC_Functions
 	static double IntegralLog(int N)
 	{
 		double sum = 0;
-		for (int x = 2; x <= N; x++) {
+		for (int x = 2; x <= N; x++)
 			sum += 1. / log(x);
-		}
 		return sum;
 	}
 
@@ -206,7 +205,8 @@ namespace STATIC_Functions
 		return vect;
 	}
 
-	static void heapify(vector <data_t>& vect, int n, int i) {
+	static void heapify(vector <data_t>& vect, int n, int i) 
+	{
 		int largest = i;
 		int left = 2 * i + 1;
 		int right = 2 * i + 2;
@@ -220,7 +220,8 @@ namespace STATIC_Functions
 		}
 	}
 
-	static vector <data_t> heapSort(vector <data_t>& vect) {
+	static vector <data_t> heapSort(vector <data_t>& vect) 
+	{
 		int n = vect.size();
 		for (int i = n / 2 - 1; i >= 0; i--)
 			heapify(vect, n, i);
@@ -266,7 +267,6 @@ namespace STATIC_Functions
 			output[index].exp++;
 		else output[index].factors = input;
 		input = 1;
-
 		return output;
 	}
 
@@ -291,7 +291,8 @@ namespace STATIC_Functions
 		long long analyse;
 		bool repeat;
 		string monomials[15];
-		for (int what_factor = 0; what_factor < factor_number; what_factor++) {
+		for (int what_factor = 0; what_factor < factor_number; what_factor++) 
+		{
 			repeat = 0;
 			presence = 0;
 
@@ -326,16 +327,18 @@ namespace STATIC_Functions
 					the_string = part_of1 + analyse_string + the_string;
 					sizestring = the_string.size();
 
-					if (presence == 1) {
+					switch (presence) {
+					case 1:
 						exp_string = string(1, the_string.at(sizestring - 1));
 						the_string.erase(sizestring - 1);
 						sizestring--;
-					}
-					else if (presence == 2) {
+						break;
+					case 2:
 						exp_string = "." + string(1, the_string.at(sizestring - 2))
 							+ string(1, the_string.at(sizestring - 1));
 						the_string.erase(sizestring - 3);
 						sizestring--;
+						break;
 					}
 					if (repeat) {
 						prime_exp_string = string(1, the_string.at(sizestring - 1));
@@ -399,7 +402,6 @@ namespace STATIC_Functions
 				the_string.erase(position[m], 1);
 			}
 		}
-
 		return the_string;
 	}
 
@@ -614,8 +616,12 @@ namespace STATIC_Functions
 		int start = 0;
 		int end = 0;
 		for (int find = 0; find < ToEvaluate.size(); find++) {
-			if (ToEvaluate.at(find) == '<') start = find + 1;
-			else if (ToEvaluate.at(find) == '>') end = find;
+			switch (ToEvaluate.at(find)) {
+			case '<': start = find + 1;
+				break;
+			case '>': end = find;
+				break;
+			}
 		}
 		ToEvaluate.erase(end);
 		ToEvaluate.erase(0, start);
@@ -634,8 +640,12 @@ namespace STATIC_Functions
 		bool local_error = 1, boolean = 1, stable = 0;
 		int start = -1, end = -1, parenthesis_balance = 0;
 		for (int find = 0; find < ToEvaluate.size(); find++) {
-			if (ToEvaluate.at(find) == '<') start = find + 1;
-			else if (ToEvaluate.at(find) == '>') end = find;
+			switch (ToEvaluate.at(find)) {
+			case '<': start = find + 1;
+				break;
+			case '>': end = find;
+				break;
+			}
 		}
 		if (start == -1 || end == -1) return "NO_BOUNDARY";
 		if (end < start) return "BOUNDARY_INVERSION";
@@ -905,6 +915,11 @@ namespace STATIC_Functions
 				cout << "codice <" << ToEvaluate << "> :\n";
 				SetConsoleTextAttribute(hConsole, 15);
 			}
+			if (number < -2 && ShowErrors) {
+				SetConsoleTextAttribute(hConsole, 12);
+				cout << "ERR[413]: X_SUBSCRIPT_OUT_OF_RANGE\n";
+				SetConsoleTextAttribute(hConsole, 15);
+			}
 			if (number == -1 && ShowErrors) {
 				SetConsoleTextAttribute(hConsole, 12);
 				cout << "ERR[413]: X_OUT_OF_RANGE\n";
@@ -913,11 +928,6 @@ namespace STATIC_Functions
 			if (number == -2 && ShowErrors) {
 				SetConsoleTextAttribute(hConsole, 6);
 				cout << "ERR[413]: USELESS_EXPONENT\n";
-				SetConsoleTextAttribute(hConsole, 15);
-			}
-			if (number < -2 && ShowErrors) {
-				SetConsoleTextAttribute(hConsole, 12);
-				cout << "ERR[413]: X_SUBSCRIPT_OUT_OF_RANGE\n";
 				SetConsoleTextAttribute(hConsole, 15);
 			}
 			if (!message.empty() && ShowErrors && number > 0) {
