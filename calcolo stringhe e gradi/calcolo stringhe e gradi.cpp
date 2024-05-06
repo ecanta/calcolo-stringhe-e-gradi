@@ -963,61 +963,59 @@ namespace STATIC_Functions
 		cout << "aggiungendo '$' come primo carattere, non vengono mostrati gli errori\n\n";
 		SetConsoleTextAttribute(hConsole, 15);
 		do {
-			do {
-				cout << "inserire una stringa (f = fine input)\n";
-				getline(cin, ToEvaluate);
-				option = ConvertStringToEnum(ToEvaluate);
-				option = randomizer(option);
-				if (option != r) {
-					cout << '\n';
-					return option;
-				}
-				if (ToEvaluate == ".") return rnd;
-				message = Syntax_Validator(ToEvaluate);
-				if (message.size() > 1) {
-					SetConsoleTextAttribute(hConsole, 4);
-					cout << "ERR[404]: " << message << '\n';
-					SetConsoleTextAttribute(hConsole, 15);
-				}
-			} while (message.size() > 1);
+			cout << "inserire una stringa (f = fine input)\n";
+			getline(cin, ToEvaluate);
+			option = ConvertStringToEnum(ToEvaluate);
+			option = randomizer(option);
+			if (option != r) {
+				cout << '\n';
+				return option;
+			}
+			if (ToEvaluate == ".") return rnd;
+			message = Syntax_Validator(ToEvaluate);
+			if (message.size() > 1) {
+				SetConsoleTextAttribute(hConsole, 4);
+				cout << "ERR[404]: " << message << '\n';
+				SetConsoleTextAttribute(hConsole, 15);
+			}
+		} while (message.size() > 1);
+		if (ToEvaluate == "f") return r;
 
-			counter = 0;
-			ShowErrors = ToEvaluate.at(0) != '$';
-			ToEvaluate = '<' + standardize(ToEvaluate) + '>';
-			string backup = ToEvaluate;
-			vector <int> pos;
-			for (int i = 0; i < size(ToEvaluate); i++) {
-				if (ToEvaluate.at(i) == '_') {
-					pos.push_back(i);
-					counter++;
-				}
+		counter = 0;
+		ShowErrors = ToEvaluate.at(0) != '$';
+		ToEvaluate = '<' + standardize(ToEvaluate) + '>';
+		string backup = ToEvaluate;
+		vector <int> pos;
+		for (int i = 0; i < size(ToEvaluate); i++) {
+			if (ToEvaluate.at(i) == '_') {
+				pos.push_back(i);
+				counter++;
 			}
-			if (counter == 0) CodeConverter(ToEvaluate, message, ShowErrors);
-			else for (int i = 0; i < pow(10, counter); i++) {
-				string j = to_string(i);
-				int zero_counter = counter - j.size();
-				for (int k = 0; k < zero_counter; k++) {
-					j = "0" + j;
-				}
-				for (int k = 0; k < j.size(); k++) {
-					string To1 = backup;
-					string To2 = backup;
-					To1.erase(pos[k]);
-					To2.erase(0, pos[k] + 1);
-					backup = To1 + j.at(k) + To2;
-				}
-				message = Syntax_Validator(backup);
-				if (message.size() > 1 && ShowErrors) {
-					SetConsoleTextAttribute(hConsole, 11);
-					cout << "codice " << backup << " :\n";
-					SetConsoleTextAttribute(hConsole, 4);
-					cout << "ERR[404]: " << message << '\n';
-					SetConsoleTextAttribute(hConsole, 15);
-				}
-				else CodeConverter(backup, message, ShowErrors);
+		}
+		if (counter == 0) CodeConverter(ToEvaluate, message, ShowErrors);
+		else for (int i = 0; i < pow(10, counter); i++) {
+			string j = to_string(i);
+			int zero_counter = counter - j.size();
+			for (int k = 0; k < zero_counter; k++) {
+				j = "0" + j;
 			}
-		} while (ToEvaluate != "f");
-		return r;
+			for (int k = 0; k < j.size(); k++) {
+				string To1 = backup;
+				string To2 = backup;
+				To1.erase(pos[k]);
+				To2.erase(0, pos[k] + 1);
+				backup = To1 + j.at(k) + To2;
+			}
+			message = Syntax_Validator(backup);
+			if (message.size() > 1 && ShowErrors) {
+				SetConsoleTextAttribute(hConsole, 11);
+				cout << "codice " << backup << " :\n";
+				SetConsoleTextAttribute(hConsole, 4);
+				cout << "ERR[404]: " << message << '\n';
+				SetConsoleTextAttribute(hConsole, 15);
+			}
+			else CodeConverter(backup, message, ShowErrors);
+		}
 	}
 
 	static void printf(data_t structure)
@@ -1191,6 +1189,7 @@ int main()
 				text.append("ES.: 22'500'000 = 1 minuto di attesa circa\n");
 				string G = Get_user_enum(text, 0, GLOBAL_CAP);
 				if (ConvertStringToEnum(G) != r) redo = 1;
+				else if (G == ".") return 0;
 				else global = stoi(G);
 				if (global == 1) redo = 1;
 				if (global == 0) {
