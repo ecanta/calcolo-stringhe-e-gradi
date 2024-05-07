@@ -6,6 +6,7 @@
 #include <ppl.h>
 #include <random>
 #include <sstream>
+#include <stdlib.h>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -174,11 +175,7 @@ namespace STATIC_Functions
 			for (int i = pow(p, 2); i <= N; i += p)
 				is_prime[i] = 0;
 		}
-		if (USE_pro_bar) {
-			for (int i = 0; i < BARWIDTH + 11; i++)
-				cout << ' ';
-			cout << "\nattendere\r";
-		}
+		if (USE_pro_bar) cout << string(BARWIDTH + 11, '\\') << "\n\nattendere\r";
 		for (long long p = 2; p < N + 1; p++)
 			if (is_prime[p]) primes.push_back(p);
 		vector_t output = { is_prime, primes };
@@ -949,61 +946,58 @@ namespace STATIC_Functions
 		cout << "unici caratteri non numerici ammessi: '(', ')', '+', '.' \n";
 		SetConsoleTextAttribute(hConsole, 9);
 		cout << "si indichino le cifre incognite con caratteri '_'\n";
-		cout << "aggiungendo '$' come primo carattere, non vengono mostrati gli errori\n\n";
+		cout << "aggiungendo '$' o '\\' come primo carattere"
+			 << " non vengono mostrati gli errori\n\n";
 		SetConsoleTextAttribute(hConsole, 15);
 		do {
-			cout << "inserire una stringa (f = fine input)\n";
-			getline(cin, ToEvaluate);
-			option = ConvertStringToEnum(ToEvaluate);
-			option = randomizer(option);
-			if (option != r) {
-				cout << '\n';
-				return option;
-			}
-			if (ToEvaluate == ".") return rnd;
-			message = Syntax_Validator(ToEvaluate);
-			if (message.size() > 1) {
-				SetConsoleTextAttribute(hConsole, 4);
-				cout << "ERR[404]: " << message << '\n';
-				SetConsoleTextAttribute(hConsole, 15);
-			}
-		} while (message.size() > 1);
-		if (ToEvaluate == "f") return r;
+			do {
+				cout << "inserire una stringa (f = fine input)\n";
+				getline(cin, ToEvaluate);
+				option = ConvertStringToEnum(ToEvaluate);
+				option = randomizer(option);
+				if (option != r) {
+					cout << '\n';
+					return option;
+				}
+				if (ToEvaluate == ".") return rnd;
+				message = Syntax_Validator(ToEvaluate);
+				if (message.size() > 1) {
+					SetConsoleTextAttribute(hConsole, 4);
+					cout << "ERR[404]: " << message << '\n';
+					SetConsoleTextAttribute(hConsole, 15);
+				}
+			} while (message.size() > 1);
+			if (ToEvaluate == "f") return r;
 
-		counter = 0;
-		ShowErrors = ToEvaluate.at(0) != '$';
-		ToEvaluate = '<' + standardize(ToEvaluate) + '>';
-		string backup = ToEvaluate;
-		vector <int> pos;
-		for (int i = 0; i < size(ToEvaluate); i++) {
-			if (ToEvaluate.at(i) == '_') {
-				pos.push_back(i);
-				counter++;
+			counter = 0;
+			ShowErrors = ToEvaluate.at(0) != '$' && ToEvaluate.at(0) != '\\';
+			ToEvaluate = '<' + standardize(ToEvaluate) + '>';
+			string backup = ToEvaluate;
+			vector <int> pos;
+			for (int i = 1; i < size(ToEvaluate) - 1; i++) {
+				if (ToEvaluate.at(i) == '_') {
+					pos.push_back(i);
+					counter++;
+				}
 			}
-		}
-		if (counter == 0) CodeConverter(ToEvaluate, message, ShowErrors);
-		else for (int i = 0; i < pow(10, counter); i++) {
-			string j = to_string(i);
-			int zero_counter = counter - j.size();
-			for (int k = 0; k < zero_counter; k++)
-				j = "0" + j;
-			for (int k = 0; k < j.size(); k++) {
-				string To1 = backup;
-				string To2 = backup;
-				To1.erase(pos[k]);
-				To2.erase(0, pos[k] + 1);
-				backup = To1 + j.at(k) + To2;
+			if (counter == 0) CodeConverter(ToEvaluate, message, ShowErrors);
+			else for (int i = 0; i < pow(10, counter); i++) {
+				string j = to_string(i);
+				int zero_counter = counter - j.size();
+				for (int k = 0; k < zero_counter; k++) j = "0" + j;
+				for (int k = 0; k < j.size(); k++)
+					backup.replace(pos[k], 1, to_string(j.at(k) - '0'));
+				message = Syntax_Validator(backup);
+				if (message.size() > 1 && ShowErrors) {
+					SetConsoleTextAttribute(hConsole, 11);
+					cout << "codice " << backup << " :\n";
+					SetConsoleTextAttribute(hConsole, 4);
+					cout << "ERR[404]: " << message << '\n';
+					SetConsoleTextAttribute(hConsole, 15);
+				}
+				else CodeConverter(backup, message, ShowErrors);
 			}
-			message = Syntax_Validator(backup);
-			if (message.size() > 1 && ShowErrors) {
-				SetConsoleTextAttribute(hConsole, 11);
-				cout << "codice " << backup << " :\n";
-				SetConsoleTextAttribute(hConsole, 4);
-				cout << "ERR[404]: " << message << '\n';
-				SetConsoleTextAttribute(hConsole, 15);
-			}
-			else CodeConverter(backup, message, ShowErrors);
-		}
+		} while (0 == 0);
 	}
 
 	static switchcase repeater(string message, data_t CPU(long long input)) {
@@ -1076,7 +1070,7 @@ namespace STATIC_Functions
 
 		string choice;
 		cout << "vuoi utilizzare la ricerca veloce (non stampa direttamente i numeri)\n";
-		cout << "immetti s = si oppure n = no ";
+		cout << "immetti s = si oppure n = no\t";
 		getline(cin, choice);
 		cout << '\n';
 
@@ -1101,7 +1095,9 @@ namespace STATIC_Functions
 			SetConsoleTextAttribute(hConsole, 15);
 
 			data = heapSort(data);
-			for (int c = 0; c < Barwidth + 11; c++) cout << ' '; cout << '\n';
+			cout << string(Barwidth + 11, '\\') << '\n';
+			system("cls");
+
 			for (int x = 0; x < size(data); ++x) printf(data[x]);
 			steady_clock::time_point end = steady_clock::now();
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
@@ -1117,15 +1113,15 @@ namespace STATIC_Functions
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
 				 << "[ms]" << "\n\n\n";
 		}
+		string null;
+		cout << "premere un tasto per continuare\t\t";
+		cin >> null;
 		return r;
 	}
 }
 int main()
 {
 	using namespace STATIC_Functions;
-	SetConsoleTextAttribute(hConsole, 10);
-	cout << "CALCOLATRICE::\n\n";
-	SetConsoleTextAttribute(hConsole, 15);
 	string defact_message = "il programma calcola la fattorizzazione di una serie di numeri";
 	string deg_message = "il programma calcola il codice e il grado di una serie di numeri";
 	string fact_message = "il programma scompone un numero in fattori primi";
@@ -1143,6 +1139,10 @@ int main()
 		bool redo = 0;
 
 		if (!lock_prime_input) {
+			system("cls");
+			SetConsoleTextAttribute(hConsole, 10);
+			cout << "CALCOLATRICE::\n\n";
+			SetConsoleTextAttribute(hConsole, 15);
 			SetConsoleTextAttribute(hConsole, 10);
 			do {
 				redo = 0;
@@ -1151,7 +1151,11 @@ int main()
 				text.append("ES.: 22'500'000 = 1 minuto di attesa circa\n");
 				string G = Get_user_enum(text, 0, GLOBAL_CAP);
 				if (ConvertStringToEnum(G) != r) redo = 1;
-				else if (G == ".") return 0;
+				else if (G == ".") {
+					system("cls");
+					SetConsoleTextAttribute(hConsole, 4);
+					return 0;
+				}
 				else global = stoi(G);
 				if (global == 1) redo = 1;
 				if (global == 0) {
@@ -1169,43 +1173,41 @@ int main()
 				int delta = duration_cast <milliseconds> (end - begin).count();
 				int exception_delta = duration_cast <microseconds> (end - begin).count();
 				if (delta <= 10) {
-					cout << "tempo di calcolo numeri primi = " << exception_delta
-						 << " microsecondi" << "\n\n";
+					cout << "tempo di calcolo numeri primi = " 
+						 << exception_delta << " microsecondi\n\n";
 				}
 				else if (delta > 10'000 && delta <= 600'000) {
 					delta = delta / 1000;
-					cout << "tempo di calcolo numeri primi = " << delta << " secondi" << "\n\n";
+					cout << "tempo di calcolo numeri primi = " << delta << " secondi\n\n";
 				}
 				else if (delta > 600'000) {
 					delta = delta / 60'000;
-					cout << "tempo di calcolo numeri primi = " << delta << " minuti" << "\n\n";
+					cout << "tempo di calcolo numeri primi = " << delta << " minuti\n\n";
 				}
-				else {
-					cout << "tempo di calcolo numeri primi = " << delta
-						 << " millisecondi" << "\n\n";
-				}
+				else cout << "tempo di calcolo numeri primi = " << delta << " millisecondi\n\n";
 				start = 0;
 			}
 		}
+		system("cls");
 		cout << "scegli opzioni::\n";
 		SetConsoleTextAttribute(hConsole, 4);
 		cout << "se stringa di un carattere:\n";
-		cout << "'0' = blocca input numeri primi [sempre]\n";
-		cout << "'1' = sblocca input numeri primi\n";
-		cout << "'.' = fine programma [sempre]\n";
+		cout << "\t'0' = blocca input numeri primi [sempre]\n";
+		cout << "\t'1' = sblocca input numeri primi\n";
+		cout << "\t'.' = fine programma [sempre]\n";
 		SetConsoleTextAttribute(hConsole, 9);
 		cout << "altrimenti:\n";
-		cout << "'rnd' = casuale\n";
-		cout << "'ctn' = da codice a numero\n";
+		cout << "\t\"rnd\" = casuale\n";
+		cout << "\t\"ctn\" = da codice a numero\n";
 		SetConsoleTextAttribute(hConsole, 11);
 		cout << "oppure:\n";
 		cout << "primo carattere:\n";
-		cout << "'c' = calcolo\n";
-		cout << "'d' = debug\n";
+		cout << "\t'c' = calcolo\n";
+		cout << "\t'd' = debug\n";
 		cout << "caratteri seguenti:\n";
-		cout << "'c' = codifica\n";
-		cout << "'f' = scomposizione in fattori primi\n";
-		cout << "'cf' = codifica e scomposizione (impiega piu' tempo)\n";
+		cout << "\t'c' = codifica\n";
+		cout << "\t'f' = scomposizione in fattori primi\n";
+		cout << "\t\"cf\" = codifica e scomposizione (impiega piu' tempo)\n";
 		SetConsoleTextAttribute(hConsole, 15);
 		getline(cin, vel);
 		option = ConvertStringToEnum(vel);
@@ -1253,6 +1255,7 @@ int main()
 		cout << "\n\n";
 		option = randomizer(option);
 		do {
+			system("cls");
 			switch (option) {
 			case cc: option = repeater(message, coredegree);
 				break;
@@ -1269,7 +1272,11 @@ int main()
 			case ctn: option = CodeToNumber();
 				break;
 			}
-			if (option == rnd) return 0;
+			if (option == rnd) {
+				system("cls");
+				SetConsoleTextAttribute(hConsole, 4);
+				return 0;
+			}
 		} while (option != r);
 	} while (0 == 0);
 }
