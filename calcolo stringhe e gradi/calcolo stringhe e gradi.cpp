@@ -10,9 +10,9 @@
 #include <unordered_map>
 #include <vector>
 #include <windows.h>
-using namespace Concurrency;
 using namespace std;
 using namespace chrono;
+using Concurrency::parallel_for;
 
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 enum switchcase { cc, cf, ccf, dc, df, dcf, ctn, rnd, r };
@@ -103,9 +103,8 @@ namespace STATIC_Functions
 	{
 		bool is_prime = 1;
 		if (number == 1) return 0;
-		else if (number < size(PrimeNumbers.is_prime)) {
+		else if (number < size(PrimeNumbers.is_prime))
 			return PrimeNumbers.is_prime[number];
-		}
 		else {
 			if (number == 1) is_prime = 0;
 			for (int a = 2; a < number; a++)
@@ -174,9 +173,8 @@ namespace STATIC_Functions
 		}
 
 		else for (int p = 2; p < SQUARE; p++) {
-			for (int i = pow(p, 2); i <= N; i += p) {
+			for (int i = pow(p, 2); i <= N; i += p)
 				is_prime[i] = 0;
-			}
 		}
 		if (USE_pro_bar) {
 			for (int i = 0; i < BARWIDTH + 11; i++)
@@ -188,21 +186,6 @@ namespace STATIC_Functions
 		output.is_prime = is_prime;
 		output.list_primes = primes;
 		return output;
-	}
-
-	static vector <data_t> Sort(vector <data_t> vect)
-	{
-		for (int i = 0; i < size(vect); i++) {
-			for (int j = 0; j < size(vect); j++) {
-				if (vect[i].number < vect[j].number) {
-					data_t transfert;
-					transfert = vect[i];
-					vect[i] = vect[j];
-					vect[j] = transfert;
-				}
-			}
-		}
-		return vect;
 	}
 
 	static void heapify(vector <data_t>& vect, int n, int i) 
@@ -256,9 +239,8 @@ namespace STATIC_Functions
 						output[index].exp++;
 					else output[index].factors = PrimeNumbers.list_primes[i];
 					input /= PrimeNumbers.list_primes[i];
-					if (input % PrimeNumbers.list_primes[i] != 0) {
+					if (input % PrimeNumbers.list_primes[i] != 0)
 						index++;
-					}
 					i--;
 				}
 			}
@@ -273,11 +255,12 @@ namespace STATIC_Functions
 	static string Cript(long long input)
 	{
 		vector <compost_t> expfactors = decompose_number(input);
-		long long PrimeFactors[15];
-		int exponents[15];
+		int size = log2(GlobalMax) + 1;
+		long long* PrimeFactors = new long long[size];
+		int* exponents = new int[size];
 		int factor_number;
 		bool when_null = 1;
-		for (int i = 0; i < 15; i++) {
+		for (int i = 0; i < size; i++) {
 			PrimeFactors[i] = expfactors[i].factors;
 			exponents[i] = expfactors[i].exp;
 			if (when_null && PrimeFactors[i] == 0) {
@@ -325,38 +308,30 @@ namespace STATIC_Functions
 					analyse_string = to_string(analyse);
 					the_string.erase(0, the_string.find(')'));
 					the_string = part_of1 + analyse_string + the_string;
-					sizestring = the_string.size();
 
 					switch (presence) {
 					case 1:
-						exp_string = string(1, the_string.at(sizestring - 1));
-						the_string.erase(sizestring - 1);
-						sizestring--;
+						exp_string = string(1, the_string.at(the_string.size() - 1));
+						the_string.erase(the_string.size() - 1);
 						break;
 					case 2:
-						exp_string = "." + string(1, the_string.at(sizestring - 2))
-							+ string(1, the_string.at(sizestring - 1));
-						the_string.erase(sizestring - 3);
-						sizestring--;
+						exp_string = "." + string(1, the_string.at(the_string.size() - 2))
+							+ string(1, the_string.at(the_string.size() - 1));
+						the_string.erase(the_string.size() - 3);
 						break;
 					}
 					if (repeat) {
-						prime_exp_string = string(1, the_string.at(sizestring - 1));
-						the_string.erase(sizestring - 1);
+						prime_exp_string = string(1, the_string.at(the_string.size() - 1));
+						the_string.erase(the_string.size() - 1);
 						prime_exp = stoi(prime_exp_string);
 						prime_exp++;
 						prime_exp_string = to_string(prime_exp);
-						if (prime_exp > 10) {
+						if (prime_exp > 10)
 							prime_exp_string = "." + prime_exp_string;
-						}
 						the_string.append(prime_exp_string);
 					}
-					else {
-						the_string.append("1");
-					}
-					if (presence > 0) {
-						the_string.append(exp_string);
-					}
+					else the_string.append("1");
+					if (presence > 0) the_string.append(exp_string);
 					repeat = 1;
 				}
 				if (analyse != 1 && !prime(analyse)) {
@@ -369,11 +344,12 @@ namespace STATIC_Functions
 			} while (analyse != 1);
 			monomials[what_factor] = the_string;
 		}
+		delete[] PrimeFactors;
+		delete[] exponents;
 
 		the_string = "";
-		for (int i = 0; i < factor_number; i++) {
+		for (int i = 0; i < factor_number; i++)
 			the_string = the_string + "+" + monomials[i];
-		}
 		the_string.erase(0, 1);
 
 		int position[15];
@@ -420,9 +396,8 @@ namespace STATIC_Functions
 				for (int finder = 0; finder < temp.size(); finder++) {
 					if (find == 0) {
 						if (temp.at(finder) == '(') p_balance++;
-						if ((p_balance == 0) && (temp.at(finder) == '+')) {
+						if ((p_balance == 0) && (temp.at(finder) == '+'))
 							find = finder;
-						}
 						if (temp.at(finder) == ')') p_balance--;
 					}
 				}
@@ -441,11 +416,8 @@ namespace STATIC_Functions
 	{
 		int output = 0;
 		int values[15];
-		for (int i = 0; i < input.size(); i++) {
-			if (input.at(i) == '.') {
-				input.erase(i, 1);
-			}
-		}
+		for (int i = 0; i < input.size(); i++)
+			if (input.at(i) == '.') input.erase(i, 1);
 		vector <string> monomials = fractioner(input);
 
 		int location;
@@ -453,7 +425,6 @@ namespace STATIC_Functions
 		for (int i = 0; i < size(monomials); i++) {
 			if (monomials[i].at(0) == '(') {
 				for (int j = monomials[i].size() - 1; j >= 0; j--) {
-
 					if ((presence) && (monomials[i].at(j) == ')')) {
 						presence = 0;
 						location = j;
@@ -524,14 +495,12 @@ namespace STATIC_Functions
 
 		string output = "";
 		for (int i = 0; i < factors; i++) {
-			if (exponents[i] != 1) {
+			if (exponents[i] != 1)
 				output = output + to_string(PrimeFactors[i])
 					+ "^" + to_string(exponents[i]) + " * ";
-			}
 			else output = output + to_string(PrimeFactors[i]) + " * ";
 		}
 		output.erase(output.size() - 3);
-
 		return output;
 	}
 
@@ -544,7 +513,6 @@ namespace STATIC_Functions
 			copy = ExecuteStrings(Cript(copy));
 			counter++;
 			if (copy < 4) output.degree = counter + copy;
-
 		} while (copy != 1);
 		copy = input;
 		output.number = copy;
@@ -625,10 +593,8 @@ namespace STATIC_Functions
 		}
 		ToEvaluate.erase(end);
 		ToEvaluate.erase(0, start);
-		for (int space = ToEvaluate.size() - 1; space >= 0; space--) {
-			if (ToEvaluate.at(space) == ' ')
-				ToEvaluate.erase(space, 1);
-		}
+		for (int space = ToEvaluate.size() - 1; space >= 0; space--)
+			if (ToEvaluate.at(space) == ' ') ToEvaluate.erase(space, 1);
 		return ToEvaluate;
 	}
 
@@ -996,9 +962,8 @@ namespace STATIC_Functions
 		else for (int i = 0; i < pow(10, counter); i++) {
 			string j = to_string(i);
 			int zero_counter = counter - j.size();
-			for (int k = 0; k < zero_counter; k++) {
+			for (int k = 0; k < zero_counter; k++)
 				j = "0" + j;
-			}
 			for (int k = 0; k < j.size(); k++) {
 				string To1 = backup;
 				string To2 = backup;
