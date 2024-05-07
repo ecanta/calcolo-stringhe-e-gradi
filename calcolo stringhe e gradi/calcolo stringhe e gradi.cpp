@@ -113,11 +113,10 @@ namespace STATIC_Functions
 		return is_prime;
 	}
 
-	static double IntegralLog(int N)
-	{
+	static double IntegralLog(int N) {
 		double sum = 0;
 		for (int x = 2; x <= N; x++)
-			sum += 1. / log(x);
+			sum += 1 / log(x);
 		return sum;
 	}
 
@@ -138,7 +137,6 @@ namespace STATIC_Functions
 
 	static vector_t Sieve_of_Erastothens(long long N, bool USE_pro_bar)
 	{
-		vector_t output;
 		vector <bool> is_prime(N + 1, 1);
 		vector <int> primes;
 		vector <int> counter;
@@ -183,13 +181,11 @@ namespace STATIC_Functions
 		}
 		for (long long p = 2; p < N + 1; p++)
 			if (is_prime[p]) primes.push_back(p);
-		output.is_prime = is_prime;
-		output.list_primes = primes;
+		vector_t output = { is_prime, primes };
 		return output;
 	}
 
-	static void heapify(vector <data_t>& vect, int n, int i) 
-	{
+	static void heapify(vector <data_t>& vect, int n, int i) {
 		int largest = i;
 		int left = 2 * i + 1;
 		int right = 2 * i + 2;
@@ -203,16 +199,40 @@ namespace STATIC_Functions
 		}
 	}
 
-	static vector <data_t> heapSort(vector <data_t>& vect) 
-	{
+	static vector <data_t> heapSort(vector <data_t>& vect) {
 		int n = vect.size();
-		for (int i = n / 2 - 1; i >= 0; i--)
-			heapify(vect, n, i);
+		for (int i = n / 2 - 1; i >= 0; i--) heapify(vect, n, i);
 		for (int i = n - 1; i > 0; i--) {
 			swap(vect[0], vect[i]);
 			heapify(vect, i, 0);
 		}
 		return vect;
+	}
+
+	static void printf(data_t structure)
+	{
+		cout << "numero " << structure.number << ":\n";
+		if (!structure.code.empty()) {
+			SetConsoleTextAttribute(hConsole, 12);
+			cout << "il codice e' <" << structure.code << ">\n";
+		}
+		if (structure.degree != 0) {
+			SetConsoleTextAttribute(hConsole, 4);
+			cout << "il grado e' " << structure.degree << '\n';
+		}
+		if (!structure.expression.empty()) {
+			if (PrimeNumbers.is_prime[structure.number]) {
+				SetConsoleTextAttribute(hConsole, 240);
+				cout << "il numero e' primo";
+				SetConsoleTextAttribute(hConsole, 15);
+				cout << '\n';
+			}
+			else {
+				SetConsoleTextAttribute(hConsole, 11);
+				cout << "la fattorizzazione e' " << structure.expression << '\n';
+			}
+		}
+		SetConsoleTextAttribute(hConsole, 15);
 	}
 
 	static vector <compost_t> decompose_number(long long input)
@@ -225,11 +245,15 @@ namespace STATIC_Functions
 				mtx.unlock();
 			}
 		}
+		int size = 0;
+		int product = 1;
+		do {
+			product *= PrimeNumbers.list_primes[size];
+			size++;
+		} while (product < GlobalMax);
 		vector <compost_t> output;
-		compost_t output_element;
-		output_element.factors = 0;
-		output_element.exp = 1;
-		for (int i = 0; i < 15; i++) output.push_back(output_element);
+		compost_t output_element = { 0, 1 };
+		for (int i = 0; i < size; i++) output.push_back(output_element);
 		int index = 0;
 
 		for (int i = 0; pow(PrimeNumbers.list_primes[i], 2) <= input; i++) {
@@ -248,14 +272,18 @@ namespace STATIC_Functions
 		if (output[index].factors == input)
 			output[index].exp++;
 		else output[index].factors = input;
-		input = 1;
 		return output;
 	}
 
 	static string Cript(long long input)
 	{
+		int size = 0;
+		int product = 1;
+		do {
+			product *= PrimeNumbers.list_primes[size];
+			size++;
+		} while (product < GlobalMax);
 		vector <compost_t> expfactors = decompose_number(input);
-		int size = log2(GlobalMax) + 1;
 		long long* PrimeFactors = new long long[size];
 		int* exponents = new int[size];
 		int factor_number;
@@ -352,7 +380,7 @@ namespace STATIC_Functions
 			the_string = the_string + "+" + monomials[i];
 		the_string.erase(0, 1);
 
-		int position[15];
+		int* position = new int[size];
 		int j = 0;
 		for (int i = 0; i < (the_string.size() - 2); i++) {
 			if ((the_string.at(i) == '(') && (the_string.at(i + 1) == '1')
@@ -361,8 +389,7 @@ namespace STATIC_Functions
 				j++;
 			}
 		}
-		for (int k = j - 1; k >= 0; k--)
-			the_string.erase(position[k], 3);
+		for (int k = j - 1; k >= 0; k--) the_string.erase(position[k], 3);
 
 		int l = 0;
 		sizestring = the_string.size();
@@ -378,6 +405,7 @@ namespace STATIC_Functions
 				the_string.erase(position[m], 1);
 			}
 		}
+		delete[] position;
 		return the_string;
 	}
 
@@ -479,33 +507,40 @@ namespace STATIC_Functions
 
 	static string Fact_Number(long long input)
 	{
+		int size = 0;
+		int product = 1;
+		do {
+			product *= PrimeNumbers.list_primes[size];
+			size++;
+		} while (product < GlobalMax);
 		vector <compost_t> expfactors = decompose_number(input);
-		int PrimeFactors[15];
-		int exponents[15];
-		int factors;
+		long long* PrimeFactors = new long long[size];
+		int* exponents = new int[size];
+		int factor_number;
 		bool tag2 = 1;
-		for (int i = 0; i < 15; i++) {
+		for (int i = 0; i < size; i++) {
 			PrimeFactors[i] = expfactors[i].factors;
 			exponents[i] = expfactors[i].exp;
 			if (tag2 && (PrimeFactors[i] == 0)) {
-				factors = i;
+				factor_number = i;
 				tag2 = 0;
 			}
 		}
 
 		string output = "";
-		for (int i = 0; i < factors; i++) {
+		for (int i = 0; i < factor_number; i++) {
 			if (exponents[i] != 1)
 				output = output + to_string(PrimeFactors[i])
 					+ "^" + to_string(exponents[i]) + " * ";
 			else output = output + to_string(PrimeFactors[i]) + " * ";
 		}
+		delete[] PrimeFactors;
+		delete[] exponents;
 		output.erase(output.size() - 3);
 		return output;
 	}
 
-	static data_t  coredegree(long long input)
-	{
+	static data_t  coredegree(long long input) {
 		data_t output;
 		int counter = 0;
 		int copy = input;
@@ -515,31 +550,19 @@ namespace STATIC_Functions
 			if (copy < 4) output.degree = counter + copy;
 		} while (copy != 1);
 		copy = input;
-		output.number = copy;
-		output.code = Cript(copy);
-		output.expression = "";
+		output = { copy, Cript(copy), output.degree ,"" };
 		return output;
 	}
 
-	static data_t corefactor(long long input)
-	{
-		data_t output;
-		output.number = input;
-		output.code = "";
-		output.degree = 0;
-		output.expression = Fact_Number(input);
+	static data_t corefactor(long long input) {
+		data_t output = {input, "", 0, Fact_Number(input)};
 		return output;
 	}
 
-	static data_t coredegfactor(long long input)
-	{
+	static data_t coredegfactor(long long input) {
 		data_t A = coredegree(input);
 		data_t B = corefactor(input);
-		data_t output;
-		output.number = input;
-		output.code = A.code;
-		output.degree = A.degree;
-		output.expression = B.expression;
+		data_t output = {input, A.code, A.degree, B.expression};
 		return output;
 	}
 
@@ -983,32 +1006,6 @@ namespace STATIC_Functions
 		}
 	}
 
-	static void printf(data_t structure)
-	{
-		cout << "numero " << structure.number << ":\n";
-		if (!structure.code.empty()) {
-			SetConsoleTextAttribute(hConsole, 12);
-			cout << "il codice e' <" << structure.code << ">\n";
-		}
-		if (structure.degree != 0) {
-			SetConsoleTextAttribute(hConsole, 4);
-			cout << "il grado e' " << structure.degree << '\n';
-		}
-		if (!structure.expression.empty()) {
-			if (PrimeNumbers.is_prime[structure.number]) {
-				SetConsoleTextAttribute(hConsole, 240);
-				cout << "il numero e' primo";
-				SetConsoleTextAttribute(hConsole, 15);
-				cout << '\n';
-			}
-			else {
-				SetConsoleTextAttribute(hConsole, 11);
-				cout << "la fattorizzazione e' " << structure.expression << '\n';
-			}
-		}
-		SetConsoleTextAttribute(hConsole, 15);
-	}
-
 	static switchcase repeater(string message, data_t CPU(long long input)) {
 		string n_ = to_string(GlobalMax), Input;
 		switchcase option;
@@ -1102,13 +1099,13 @@ namespace STATIC_Functions
 
 			});
 			SetConsoleTextAttribute(hConsole, 15);
-			steady_clock::time_point end = steady_clock::now();
-			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
-				 << "[ms]" << '\n';
 
 			data = heapSort(data);
 			for (int c = 0; c < Barwidth + 11; c++) cout << ' '; cout << '\n';
 			for (int x = 0; x < size(data); ++x) printf(data[x]);
+			steady_clock::time_point end = steady_clock::now();
+			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
+				 << "[ms]" << "\n\n";
 		}
 		else {
 			steady_clock::time_point begin = steady_clock::now();
@@ -1118,7 +1115,7 @@ namespace STATIC_Functions
 			}
 			steady_clock::time_point end = steady_clock::now();
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
-				 << "[ms]" << '\n';
+				 << "[ms]" << "\n\n\n";
 		}
 		return r;
 	}
