@@ -478,25 +478,23 @@ namespace STATIC_Functions
 			bool general_error = 0;
 			cout << txt;
 			getline(cin, check);
-			if (check == ".") return ".";
+			if (check == "." || check.empty()) return check;
+			if (check.size() > 10) return "";
 			option = ConvertStringToEnum(check);
 			option = randomizer(option);
 			if (option != r) return ConvertEnumToString(option);
-			if (check.empty()) user_num = low - 1;
-			else if (check.size() > 10) user_num = low - 1;
-			else {
-				string digits = "0123456789";
-				for (int ch = 0; ch < check.size(); ch++) {
-					for (int chi = 0; chi < digits.size(); chi++) {
-						if (check.at(ch) == digits.at(chi))
-							error = 0;
-					}
-					if (error) general_error = 1;
-					error = 1;
+
+			string digits = "0123456789";
+			for (int ch = 0; ch < check.size(); ch++){
+				for (int chi = 0; chi < digits.size(); chi++) {
+					if (check.at(ch) == digits.at(chi))
+						error = 0;
 				}
-				if (general_error) user_num = 0;
-				else user_num = stoull(check);
+				if (error) general_error = 1;
+				error = 1;
 			}
+			if (general_error) user_num = 0;
+			else user_num = stoull(check);
 
 		} while (user_num < low || user_num > high);
 		return to_string(user_num);
@@ -1012,7 +1010,8 @@ namespace STATIC_Functions
 			SetConsoleTextAttribute(hConsole, 14);
 			string txt = "inserire un numero tra 2 e " + n_ + " (1 = fine input)\n";
 			SetConsoleTextAttribute(hConsole, 15);
-			Input = Get_user_enum(txt, 1, GlobalMax);
+			do Input = Get_user_enum(txt, 1, GlobalMax);
+			while (Input.empty());
 			if (Input == ".") return rnd;
 			else {
 				option = ConvertStringToEnum(Input);
@@ -1044,7 +1043,8 @@ namespace STATIC_Functions
 		cout << "gli estremi dell'intervallo devono essere compresi tra 1 e " << n_ << "\n\n";
 		SetConsoleTextAttribute(hConsole, 15);
 		txt = "inserisci il valore di inizio della ricerca\n";
-		Input = Get_user_enum(txt, 1, GlobalMax);
+		do Input = Get_user_enum(txt, 1, GlobalMax);
+		while (Input.empty());
 		if (Input == ".") return rnd;
 		option = ConvertStringToEnum(Input);
 		option = randomizer(option);
@@ -1055,7 +1055,8 @@ namespace STATIC_Functions
 		long long lower_bound = stoi(Input) + 1;
 
 		txt = "inserisci il valore finale della ricerca\n";
-		Input = Get_user_enum(txt, 1, GlobalMax);
+		do Input = Get_user_enum(txt, 1, GlobalMax);
+		while (Input.empty());
 		if (Input == ".") return rnd;
 		option = ConvertStringToEnum(Input);
 		option = randomizer(option);
@@ -1140,15 +1141,16 @@ int main()
 
 		if (!lock_prime_input) {
 			do {
+				redo = 0;
 				system("cls");
 				SetConsoleTextAttribute(hConsole, 10);
 				cout << "CALCOLATRICE::\n\n";
-				redo = 0;
 				text = "fino a quale numero cercare i numeri primi?\n";
 				text.append("un limite piu' alto comporta un tempo di attesa piu' lungo\n");
 				text.append("ES.: 22'500'000 = 1 minuto di attesa circa\n");
 				string G = Get_user_enum(text, 0, GLOBAL_CAP);
 				if (ConvertStringToEnum(G) != r) redo = 1;
+				else if (G.empty()) redo = 1;
 				else if (G == ".") {
 					system("cls");
 					SetConsoleTextAttribute(hConsole, 4);
@@ -1221,10 +1223,11 @@ int main()
 					lock_prime_input = 0;
 					cout << "input numeri primi sbloccato\n";
 					break;
-				case '.': return 0;
-					break;
+				case '.':
+					system("cls");
+					SetConsoleTextAttribute(hConsole, 4);
+					return 0;
 				default: vel += ' ';
-					break;
 				}
 			}
 			if (option == r) do {
