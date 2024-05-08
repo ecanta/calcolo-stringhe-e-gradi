@@ -1,5 +1,6 @@
 // program_START
 #include <chrono>
+#include <conio.h>
 #include <cmath>
 #include <iostream>
 #include <iomanip>
@@ -74,6 +75,32 @@ namespace STATIC_Functions
 			return it->second;
 		}
 	}
+	
+	static void printf(data_t structure)
+	{
+		cout << "numero " << structure.number << ":\n";
+		if (!structure.code.empty()) {
+			SetConsoleTextAttribute(hConsole, 12);
+			cout << "il codice e' <" << structure.code << ">\n";
+		}
+		if (structure.degree != 0) {
+			SetConsoleTextAttribute(hConsole, 4);
+			cout << "il grado e' " << structure.degree << '\n';
+		}
+		if (!structure.expression.empty()) {
+			if (PrimeNumbers.is_prime[structure.number]) {
+				SetConsoleTextAttribute(hConsole, 240);
+				cout << "il numero e' primo";
+				SetConsoleTextAttribute(hConsole, 15);
+				cout << '\n';
+			}
+			else {
+				SetConsoleTextAttribute(hConsole, 11);
+				cout << "la fattorizzazione e' " << structure.expression << '\n';
+			}
+		}
+		SetConsoleTextAttribute(hConsole, 15);
+	}
 
 	static switchcase randomizer(switchcase option) {
 		if (option == rnd) {
@@ -136,6 +163,29 @@ namespace STATIC_Functions
 		cout << "]] " << s << "%\r";
 	}
 
+	static void heapify(vector <data_t>& vect, int n, int i) {
+		int largest = i;
+		int left = 2 * i + 1;
+		int right = 2 * i + 2;
+		if (left < n && vect[left].number > vect[largest].number)
+			largest = left;
+		if (right < n && vect[right].number > vect[largest].number)
+			largest = right;
+		if (largest != i) {
+			swap(vect[i], vect[largest]);
+			heapify(vect, n, largest);
+		}
+	}
+	static vector <data_t> heapSort(vector <data_t>& vect) {
+		int n = vect.size();
+		for (int i = n / 2 - 1; i >= 0; i--) heapify(vect, n, i);
+		for (int i = n - 1; i > 0; i--) {
+			swap(vect[0], vect[i]);
+			heapify(vect, i, 0);
+		}
+		return vect;
+	}
+
 	static vector_t Sieve_of_Erastothens(long long N, bool USE_pro_bar)
 	{
 		vector <bool> is_prime(N + 1, 1);
@@ -180,56 +230,6 @@ namespace STATIC_Functions
 			if (is_prime[p]) primes.push_back(p);
 		vector_t output = { is_prime, primes };
 		return output;
-	}
-
-	static void heapify(vector <data_t>& vect, int n, int i) {
-		int largest = i;
-		int left = 2 * i + 1;
-		int right = 2 * i + 2;
-		if (left < n && vect[left].number > vect[largest].number)
-			largest = left;
-		if (right < n && vect[right].number > vect[largest].number)
-			largest = right;
-		if (largest != i) {
-			swap(vect[i], vect[largest]);
-			heapify(vect, n, largest);
-		}
-	}
-
-	static vector <data_t> heapSort(vector <data_t>& vect) {
-		int n = vect.size();
-		for (int i = n / 2 - 1; i >= 0; i--) heapify(vect, n, i);
-		for (int i = n - 1; i > 0; i--) {
-			swap(vect[0], vect[i]);
-			heapify(vect, i, 0);
-		}
-		return vect;
-	}
-
-	static void printf(data_t structure)
-	{
-		cout << "numero " << structure.number << ":\n";
-		if (!structure.code.empty()) {
-			SetConsoleTextAttribute(hConsole, 12);
-			cout << "il codice e' <" << structure.code << ">\n";
-		}
-		if (structure.degree != 0) {
-			SetConsoleTextAttribute(hConsole, 4);
-			cout << "il grado e' " << structure.degree << '\n';
-		}
-		if (!structure.expression.empty()) {
-			if (PrimeNumbers.is_prime[structure.number]) {
-				SetConsoleTextAttribute(hConsole, 240);
-				cout << "il numero e' primo";
-				SetConsoleTextAttribute(hConsole, 15);
-				cout << '\n';
-			}
-			else {
-				SetConsoleTextAttribute(hConsole, 11);
-				cout << "la fattorizzazione e' " << structure.expression << '\n';
-			}
-		}
-		SetConsoleTextAttribute(hConsole, 15);
 	}
 
 	static vector <compost_t> decompose_number(long long input)
@@ -1116,8 +1116,9 @@ namespace STATIC_Functions
 		}
 		string null;
 		cout << "premere un tasto per continuare\t\t";
-		cin >> null;
-		return r;
+		null = _getch();
+		if (null == ".") return rnd;
+		else return r;
 	}
 }
 int main()
@@ -1186,13 +1187,15 @@ int main()
 				}
 				else cout << "tempo di calcolo numeri primi = " << delta << " millisecondi\n\n";
 				start = 0;
+
+				this_thread::sleep_for(seconds(1));
 			}
 		}
 		system("cls");
 		cout << "scegli opzioni::\n";
 		SetConsoleTextAttribute(hConsole, 4);
 		cout << "se stringa di un carattere:\n";
-		cout << "\t'0' = blocca input numeri primi [sempre]\n";
+		cout << "\t'0' = blocca input numeri primi ~[~sempre]\n";
 		cout << "\t'1' = sblocca input numeri primi\n";
 		cout << "\t'.' = fine programma [sempre]\n";
 		SetConsoleTextAttribute(hConsole, 9);
