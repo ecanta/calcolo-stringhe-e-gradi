@@ -986,7 +986,7 @@ namespace STATIC_Functions
 				int zero_counter = counter - j.size();
 				for (int k = 0; k < zero_counter; k++) j = "0" + j;
 				for (int k = 0; k < j.size(); k++)
-					backup.replace(pos[k], 1, to_string(j.at(k) - '0'));
+					backup.replace(pos[k], 1, string(1, j.at(k)));
 				message = Syntax_Validator(backup);
 				if (message.size() > 1 && ShowErrors) {
 					SetConsoleTextAttribute(hConsole, 11);
@@ -1101,7 +1101,7 @@ namespace STATIC_Functions
 			for (int x = 0; x < size(data); ++x) printf(data[x]);
 			steady_clock::time_point end = steady_clock::now();
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
-				 << "[ms]" << "\n\n";
+				 << "[ms]\n\n";
 		}
 		else {
 			steady_clock::time_point begin = steady_clock::now();
@@ -1111,7 +1111,7 @@ namespace STATIC_Functions
 			}
 			steady_clock::time_point end = steady_clock::now();
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
-				 << "[ms]" << "\n\n\n";
+				 << "[ms]\n\n\n";
 		}
 		string null;
 		cout << "premere un tasto per continuare\t\t";
@@ -1139,12 +1139,10 @@ int main()
 		bool redo = 0;
 
 		if (!lock_prime_input) {
-			system("cls");
-			SetConsoleTextAttribute(hConsole, 10);
-			cout << "CALCOLATRICE::\n\n";
-			SetConsoleTextAttribute(hConsole, 15);
-			SetConsoleTextAttribute(hConsole, 10);
 			do {
+				system("cls");
+				SetConsoleTextAttribute(hConsole, 10);
+				cout << "CALCOLATRICE::\n\n";
 				redo = 0;
 				text = "fino a quale numero cercare i numeri primi?\n";
 				text.append("un limite piu' alto comporta un tempo di attesa piu' lungo\n");
