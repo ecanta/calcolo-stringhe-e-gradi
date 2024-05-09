@@ -6,8 +6,9 @@
 #include <iomanip>
 #include <ppl.h>
 #include <random>
+#include <regex>
 #include <sstream>
-#include <stdlib.h>
+#include <cstdlib>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -26,7 +27,7 @@ typedef struct {
 } vector_t;
 typedef struct {
 	int number;
-	string code;
+	wstring code;
 	int degree;
 	string expression;
 } data_t;
@@ -39,33 +40,33 @@ mutex mtx;
 
 namespace STATIC_Functions
 {
-	static unordered_map <string, switchcase> stringToEnumMap = {
-		{"cc", switchcase::cc},
-		{"cf", switchcase::cf},
-		{"ccf", switchcase::ccf},
-		{"dc", switchcase::dc},
-		{"df", switchcase::df},
-		{"dcf", switchcase::dcf},
-		{"ctn", switchcase::ctn},
-		{"rnd", switchcase::rnd}
+	static unordered_map <wstring, switchcase> stringToEnumMap = {
+		{L"cc", switchcase::cc},
+		{L"cf", switchcase::cf},
+		{L"ccf", switchcase::ccf},
+		{L"dc", switchcase::dc},
+		{L"df", switchcase::df},
+		{L"dcf", switchcase::dcf},
+		{L"ctn", switchcase::ctn},
+		{L"rnd", switchcase::rnd}
 	};
-	static unordered_map <switchcase, string> enumToStringMap = {
-		{switchcase::cc, "cc"},
-		{switchcase::cf, "cf"},
-		{switchcase::ccf, "ccf"},
-		{switchcase::dc, "dc"},
-		{switchcase::df, "df"},
-		{switchcase::dcf, "dcf"},
-		{switchcase::ctn, "ctn"},
-		{switchcase::rnd, "rnd"}
+	static unordered_map <switchcase, wstring> enumToStringMap = {
+		{switchcase::cc, L"cc"},
+		{switchcase::cf, L"cf"},
+		{switchcase::ccf, L"ccf"},
+		{switchcase::dc, L"dc"},
+		{switchcase::df, L"df"},
+		{switchcase::dcf, L"dcf"},
+		{switchcase::ctn, L"ctn"},
+		{switchcase::rnd, L"rnd"}
 	};
 
-	static string ConvertEnumToString(switchcase Enum) {
+	static wstring ConvertEnumToString(switchcase Enum) {
 		auto it = enumToStringMap.find(Enum);
 		if (it != enumToStringMap.end())
 			return it->second;
 	}
-	static switchcase ConvertStringToEnum(string str) {
+	static switchcase ConvertStringToEnum(wstring str) {
 		auto it = stringToEnumMap.find(str);
 		if (it != stringToEnumMap.end())
 			return it->second;
@@ -78,25 +79,27 @@ namespace STATIC_Functions
 	
 	static void printf(data_t structure)
 	{
+		setlocale(LC_ALL, "");
 		cout << "numero " << structure.number << ":\n";
 		if (!structure.code.empty()) {
 			SetConsoleTextAttribute(hConsole, 12);
-			cout << "il codice e' <" << structure.code << ">\n";
+			wcout << L"il codice è <" << structure.code << ">\n";
 		}
 		if (structure.degree != 0) {
 			SetConsoleTextAttribute(hConsole, 4);
-			cout << "il grado e' " << structure.degree << '\n';
+			wcout << L"il grado è " << structure.degree << '\n';
 		}
 		if (!structure.expression.empty()) {
 			if (PrimeNumbers.is_prime[structure.number]) {
 				SetConsoleTextAttribute(hConsole, 240);
-				cout << "il numero e' primo";
+				wcout << L"il numero è primo";
 				SetConsoleTextAttribute(hConsole, 15);
 				cout << '\n';
 			}
 			else {
 				SetConsoleTextAttribute(hConsole, 11);
-				cout << "la fattorizzazione e' " << structure.expression << '\n';
+				wcout << L"la fattorizzazione è ";
+				cout << structure.expression << '\n';
 			}
 		}
 		SetConsoleTextAttribute(hConsole, 15);
@@ -272,7 +275,7 @@ namespace STATIC_Functions
 		return output;
 	}
 
-	static string Cript(long long input)
+	static wstring Cript(long long input)
 	{
 		int size = 0;
 		int product = 1;
@@ -294,30 +297,30 @@ namespace STATIC_Functions
 			}
 		}
 
-		string the_string, exp_verify, exp_string, prime_exp_string;
+		wstring the_string, exp_verify, exp_string, prime_exp_string;
 		int prime_exp, sizestring, presence;
 		long long analyse;
 		bool repeat;
-		string monomials[15];
+		wstring monomials[15];
 		for (int what_factor = 0; what_factor < factor_number; what_factor++) 
 		{
 			repeat = 0;
 			presence = 0;
 
-			exp_verify = to_string(exponents[what_factor]);
+			exp_verify = to_wstring(exponents[what_factor]);
 			analyse = PrimeFactors[what_factor];
-			string part_of1 = "(";
-			string part_of2 = ")";
+			wstring part_of1 = L"(";
+			wstring part_of2 = L")";
 			if (exponents[what_factor] != 1 && exponents[what_factor] < 11) {
 				part_of2.append(exp_verify);
 				presence = 1;
 			}
 			else if (exponents[what_factor] > 10) {
-				part_of2.append(".");
+				part_of2.append(L".");
 				part_of2.append(exp_verify);
 				presence = 2;
 			}
-			string analyse_string = to_string(analyse);
+			wstring analyse_string = to_wstring(analyse);
 			the_string = part_of1 + analyse_string + part_of2;
 
 			do {
@@ -330,32 +333,32 @@ namespace STATIC_Functions
 						a++;
 					} while (position < 0);
 					analyse = position;
-					analyse_string = to_string(analyse);
+					analyse_string = to_wstring(analyse);
 					the_string.erase(0, the_string.find(')'));
 					the_string = part_of1 + analyse_string + the_string;
 
 					switch (presence) {
 					case 1:
-						exp_string = string(1, the_string.at(the_string.size() - 1));
+						exp_string = wstring(1, the_string.at(the_string.size() - 1));
 						the_string.erase(the_string.size() - 1);
 						break;
 					case 2:
-						exp_string = "." + string(1, the_string.at(the_string.size() - 2))
-							+ string(1, the_string.at(the_string.size() - 1));
+						exp_string = L"." + wstring(1, the_string.at(the_string.size() - 2))
+							+ wstring(1, the_string.at(the_string.size() - 1));
 						the_string.erase(the_string.size() - 3);
 						break;
 					}
 					if (repeat) {
-						prime_exp_string = string(1, the_string.at(the_string.size() - 1));
+						prime_exp_string = wstring(1, the_string.at(the_string.size() - 1));
 						the_string.erase(the_string.size() - 1);
 						prime_exp = stoi(prime_exp_string);
 						prime_exp++;
-						prime_exp_string = to_string(prime_exp);
+						prime_exp_string = to_wstring(prime_exp);
 						if (prime_exp > 10)
-							prime_exp_string = "." + prime_exp_string;
+							prime_exp_string = L"." + prime_exp_string;
 						the_string.append(prime_exp_string);
 					}
-					else the_string.append("1");
+					else the_string.append(L"1");
 					if (presence > 0) the_string.append(exp_string);
 					repeat = 1;
 				}
@@ -372,9 +375,9 @@ namespace STATIC_Functions
 		delete[] PrimeFactors;
 		delete[] exponents;
 
-		the_string = "";
+		the_string = L"";
 		for (int i = 0; i < factor_number; i++)
-			the_string = the_string + "+" + monomials[i];
+			the_string = the_string + L"+" + monomials[i];
 		the_string.erase(0, 1);
 
 		int* position = new int[size];
@@ -406,11 +409,11 @@ namespace STATIC_Functions
 		return the_string;
 	}
 
-	static vector <string> fractioner(string polinomial)
+	static vector <wstring> fractioner(wstring polinomial)
 	{
-		vector <string> monomials;
-		string backup = polinomial;
-		string temp;
+		vector <wstring> monomials;
+		wstring backup = polinomial;
+		wstring temp;
 		int parenthesis_balance = 0;
 		int p_balance = 0;
 		int find = 0;
@@ -437,13 +440,13 @@ namespace STATIC_Functions
 		return monomials;
 	}
 
-	static int ExecuteStrings(string input)
+	static int ExecuteStrings(wstring input)
 	{
 		int output = 0;
 		int values[15];
 		for (int i = 0; i < input.size(); i++)
 			if (input.at(i) == '.') input.erase(i, 1);
-		vector <string> monomials = fractioner(input);
+		vector <wstring> monomials = fractioner(input);
 
 		int location;
 		bool presence = 1;
@@ -455,7 +458,7 @@ namespace STATIC_Functions
 						location = j;
 					}
 				}
-				string temp = monomials[i];
+				wstring temp = monomials[i];
 				temp.erase(location);
 				temp.erase(0, 1);
 				monomials[i].erase(0, location + 1);
@@ -468,18 +471,19 @@ namespace STATIC_Functions
 		return output;
 	}
 
-	static string Get_user_enum(string txt, int low, long long high)
+	static wstring Get_user_enum(wstring txt, int low, long long high)
 	{
+		setlocale(LC_ALL, "");
 		switchcase option;
 		long long user_num;
-		string check;
+		wstring check;
 		do {
 			bool error = 1;
 			bool general_error = 0;
-			cout << txt;
-			getline(cin, check);
-			if (check == "." || check.empty()) return check;
-			if (check.size() > 10) return "";
+			wcout << txt;
+			getline(wcin, check);
+			if (check == L"." || check.empty()) return check;
+			if (check.size() > 10) return L"";
 			option = ConvertStringToEnum(check);
 			option = randomizer(option);
 			if (option != r) return ConvertEnumToString(option);
@@ -497,7 +501,7 @@ namespace STATIC_Functions
 			else user_num = stoull(check);
 
 		} while (user_num < low || user_num > high);
-		return to_string(user_num);
+		return to_wstring(user_num);
 	}
 
 	static string Fact_Number(long long input)
@@ -535,7 +539,7 @@ namespace STATIC_Functions
 		return output;
 	}
 
-	static data_t  coredegree(long long input) {
+	static data_t coredegree(long long input) {
 		data_t output;
 		int counter = 0;
 		int copy = input;
@@ -550,7 +554,7 @@ namespace STATIC_Functions
 	}
 
 	static data_t corefactor(long long input) {
-		data_t output = {input, "", 0, Fact_Number(input)};
+		data_t output = {input, L"", 0, Fact_Number(input)};
 		return output;
 	}
 
@@ -561,7 +565,7 @@ namespace STATIC_Functions
 		return output;
 	}
 
-	static vector <int> decompose_string(string Terminal) {
+	static vector <int> decompose_string(wstring Terminal) {
 		int pass = 0;
 		int ciphres_element;
 		vector <int> ciphres;
@@ -597,7 +601,7 @@ namespace STATIC_Functions
 		return ciphres;
 	}
 
-	static string standardize(string ToEvaluate)
+	static wstring standardize(wstring ToEvaluate)
 	{
 		int start = 0;
 		int end = 0;
@@ -616,10 +620,10 @@ namespace STATIC_Functions
 		return ToEvaluate;
 	}
 
-	static string Syntax_Validator(string ToEvaluate)
+	static wstring Syntax_Validator(wstring ToEvaluate)
 	{
-		if (ToEvaluate == "f") return "";
-		vector <string> mono;
+		if (ToEvaluate == L"f") return L"";
+		vector <wstring> mono;
 		string charsAllowed = "0123456789+(_).";
 		bool local_error = 1, boolean = 1, stable = 0;
 		int start = -1, end = -1, parenthesis_balance = 0;
@@ -631,8 +635,8 @@ namespace STATIC_Functions
 				break;
 			}
 		}
-		if (start == -1 || end == -1) return "NO_BOUNDARY";
-		if (end < start) return "BOUNDARY_INVERSION";
+		if (start == -1 || end == -1) return L"NO_BOUNDARY";
+		if (end < start) return L"BOUNDARY_INVERSION";
 		ToEvaluate.erase(end);
 		ToEvaluate.erase(0, start);
 		for (int i = 0; i < ToEvaluate.size(); i++) {
@@ -642,41 +646,41 @@ namespace STATIC_Functions
 			}
 			if (ToEvaluate.at(i) == ')') parenthesis_balance--;
 		}
-		if (parenthesis_balance != 0) return "UNBALANCED_BRACKETS";
+		if (parenthesis_balance != 0) return L"UNBALANCED_BRACKETS";
 		for (int space = ToEvaluate.size() - 1; space >= 0; space--) {
 			if (ToEvaluate.at(space) == ' ')
 				ToEvaluate.erase(space, 1);
 		}
-		if (ToEvaluate.empty()) return "EMPTY_IMPUT";
+		if (ToEvaluate.empty()) return L"EMPTY_IMPUT";
 		for (int i = 0; i < ToEvaluate.size(); i++) {
 			for (int j = 0; j < charsAllowed.size(); j++) {
 				if (ToEvaluate.at(i) == charsAllowed.at(j))
 					local_error = 0;
 			}
-			if (local_error) return "UNALLOWED_CHARACTERS";
+			if (local_error) return L"UNALLOWED_CHARACTERS";
 			local_error = 1;
 		}
-		if (ToEvaluate.at(0) == '+') return "NO_START_STRING";
-		if (ToEvaluate.at(0) == '0') return "NULL_DIGIT";
-		if (ToEvaluate.at(0) == ')') return "INVERTED_BRACKETS";
+		if (ToEvaluate.at(0) == '+') return L"NO_START_STRING";
+		if (ToEvaluate.at(0) == '0') return L"NULL_DIGIT";
+		if (ToEvaluate.at(0) == ')') return L"INVERTED_BRACKETS";
 		if (ToEvaluate.at(ToEvaluate.size() - 1) == '+')
-			return "NO_END_STRING";
+			return L"NO_END_STRING";
 		for (int i = 0; i < ToEvaluate.size() - 1; i++) {
 			if (ToEvaluate.at(i) == '+' && ToEvaluate.at(i + 1) == '+')
-				return "MISSING_MONOMIAL";
+				return L"MISSING_MONOMIAL";
 		}
 		for (int i = 0; i < ToEvaluate.size() - 1; i++) {
 			if (ToEvaluate.at(i) == '0' && ToEvaluate.at(i + 1) == '0')
-				return "CONSECUTIVE_NULL_DIGITS";
+				return L"CONSECUTIVE_NULL_DIGITS";
 		}
 		for (int i = 0; i < ToEvaluate.size(); i++) {
 			if (ToEvaluate.size() == 1) {
 				if (ToEvaluate.at(0) == '.')
-					return "MISSING_DIGITS";
+					return L"MISSING_DIGITS";
 			}
 			else if (i >= (ToEvaluate.size() - 2)) {
 				if (ToEvaluate.at(i) == '.')
-					return "MISSING_DIGITS";
+					return L"MISSING_DIGITS";
 			}
 			else {
 				char short_1 = ToEvaluate.at(i + 1);
@@ -686,28 +690,28 @@ namespace STATIC_Functions
 				bool short_4 = short_3 == '+' || short_3 == ')'
 					|| short_3 == '(' || short_3 == '0';
 				if (ToEvaluate.at(i) == '.' && short_2 && short_4)
-					return "MISSING_DIGITS";
+					return L"MISSING_DIGITS";
 			}
 		}
 		for (int i = 1; i < ToEvaluate.size(); i++) {
 			char short_1 = ToEvaluate.at(i - 1);
 			bool short_2 = short_1 == '+' || short_1 == ')' || short_1 == '(';
 			if (ToEvaluate.at(i) == '0' && short_2)
-				return "NULL_DIGITS";
+				return L"NULL_DIGITS";
 		}
 		mono = fractioner(ToEvaluate);
 		for (int monomial = 0; monomial < size(mono); monomial++) {
 			int stackfinder = -1, stickfinder = -1, finder;
 			bool stop = 0, pass = 0;
 			int res = 0;
-			string min, max;
+			wstring min, max;
 			vector <int> min_ciphres, max_ciphres;
 			vector <int> ciphr_min, ciphr_max;
-			string stack = mono[monomial];
+			wstring stack = mono[monomial];
 			for (int second = 1; second < size(mono); second++) {
 				if (monomial != second) {
-					if (mono[monomial] == mono[second]) return "1";
-					string stick = mono[second];
+					if (mono[monomial] == mono[second]) return L"1";
+					wstring stick = mono[second];
 					if (stack.size() < stick.size()) {
 						min = stack;
 						max = stick;
@@ -743,8 +747,8 @@ namespace STATIC_Functions
 										stop = 1;
 								}
 							}
-							string min_backup = min;
-							string max_backup = max;
+							wstring min_backup = min;
+							wstring max_backup = max;
 							min_backup.erase(0, finder + 2);
 							max_backup.erase(0, finder + 2);
 							min_ciphres = decompose_string(min_backup);
@@ -787,7 +791,7 @@ namespace STATIC_Functions
 							else stop = 1;
 						}
 					}
-					if (res % 2 == 1) return "2";
+					if (res % 2 == 1) return L"2";
 				}
 			}
 			boolean = 1;
@@ -798,30 +802,30 @@ namespace STATIC_Functions
 				}
 			}
 			if (stack.at(stack.size() - 1) == ')')
-				return "MISSING_OBJECT";
+				return L"MISSING_OBJECT";
 			if (stack.at(stack.size() - 1) == '(')
-				return "INVERTED_BRACKETS";
+				return L"INVERTED_BRACKETS";
 			if (stack.at(0) == '(') {
 				local_error = 1;
 				for (int checkplus = 1; checkplus < finder; checkplus++) {
 					if (stack.at(checkplus) == '+') local_error = 0;
 				}
-				if (local_error) return "USELESS_BRACKETS";
+				if (local_error) return L"USELESS_BRACKETS";
 				stack.erase(0, 1);
 				stack.erase(finder);
-				string message = Syntax_Validator("<" + stack + ">");
+				wstring message = Syntax_Validator(L"<" + stack + L">");
 				if (!message.empty()) return message;
 			}
-			else if (mono[monomial].at(0) == ')') return "INVERTED_BRACKETS";
+			else if (mono[monomial].at(0) == ')') return L"INVERTED_BRACKETS";
 			else for (int check = 1; check < mono[monomial].size(); check++) {
-				if (mono[monomial].at(check) == '(') return "WRONG_OBJECT";
-				if (mono[monomial].at(check) == ')') return "WRONG_OBJECT";
+				if (mono[monomial].at(check) == '(') return L"WRONG_OBJECT";
+				if (mono[monomial].at(check) == ')') return L"WRONG_OBJECT";
 			}
 		}
-		return "";
+		return L"";
 	}
 
-	static long long NumberConverter(long long root, string M)
+	static long long NumberConverter(long long root, wstring M)
 	{
 		bool WhichWay = 1, XOutOfRange = 0;
 		bool UselessExponent = 0, pass = 0;
@@ -853,16 +857,16 @@ namespace STATIC_Functions
 		return root;
 	}
 
-	static long long StringConverter(string ToEvaluate)
+	static long long StringConverter(wstring ToEvaluate)
 	{
 		long long integer = 1;
-		string backup, back;
-		vector <string> mono = fractioner(ToEvaluate);
+		wstring backup, back;
+		vector <wstring> mono = fractioner(ToEvaluate);
 		int sizeP = size(PrimeNumbers.list_primes);
 		int finder;
 		bool TAG = 1;
 		for (int monomial = 0; monomial < size(mono); monomial++) {
-			string M = mono[monomial];
+			wstring M = mono[monomial];
 			long long root;
 			bool WhichWay = 0;
 			if (M.at(0) != '(') root = NumberConverter(1, M);
@@ -888,15 +892,16 @@ namespace STATIC_Functions
 		return integer;
 	}
 
-	static void CodeConverter(string ToEvaluate, string message, bool ShowErrors)
+	static void CodeConverter(wstring ToEvaluate, wstring message, bool ShowErrors)
 	{
+		setlocale(LC_ALL, "");
 		long long number;
-		if (ToEvaluate != "f") {
+		if (ToEvaluate != L"f") {
 			ToEvaluate = standardize(ToEvaluate);
 			number = StringConverter(ToEvaluate);
 			if (ShowErrors || number > 0) {
 				SetConsoleTextAttribute(hConsole, 11);
-				cout << "codice <" << ToEvaluate << "> :\n";
+				wcout << "codice <" << ToEvaluate << "> :\n";
 				SetConsoleTextAttribute(hConsole, 15);
 			}
 			if (number < -2 && ShowErrors) {
@@ -916,9 +921,9 @@ namespace STATIC_Functions
 			}
 			if (!message.empty() && ShowErrors && number > 0) {
 				cout << "ERR[400]: ";
-				message == "1" ? cout << "EQUAL_MONOMIALS\n" : cout << "SIMILIAR_MONOMIALS\n";
+				message == L"1" ? cout << "EQUAL_MONOMIALS\n" : cout << "SIMILIAR_MONOMIALS\n";
 				SetConsoleTextAttribute(hConsole, 2);
-				cout << "codice corretto: <" << Cript(number) << ">\n";
+				wcout << "codice corretto: <" << Cript(number) << ">\n";
 				SetConsoleTextAttribute(hConsole, 15);
 			}
 			if (number > 0) {
@@ -932,7 +937,8 @@ namespace STATIC_Functions
 
 	static switchcase CodeToNumber()
 	{
-		string ToEvaluate, message;
+		setlocale(LC_ALL, "");
+		wstring ToEvaluate, message;
 		switchcase option;
 		int counter = 0;
 		bool ShowErrors;
@@ -950,27 +956,27 @@ namespace STATIC_Functions
 		do {
 			do {
 				cout << "inserire una stringa (f = fine input)\n";
-				getline(cin, ToEvaluate);
+				getline(wcin, ToEvaluate);
 				option = ConvertStringToEnum(ToEvaluate);
 				option = randomizer(option);
 				if (option != r) {
 					cout << '\n';
 					return option;
 				}
-				if (ToEvaluate == ".") return rnd;
+				if (ToEvaluate == L".") return rnd;
 				message = Syntax_Validator(ToEvaluate);
 				if (message.size() > 1) {
 					SetConsoleTextAttribute(hConsole, 4);
-					cout << "ERR[404]: " << message << '\n';
+					wcout << "ERR[404]: " << message << '\n';
 					SetConsoleTextAttribute(hConsole, 15);
 				}
 			} while (message.size() > 1);
-			if (ToEvaluate == "f") return r;
+			if (ToEvaluate == L"f") return r;
 
 			counter = 0;
 			ShowErrors = ToEvaluate.at(0) != '$' && ToEvaluate.at(0) != '\\';
-			ToEvaluate = '<' + standardize(ToEvaluate) + '>';
-			string backup = ToEvaluate;
+			ToEvaluate = L"<" + standardize(ToEvaluate) + L">";
+			wstring backup = ToEvaluate;
 			vector <int> pos;
 			for (int i = 1; i < size(ToEvaluate) - 1; i++) {
 				if (ToEvaluate.at(i) == '_') {
@@ -984,13 +990,13 @@ namespace STATIC_Functions
 				int zero_counter = counter - j.size();
 				for (int k = 0; k < zero_counter; k++) j = "0" + j;
 				for (int k = 0; k < j.size(); k++)
-					backup.replace(pos[k], 1, string(1, j.at(k)));
+					backup.replace(pos[k], 1, wstring(1, j.at(k)));
 				message = Syntax_Validator(backup);
 				if (message.size() > 1 && ShowErrors) {
 					SetConsoleTextAttribute(hConsole, 11);
-					cout << "codice " << backup << " :\n";
+					wcout << "codice " << backup << " :\n";
 					SetConsoleTextAttribute(hConsole, 4);
-					cout << "ERR[404]: " << message << '\n';
+					wcout << "ERR[404]: " << message << '\n';
 					SetConsoleTextAttribute(hConsole, 15);
 				}
 				else CodeConverter(backup, message, ShowErrors);
@@ -999,7 +1005,8 @@ namespace STATIC_Functions
 	}
 
 	static switchcase repeater(string message, data_t CPU(long long input)) {
-		string n_ = to_string(GlobalMax), Input;
+		setlocale(LC_ALL, "");
+		wstring n_ = to_wstring(GlobalMax), Input;
 		switchcase option;
 		long long input;
 		data_t result;
@@ -1008,11 +1015,11 @@ namespace STATIC_Functions
 		SetConsoleTextAttribute(hConsole, 15);
 		do {
 			SetConsoleTextAttribute(hConsole, 14);
-			string txt = "inserire un numero tra 2 e " + n_ + " (1 = fine input)\n";
+			wstring txt = L"inserire un numero tra 2 e " + n_ + L" (1 = fine input)\n";
 			SetConsoleTextAttribute(hConsole, 15);
 			do Input = Get_user_enum(txt, 1, GlobalMax);
 			while (Input.empty());
-			if (Input == ".") return rnd;
+			if (Input == L".") return rnd;
 			else {
 				option = ConvertStringToEnum(Input);
 				option = randomizer(option);
@@ -1032,7 +1039,9 @@ namespace STATIC_Functions
 
 	static switchcase loop(string message, data_t CPU(long long input))
 	{
-		string n_ = to_string(GlobalMax), txt, Input;
+		setlocale(LC_ALL, "");
+		wstring n_ = to_wstring(GlobalMax), Input;
+		wstring txt;
 		switchcase option;
 		vector <data_t> data;
 		double Barwidth = 60;
@@ -1040,12 +1049,12 @@ namespace STATIC_Functions
 		cout << "debug::\n\n";
 		SetConsoleTextAttribute(hConsole, 14);
 		cout << message << '\n';
-		cout << "gli estremi dell'intervallo devono essere compresi tra 1 e " << n_ << "\n\n";
+		wcout << "gli estremi dell'intervallo devono essere compresi tra 1 e " << n_ << "\n\n";
 		SetConsoleTextAttribute(hConsole, 15);
-		txt = "inserisci il valore di inizio della ricerca\n";
+		txt = L"inserisci il valore di inizio della ricerca\n";
 		do Input = Get_user_enum(txt, 1, GlobalMax);
 		while (Input.empty());
-		if (Input == ".") return rnd;
+		if (Input == L".") return rnd;
 		option = ConvertStringToEnum(Input);
 		option = randomizer(option);
 		if (option != r) {
@@ -1054,10 +1063,10 @@ namespace STATIC_Functions
 		}
 		long long lower_bound = stoi(Input) + 1;
 
-		txt = "inserisci il valore finale della ricerca\n";
+		txt = L"inserisci il valore finale della ricerca\n";
 		do Input = Get_user_enum(txt, 1, GlobalMax);
 		while (Input.empty());
-		if (Input == ".") return rnd;
+		if (Input == L".") return rnd;
 		option = ConvertStringToEnum(Input);
 		option = randomizer(option);
 		if (option != r) {
@@ -1124,12 +1133,14 @@ namespace STATIC_Functions
 int main()
 {
 	using namespace STATIC_Functions;
+	setlocale(LC_ALL, "");
 	string defact_message = "il programma calcola la fattorizzazione di una serie di numeri";
 	string deg_message = "il programma calcola il codice e il grado di una serie di numeri";
 	string fact_message = "il programma scompone un numero in fattori primi";
 	string message = "il programma converte un numero nel corrispondente codice e ne calcola il grado";
 	string AllMessage = "il programma calcola factor, codice e grado";
-	string text, vel;
+	wstring vel;
+	wstring text;
 	switchcase option;
 
 	bool start = 1;
@@ -1146,13 +1157,13 @@ int main()
 				system("cls");
 				SetConsoleTextAttribute(hConsole, 10);
 				cout << "CALCOLATRICE::\n\n";
-				text = "fino a quale numero cercare i numeri primi?\n";
-				text.append("un limite piu' alto comporta un tempo di attesa piu' lungo\n");
-				text.append("ES.: 22'500'000 = 1 minuto di attesa circa\n");
-				string G = Get_user_enum(text, 0, GLOBAL_CAP);
+				text = L"fino a quale numero cercare i numeri primi?\n";
+				text.append(L"un limite più alto comporta un tempo di attesa più lungo\n");
+				text.append(L"ES.: 22'500'000 = 1 minuto di attesa circa\n");
+				wstring G = Get_user_enum(text, 0, GLOBAL_CAP);
 				if (ConvertStringToEnum(G) != r) redo = 1;
 				else if (G.empty()) redo = 1;
-				else if (G == ".") {
+				else if (G == L".") {
 					system("cls");
 					SetConsoleTextAttribute(hConsole, 4);
 					return 0;
@@ -1210,9 +1221,9 @@ int main()
 		cout << "caratteri seguenti:\n";
 		cout << "\t'c' = codifica\n";
 		cout << "\t'f' = scomposizione in fattori primi\n";
-		cout << "\t\"cf\" = codifica e scomposizione (impiega piu' tempo)\n";
+		wcout << L"\t\"cf\" = codifica e scomposizione (impiega più tempo)\n";
 		SetConsoleTextAttribute(hConsole, 15);
-		getline(cin, vel);
+		getline(wcin, vel);
 		option = ConvertStringToEnum(vel);
 		do {
 			if (vel.size() == 1) {
@@ -1236,7 +1247,7 @@ int main()
 			if (option == r) do {
 				skip = 0;
 				cout << "scegli opzioni:: (...)\n";
-				getline(cin, vel);
+				getline(wcin, vel);
 				if (vel.size() == 1) {
 					stop = vel.at(0) != '0'
 						&& vel.at(0) != '1' && vel.at(0) != '.';
@@ -1285,3 +1296,27 @@ int main()
 	} while (0 == 0);
 }
 // program_END
+/*
+#include <cmath>
+#include <iostream>
+#include <windows.h>
+using namespace std;
+
+HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+int main()
+{
+	COORD coord;
+	int X = 40;
+	int Y = 12;
+	int rad = 8;
+	for (double deg = 0; deg <= 6.4; deg += 0.005) {
+		X = (int)2 * (rad * cos(deg));
+		Y = (int)(rad * sin(deg));
+
+		coord.X = 40 + X; coord.Y = 12 + Y;
+		SetConsoleCursorPosition(hConsole, coord);
+		cout << '*';
+	}
+
+	return 0;
+}*/
