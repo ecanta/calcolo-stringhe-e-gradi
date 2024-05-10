@@ -170,52 +170,49 @@ namespace STATIC_Functions
 		cout << "]] " << s << "%\r";
 	}
 
-	static void printSquare()
+	static void printCircle()
 	{
 		COORD coord;
-		const int lenght = 15;
-		const int centerX = 40;
-		const int centerY = 20;
-		const double DIM = 1.9;
+		int arc = 270;
+		const double SPEED = 50;
+		const double GAP = 0.05;
+		bool arc_decrease = 1;
+		bool decrease = 1;
+		const int const_x = 46;
+		const int const_y = 13;
+		int centerX;
+		int centerY;
 		int setX;
 		int setY;
+		double DIM = 1.9;
+		const double R = 8;
+		const double R2 = 5;
 
-		for (double deg = 0; deg < 10000; deg += 5) {
-			double rot = (double)deg / 180 * 3.141592653589;
-			for (int y = 0; y < lenght; y++) {
-				if (y == 0 || y == lenght - 1)
-					for (int x = 0; x < lenght; x++) {
-						setX = x - lenght / 2;
-						setY = y - lenght / 2;
-						coord.X = setX * cos(rot) - setY * sin(rot);
-						coord.Y = setX * sin(rot) + setY * cos(rot);
-						coord.X *= DIM;
-						coord.X += centerX;
-						coord.Y += centerY;
-						SetConsoleCursorPosition(hConsole, coord);
-						cout << '*';
-					}
-				else for (int x = 0; x < lenght; x++) {
-					setX = -lenght / 2;
-					setY = y - lenght / 2;
-					coord.X = setX * cos(rot) - setY * sin(rot);
-					coord.Y = setX * sin(rot) + setY * cos(rot);
-					coord.X *= DIM;
-					coord.X += centerX;
-					coord.Y += centerY;
-					SetConsoleCursorPosition(hConsole, coord);
-					cout << '*';
-					setX = lenght / 2;
-					setY = y - lenght / 2;
-					coord.X = setX * cos(rot) - setY * sin(rot);
-					coord.Y = setX * sin(rot) + setY * cos(rot);
-					coord.X *= DIM;
-					coord.X += centerX;
-					coord.Y += centerY;
-					SetConsoleCursorPosition(hConsole, coord);
-					cout << '*';
-				}
+		for (int i = 0; i % 360 < 360; i += 3) {
+			double __i = (double)i / 180 * 3.141592653589;
+			centerX = const_x + R2 * cos(__i);
+			centerY = const_y + R2 * sin(__i);
+			if (DIM <= 1 || DIM >= 2.5) decrease = !decrease;
+			if (arc <= 0 || arc >= 360) arc_decrease = !arc_decrease;
+			for (int deg = 0; deg < arc; deg++) {
+				double rad = (double)deg / 180 * 3.141592653589;
+				setX = R * cos(rad);
+				setY = R * sin(rad);
+				coord.X = setX * cos(__i) - setY * sin(__i);
+				coord.Y = setX * sin(__i) + setY * cos(__i);
+				coord.X *= DIM;
+				coord.X += centerX;
+				coord.Y += centerY;
+				SetConsoleCursorPosition(hConsole, coord);
+				random_device rng;
+				mt19937 gen(rng());
+				uniform_int_distribution<> dis(0, 9);
+				string character = to_string(dis(gen));
+				cout << character;
 			}
+			this_thread::sleep_for(milliseconds(10));
+			decrease ? DIM -= GAP : DIM += GAP;
+			arc_decrease ? arc -= SPEED * GAP : arc += SPEED * GAP;
 			if (is_done.load()) return;
 			system("cls");
 		}
@@ -285,6 +282,7 @@ namespace STATIC_Functions
 		}
 		if (USE_pro_bar) cout << string(BARWIDTH + 11, '\\') << "\n\nattendere\r";
 		
+		SetConsoleTextAttribute(hConsole, 12);
 		if (N >= 100'000 && USE_pro_bar) {
 			thread t1([&primes, &is_prime, &N]() {
 				for (long long p = 2; p < N + 1; p++)
@@ -293,12 +291,13 @@ namespace STATIC_Functions
 				is_done = 1;
 				cv.notify_one();
 			});
-			thread t2(printSquare);
+			thread t2(printCircle);
 			t1.join();
 			t2.join();
 		}
 		else for (long long p = 2; p < N + 1; p++)
 				if (is_prime[p]) primes.push_back(p);
+		SetConsoleTextAttribute(hConsole, 15);
 		vector_t output = { is_prime, primes };
 		return output;
 	}
@@ -1148,19 +1147,19 @@ namespace STATIC_Functions
 				mtx.unlock();
 
 			});
-			SetConsoleTextAttribute(hConsole, 15);
 			cout << string(Barwidth + 11, '\\') << '\n';		
-
+			SetConsoleTextAttribute(hConsole, 12);
 			thread t1([&data]() {
 				data = heapSort(data);
 				lock_guard <mutex> lock(mtx);
 				is_done = 1;
 				cv.notify_one();
 			});
-			thread t2(printSquare);
+			thread t2(printCircle);
 			t2.join();
 			t1.join();
 			system("cls");
+			SetConsoleTextAttribute(hConsole, 15);
 			for (int x = 0; x < size(data); ++x) printf(data[x]);
 			steady_clock::time_point end = steady_clock::now();
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
