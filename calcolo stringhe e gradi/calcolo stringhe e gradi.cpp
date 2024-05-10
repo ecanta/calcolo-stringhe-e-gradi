@@ -1,15 +1,17 @@
 // program_START
 #include <chrono>
+#include <condition_variable>
 #include <conio.h>
 #include <cmath>
+#include <cstdlib>
 #include <iostream>
 #include <iomanip>
 #include <ppl.h>
 #include <random>
 #include <regex>
 #include <sstream>
-#include <cstdlib>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 #include <windows.h>
@@ -35,7 +37,9 @@ typedef struct {
 	int factors;
 	int exp;
 } compost_t;
+atomic <bool> is_done = 0;
 vector_t PrimeNumbers;
+condition_variable cv;
 mutex mtx;
 
 namespace STATIC_Functions
@@ -166,6 +170,57 @@ namespace STATIC_Functions
 		cout << "]] " << s << "%\r";
 	}
 
+	static void printSquare()
+	{
+		COORD coord;
+		const int lenght = 15;
+		const int centerX = 40;
+		const int centerY = 20;
+		const double DIM = 1.9;
+		int setX;
+		int setY;
+
+		for (double deg = 0; deg < 10000; deg += 5) {
+			double rot = (double)deg / 180 * 3.141592653589;
+			for (int y = 0; y < lenght; y++) {
+				if (y == 0 || y == lenght - 1)
+					for (int x = 0; x < lenght; x++) {
+						setX = x - lenght / 2;
+						setY = y - lenght / 2;
+						coord.X = setX * cos(rot) - setY * sin(rot);
+						coord.Y = setX * sin(rot) + setY * cos(rot);
+						coord.X *= DIM;
+						coord.X += centerX;
+						coord.Y += centerY;
+						SetConsoleCursorPosition(hConsole, coord);
+						cout << '*';
+					}
+				else for (int x = 0; x < lenght; x++) {
+					setX = -lenght / 2;
+					setY = y - lenght / 2;
+					coord.X = setX * cos(rot) - setY * sin(rot);
+					coord.Y = setX * sin(rot) + setY * cos(rot);
+					coord.X *= DIM;
+					coord.X += centerX;
+					coord.Y += centerY;
+					SetConsoleCursorPosition(hConsole, coord);
+					cout << '*';
+					setX = lenght / 2;
+					setY = y - lenght / 2;
+					coord.X = setX * cos(rot) - setY * sin(rot);
+					coord.Y = setX * sin(rot) + setY * cos(rot);
+					coord.X *= DIM;
+					coord.X += centerX;
+					coord.Y += centerY;
+					SetConsoleCursorPosition(hConsole, coord);
+					cout << '*';
+				}
+			}
+			if (is_done.load()) return;
+			system("cls");
+		}
+	}
+
 	static void heapify(vector <data_t>& vect, int n, int i) {
 		int largest = i;
 		int left = 2 * i + 1;
@@ -229,8 +284,21 @@ namespace STATIC_Functions
 				is_prime[i] = 0;
 		}
 		if (USE_pro_bar) cout << string(BARWIDTH + 11, '\\') << "\n\nattendere\r";
-		for (long long p = 2; p < N + 1; p++)
-			if (is_prime[p]) primes.push_back(p);
+		
+		if (N >= 100'000 && USE_pro_bar) {
+			thread t1([&primes, &is_prime, &N]() {
+				for (long long p = 2; p < N + 1; p++)
+					if (is_prime[p]) primes.push_back(p);
+				lock_guard <mutex> lock(mtx);
+				is_done = 1;
+				cv.notify_one();
+			});
+			thread t2(printSquare);
+			t1.join();
+			t2.join();
+		}
+		else for (long long p = 2; p < N + 1; p++)
+				if (is_prime[p]) primes.push_back(p);
 		vector_t output = { is_prime, primes };
 		return output;
 	}
@@ -603,8 +671,8 @@ namespace STATIC_Functions
 
 	static wstring standardize(wstring ToEvaluate)
 	{
-		int start = 0;
-		int end = 0;
+		int start = -1;
+		int end = -1;
 		for (int find = 0; find < ToEvaluate.size(); find++) {
 			switch (ToEvaluate.at(find)) {
 			case '<': start = find + 1;
@@ -612,6 +680,7 @@ namespace STATIC_Functions
 			case '>': end = find;
 				break;
 			}
+			if (end != -1) break;
 		}
 		ToEvaluate.erase(end);
 		ToEvaluate.erase(0, start);
@@ -634,6 +703,7 @@ namespace STATIC_Functions
 			case '>': end = find;
 				break;
 			}
+			if (end != -1) break;
 		}
 		if (start == -1 || end == -1) return L"NO_BOUNDARY";
 		if (end < start) return L"BOUNDARY_INVERSION";
@@ -652,61 +722,37 @@ namespace STATIC_Functions
 				ToEvaluate.erase(space, 1);
 		}
 		if (ToEvaluate.empty()) return L"EMPTY_IMPUT";
-		for (int i = 0; i < ToEvaluate.size(); i++) {
-			for (int j = 0; j < charsAllowed.size(); j++) {
-				if (ToEvaluate.at(i) == charsAllowed.at(j))
-					local_error = 0;
-			}
-			if (local_error) return L"UNALLOWED_CHARACTERS";
-			local_error = 1;
-		}
+		wregex unallowed_chars(L"[^\\d+()._]");
+		if (regex_search(ToEvaluate, unallowed_chars))
+			return L"UNALLOWED_CHARACTERS";
 		if (ToEvaluate.at(0) == '+') return L"NO_START_STRING";
 		if (ToEvaluate.at(0) == '0') return L"NULL_DIGIT";
 		if (ToEvaluate.at(0) == ')') return L"INVERTED_BRACKETS";
 		if (ToEvaluate.at(ToEvaluate.size() - 1) == '+')
 			return L"NO_END_STRING";
-		for (int i = 0; i < ToEvaluate.size() - 1; i++) {
-			if (ToEvaluate.at(i) == '+' && ToEvaluate.at(i + 1) == '+')
-				return L"MISSING_MONOMIAL";
+		wregex no_monomial_(L"\\+{2,}");
+		if (regex_search(ToEvaluate, no_monomial_))
+			return L"MISSING_MONOMIAL";
+		wregex cons_null_digits(L"0{2,}");
+		if (regex_search(ToEvaluate, cons_null_digits))
+			return L"CONSECUTIVE_NULL_DIGITS";
+		wregex excep_no_digits(L"\\.");
+		wregex no_digits(L"\\d\\.\\d{2,}");
+		if (regex_search(ToEvaluate, excep_no_digits)) {
+			if (!regex_search(ToEvaluate, no_digits))
+				return L"MISSING_DIGITS";
 		}
-		for (int i = 0; i < ToEvaluate.size() - 1; i++) {
-			if (ToEvaluate.at(i) == '0' && ToEvaluate.at(i + 1) == '0')
-				return L"CONSECUTIVE_NULL_DIGITS";
-		}
-		for (int i = 0; i < ToEvaluate.size(); i++) {
-			if (ToEvaluate.size() == 1) {
-				if (ToEvaluate.at(0) == '.')
-					return L"MISSING_DIGITS";
-			}
-			else if (i >= (ToEvaluate.size() - 2)) {
-				if (ToEvaluate.at(i) == '.')
-					return L"MISSING_DIGITS";
-			}
-			else {
-				char short_1 = ToEvaluate.at(i + 1);
-				bool short_2 = short_1 == '+' || short_1 == ')'
-					|| short_1 == '(' || short_1 == '0';
-				char short_3 = ToEvaluate.at(i + 2);
-				bool short_4 = short_3 == '+' || short_3 == ')'
-					|| short_3 == '(' || short_3 == '0';
-				if (ToEvaluate.at(i) == '.' && short_2 && short_4)
-					return L"MISSING_DIGITS";
-			}
-		}
-		for (int i = 1; i < ToEvaluate.size(); i++) {
-			char short_1 = ToEvaluate.at(i - 1);
-			bool short_2 = short_1 == '+' || short_1 == ')' || short_1 == '(';
-			if (ToEvaluate.at(i) == '0' && short_2)
-				return L"NULL_DIGITS";
-		}
+		wregex s_null_digits(L"[\\r\\D]0");
+		if (regex_search(ToEvaluate, s_null_digits))
+			return L"NULL_DIGITS";
 		mono = fractioner(ToEvaluate);
 		for (int monomial = 0; monomial < size(mono); monomial++) {
 			int stackfinder = -1, stickfinder = -1, finder;
 			bool stop = 0, pass = 0;
 			int res = 0;
-			wstring min, max;
 			vector <int> min_ciphres, max_ciphres;
 			vector <int> ciphr_min, ciphr_max;
+			wstring min, max;
 			wstring stack = mono[monomial];
 			for (int second = 1; second < size(mono); second++) {
 				if (monomial != second) {
@@ -1078,13 +1124,13 @@ namespace STATIC_Functions
 		if (upper_bound < lower_bound) swap(lower_bound, upper_bound);
 		long long datalenght = upper_bound - lower_bound;
 
-		string choice;
+		char choice;
 		cout << "vuoi utilizzare la ricerca veloce (non stampa direttamente i numeri)\n";
 		cout << "immetti s = si oppure n = no\t";
-		getline(cin, choice);
+		choice = _getch();
 		cout << '\n';
 
-		if (choice == "s") {
+		if (choice == 's') {
 			int iter = 0;
 			atomic <double> Progress = 0;
 			steady_clock::time_point begin = steady_clock::now();
@@ -1103,11 +1149,18 @@ namespace STATIC_Functions
 
 			});
 			SetConsoleTextAttribute(hConsole, 15);
+			cout << string(Barwidth + 11, '\\') << '\n';		
 
-			data = heapSort(data);
-			cout << string(Barwidth + 11, '\\') << '\n';
+			thread t1([&data]() {
+				data = heapSort(data);
+				lock_guard <mutex> lock(mtx);
+				is_done = 1;
+				cv.notify_one();
+			});
+			thread t2(printSquare);
+			t2.join();
+			t1.join();
 			system("cls");
-
 			for (int x = 0; x < size(data); ++x) printf(data[x]);
 			steady_clock::time_point end = steady_clock::now();
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
@@ -1123,10 +1176,10 @@ namespace STATIC_Functions
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
 				 << "[ms]\n\n\n";
 		}
-		string null;
+		char null;
 		cout << "premere un tasto per continuare\t\t";
 		null = _getch();
-		if (null == ".") return rnd;
+		if (null == '.') return rnd;
 		else return r;
 	}
 }
@@ -1184,6 +1237,9 @@ int main()
 				steady_clock::time_point end = steady_clock::now();
 				int delta = duration_cast <milliseconds> (end - begin).count();
 				int exception_delta = duration_cast <microseconds> (end - begin).count();
+				system("cls");
+				SetConsoleTextAttribute(hConsole, 6);
+				SetConsoleCursorPosition(hConsole, { 20, 10 });
 				if (delta <= 10) {
 					cout << "tempo di calcolo numeri primi = " 
 						 << exception_delta << " microsecondi\n\n";
@@ -1198,7 +1254,7 @@ int main()
 				}
 				else cout << "tempo di calcolo numeri primi = " << delta << " millisecondi\n\n";
 				start = 0;
-
+				SetConsoleTextAttribute(hConsole, 15);
 				this_thread::sleep_for(seconds(1));
 			}
 		}
@@ -1296,27 +1352,3 @@ int main()
 	} while (0 == 0);
 }
 // program_END
-/*
-#include <cmath>
-#include <iostream>
-#include <windows.h>
-using namespace std;
-
-HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-int main()
-{
-	COORD coord;
-	int X = 40;
-	int Y = 12;
-	int rad = 8;
-	for (double deg = 0; deg <= 6.4; deg += 0.005) {
-		X = (int)2 * (rad * cos(deg));
-		Y = (int)(rad * sin(deg));
-
-		coord.X = 40 + X; coord.Y = 12 + Y;
-		SetConsoleCursorPosition(hConsole, coord);
-		cout << '*';
-	}
-
-	return 0;
-}*/
