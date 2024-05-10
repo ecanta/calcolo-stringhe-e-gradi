@@ -1137,9 +1137,9 @@ namespace STATIC_Functions
 		long long datalenght = upper_bound - lower_bound;
 
 		char choice;
-		cout << "vuoi utilizzare la ricerca veloce (non stampa direttamente i numeri)\n";
+		cout << "vuoi utilizzare la ricerca veloce? (non stampa direttamente)\n";
 		cout << "immetti s = si oppure n = no\t";
-		choice = _getch();
+		cin >> choice;
 		cout << '\n';
 
 		if (choice == 's') {
