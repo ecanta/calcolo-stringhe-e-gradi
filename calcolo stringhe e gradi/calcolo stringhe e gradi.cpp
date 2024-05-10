@@ -204,9 +204,24 @@ namespace STATIC_Functions
 				coord.X += centerX;
 				coord.Y += centerY;
 				SetConsoleCursorPosition(hConsole, coord);
+				int colour;
 				random_device rng;
 				mt19937 gen(rng());
 				uniform_int_distribution<> dis(0, 9);
+				random_device rnd;
+				mt19937 Gen(rnd());
+				uniform_int_distribution<> Dis(0, 3);
+				switch (Dis(Gen)) {
+				case 0: colour = 4;
+					break;
+				case 1: colour = 12;
+					break;
+				case 2: colour = 6;
+					break;
+				case 3: colour = 14;
+					break;
+				}
+				SetConsoleTextAttribute(hConsole, colour);
 				string character = to_string(dis(gen));
 				cout << character;
 			}
@@ -282,7 +297,6 @@ namespace STATIC_Functions
 		}
 		if (USE_pro_bar) cout << string(BARWIDTH + 11, '\\') << "\n\nattendere\r";
 		
-		SetConsoleTextAttribute(hConsole, 12);
 		if (N >= 100'000 && USE_pro_bar) {
 			thread t1([&primes, &is_prime, &N]() {
 				for (long long p = 2; p < N + 1; p++)
@@ -297,7 +311,6 @@ namespace STATIC_Functions
 		}
 		else for (long long p = 2; p < N + 1; p++)
 				if (is_prime[p]) primes.push_back(p);
-		SetConsoleTextAttribute(hConsole, 15);
 		vector_t output = { is_prime, primes };
 		return output;
 	}
@@ -1148,7 +1161,6 @@ namespace STATIC_Functions
 
 			});
 			cout << string(Barwidth + 11, '\\') << '\n';		
-			SetConsoleTextAttribute(hConsole, 12);
 			thread t1([&data]() {
 				data = heapSort(data);
 				lock_guard <mutex> lock(mtx);
@@ -1159,7 +1171,6 @@ namespace STATIC_Functions
 			t2.join();
 			t1.join();
 			system("cls");
-			SetConsoleTextAttribute(hConsole, 15);
 			for (int x = 0; x < size(data); ++x) printf(data[x]);
 			steady_clock::time_point end = steady_clock::now();
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
