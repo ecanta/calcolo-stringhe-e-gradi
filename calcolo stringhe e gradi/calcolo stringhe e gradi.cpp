@@ -28,15 +28,26 @@ typedef struct {
 	vector <int> list_primes;
 } vector_t;
 typedef struct {
-	int number;
-	wstring code;
-	int degree;
-	string expression;
-} data_t;
-typedef struct {
 	int factors;
 	int exp;
 } compost_t;
+typedef struct {
+	int DivNumber;
+	int DivSum;
+	int DivProduct;
+	string Div_pr;
+} divisor_t;
+typedef struct {
+	int number;
+	wstring code;
+	int degree;
+	vector <int> sequence;
+	string expression;
+	int Div_number;
+	int Div_sum;
+	int Div_product;
+	string Divpr;
+} data_t;
 atomic <bool> is_done = 0;
 vector_t PrimeNumbers;
 condition_variable cv;
@@ -92,6 +103,11 @@ namespace STATIC_Functions
 		if (structure.degree != 0) {
 			SetConsoleTextAttribute(hConsole, 4);
 			wcout << L"il grado è " << structure.degree << '\n';
+			SetConsoleTextAttribute(hConsole, 3);
+			wcout << L"la sequenza è :\n(";
+			for (int i = 0; i < size(structure.sequence) - 1; i++)
+				cout << structure.sequence[i] << ", ";
+			cout << structure.sequence[size(structure.sequence) - 1] << ")\n";
 		}
 		if (!structure.expression.empty()) {
 			if (PrimeNumbers.is_prime[structure.number]) {
@@ -104,6 +120,15 @@ namespace STATIC_Functions
 				SetConsoleTextAttribute(hConsole, 11);
 				wcout << L"la fattorizzazione è ";
 				cout << structure.expression << '\n';
+				SetConsoleTextAttribute(hConsole, 8);
+				wcout << "il numero dei divisori è ";
+				cout << structure.Div_number << '\n';
+				wcout << "la somma dei divisori è ";
+				cout << structure.Div_sum << '\n';
+				wcout << "il prodotto dei divisori è ";
+				if (structure.Div_product != 1)
+					cout << structure.Div_product << '\n';
+				else cout << structure.Divpr << '\n';
 			}
 		}
 		SetConsoleTextAttribute(hConsole, 15);
@@ -619,29 +644,101 @@ namespace STATIC_Functions
 		return output;
 	}
 
+	static divisor_t DivisorCalculator(string factor)
+	{
+		divisor_t output = { 1, 1, 1, "" };
+		vector <string> monomials;
+		vector <long long> values;
+		vector <int> exponents;
+		bool pow_presence = 0;
+		for (int i = factor.size() - 1; i >= 0; i--) {
+			if (factor.at(i) == '*') {
+				string backup = factor;
+				backup.erase(0, i + 2);
+				if (backup.at(backup.size() - 1) == ' ')
+					backup.erase(backup.size() - 1);
+				monomials.push_back(backup);
+				factor.erase(i);
+			}
+		}
+		if (factor.at(factor.size() - 1) == ' ')
+			factor.erase(factor.size() - 1);
+		monomials.push_back(factor);
+
+		for (int i = 0; i < size(monomials); i++) {
+			long long value = -1;
+			int exp = 1;
+			for (int j = 1; j < monomials[i].size(); j++) {
+				if (monomials[i].at(j) == '^') {
+					string first = monomials[i];
+					string second = monomials[i];
+					first.erase(j);
+					second.erase(0, j + 1);
+					value = stoi(first);
+					exp = stoi(second);
+					pow_presence = 1;
+				}
+				if (!pow_presence) value = stoi(monomials[i]);
+			}
+			if (value == -1) value = stoi(monomials[i]);
+			values.push_back(value);
+			exponents.push_back(exp);
+		}
+
+		for (int i = 0; i < size(monomials); i++)
+			output.DivNumber *= exponents[i] + 1;
+		int x = 1;
+		for (int i = 0; i < size(monomials); i++) {
+			long long num = -1 + pow(values[i], exponents[i] + 1);
+			long long den = values[i] - 1;
+			output.DivSum *= (num / den);
+			x *= pow(values[i], exponents[i]);
+		}
+		if (output.DivSum < 0) output.DivSum = -1;
+		if (output.DivNumber > 0) {
+			int out = output.DivNumber / 2;
+			int y = pow(x, out);
+			if (y > 0) output.DivProduct = y;
+			else output.Div_pr = to_string(x) + "^" + to_string(out);
+		}
+		else {
+			output.DivNumber = -1;
+			output.DivProduct = -1;
+		}
+		return output;
+	}
+
 	static data_t coredegree(long long input) {
-		data_t output;
+		data_t output = { input, L"", 0, {}, "", 1, 1, 1, "" };
 		int counter = 0;
 		int copy = input;
 		do {
+			output.sequence.push_back(copy);
 			copy = ExecuteStrings(Cript(copy));
 			counter++;
 			if (copy < 4) output.degree = counter + copy;
 		} while (copy != 1);
+		output.sequence.push_back(1);
 		copy = input;
-		output = { copy, Cript(copy), output.degree ,"" };
 		return output;
 	}
 
 	static data_t corefactor(long long input) {
-		data_t output = {input, L"", 0, Fact_Number(input)};
+		data_t output = { input, L"", 0, {}, "", 1, 1, 1, "" };
+		output.expression = Fact_Number(input);
+		divisor_t D = DivisorCalculator(output.expression);
+		output.Div_product = D.DivProduct;
+		output.Div_number = D.DivNumber;
+		output.Div_sum = D.DivSum;
+		output.Divpr = D.Div_pr;
 		return output;
 	}
 
 	static data_t coredegfactor(long long input) {
 		data_t A = coredegree(input);
 		data_t B = corefactor(input);
-		data_t output = {input, A.code, A.degree, B.expression};
+		data_t output = {input, A.code, A.degree, A.sequence, 
+			B.expression, B.Div_number, B.Div_sum, B.Div_product, B.Divpr};
 		return output;
 	}
 
@@ -1198,10 +1295,12 @@ int main()
 	using namespace STATIC_Functions;
 	setlocale(LC_ALL, "");
 	string defact_message = "il programma calcola la fattorizzazione di una serie di numeri";
-	string deg_message = "il programma calcola il codice e il grado di una serie di numeri";
-	string fact_message = "il programma scompone un numero in fattori primi";
-	string message = "il programma converte un numero nel corrispondente codice e ne calcola il grado";
-	string AllMessage = "il programma calcola factor, codice e grado";
+	defact_message.append("\ne numero, somma e prodotto dei divisori");
+	string deg_message = "il programma calcola codice, sequenza e grado di una serie di numeri";
+	string fact_message = "il programma calcola la fattorizzazione di un intero";
+	fact_message.append("\ne numero, somma e prodotto dei divisori");
+	string message = "il programma calcola codice, sequenza e grado di un intero";
+	string AllMessage = "il programma calcola \"tutti\" i dati di alcuni interi";
 	wstring vel;
 	wstring text;
 	switchcase option;
@@ -1285,9 +1384,9 @@ int main()
 		cout << "\t'c' = calcolo\n";
 		cout << "\t'd' = debug\n";
 		cout << "caratteri seguenti:\n";
-		cout << "\t'c' = codifica\n";
-		cout << "\t'f' = scomposizione in fattori primi\n";
-		wcout << L"\t\"cf\" = codifica e scomposizione (impiega più tempo)\n";
+		cout << "\t'c' = codifica, sequenza e grado\n";
+		cout << "\t'f' = fattoizzazione e dati dei divisori\n";
+		wcout << L"\t\"cf\" = ['c' + 'f'] (impiega più tempo)\n";
 		SetConsoleTextAttribute(hConsole, 15);
 		getline(wcin, vel);
 		option = ConvertStringToEnum(vel);
