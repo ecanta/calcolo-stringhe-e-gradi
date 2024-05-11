@@ -18,17 +18,13 @@
 using namespace std;
 using namespace chrono;
 using Concurrency::parallel_for;
-
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-enum switchcase{ 
-	cc, ccc, cf, 
-	cff, ccf, ct, 
-	dc, dcc, df, 
-	dff, dcf, dt, 
-	ctn, rnd, r 
-};
 const long long GLOBAL_CAP = pow(10, 10);
 long long GlobalMax = pow(10, 10);
+atomic <bool> is_done = 0;
+condition_variable cv;
+mutex mtx;
+
 typedef struct {
 	vector <bool> is_prime;
 	vector <int> list_primes;
@@ -54,12 +50,16 @@ typedef struct {
 	int Div_product;
 	string Divpr;
 } data_t;
-atomic <bool> is_done = 0;
 vector_t PrimeNumbers;
-condition_variable cv;
-mutex mtx;
+enum switchcase{ 
+	cc, ccc, cf, 
+	cff, ccf, ct, 
+	dc, dcc, df, 
+	dff, dcf, dt, 
+	ctn, rnd, r 
+};
 
-namespace STATIC_Functions
+namespace EnumMod 
 {
 	static unordered_map <wstring, switchcase> stringToEnumMap = {
 		{L"cc", switchcase::cc},
@@ -93,13 +93,12 @@ namespace STATIC_Functions
 		{switchcase::ctn, L"ctn"},
 		{switchcase::rnd, L"rnd"}
 	};
-
-	static wstring ConvertEnumToString(switchcase Enum) {
+	static wstring convert_enum_to_string(switchcase Enum) {
 		auto it = enumToStringMap.find(Enum);
 		if (it != enumToStringMap.end())
 			return it->second;
 	}
-	static switchcase ConvertStringToEnum(wstring str) {
+	static switchcase convert_string_to_enum(wstring str) {
 		auto it = stringToEnumMap.find(str);
 		if (it != stringToEnumMap.end())
 			return it->second;
@@ -109,52 +108,7 @@ namespace STATIC_Functions
 			return it->second;
 		}
 	}
-	
-	static void printf(data_t structure)
-	{
-		setlocale(LC_ALL, "");
-		cout << "numero " << structure.number << ":\n";
-		if (!structure.code.empty()) {
-			SetConsoleTextAttribute(hConsole, 12);
-			wcout << L"il codice è <" << structure.code << ">\n";
-		}
-		if (structure.degree != 0) {
-			SetConsoleTextAttribute(hConsole, 4);
-			wcout << L"il grado è " << structure.degree << '\n';
-			SetConsoleTextAttribute(hConsole, 3);
-			wcout << L"la sequenza è :\n(";
-			for (int i = 0; i < size(structure.sequence) - 1; i++)
-				cout << structure.sequence[i] << ", ";
-			cout << structure.sequence[size(structure.sequence) - 1] << ")\n";
-		}
-		if (!structure.expression.empty()) {
-			if (PrimeNumbers.is_prime[structure.number]) {
-				SetConsoleTextAttribute(hConsole, 240);
-				wcout << L"il numero è primo";
-				SetConsoleTextAttribute(hConsole, 15);
-				cout << '\n';
-			}
-			else {
-				SetConsoleTextAttribute(hConsole, 11);
-				wcout << L"la fattorizzazione è ";
-				cout << structure.expression << '\n';
-			}
-			if (structure.Div_number != 1) {
-				SetConsoleTextAttribute(hConsole, 8);
-				wcout << "il numero dei divisori è ";
-				cout << structure.Div_number << '\n';
-				wcout << "la somma dei divisori è ";
-				cout << structure.Div_sum << '\n';
-				wcout << "il prodotto dei divisori è ";
-				if (structure.Div_product != 1)
-					cout << structure.Div_product << '\n';
-				else cout << structure.Divpr << '\n';
-			}
-		}
-		SetConsoleTextAttribute(hConsole, 15);
-	}
-
-	static switchcase randomizer(switchcase option) {
+	static switchcase reassigne_enum(switchcase option) {
 		if (option == rnd) {
 			random_device rng;
 			mt19937 gen(rng());
@@ -192,29 +146,10 @@ namespace STATIC_Functions
 		}
 		else return option;
 	}
-
-	static bool prime(long long number)
-	{
-		bool is_prime = 1;
-		if (number == 1) return 0;
-		else if (number < size(PrimeNumbers.is_prime))
-			return PrimeNumbers.is_prime[number];
-		else {
-			if (number == 1) is_prime = 0;
-			for (int a = 2; a < number; a++)
-				if (number % a == 0) is_prime = 0;
-		}
-		return is_prime;
-	}
-
-	static double IntegralLog(int N) {
-		double sum = 0;
-		for (int x = 2; x <= N; x++)
-			sum += 1 / log(x);
-		return sum;
-	}
-
-	static void progress_Bar(double ratio, double barWidth)
+}
+namespace Prints 
+{
+	static void progress_bar(double ratio, double barWidth)
 	{
 		SetConsoleCursorPosition(hConsole, { 0, 0 });
 		cout << "[[";
@@ -229,8 +164,7 @@ namespace STATIC_Functions
 		string s = stream.str();
 		cout << "]] " << s << "%\r";
 	}
-
-	static void printCircle()
+	static void print_circle()
 	{
 		COORD coord;
 		system("cls");
@@ -293,7 +227,170 @@ namespace STATIC_Functions
 			system("cls");
 		}
 	}
+	static void data_printf(data_t structure)
+	{
+		setlocale(LC_ALL, "");
+		cout << "numero " << structure.number << ":\n";
+		if (!structure.code.empty()) {
+			SetConsoleTextAttribute(hConsole, 12);
+			wcout << L"il codice è <" << structure.code << ">\n";
+		}
+		if (structure.degree != 0) {
+			SetConsoleTextAttribute(hConsole, 4);
+			wcout << L"il grado è " << structure.degree << '\n';
+			SetConsoleTextAttribute(hConsole, 3);
+			wcout << L"la sequenza è :\n(";
+			for (int i = 0; i < size(structure.sequence) - 1; i++)
+				cout << structure.sequence[i] << ", ";
+			cout << structure.sequence[size(structure.sequence) - 1] << ")\n";
+		}
+		if (!structure.expression.empty()) {
+			if (PrimeNumbers.is_prime[structure.number]) {
+				SetConsoleTextAttribute(hConsole, 240);
+				wcout << L"il numero è primo";
+				SetConsoleTextAttribute(hConsole, 15);
+				cout << '\n';
+			}
+			else {
+				SetConsoleTextAttribute(hConsole, 11);
+				wcout << L"la fattorizzazione è ";
+				cout << structure.expression << '\n';
+			}
+			if (structure.Div_number != 1) {
+				SetConsoleTextAttribute(hConsole, 8);
+				wcout << "il numero dei divisori è ";
+				cout << structure.Div_number << '\n';
+				wcout << "la somma dei divisori è ";
+				cout << structure.Div_sum << '\n';
+				wcout << "il prodotto dei divisori è ";
+				if (structure.Div_product != 1)
+					cout << structure.Div_product << '\n';
+				else cout << structure.Divpr << '\n';
+			}
+		}
+		SetConsoleTextAttribute(hConsole, 15);
+	}
+}
+namespace Primitive 
+{
+	static bool prime(long long number)
+		{
+			bool is_prime = 1;
+			if (number == 1) return 0;
+			else if (number < size(PrimeNumbers.is_prime))
+				return PrimeNumbers.is_prime[number];
+			else {
+				if (number == 1) is_prime = 0;
+				for (int a = 2; a < number; a++)
+					if (number % a == 0) is_prime = 0;
+			}
+			return is_prime;
+		}
+	static double integral_log(int N) {
+			double sum = 0;
+			for (int x = 2; x <= N; x++)
+				sum += 1 / log(x);
+			return sum;
+		}
+	static wstring get_user_enum(wstring txt, int low, long long high)
+		{
+			using namespace EnumMod;
 
+			setlocale(LC_ALL, "");
+			switchcase option;
+			long long user_num;
+			wstring check;
+			do {
+				bool error = 1;
+				bool general_error = 0;
+				wcout << txt;
+				getline(wcin, check);
+				if (check == L"." || check.empty()) return check;
+				if (check.size() > 10) return L"";
+				option = convert_string_to_enum(check);
+				option = reassigne_enum(option);
+				if (option != r) return convert_enum_to_string(option);
+
+				string digits = "0123456789";
+				for (int ch = 0; ch < check.size(); ch++){
+					for (int chi = 0; chi < digits.size(); chi++) {
+						if (check.at(ch) == digits.at(chi))
+							error = 0;
+					}
+					if (error) general_error = 1;
+					error = 1;
+				}
+				if (general_error) user_num = 0;
+				else user_num = stoull(check);
+
+			} while (user_num < low || user_num > high);
+			return to_wstring(user_num);
+		}
+	static vector_t sieve_of_Erastothens(long long N, bool USE_pro_bar)
+		{
+			using namespace Prints;
+
+			vector <bool> is_prime(N + 1, 1);
+			vector <int> primes;
+			vector <int> counter;
+			int SPEED = 75;
+			const double BARWIDTH = 75;
+			const double COEFF = 0.3;
+			const int SQUARE = (int)sqrt(N) + 2;
+			const double NOTPRIMESIZE = (N - integral_log(N)) / COEFF;
+			int iter = 0;
+			system("cls");
+
+			if (N >= 100000 && USE_pro_bar) {
+				SetConsoleTextAttribute(hConsole, 112);
+				parallel_for(int(2), SQUARE, [&](int p) {
+					if (is_prime[p]) {
+						for (int i = pow(p, 2); i <= N; i += p) {
+							mtx.lock();
+							is_prime[i] = 0;
+							counter.push_back(0);
+							mtx.unlock();
+						}
+					}
+					if (iter % SPEED == 0) {
+						mtx.lock();
+						double progress = (double)size(counter) / NOTPRIMESIZE;
+						if (progress > 0.5) SPEED = 15;
+						if (progress > 1) progress = 1;
+						progress_bar(progress, BARWIDTH);
+						mtx.unlock();
+					}
+					iter++;
+				});
+				SetConsoleTextAttribute(hConsole, 15);
+			}
+
+			else for (int p = 2; p < SQUARE; p++) {
+				for (int i = pow(p, 2); i <= N; i += p)
+					is_prime[i] = 0;
+			}
+			if (USE_pro_bar) cout << string(BARWIDTH + 11, '\\') << "\n\nattendere\r";
+		
+			if (N >= 100'000 && USE_pro_bar) {
+				thread t1([&primes, &is_prime, &N]() {
+					for (long long p = 2; p < N + 1; p++)
+						if (is_prime[p]) primes.push_back(p);
+					lock_guard <mutex> lock(mtx);
+					is_done = 1;
+					cv.notify_one();
+				});
+				thread t2(print_circle);
+				t1.join();
+				t2.join();
+			}
+			else for (long long p = 2; p < N + 1; p++)
+					if (is_prime[p]) primes.push_back(p);
+			vector_t output = { is_prime, primes };
+			return output;
+		}
+}
+namespace Sort 
+{
 	static void heapify(vector <data_t>& vect, int n, int i) {
 		int largest = i;
 		int left = 2 * i + 1;
@@ -307,7 +404,7 @@ namespace STATIC_Functions
 			heapify(vect, n, largest);
 		}
 	}
-	static vector <data_t> heapSort(vector <data_t>& vect) {
+	static vector <data_t> heap_sort(vector <data_t>& vect) {
 		int n = vect.size();
 		for (int i = n / 2 - 1; i >= 0; i--) heapify(vect, n, i);
 		for (int i = n - 1; i > 0; i--) {
@@ -316,72 +413,15 @@ namespace STATIC_Functions
 		}
 		return vect;
 	}
-
-	static vector_t Sieve_of_Erastothens(long long N, bool USE_pro_bar)
-	{
-		vector <bool> is_prime(N + 1, 1);
-		vector <int> primes;
-		vector <int> counter;
-		int SPEED = 75;
-		const double BARWIDTH = 75;
-		const double COEFF = 0.3;
-		const int SQUARE = (int)sqrt(N) + 2;
-		const double NOTPRIMESIZE = (N - IntegralLog(N)) / COEFF;
-		int iter = 0;
-		system("cls");
-
-		if (N >= 100000 && USE_pro_bar) {
-			SetConsoleTextAttribute(hConsole, 112);
-			parallel_for(int(2), SQUARE, [&](int p) {
-				if (is_prime[p]) {
-					for (int i = pow(p, 2); i <= N; i += p) {
-						mtx.lock();
-						is_prime[i] = 0;
-						counter.push_back(0);
-						mtx.unlock();
-					}
-				}
-				if (iter % SPEED == 0) {
-					mtx.lock();
-					double progress = (double)size(counter) / NOTPRIMESIZE;
-					if (progress > 0.5) SPEED = 15;
-					if (progress > 1) progress = 1;
-					progress_Bar(progress, BARWIDTH);
-					mtx.unlock();
-				}
-				iter++;
-			});
-			SetConsoleTextAttribute(hConsole, 15);
-		}
-
-		else for (int p = 2; p < SQUARE; p++) {
-			for (int i = pow(p, 2); i <= N; i += p)
-				is_prime[i] = 0;
-		}
-		if (USE_pro_bar) cout << string(BARWIDTH + 11, '\\') << "\n\nattendere\r";
-		
-		if (N >= 100'000 && USE_pro_bar) {
-			thread t1([&primes, &is_prime, &N]() {
-				for (long long p = 2; p < N + 1; p++)
-					if (is_prime[p]) primes.push_back(p);
-				lock_guard <mutex> lock(mtx);
-				is_done = 1;
-				cv.notify_one();
-			});
-			thread t2(printCircle);
-			t1.join();
-			t2.join();
-		}
-		else for (long long p = 2; p < N + 1; p++)
-				if (is_prime[p]) primes.push_back(p);
-		vector_t output = { is_prime, primes };
-		return output;
-	}
-
+}
+namespace Operators
+{
 	static vector <compost_t> decompose_number(long long input)
 	{
+		using namespace Primitive;
+
 		if (input > PrimeNumbers.list_primes[size(PrimeNumbers.list_primes) - 1]) {
-			vector_t PrimeN = Sieve_of_Erastothens(input, 0);
+			vector_t PrimeN = sieve_of_Erastothens(input, 0);
 			for (int i = size(PrimeNumbers.list_primes); i < size(PrimeN.list_primes); i++) {
 				mtx.lock();
 				PrimeNumbers.list_primes.push_back(PrimeN.list_primes[i]);
@@ -417,9 +457,98 @@ namespace STATIC_Functions
 		else output[index].factors = input;
 		return output;
 	}
-
-	static wstring Cript(long long input)
+	static vector <wstring> fractioner(wstring polinomial)
 	{
+		vector <wstring> monomials;
+		wstring backup = polinomial;
+		wstring temp;
+		int parenthesis_balance = 0;
+		int p_balance = 0;
+		int find = 0;
+		for (int i = 0; i < backup.size(); i++) {
+			if (backup.at(i) == '(') parenthesis_balance++;
+			if ((parenthesis_balance == 0) && (backup.at(i) == '+')) {
+				temp = polinomial;
+				for (int finder = 0; finder < temp.size(); finder++) {
+					if (find == 0) {
+						if (temp.at(finder) == '(') p_balance++;
+						if ((p_balance == 0) && (temp.at(finder) == '+'))
+							find = finder;
+						if (temp.at(finder) == ')') p_balance--;
+					}
+				}
+				temp.erase(find);
+				monomials.push_back(temp);
+				polinomial.erase(0, find + 1);
+				find = 0;
+			}
+			if (backup.at(i) == ')') parenthesis_balance--;
+		}
+		monomials.push_back(polinomial);
+		return monomials;
+	}
+	static vector <int> decompose_string(wstring Terminal) {
+		int pass = 0;
+		int ciphres_element;
+		vector <int> ciphres;
+		for (int i = 0; i < Terminal.size(); i++) {
+			while (pass != 0) {
+				i++;
+				pass--;
+			}
+			if (i >= Terminal.size()) return ciphres;
+			if (i == Terminal.size() - 1)
+				ciphres_element = Terminal.at(i) - '0';
+			else if (i > Terminal.size() - 3) {
+				if (Terminal.at(i + 1) == '0') {
+					ciphres_element = 10 * (Terminal.at(i) - '0');
+					pass = 1;
+				}
+				else ciphres_element = Terminal.at(i) - '0';
+			}
+			else if (Terminal.at(i) == '.') {
+				ciphres_element = 10 * (Terminal.at(i + 1) - '0')
+					+ (Terminal.at(i + 2) - '0');
+				pass = 2;
+			}
+			else {
+				if (Terminal.at(i + 1) == '0') {
+					ciphres_element = 10 * (Terminal.at(i) - '0');
+					pass = 1;
+				}
+				else ciphres_element = Terminal.at(i) - '0';
+			}
+			ciphres.push_back(ciphres_element);
+		}
+		return ciphres;
+	}
+	static wstring standardize(wstring ToEvaluate)
+	{
+		int start = -1;
+		int end = -1;
+		for (int find = 0; find < ToEvaluate.size(); find++) {
+			switch (ToEvaluate.at(find)) {
+			case '<': start = find + 1;
+				break;
+			case '>': end = find;
+				break;
+			}
+			if (end != -1) break;
+		}
+		ToEvaluate.erase(end);
+		ToEvaluate.erase(0, start);
+		for (int space = ToEvaluate.size() - 1; space >= 0; space--)
+			if (ToEvaluate.at(space) == ' ') ToEvaluate.erase(space, 1);
+		return ToEvaluate;
+	}
+}
+namespace Calc 
+{
+	static wstring cript(long long input)
+	{
+		using namespace Primitive;
+		using namespace Operators;
+
 		int size = 0;
 		int product = 1;
 		do {
@@ -506,7 +635,7 @@ namespace STATIC_Functions
 					repeat = 1;
 				}
 				if (analyse != 1 && !prime(analyse)) {
-					analyse_string = Cript(analyse);
+					analyse_string = cript(analyse);
 					the_string.erase(0, the_string.find(')'));
 					the_string = part_of1 + analyse_string + the_string;
 					analyse = 1;
@@ -551,104 +680,10 @@ namespace STATIC_Functions
 		delete[] position;
 		return the_string;
 	}
-
-	static vector <wstring> fractioner(wstring polinomial)
+	static string fact_number(long long input)
 	{
-		vector <wstring> monomials;
-		wstring backup = polinomial;
-		wstring temp;
-		int parenthesis_balance = 0;
-		int p_balance = 0;
-		int find = 0;
-		for (int i = 0; i < backup.size(); i++) {
-			if (backup.at(i) == '(') parenthesis_balance++;
-			if ((parenthesis_balance == 0) && (backup.at(i) == '+')) {
-				temp = polinomial;
-				for (int finder = 0; finder < temp.size(); finder++) {
-					if (find == 0) {
-						if (temp.at(finder) == '(') p_balance++;
-						if ((p_balance == 0) && (temp.at(finder) == '+'))
-							find = finder;
-						if (temp.at(finder) == ')') p_balance--;
-					}
-				}
-				temp.erase(find);
-				monomials.push_back(temp);
-				polinomial.erase(0, find + 1);
-				find = 0;
-			}
-			if (backup.at(i) == ')') parenthesis_balance--;
-		}
-		monomials.push_back(polinomial);
-		return monomials;
-	}
+		using namespace Operators;
 
-	static int ExecuteStrings(wstring input)
-	{
-		int output = 0;
-		int values[15];
-		for (int i = 0; i < input.size(); i++)
-			if (input.at(i) == '.') input.erase(i, 1);
-		vector <wstring> monomials = fractioner(input);
-
-		int location;
-		bool presence = 1;
-		for (int i = 0; i < size(monomials); i++) {
-			if (monomials[i].at(0) == '(') {
-				for (int j = monomials[i].size() - 1; j >= 0; j--) {
-					if ((presence) && (monomials[i].at(j) == ')')) {
-						presence = 0;
-						location = j;
-					}
-				}
-				wstring temp = monomials[i];
-				temp.erase(location);
-				temp.erase(0, 1);
-				monomials[i].erase(0, location + 1);
-				values[i] = ExecuteStrings(temp) * (stoi(monomials[i]));
-			}
-			else values[i] = stoi(monomials[i]);
-			presence = 1;
-		}
-		for (int end = 0; end < size(monomials); end++) output += values[end];
-		return output;
-	}
-
-	static wstring Get_user_enum(wstring txt, int low, long long high)
-	{
-		setlocale(LC_ALL, "");
-		switchcase option;
-		long long user_num;
-		wstring check;
-		do {
-			bool error = 1;
-			bool general_error = 0;
-			wcout << txt;
-			getline(wcin, check);
-			if (check == L"." || check.empty()) return check;
-			if (check.size() > 10) return L"";
-			option = ConvertStringToEnum(check);
-			option = randomizer(option);
-			if (option != r) return ConvertEnumToString(option);
-
-			string digits = "0123456789";
-			for (int ch = 0; ch < check.size(); ch++){
-				for (int chi = 0; chi < digits.size(); chi++) {
-					if (check.at(ch) == digits.at(chi))
-						error = 0;
-				}
-				if (error) general_error = 1;
-				error = 1;
-			}
-			if (general_error) user_num = 0;
-			else user_num = stoull(check);
-
-		} while (user_num < low || user_num > high);
-		return to_wstring(user_num);
-	}
-
-	static string Fact_Number(long long input)
-	{
 		int size = 0;
 		int product = 1;
 		do {
@@ -681,8 +716,39 @@ namespace STATIC_Functions
 		output.erase(output.size() - 3);
 		return output;
 	}
+	static int execute_strings(wstring input)
+	{
+		using namespace Operators;
 
-	static divisor_t DivisorCalculator(string factor)
+		int output = 0;
+		int values[15];
+		for (int i = 0; i < input.size(); i++)
+			if (input.at(i) == '.') input.erase(i, 1);
+		vector <wstring> monomials = fractioner(input);
+
+		int location;
+		bool presence = 1;
+		for (int i = 0; i < size(monomials); i++) {
+			if (monomials[i].at(0) == '(') {
+				for (int j = monomials[i].size() - 1; j >= 0; j--) {
+					if ((presence) && (monomials[i].at(j) == ')')) {
+						presence = 0;
+						location = j;
+					}
+				}
+				wstring temp = monomials[i];
+				temp.erase(location);
+				temp.erase(0, 1);
+				monomials[i].erase(0, location + 1);
+				values[i] = execute_strings(temp) * (stoi(monomials[i]));
+			}
+			else values[i] = stoi(monomials[i]);
+			presence = 1;
+		}
+		for (int end = 0; end < size(monomials); end++) output += values[end];
+		return output;
+	}
+	static divisor_t divisor_calculator(string factor)
 	{
 		divisor_t output = { 1, 1, 1, "" };
 		vector <string> monomials;
@@ -745,19 +811,24 @@ namespace STATIC_Functions
 		}
 		return output;
 	}
-
+}
+namespace Execute 
+{
 	static data_t execute_simpledeg(long long input) {
-		data_t output = { input, Cript(input), 0, {}, "", 1, 1, 1, "" };
+		using namespace Calc;
+
+		data_t output = { input, cript(input), 0, {}, "", 1, 1, 1, "" };
 		return output;
 	}
-
 	static data_t execute_degree(long long input) {
-		data_t output = { input, Cript(input), 0, {}, "", 1, 1, 1, ""};
+		using namespace Calc;
+
+		data_t output = { input, cript(input), 0, {}, "", 1, 1, 1, ""};
 		int counter = 0;
 		int copy = input;
 		do {
 			output.sequence.push_back(copy);
-			copy = ExecuteStrings(Cript(copy));
+			copy = execute_strings(cript(copy));
 			counter++;
 			if (copy < 4) output.degree = counter + copy;
 		} while (copy != 1);
@@ -765,29 +836,31 @@ namespace STATIC_Functions
 		copy = input;
 		return output;
 	}
-
 	static data_t execute_simplefact(long long input) {
-		data_t output = { input, L"", 0, {}, Fact_Number(input), 1, 1, 1, "" };
+		using namespace Calc;
+
+		data_t output = { input, L"", 0, {}, fact_number(input), 1, 1, 1, "" };
 		return output;
 	}
-
 	static data_t execute_factor(long long input) {
+		using namespace Calc;
+
 		data_t output = { input, L"", 0, {}, "", 1, 1, 1, "" };
-		output.expression = Fact_Number(input);
-		divisor_t D = DivisorCalculator(output.expression);
+		output.expression = fact_number(input);
+		divisor_t D = divisor_calculator(output.expression);
 		output.Div_product = D.DivProduct;
 		output.Div_number = D.DivNumber;
 		output.Div_sum = D.DivSum;
 		output.Divpr = D.Div_pr;
 		return output;
 	}
-
 	static data_t execute_simple_d_f(long long input) {
-		data_t output = { input, Cript(input), 0, 
-			{}, Fact_Number(input), 1, 1, 1, ""};
+		using namespace Calc;
+
+		data_t output = { input, cript(input), 0, 
+			{}, fact_number(input), 1, 1, 1, ""};
 		return output;
 	}
-
 	static data_t execute_degfactor(long long input) {
 		data_t A = execute_degree(input);
 		data_t B = execute_factor(input);
@@ -795,65 +868,13 @@ namespace STATIC_Functions
 			B.expression, B.Div_number, B.Div_sum, B.Div_product, B.Divpr};
 		return output;
 	}
-
-	static vector <int> decompose_string(wstring Terminal) {
-		int pass = 0;
-		int ciphres_element;
-		vector <int> ciphres;
-		for (int i = 0; i < Terminal.size(); i++) {
-			while (pass != 0) {
-				i++;
-				pass--;
-			}
-			if (i >= Terminal.size()) return ciphres;
-			if (i == Terminal.size() - 1)
-				ciphres_element = Terminal.at(i) - '0';
-			else if (i > Terminal.size() - 3) {
-				if (Terminal.at(i + 1) == '0') {
-					ciphres_element = 10 * (Terminal.at(i) - '0');
-					pass = 1;
-				}
-				else ciphres_element = Terminal.at(i) - '0';
-			}
-			else if (Terminal.at(i) == '.') {
-				ciphres_element = 10 * (Terminal.at(i + 1) - '0')
-					+ (Terminal.at(i + 2) - '0');
-				pass = 2;
-			}
-			else {
-				if (Terminal.at(i + 1) == '0') {
-					ciphres_element = 10 * (Terminal.at(i) - '0');
-					pass = 1;
-				}
-				else ciphres_element = Terminal.at(i) - '0';
-			}
-			ciphres.push_back(ciphres_element);
-		}
-		return ciphres;
-	}
-
-	static wstring standardize(wstring ToEvaluate)
+}
+namespace Convalid 
+{
+	static wstring syntax_validator(wstring ToEvaluate)
 	{
-		int start = -1;
-		int end = -1;
-		for (int find = 0; find < ToEvaluate.size(); find++) {
-			switch (ToEvaluate.at(find)) {
-			case '<': start = find + 1;
-				break;
-			case '>': end = find;
-				break;
-			}
-			if (end != -1) break;
-		}
-		ToEvaluate.erase(end);
-		ToEvaluate.erase(0, start);
-		for (int space = ToEvaluate.size() - 1; space >= 0; space--)
-			if (ToEvaluate.at(space) == ' ') ToEvaluate.erase(space, 1);
-		return ToEvaluate;
-	}
+		using namespace Operators;
 
-	static wstring Syntax_Validator(wstring ToEvaluate)
-	{
 		if (ToEvaluate == L"f") return L"";
 		vector <wstring> mono;
 		string charsAllowed = "0123456789+(_).";
@@ -1022,7 +1043,7 @@ namespace STATIC_Functions
 				if (local_error) return L"USELESS_BRACKETS";
 				stack.erase(0, 1);
 				stack.erase(finder);
-				wstring message = Syntax_Validator(L"<" + stack + L">");
+				wstring message = syntax_validator(L"<" + stack + L">");
 				if (!message.empty()) return message;
 			}
 			else if (mono[monomial].at(0) == ')') return L"INVERTED_BRACKETS";
@@ -1033,9 +1054,10 @@ namespace STATIC_Functions
 		}
 		return L"";
 	}
-
-	static long long NumberConverter(long long root, wstring M)
+	static long long number_converter(long long root, wstring M)
 	{
+		using namespace Operators;
+
 		bool WhichWay = 1, XOutOfRange = 0;
 		bool UselessExponent = 0, pass = 0;
 		bool XSubscriptOutOfRange = 0;
@@ -1065,9 +1087,10 @@ namespace STATIC_Functions
 		if (XOutOfRange) return -1;
 		return root;
 	}
-
-	static long long StringConverter(wstring ToEvaluate)
+	static long long string_converter(wstring ToEvaluate)
 	{
+		using namespace Operators;
+
 		long long integer = 1;
 		wstring backup, back;
 		vector <wstring> mono = fractioner(ToEvaluate);
@@ -1078,7 +1101,7 @@ namespace STATIC_Functions
 			wstring M = mono[monomial];
 			long long root;
 			bool WhichWay = 0;
-			if (M.at(0) != '(') root = NumberConverter(1, M);
+			if (M.at(0) != '(') root = number_converter(1, M);
 			else {
 				TAG = 1;
 				for (int i = M.size() - 1; i > 0; i--) {
@@ -1092,22 +1115,24 @@ namespace STATIC_Functions
 				backup.erase(0, finder);
 				back.erase(finder - 1);
 				back.erase(0, 1);
-				root = StringConverter(back);
-				root = NumberConverter(root, backup);
+				root = string_converter(back);
+				root = number_converter(root, backup);
 			}
 			if (root < 0) return root;
 			else integer *= root;
 		}
 		return integer;
 	}
-
-	static void CodeConverter(wstring ToEvaluate, wstring message, bool ShowErrors)
+	static void code_converter(wstring ToEvaluate, wstring message, bool ShowErrors)
 	{
+		using namespace Operators;
+		using namespace Calc;
+
 		setlocale(LC_ALL, "");
 		long long number;
 		if (ToEvaluate != L"f") {
 			ToEvaluate = standardize(ToEvaluate);
-			number = StringConverter(ToEvaluate);
+			number = string_converter(ToEvaluate);
 			if (ShowErrors || number > 0) {
 				SetConsoleTextAttribute(hConsole, 11);
 				wcout << "codice <" << ToEvaluate << "> :\n";
@@ -1132,7 +1157,7 @@ namespace STATIC_Functions
 				cout << "ERR[400]: ";
 				message == L"1" ? cout << "EQUAL_MONOMIALS\n" : cout << "SIMILIAR_MONOMIALS\n";
 				SetConsoleTextAttribute(hConsole, 2);
-				wcout << "codice corretto: <" << Cript(number) << ">\n";
+				wcout << "codice corretto: <" << cript(number) << ">\n";
 				SetConsoleTextAttribute(hConsole, 15);
 			}
 			if (number > 0) {
@@ -1143,9 +1168,15 @@ namespace STATIC_Functions
 			}
 		}
 	}
-
-	static switchcase CodeToNumber()
+}
+namespace Evaluator 
+{
+	static switchcase code_to_number()
 	{
+		using namespace EnumMod;
+		using namespace Operators;
+		using namespace Convalid;
+
 		setlocale(LC_ALL, "");
 		wstring ToEvaluate, message;
 		switchcase option;
@@ -1166,14 +1197,14 @@ namespace STATIC_Functions
 			do {
 				cout << "inserire una stringa (f = fine input)\n";
 				getline(wcin, ToEvaluate);
-				option = ConvertStringToEnum(ToEvaluate);
-				option = randomizer(option);
+				option = convert_string_to_enum(ToEvaluate);
+				option = reassigne_enum(option);
 				if (option != r) {
 					cout << '\n';
 					return option;
 				}
 				if (ToEvaluate == L".") return rnd;
-				message = Syntax_Validator(ToEvaluate);
+				message = syntax_validator(ToEvaluate);
 				if (message.size() > 1) {
 					SetConsoleTextAttribute(hConsole, 4);
 					wcout << "ERR[404]: " << message << '\n';
@@ -1193,14 +1224,14 @@ namespace STATIC_Functions
 					counter++;
 				}
 			}
-			if (counter == 0) CodeConverter(ToEvaluate, message, ShowErrors);
+			if (counter == 0) code_converter(ToEvaluate, message, ShowErrors);
 			else for (int i = 0; i < pow(10, counter); i++) {
 				string j = to_string(i);
 				int zero_counter = counter - j.size();
 				for (int k = 0; k < zero_counter; k++) j = "0" + j;
 				for (int k = 0; k < j.size(); k++)
 					backup.replace(pos[k], 1, wstring(1, j.at(k)));
-				message = Syntax_Validator(backup);
+				message = syntax_validator(backup);
 				if (message.size() > 1 && ShowErrors) {
 					SetConsoleTextAttribute(hConsole, 11);
 					wcout << "codice " << backup << " :\n";
@@ -1208,12 +1239,15 @@ namespace STATIC_Functions
 					wcout << "ERR[404]: " << message << '\n';
 					SetConsoleTextAttribute(hConsole, 15);
 				}
-				else CodeConverter(backup, message, ShowErrors);
+				else code_converter(backup, message, ShowErrors);
 			}
 		} while (0 == 0);
 	}
-
 	static switchcase repeater(string message, data_t CPU(long long input)) {
+		using namespace Primitive;
+		using namespace EnumMod;
+		using namespace Prints;
+
 		setlocale(LC_ALL, "");
 		wstring n_ = to_wstring(GlobalMax), Input;
 		switchcase option;
@@ -1226,12 +1260,12 @@ namespace STATIC_Functions
 			SetConsoleTextAttribute(hConsole, 14);
 			wstring txt = L"inserire un numero tra 2 e " + n_ + L" (1 = fine input)\n";
 			SetConsoleTextAttribute(hConsole, 15);
-			do Input = Get_user_enum(txt, 1, GlobalMax);
+			do Input = get_user_enum(txt, 1, GlobalMax);
 			while (Input.empty());
 			if (Input == L".") return rnd;
 			else {
-				option = ConvertStringToEnum(Input);
-				option = randomizer(option);
+				option = convert_string_to_enum(Input);
+				option = reassigne_enum(option);
 				if (option != r) {
 					cout << '\n';
 					return option;
@@ -1239,15 +1273,19 @@ namespace STATIC_Functions
 				input = stoi(Input);
 				if (input != 1) {
 					result = CPU(input);
-					printf(result);
+					data_printf(result);
 				}
 			}
 		} while (input != 1);
 		return r;
 	}
-
 	static switchcase loop(string message, data_t CPU(long long input))
 	{
+		using namespace Primitive;
+		using namespace EnumMod;
+		using namespace Prints;
+		using Sort::heap_sort;
+
 		setlocale(LC_ALL, "");
 		wstring n_ = to_wstring(GlobalMax), Input;
 		wstring txt;
@@ -1261,11 +1299,11 @@ namespace STATIC_Functions
 		wcout << "gli estremi dell'intervallo devono essere compresi tra 1 e " << n_ << "\n\n";
 		SetConsoleTextAttribute(hConsole, 15);
 		txt = L"inserisci il valore di inizio della ricerca\n";
-		do Input = Get_user_enum(txt, 1, GlobalMax);
+		do Input = get_user_enum(txt, 1, GlobalMax);
 		while (Input.empty());
 		if (Input == L".") return rnd;
-		option = ConvertStringToEnum(Input);
-		option = randomizer(option);
+		option = convert_string_to_enum(Input);
+		option = reassigne_enum(option);
 		if (option != r) {
 			cout << '\n';
 			return option;
@@ -1273,11 +1311,11 @@ namespace STATIC_Functions
 		long long lower_bound = stoi(Input) + 1;
 
 		txt = L"inserisci il valore finale della ricerca\n";
-		do Input = Get_user_enum(txt, 1, GlobalMax);
+		do Input = get_user_enum(txt, 1, GlobalMax);
 		while (Input.empty());
 		if (Input == L".") return rnd;
-		option = ConvertStringToEnum(Input);
-		option = randomizer(option);
+		option = convert_string_to_enum(Input);
+		option = reassigne_enum(option);
 		if (option != r) {
 			cout << '\n';
 			return option;
@@ -1306,7 +1344,7 @@ namespace STATIC_Functions
 					steady_clock::time_point stop = steady_clock::now();
 					SetConsoleTextAttribute(hConsole, 112);
 					double Progress = (double)size(data) / datalenght;
-					progress_Bar(Progress, Barwidth);
+					progress_bar(Progress, Barwidth);
 					int time = duration_cast <milliseconds> (stop - begin).count();
 					SetConsoleTextAttribute(hConsole, 15);
 					double time_rem = (time / Progress) * (1 - Progress);
@@ -1319,16 +1357,16 @@ namespace STATIC_Functions
 			});
 			cout << string(Barwidth + 11, '\\') << '\n';		
 			thread t1([&data]() {
-				data = heapSort(data);
+				data = heap_sort(data);
 				lock_guard <mutex> lock(mtx);
 				is_done = 1;
 				cv.notify_one();
 			});
-			thread t2(printCircle);
+			thread t2(print_circle);
 			t2.join();
 			t1.join();
 			system("cls");
-			for (int x = 0; x < size(data); ++x) printf(data[x]);
+			for (int x = 0; x < size(data); ++x) data_printf(data[x]);
 			steady_clock::time_point end = steady_clock::now();
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
 				 << "[ms]\n\n";
@@ -1337,7 +1375,7 @@ namespace STATIC_Functions
 			steady_clock::time_point begin = steady_clock::now();
 			for (long long set = lower_bound; set < upper_bound; set++) {
 				data_t data_element = CPU(set);
-				printf(data_element);
+				data_printf(data_element);
 			}
 			steady_clock::time_point end = steady_clock::now();
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
@@ -1350,9 +1388,14 @@ namespace STATIC_Functions
 		else return r;
 	}
 }
+
 int main()
 {
-	using namespace STATIC_Functions;
+	using namespace Primitive;
+	using namespace EnumMod;
+	using namespace Execute;
+	using namespace Evaluator;
+
 	setlocale(LC_ALL, "");
 	string simpledeg = "il programma calcola solo la codifica di un intero";
 	string simplefact = "il programma calcola solo la fattorizzazione di un intero";
@@ -1387,8 +1430,8 @@ int main()
 				text = L"fino a quale numero cercare i numeri primi?\n";
 				text.append(L"un limite più alto comporta un tempo di attesa più lungo\n");
 				text.append(L"ES.: 22'500'000 = 1 minuto di attesa circa\n");
-				wstring G = Get_user_enum(text, 0, GLOBAL_CAP);
-				if (ConvertStringToEnum(G) != r) redo = 1;
+				wstring G = get_user_enum(text, 0, GLOBAL_CAP);
+				if (convert_string_to_enum(G) != r) redo = 1;
 				else if (G.empty()) redo = 1;
 				else if (G == L".") {
 					system("cls");
@@ -1407,7 +1450,7 @@ int main()
 			if (global != 0 || start) {
 				steady_clock::time_point begin = steady_clock::now();
 				GlobalMax = global;
-				PrimeNumbers = Sieve_of_Erastothens(GlobalMax, 1);
+				PrimeNumbers = sieve_of_Erastothens(GlobalMax, 1);
 				steady_clock::time_point end = steady_clock::now();
 				int delta = duration_cast <milliseconds> (end - begin).count();
 				int exception_delta = duration_cast <microseconds> (end - begin).count();
@@ -1458,7 +1501,7 @@ int main()
 		cout << "selezionando più operazioni, il tempo di calcolo aumenta\n";
 		SetConsoleTextAttribute(hConsole, 15);
 		getline(wcin, vel);
-		option = ConvertStringToEnum(vel);
+		option = convert_string_to_enum(vel);
 		do {
 			if (vel.size() == 1) {
 				skip = 0;
@@ -1487,7 +1530,7 @@ int main()
 						&& vel.at(0) != '1' && vel.at(0) != '.';
 				}
 				else {
-					option = ConvertStringToEnum(vel);
+					option = convert_string_to_enum(vel);
 					stop = option == r;
 					skip = option != r;
 				}
@@ -1502,7 +1545,7 @@ int main()
 			stop = 0;
 		} while (!skip);
 		cout << "\n\n";
-		option = randomizer(option);
+		option = reassigne_enum(option);
 		do {
 			system("cls");
 			switch (option) {
@@ -1530,7 +1573,7 @@ int main()
 				break;
 			case dt: option = loop(AllMessage, execute_degfactor);
 				break;
-			case ctn: option = CodeToNumber();
+			case ctn: option = code_to_number();
 				break;
 			}
 			if (option == rnd) {
@@ -1539,6 +1582,6 @@ int main()
 				return 0;
 			}
 		} while (option != r);
-	} while (0 == 0);
+	} while (true);
 }
 // program_END
