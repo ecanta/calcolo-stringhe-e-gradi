@@ -20,7 +20,13 @@ using namespace chrono;
 using Concurrency::parallel_for;
 
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-enum switchcase { cc, cf, ccf, dc, df, dcf, ctn, rnd, r };
+enum switchcase{ 
+	cc, ccc, cf, 
+	cff, ccf, ct, 
+	dc, dcc, df, 
+	dff, dcf, dt, 
+	ctn, rnd, r 
+};
 const long long GLOBAL_CAP = pow(10, 10);
 long long GlobalMax = pow(10, 10);
 typedef struct {
@@ -57,21 +63,33 @@ namespace STATIC_Functions
 {
 	static unordered_map <wstring, switchcase> stringToEnumMap = {
 		{L"cc", switchcase::cc},
+		{L"ccc", switchcase::ccc},
 		{L"cf", switchcase::cf},
+		{L"cff", switchcase::cff},
 		{L"ccf", switchcase::ccf},
+		{L"ct", switchcase::ct},
 		{L"dc", switchcase::dc},
+		{L"dcc", switchcase::dcc},
 		{L"df", switchcase::df},
+		{L"dff", switchcase::dff},
 		{L"dcf", switchcase::dcf},
+		{L"dt", switchcase::dt},
 		{L"ctn", switchcase::ctn},
 		{L"rnd", switchcase::rnd}
 	};
 	static unordered_map <switchcase, wstring> enumToStringMap = {
 		{switchcase::cc, L"cc"},
+		{switchcase::ccc, L"ccc"},
 		{switchcase::cf, L"cf"},
+		{switchcase::cff, L"cff"},
 		{switchcase::ccf, L"ccf"},
+		{switchcase::ct, L"ct"},
 		{switchcase::dc, L"dc"},
+		{switchcase::dcc, L"dcc"},
 		{switchcase::df, L"df"},
+		{switchcase::dff, L"dff"},
 		{switchcase::dcf, L"dcf"},
+		{switchcase::dt, L"dt"},
 		{switchcase::ctn, L"ctn"},
 		{switchcase::rnd, L"rnd"}
 	};
@@ -120,6 +138,8 @@ namespace STATIC_Functions
 				SetConsoleTextAttribute(hConsole, 11);
 				wcout << L"la fattorizzazione è ";
 				cout << structure.expression << '\n';
+			}
+			if (structure.Div_number != 1) {
 				SetConsoleTextAttribute(hConsole, 8);
 				wcout << "il numero dei divisori è ";
 				cout << structure.Div_number << '\n';
@@ -138,21 +158,35 @@ namespace STATIC_Functions
 		if (option == rnd) {
 			random_device rng;
 			mt19937 gen(rng());
-			uniform_int_distribution<> dis(0, 6);
+			uniform_int_distribution<> dis(0, 13);
 			switch (dis(gen)) {
 			case 0: return cc;
 				break;
-			case 1: return cf;
+			case 1: return ccc;
 				break;
-			case 2: return ccf;
+			case 2: return cf;
 				break;
-			case 3: return dc;
+			case 3: return cff;
 				break;
-			case 4: return df;
+			case 4: return ccf;
 				break;
 			case 5: return dcf;
 				break;
-			case 6: return ctn;
+			case 6: return ct;
+				break;
+			case 7: return dc;
+				break;
+			case 8: return dcc;
+				break;
+			case 9: return df;
+				break;
+			case 10: return dff;
+				break;
+			case 11: return dff;
+				break;
+			case 12: return dt;
+				break;
+			case 13: return ctn;
 				break;
 			}
 		}
@@ -182,6 +216,7 @@ namespace STATIC_Functions
 
 	static void progress_Bar(double ratio, double barWidth)
 	{
+		SetConsoleCursorPosition(hConsole, { 0, 0 });
 		cout << "[[";
 		int pos = (int)(barWidth * ratio);
 		for (int i = 0; i < barWidth; ++i) {
@@ -198,6 +233,7 @@ namespace STATIC_Functions
 	static void printCircle()
 	{
 		COORD coord;
+		system("cls");
 		int arc = 270;
 		const double SPEED = 50;
 		const double GAP = 0.05;
@@ -292,6 +328,8 @@ namespace STATIC_Functions
 		const int SQUARE = (int)sqrt(N) + 2;
 		const double NOTPRIMESIZE = (N - IntegralLog(N)) / COEFF;
 		int iter = 0;
+		system("cls");
+
 		if (N >= 100000 && USE_pro_bar) {
 			SetConsoleTextAttribute(hConsole, 112);
 			parallel_for(int(2), SQUARE, [&](int p) {
@@ -708,8 +746,13 @@ namespace STATIC_Functions
 		return output;
 	}
 
-	static data_t coredegree(long long input) {
-		data_t output = { input, L"", 0, {}, "", 1, 1, 1, "" };
+	static data_t execute_simpledeg(long long input) {
+		data_t output = { input, Cript(input), 0, {}, "", 1, 1, 1, "" };
+		return output;
+	}
+
+	static data_t execute_degree(long long input) {
+		data_t output = { input, Cript(input), 0, {}, "", 1, 1, 1, ""};
 		int counter = 0;
 		int copy = input;
 		do {
@@ -723,7 +766,12 @@ namespace STATIC_Functions
 		return output;
 	}
 
-	static data_t corefactor(long long input) {
+	static data_t execute_simplefact(long long input) {
+		data_t output = { input, L"", 0, {}, Fact_Number(input), 1, 1, 1, "" };
+		return output;
+	}
+
+	static data_t execute_factor(long long input) {
 		data_t output = { input, L"", 0, {}, "", 1, 1, 1, "" };
 		output.expression = Fact_Number(input);
 		divisor_t D = DivisorCalculator(output.expression);
@@ -734,9 +782,15 @@ namespace STATIC_Functions
 		return output;
 	}
 
-	static data_t coredegfactor(long long input) {
-		data_t A = coredegree(input);
-		data_t B = corefactor(input);
+	static data_t execute_simple_d_f(long long input) {
+		data_t output = { input, Cript(input), 0, 
+			{}, Fact_Number(input), 1, 1, 1, ""};
+		return output;
+	}
+
+	static data_t execute_degfactor(long long input) {
+		data_t A = execute_degree(input);
+		data_t B = execute_factor(input);
 		data_t output = {input, A.code, A.degree, A.sequence, 
 			B.expression, B.Div_number, B.Div_sum, B.Div_product, B.Divpr};
 		return output;
@@ -1232,26 +1286,32 @@ namespace STATIC_Functions
 
 		if (upper_bound < lower_bound) swap(lower_bound, upper_bound);
 		long long datalenght = upper_bound - lower_bound;
-
 		char choice;
 		cout << "vuoi utilizzare la ricerca veloce? (non stampa direttamente)\n";
 		cout << "immetti s = si oppure n = no\t";
 		cin >> choice;
 		cout << '\n';
 
+		system("cls");
 		if (choice == 's') {
 			int iter = 0;
 			atomic <double> Progress = 0;
 			steady_clock::time_point begin = steady_clock::now();
-			SetConsoleTextAttribute(hConsole, 112);
 			parallel_for(long long(lower_bound), upper_bound, [&](long long set) {
 
 				data_t data_element = CPU(set);
 				mtx.lock();
 				data.push_back(data_element);
-				if (iter % 100 == 0) {
+				if (iter % 200 == 0) {
+					steady_clock::time_point stop = steady_clock::now();
+					SetConsoleTextAttribute(hConsole, 112);
 					double Progress = (double)size(data) / datalenght;
 					progress_Bar(Progress, Barwidth);
+					int time = duration_cast <milliseconds> (stop - begin).count();
+					SetConsoleTextAttribute(hConsole, 15);
+					double time_rem = (time / Progress) * (1 - Progress);
+					int time_seconds = (double) time_rem / 1000;
+					cout << "\ntempo rimanente: " << time_seconds << " [secondi] ";
 				}
 				iter++;
 				mtx.unlock();
@@ -1294,9 +1354,14 @@ int main()
 {
 	using namespace STATIC_Functions;
 	setlocale(LC_ALL, "");
-	string defact_message = "il programma calcola la fattorizzazione di una serie di numeri";
+	string simpledeg = "il programma calcola solo la codifica di un intero";
+	string simplefact = "il programma calcola solo la fattorizzazione di un intero";
+	string def_sct = "il programma calcola solo codifica e fattorizzazione";
+	string desimpledeg = "il programma calcola solo la codifica di una serie";
+	string desimplefact = "il programma calcola solo la fattorizzazione di una serie";
+	string defact_message = "il programma calcola la fattorizzazione di una serie";
 	defact_message.append("\ne numero, somma e prodotto dei divisori");
-	string deg_message = "il programma calcola codice, sequenza e grado di una serie di numeri";
+	string deg_message = "il programma calcola codice, sequenza e grado di una serie";
 	string fact_message = "il programma calcola la fattorizzazione di un intero";
 	fact_message.append("\ne numero, somma e prodotto dei divisori");
 	string message = "il programma calcola codice, sequenza e grado di un intero";
@@ -1384,9 +1449,13 @@ int main()
 		cout << "\t'c' = calcolo\n";
 		cout << "\t'd' = debug\n";
 		cout << "caratteri seguenti:\n";
-		cout << "\t'c' = codifica, sequenza e grado\n";
-		cout << "\t'f' = fattoizzazione e dati dei divisori\n";
-		wcout << L"\t\"cf\" = ['c' + 'f'] (impiega più tempo)\n";
+		cout << "\t'c' = solo codifica\n";
+		cout << "\t\"cc\" = codifica, sequenza e grado\n";
+		cout << "\t'f' = scomposizione in fattori primi\n";
+		cout << "\t\"ff\" = fattoizzazione e dati dei divisori\n";
+		cout << "\t\"cf\" = codifica e fattorizzazione\n";
+		cout << "\t\"t\" = tutti i dati\n";
+		cout << "selezionando più operazioni, il tempo di calcolo aumenta\n";
 		SetConsoleTextAttribute(hConsole, 15);
 		getline(wcin, vel);
 		option = ConvertStringToEnum(vel);
@@ -1437,17 +1506,29 @@ int main()
 		do {
 			system("cls");
 			switch (option) {
-			case cc: option = repeater(message, coredegree);
+			case cc: option = repeater(simpledeg, execute_simpledeg);
 				break;
-			case cf: option = repeater(fact_message, corefactor);
+			case ccc: option = repeater(message, execute_degree);
 				break;
-			case ccf: option = repeater(AllMessage, coredegfactor);
+			case cf: option = repeater(simplefact, execute_simplefact);
 				break;
-			case dc: option = loop(deg_message, coredegree);
+			case cff: option = repeater(fact_message, execute_factor);
 				break;
-			case df: option = loop(defact_message, corefactor);
+			case ccf: option = repeater(def_sct, execute_simple_d_f);
 				break;
-			case dcf: option = loop(AllMessage, coredegfactor);
+			case ct: option = repeater(AllMessage, execute_degfactor);
+				break;
+			case dc: option = loop(desimpledeg, execute_simpledeg);
+				break;
+			case dcc: option = loop(deg_message, execute_degree);
+				break;
+			case df: option = loop(desimplefact, execute_simplefact);
+				break;
+			case dff: option = loop(defact_message, execute_factor);
+				break;
+			case dcf: option = loop(def_sct, execute_simple_d_f);
+				break;
+			case dt: option = loop(AllMessage, execute_degfactor);
 				break;
 			case ctn: option = CodeToNumber();
 				break;
