@@ -51,15 +51,15 @@ typedef struct {
 	string Divpr;
 } data_t;
 vector_t PrimeNumbers;
-enum switchcase{ 
-	cc, ccc, cf, 
-	cff, ccf, ct, 
-	dc, dcc, df, 
-	dff, dcf, dt, 
-	ctn, rnd, r 
+enum switchcase {
+	cc, ccc, cf,
+	cff, ccf, ct,
+	dc, dcc, df,
+	dff, dcf, dt,
+	ctn, rnd, r
 };
 
-namespace EnumMod 
+namespace EnumMod
 {
 	static unordered_map <wstring, switchcase> stringToEnumMap = {
 		{L"cc", switchcase::cc},
@@ -147,7 +147,7 @@ namespace EnumMod
 		else return option;
 	}
 }
-namespace Prints 
+namespace Prints
 {
 	static void progress_bar(double ratio, double barWidth)
 	{
@@ -271,125 +271,125 @@ namespace Prints
 		SetConsoleTextAttribute(hConsole, 15);
 	}
 }
-namespace Primitive 
+namespace Primitive
 {
 	static bool prime(long long number)
-		{
-			bool is_prime = 1;
-			if (number == 1) return 0;
-			else if (number < size(PrimeNumbers.is_prime))
-				return PrimeNumbers.is_prime[number];
-			else {
-				if (number == 1) is_prime = 0;
-				for (int a = 2; a < number; a++)
-					if (number % a == 0) is_prime = 0;
-			}
-			return is_prime;
+	{
+		bool is_prime = 1;
+		if (number == 1) return 0;
+		else if (number < size(PrimeNumbers.is_prime))
+			return PrimeNumbers.is_prime[number];
+		else {
+			if (number == 1) is_prime = 0;
+			for (int a = 2; a < number; a++)
+				if (number % a == 0) is_prime = 0;
 		}
+		return is_prime;
+	}
 	static double integral_log(int N) {
-			double sum = 0;
-			for (int x = 2; x <= N; x++)
-				sum += 1 / log(x);
-			return sum;
-		}
+		double sum = 0;
+		for (int x = 2; x <= N; x++)
+			sum += 1 / log(x);
+		return sum;
+	}
 	static wstring get_user_enum(wstring txt, int low, long long high)
-		{
-			using namespace EnumMod;
+	{
+		using namespace EnumMod;
 
-			setlocale(LC_ALL, "");
-			switchcase option;
-			long long user_num;
-			wstring check;
-			do {
-				bool error = 1;
-				bool general_error = 0;
-				wcout << txt;
-				getline(wcin, check);
-				if (check == L"." || check.empty()) return check;
-				if (check.size() > 10) return L"";
-				option = convert_string_to_enum(check);
-				option = reassigne_enum(option);
-				if (option != r) return convert_enum_to_string(option);
+		setlocale(LC_ALL, "");
+		switchcase option;
+		long long user_num;
+		wstring check;
+		do {
+			bool error = 1;
+			bool general_error = 0;
+			wcout << txt;
+			getline(wcin, check);
+			if (check == L"." || check.empty()) return check;
+			if (check.size() > 10) return L"";
+			option = convert_string_to_enum(check);
+			option = reassigne_enum(option);
+			if (option != r) return convert_enum_to_string(option);
 
-				string digits = "0123456789";
-				for (int ch = 0; ch < check.size(); ch++){
-					for (int chi = 0; chi < digits.size(); chi++) {
-						if (check.at(ch) == digits.at(chi))
-							error = 0;
-					}
-					if (error) general_error = 1;
-					error = 1;
+			string digits = "0123456789";
+			for (int ch = 0; ch < check.size(); ch++) {
+				for (int chi = 0; chi < digits.size(); chi++) {
+					if (check.at(ch) == digits.at(chi))
+						error = 0;
 				}
-				if (general_error) user_num = 0;
-				else user_num = stoull(check);
+				if (error) general_error = 1;
+				error = 1;
+			}
+			if (general_error) user_num = 0;
+			else user_num = stoull(check);
 
-			} while (user_num < low || user_num > high);
-			return to_wstring(user_num);
-		}
+		} while (user_num < low || user_num > high);
+		return to_wstring(user_num);
+	}
 	static vector_t sieve_of_Erastothens(long long N, bool USE_pro_bar)
-		{
-			using namespace Prints;
+	{
+		using namespace Prints;
 
-			vector <bool> is_prime(N + 1, 1);
-			vector <int> primes;
-			vector <int> counter;
-			int SPEED = 75;
-			const double BARWIDTH = 75;
-			const double COEFF = 0.3;
-			const int SQUARE = (int)sqrt(N) + 2;
-			const double NOTPRIMESIZE = (N - integral_log(N)) / COEFF;
-			int iter = 0;
-			system("cls");
+		vector <bool> is_prime(N + 1, 1);
+		vector <int> primes;
+		vector <int> counter;
+		int SPEED = 75;
+		const double BARWIDTH = 75;
+		const double COEFF = 0.3;
+		const int SQUARE = (int)sqrt(N) + 2;
+		const double NOTPRIMESIZE = (N - integral_log(N)) / COEFF;
+		int iter = 0;
+		system("cls");
 
-			if (N >= 100000 && USE_pro_bar) {
-				SetConsoleTextAttribute(hConsole, 112);
-				parallel_for(int(2), SQUARE, [&](int p) {
-					if (is_prime[p]) {
-						for (int i = pow(p, 2); i <= N; i += p) {
-							mtx.lock();
-							is_prime[i] = 0;
-							counter.push_back(0);
-							mtx.unlock();
-						}
-					}
-					if (iter % SPEED == 0) {
+		if (N >= 100000 && USE_pro_bar) {
+			SetConsoleTextAttribute(hConsole, 112);
+			parallel_for(int(2), SQUARE, [&](int p) {
+				if (is_prime[p]) {
+					for (int i = pow(p, 2); i <= N; i += p) {
 						mtx.lock();
-						double progress = (double)size(counter) / NOTPRIMESIZE;
-						if (progress > 0.5) SPEED = 15;
-						if (progress > 1) progress = 1;
-						progress_bar(progress, BARWIDTH);
+						is_prime[i] = 0;
+						counter.push_back(0);
 						mtx.unlock();
 					}
-					iter++;
+				}
+				if (iter % SPEED == 0) {
+					mtx.lock();
+					double progress = (double)size(counter) / NOTPRIMESIZE;
+					if (progress > 0.5) SPEED = 15;
+					if (progress > 1) progress = 1;
+					progress_bar(progress, BARWIDTH);
+					mtx.unlock();
+				}
+				iter++;
 				});
-				SetConsoleTextAttribute(hConsole, 15);
-			}
-
-			else for (int p = 2; p < SQUARE; p++) {
-				for (int i = pow(p, 2); i <= N; i += p)
-					is_prime[i] = 0;
-			}
-			if (USE_pro_bar) cout << string(BARWIDTH + 11, '\\') << "\n\nattendere\r";
-		
-			if (N >= 100'000 && USE_pro_bar) {
-				thread t1([&primes, &is_prime, &N]() {
-					for (long long p = 2; p < N + 1; p++)
-						if (is_prime[p]) primes.push_back(p);
-					lock_guard <mutex> lock(mtx);
-					is_done = 1;
-					cv.notify_one();
-				});
-				thread t2(print_circle);
-				t1.join();
-				t2.join();
-			}
-			else for (long long p = 2; p < N + 1; p++)
-					if (is_prime[p]) primes.push_back(p);
-			vector_t output = { is_prime, primes };
-			return output;
+			SetConsoleTextAttribute(hConsole, 15);
 		}
+
+		else for (int p = 2; p < SQUARE; p++) {
+			for (int i = pow(p, 2); i <= N; i += p)
+				is_prime[i] = 0;
+		}
+		if (USE_pro_bar) cout << string(BARWIDTH + 11, '\\') << "\n\nattendere\r";
+
+		if (N >= 100'000 && USE_pro_bar) {
+			thread t1([&primes, &is_prime, &N]() {
+				for (long long p = 2; p < N + 1; p++)
+					if (is_prime[p]) primes.push_back(p);
+				lock_guard <mutex> lock(mtx);
+				is_done = 1;
+				cv.notify_one();
+				});
+			thread t2(print_circle);
+			t1.join();
+			t2.join();
+		}
+		else for (long long p = 2; p < N + 1; p++)
+			if (is_prime[p]) primes.push_back(p);
+		vector_t output = { is_prime, primes };
+		return output;
+	}
 }
-namespace Sort 
+namespace Sort
 {
 	static void heapify(vector <data_t>& vect, int n, int i) {
 		int largest = i;
@@ -522,27 +522,30 @@ namespace Operators
 		}
 		return ciphres;
 	}
-	static wstring standardize(wstring ToEvaluate)
+	static wstring standardize(wstring ToEvaluate, bool NecBoundary)
 	{
-		int start = -1;
-		int end = -1;
-		for (int find = 0; find < ToEvaluate.size(); find++) {
-			switch (ToEvaluate.at(find)) {
-			case '<': start = find + 1;
-				break;
-			case '>': end = find;
-				break;
+		int start = -1, end = -1;
+		if (NecBoundary) {
+			for (int find = 0; find < ToEvaluate.size(); find++) {
+				switch (ToEvaluate.at(find)) {
+				case '<': start = find + 1;
+					break;
+				case '>': end = find;
+					break;
+				}
+				if (end != -1) break;
 			}
-			if (end != -1) break;
+			ToEvaluate.erase(end);
+			ToEvaluate.erase(0, start);
 		}
-		ToEvaluate.erase(end);
-		ToEvaluate.erase(0, start);
-		for (int space = ToEvaluate.size() - 1; space >= 0; space--)
-			if (ToEvaluate.at(space) == ' ') ToEvaluate.erase(space, 1);
+		for (int space = ToEvaluate.size() - 1; space >= 0; space--) {
+			if (ToEvaluate.at(space) == ' ')
+				ToEvaluate.erase(space, 1);
+		}
 		return ToEvaluate;
 	}
 }
-namespace Calc 
+namespace Calc
 {
 	static wstring cript(long long input)
 	{
@@ -574,7 +577,7 @@ namespace Calc
 		long long analyse;
 		bool repeat;
 		wstring monomials[15];
-		for (int what_factor = 0; what_factor < factor_number; what_factor++) 
+		for (int what_factor = 0; what_factor < factor_number; what_factor++)
 		{
 			repeat = 0;
 			presence = 0;
@@ -708,7 +711,7 @@ namespace Calc
 		for (int i = 0; i < factor_number; i++) {
 			if (exponents[i] != 1)
 				output = output + to_string(PrimeFactors[i])
-					+ "^" + to_string(exponents[i]) + " * ";
+				+ "^" + to_string(exponents[i]) + " * ";
 			else output = output + to_string(PrimeFactors[i]) + " * ";
 		}
 		delete[] PrimeFactors;
@@ -812,7 +815,7 @@ namespace Calc
 		return output;
 	}
 }
-namespace Execute 
+namespace Execute
 {
 	static data_t execute_simpledeg(long long input) {
 		using namespace Calc;
@@ -823,7 +826,7 @@ namespace Execute
 	static data_t execute_degree(long long input) {
 		using namespace Calc;
 
-		data_t output = { input, cript(input), 0, {}, "", 1, 1, 1, ""};
+		data_t output = { input, cript(input), 0, {}, "", 1, 1, 1, "" };
 		int counter = 0;
 		int copy = input;
 		do {
@@ -857,21 +860,21 @@ namespace Execute
 	static data_t execute_simple_d_f(long long input) {
 		using namespace Calc;
 
-		data_t output = { input, cript(input), 0, 
-			{}, fact_number(input), 1, 1, 1, ""};
+		data_t output = { input, cript(input), 0,
+			{}, fact_number(input), 1, 1, 1, "" };
 		return output;
 	}
 	static data_t execute_degfactor(long long input) {
 		data_t A = execute_degree(input);
 		data_t B = execute_factor(input);
-		data_t output = {input, A.code, A.degree, A.sequence, 
-			B.expression, B.Div_number, B.Div_sum, B.Div_product, B.Divpr};
+		data_t output = { input, A.code, A.degree, A.sequence,
+			B.expression, B.Div_number, B.Div_sum, B.Div_product, B.Divpr };
 		return output;
 	}
 }
-namespace Convalid 
+namespace Convalid
 {
-	static wstring syntax_validator(wstring ToEvaluate)
+	static wstring syntax_validator(wstring ToEvaluate, bool NecBoundary)
 	{
 		using namespace Operators;
 
@@ -880,19 +883,21 @@ namespace Convalid
 		string charsAllowed = "0123456789+(_).";
 		bool local_error = 1, boolean = 1, stable = 0;
 		int start = -1, end = -1, parenthesis_balance = 0;
-		for (int find = 0; find < ToEvaluate.size(); find++) {
-			switch (ToEvaluate.at(find)) {
-			case '<': start = find + 1;
-				break;
-			case '>': end = find;
-				break;
+		if (NecBoundary) {
+			for (int find = 0; find < ToEvaluate.size(); find++) {
+				switch (ToEvaluate.at(find)) {
+				case '<': start = find + 1;
+					break;
+				case '>': end = find;
+					break;
+				}
+				if (end != -1) break;
 			}
-			if (end != -1) break;
+			if (start == -1 || end == -1) return L"NO_BOUNDARY";
+			if (end < start) return L"BOUNDARY_INVERSION";
+			ToEvaluate.erase(end);
+			ToEvaluate.erase(0, start);
 		}
-		if (start == -1 || end == -1) return L"NO_BOUNDARY";
-		if (end < start) return L"BOUNDARY_INVERSION";
-		ToEvaluate.erase(end);
-		ToEvaluate.erase(0, start);
 		for (int i = 0; i < ToEvaluate.size(); i++) {
 			if (ToEvaluate.at(i) == '(') {
 				parenthesis_balance++;
@@ -1043,7 +1048,7 @@ namespace Convalid
 				if (local_error) return L"USELESS_BRACKETS";
 				stack.erase(0, 1);
 				stack.erase(finder);
-				wstring message = syntax_validator(L"<" + stack + L">");
+				wstring message = syntax_validator(stack, 0);
 				if (!message.empty()) return message;
 			}
 			else if (mono[monomial].at(0) == ')') return L"INVERTED_BRACKETS";
@@ -1123,7 +1128,8 @@ namespace Convalid
 		}
 		return integer;
 	}
-	static void code_converter(wstring ToEvaluate, wstring message, bool ShowErrors)
+	static void code_converter(wstring ToEvaluate
+		, wstring message, bool ShowErrors, bool NecBoundary)
 	{
 		using namespace Operators;
 		using namespace Calc;
@@ -1131,7 +1137,7 @@ namespace Convalid
 		setlocale(LC_ALL, "");
 		long long number;
 		if (ToEvaluate != L"f") {
-			ToEvaluate = standardize(ToEvaluate);
+			ToEvaluate = standardize(ToEvaluate, NecBoundary);
 			number = string_converter(ToEvaluate);
 			if (ShowErrors || number > 0) {
 				SetConsoleTextAttribute(hConsole, 11);
@@ -1169,7 +1175,7 @@ namespace Convalid
 		}
 	}
 }
-namespace Evaluator 
+namespace Evaluator
 {
 	static switchcase code_to_number()
 	{
@@ -1181,7 +1187,7 @@ namespace Evaluator
 		wstring ToEvaluate, message;
 		switchcase option;
 		int counter = 0;
-		bool ShowErrors;
+		bool ShowErrors, NecessaryBoundary = 1;
 		cout << "il programma traduce una stringa di codice\n";
 		cout << "il codice non deve avere errori o saranno segnalati\n";
 		cout << "il codice deve essere compreso tra <>\n";
@@ -1190,8 +1196,8 @@ namespace Evaluator
 		cout << "unici caratteri non numerici ammessi: '(', ')', '+', '.' \n";
 		SetConsoleTextAttribute(hConsole, 9);
 		cout << "si indichino le cifre incognite con caratteri '_'\n";
-		cout << "aggiungendo '$' o '\\' come primo carattere"
-			 << " non vengono mostrati gli errori\n\n";
+		cout << "aggiungendo '$' come primo carattere\n";
+		cout << "oppure '\\' o '/' senza <> non vengono mostrati gli errori\n\n";
 		SetConsoleTextAttribute(hConsole, 15);
 		do {
 			do {
@@ -1204,7 +1210,12 @@ namespace Evaluator
 					return option;
 				}
 				if (ToEvaluate == L".") return rnd;
-				message = syntax_validator(ToEvaluate);
+				if (!ToEvaluate.empty()) {
+					NecessaryBoundary = ToEvaluate.at(0) != '\\' && ToEvaluate.at(0) != '/';
+					ShowErrors = ToEvaluate.at(0) != '$' && NecessaryBoundary;
+					if (!NecessaryBoundary) ToEvaluate.erase(0, 1);
+				}
+				message = syntax_validator(ToEvaluate, NecessaryBoundary);
 				if (message.size() > 1) {
 					SetConsoleTextAttribute(hConsole, 4);
 					wcout << "ERR[404]: " << message << '\n';
@@ -1214,24 +1225,24 @@ namespace Evaluator
 			if (ToEvaluate == L"f") return r;
 
 			counter = 0;
-			ShowErrors = ToEvaluate.at(0) != '$' && ToEvaluate.at(0) != '\\';
-			ToEvaluate = L"<" + standardize(ToEvaluate) + L">";
+			if (NecessaryBoundary) ToEvaluate = L"<" + standardize(ToEvaluate, 1) + L">";
+			else ToEvaluate = standardize(ToEvaluate, 0);
 			wstring backup = ToEvaluate;
 			vector <int> pos;
-			for (int i = 1; i < size(ToEvaluate) - 1; i++) {
+			for (int i = 0; i < size(ToEvaluate); i++) {
 				if (ToEvaluate.at(i) == '_') {
 					pos.push_back(i);
 					counter++;
 				}
 			}
-			if (counter == 0) code_converter(ToEvaluate, message, ShowErrors);
+			if (counter == 0) code_converter(ToEvaluate, message, ShowErrors, NecessaryBoundary);
 			else for (int i = 0; i < pow(10, counter); i++) {
 				string j = to_string(i);
 				int zero_counter = counter - j.size();
 				for (int k = 0; k < zero_counter; k++) j = "0" + j;
 				for (int k = 0; k < j.size(); k++)
 					backup.replace(pos[k], 1, wstring(1, j.at(k)));
-				message = syntax_validator(backup);
+				message = syntax_validator(backup, NecessaryBoundary);
 				if (message.size() > 1 && ShowErrors) {
 					SetConsoleTextAttribute(hConsole, 11);
 					wcout << "codice " << backup << " :\n";
@@ -1239,7 +1250,7 @@ namespace Evaluator
 					wcout << "ERR[404]: " << message << '\n';
 					SetConsoleTextAttribute(hConsole, 15);
 				}
-				else code_converter(backup, message, ShowErrors);
+				else code_converter(backup, message, ShowErrors, NecessaryBoundary);
 			}
 		} while (0 == 0);
 	}
@@ -1348,20 +1359,20 @@ namespace Evaluator
 					int time = duration_cast <milliseconds> (stop - begin).count();
 					SetConsoleTextAttribute(hConsole, 15);
 					double time_rem = (time / Progress) * (1 - Progress);
-					int time_seconds = (double) time_rem / 1000;
+					int time_seconds = (double)time_rem / 1000;
 					cout << "\ntempo rimanente: " << time_seconds << " [secondi] ";
 				}
 				iter++;
 				mtx.unlock();
 
-			});
-			cout << string(Barwidth + 11, '\\') << '\n';		
+				});
+			cout << string(Barwidth + 11, '\\') << '\n';
 			thread t1([&data]() {
 				data = heap_sort(data);
 				lock_guard <mutex> lock(mtx);
 				is_done = 1;
 				cv.notify_one();
-			});
+				});
 			thread t2(print_circle);
 			t2.join();
 			t1.join();
@@ -1369,7 +1380,7 @@ namespace Evaluator
 			for (int x = 0; x < size(data); ++x) data_printf(data[x]);
 			steady_clock::time_point end = steady_clock::now();
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
-				 << "[ms]\n\n";
+				<< "[ms]\n\n";
 		}
 		else {
 			steady_clock::time_point begin = steady_clock::now();
@@ -1379,7 +1390,7 @@ namespace Evaluator
 			}
 			steady_clock::time_point end = steady_clock::now();
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
-				 << "[ms]\n\n\n";
+				<< "[ms]\n\n\n";
 		}
 		char null;
 		cout << "premere un tasto per continuare\t\t";
@@ -1458,8 +1469,8 @@ int main()
 				SetConsoleTextAttribute(hConsole, 6);
 				SetConsoleCursorPosition(hConsole, { 20, 10 });
 				if (delta <= 10) {
-					cout << "tempo di calcolo numeri primi = " 
-						 << exception_delta << " microsecondi\n\n";
+					cout << "tempo di calcolo numeri primi = "
+						<< exception_delta << " microsecondi\n\n";
 				}
 				else if (delta > 10'000 && delta <= 600'000) {
 					delta = delta / 1000;
