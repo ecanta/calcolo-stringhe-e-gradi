@@ -183,6 +183,7 @@ namespace Prints
 		const double R = 8;
 		const double R2 = 5;
 
+		const vector <int> spectrum = { 9, 9, 9, 11, 11, 3, 3, 12, 4};
 		for (int i = 0; i % 360 < 360; i += 3) {
 			double __i = (double)i / 180 * 3.141592653589;
 			centerX = const_x + R2 * cos(__i);
@@ -205,25 +206,18 @@ namespace Prints
 				uniform_int_distribution<> dis(0, 9);
 				random_device rnd;
 				mt19937 Gen(rnd());
-				uniform_int_distribution<> Dis(0, 3);
-				switch (Dis(Gen)) {
-				case 0: colour = 4;
-					break;
-				case 1: colour = 12;
-					break;
-				case 2: colour = 6;
-					break;
-				case 3: colour = 14;
-					break;
-				}
+				uniform_int_distribution<> Dis(0, size(spectrum) - 1);
+				int DisGen = Dis(Gen);
+				for (int j = 0; j < size(spectrum); j++)
+					if (DisGen == j) colour = spectrum[j];
 				SetConsoleTextAttribute(hConsole, colour);
 				string character = to_string(dis(gen));
 				cout << character;
 			}
-			this_thread::sleep_for(milliseconds(10));
 			decrease ? DIM -= GAP : DIM += GAP;
 			arc_decrease ? arc -= SPEED * GAP : arc += SPEED * GAP;
 			if (is_done.load()) return;
+			this_thread::sleep_for(milliseconds(10));
 			system("cls");
 		}
 	}
@@ -341,8 +335,8 @@ namespace Primitive
 		int iter = 0;
 		system("cls");
 
+		steady_clock::time_point begin = steady_clock::now();
 		if (N >= 100000 && USE_pro_bar) {
-			SetConsoleTextAttribute(hConsole, 112);
 			parallel_for(int(2), SQUARE, [&](int p) {
 				if (is_prime[p]) {
 					for (int i = pow(p, 2); i <= N; i += p) {
@@ -354,10 +348,17 @@ namespace Primitive
 				}
 				if (iter % SPEED == 0) {
 					mtx.lock();
+					steady_clock::time_point stop = steady_clock::now();
+					SetConsoleTextAttribute(hConsole, 112);
 					double progress = (double)size(counter) / NOTPRIMESIZE;
 					if (progress > 0.5) SPEED = 15;
 					if (progress > 1) progress = 1;
 					progress_bar(progress, BARWIDTH);
+					int time = duration_cast <milliseconds> (stop - begin).count();
+					SetConsoleTextAttribute(hConsole, 15);
+					double time_rem = (time / progress) * (1 - progress);
+					int time_seconds = (double)time_rem / 1000;
+					cout << "\ntempo rimanente: " << time_seconds << " [secondi] ";
 					mtx.unlock();
 				}
 				iter++;
@@ -524,7 +525,8 @@ namespace Operators
 	}
 	static wstring standardize(wstring ToEvaluate, bool NecBoundary)
 	{
-		int start = -1, end = -1;
+		int start = -1, end = -1, count = 0;
+		int size_of = ToEvaluate.size();
 		if (NecBoundary) {
 			for (int find = 0; find < ToEvaluate.size(); find++) {
 				switch (ToEvaluate.at(find)) {
@@ -537,6 +539,11 @@ namespace Operators
 			}
 			ToEvaluate.erase(end);
 			ToEvaluate.erase(0, start);
+		}
+		else for (int i = 0; i < size_of; i++) {
+			if (ToEvaluate.at(count) == '<' || ToEvaluate.at(count) == '>')
+				ToEvaluate.erase(count, 1);
+			else count++;
 		}
 		for (int space = ToEvaluate.size() - 1; space >= 0; space--) {
 			if (ToEvaluate.at(space) == ' ')
@@ -883,8 +890,9 @@ namespace Convalid
 		string charsAllowed = "0123456789+(_).";
 		bool local_error = 1, boolean = 1, stable = 0;
 		int start = -1, end = -1, parenthesis_balance = 0;
+		int size_of = ToEvaluate.size(), count = 0;
 		if (NecBoundary) {
-			for (int find = 0; find < ToEvaluate.size(); find++) {
+			for (int find = 0; find < size_of; find++) {
 				switch (ToEvaluate.at(find)) {
 				case '<': start = find + 1;
 					break;
@@ -897,6 +905,11 @@ namespace Convalid
 			if (end < start) return L"BOUNDARY_INVERSION";
 			ToEvaluate.erase(end);
 			ToEvaluate.erase(0, start);
+		}
+		else for (int i = 0; i < size_of; i++) {
+			if (ToEvaluate.at(count) == '<' || ToEvaluate.at(count) == '>')
+				ToEvaluate.erase(count, 1);
+			else count++;
 		}
 		for (int i = 0; i < ToEvaluate.size(); i++) {
 			if (ToEvaluate.at(i) == '(') {
@@ -1187,7 +1200,7 @@ namespace Evaluator
 		wstring ToEvaluate, message;
 		switchcase option;
 		int counter = 0;
-		bool ShowErrors, NecessaryBoundary = 1;
+		bool ShowErrors = 1, NecessaryBoundary = 1;
 		cout << "il programma traduce una stringa di codice\n";
 		cout << "il codice non deve avere errori o saranno segnalati\n";
 		cout << "il codice deve essere compreso tra <>\n";
@@ -1335,14 +1348,9 @@ namespace Evaluator
 
 		if (upper_bound < lower_bound) swap(lower_bound, upper_bound);
 		long long datalenght = upper_bound - lower_bound;
-		char choice;
-		cout << "vuoi utilizzare la ricerca veloce? (non stampa direttamente)\n";
-		cout << "immetti s = si oppure n = no\t";
-		cin >> choice;
-		cout << '\n';
 
 		system("cls");
-		if (choice == 's') {
+		if (datalenght >= 1000) {
 			int iter = 0;
 			atomic <double> Progress = 0;
 			steady_clock::time_point begin = steady_clock::now();
