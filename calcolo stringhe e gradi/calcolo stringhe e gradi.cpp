@@ -211,8 +211,7 @@ namespace Prints
 				for (int j = 0; j < size(spectrum); j++)
 					if (DisGen == j) colour = spectrum[j];
 				SetConsoleTextAttribute(hConsole, colour);
-				string character = to_string(dis(gen));
-				cout << character;
+				cout << dis(gen);
 			}
 			decrease ? DIM -= GAP : DIM += GAP;
 			arc_decrease ? arc -= SPEED * GAP : arc += SPEED * GAP;
@@ -1315,7 +1314,7 @@ namespace Evaluator
 		wstring txt;
 		switchcase option;
 		vector <data_t> data;
-		double Barwidth = 60;
+		const double Barwidth = 60;
 		long long input;
 		cout << "debug::\n\n";
 		SetConsoleTextAttribute(hConsole, 14);
