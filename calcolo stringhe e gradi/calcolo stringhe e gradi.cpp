@@ -264,26 +264,17 @@ namespace Prints
 		SetConsoleTextAttribute(hConsole, 15);
 	}
 }
-namespace Primitive
-{
-	static bool prime(long long number)
-	{
-		bool is_prime = 1;
-		if (number == 1) return 0;
-		else if (number < size(PrimeNumbers.is_prime))
-			return PrimeNumbers.is_prime[number];
-		else {
-			if (number == 1) is_prime = 0;
-			for (int a = 2; a < number; a++)
-				if (number % a == 0) is_prime = 0;
+namespace Input {
+	static wstring get_line() {
+		wstring vel;
+		while (true) if (_kbhit()) {
+			char c = _getch();
+			if (c == '.') return L".";
+			if (c == '\r') break;
+			cout << c;
+			vel += c;
 		}
-		return is_prime;
-	}
-	static double integral_log(int N) {
-		double sum = 0;
-		for (int x = 2; x <= N; x++)
-			sum += 1 / log(x);
-		return sum;
+		return vel;
 	}
 	static wstring get_user_enum(wstring txt, int low, long long high)
 	{
@@ -297,7 +288,7 @@ namespace Primitive
 			bool error = 1;
 			bool general_error = 0;
 			wcout << txt;
-			getline(wcin, check);
+			check = get_line();
 			if (check == L"." || check.empty()) return check;
 			if (check.size() > 10) return L"";
 			option = convert_string_to_enum(check);
@@ -318,6 +309,28 @@ namespace Primitive
 
 		} while (user_num < low || user_num > high);
 		return to_wstring(user_num);
+	}
+}
+namespace Primitive
+{
+	static bool prime(long long number)
+	{
+		bool is_prime = 1;
+		if (number == 1) return 0;
+		else if (number < size(PrimeNumbers.is_prime))
+			return PrimeNumbers.is_prime[number];
+		else {
+			if (number == 1) is_prime = 0;
+			for (int a = 2; a < number; a++)
+				if (number % a == 0) is_prime = 0;
+		}
+		return is_prime;
+	}
+	static double integral_log(int N) {
+		double sum = 0;
+		for (int x = 2; x <= N; x++)
+			sum += 1 / log(x);
+		return sum;
 	}
 	static vector_t sieve_of_Erastothens(long long N, bool USE_pro_bar)
 	{
@@ -1267,7 +1280,7 @@ namespace Evaluator
 		} while (0 == 0);
 	}
 	static switchcase repeater(string message, data_t CPU(long long input)) {
-		using namespace Primitive;
+		using Input::get_user_enum;
 		using namespace EnumMod;
 		using namespace Prints;
 
@@ -1304,7 +1317,7 @@ namespace Evaluator
 	}
 	static switchcase loop(string message, data_t CPU(long long input))
 	{
-		using namespace Primitive;
+		using Input::get_user_enum;
 		using namespace EnumMod;
 		using namespace Prints;
 		using Sort::heap_sort;
@@ -1409,7 +1422,8 @@ namespace Evaluator
 
 int main()
 {
-	using namespace Primitive;
+	using namespace Input;
+	using Primitive::sieve_of_Erastothens;
 	using namespace EnumMod;
 	using namespace Execute;
 	using namespace Evaluator;
@@ -1427,7 +1441,7 @@ int main()
 	fact_message.append("\ne numero, somma e prodotto dei divisori");
 	string message = "il programma calcola codice, sequenza e grado di un intero";
 	string AllMessage = "il programma calcola \"tutti\" i dati di alcuni interi";
-	wstring vel;
+	wstring vel = L"";
 	wstring text;
 	switchcase option;
 
@@ -1518,8 +1532,9 @@ int main()
 		cout << "\t\"t\" = tutti i dati\n";
 		cout << "selezionando più operazioni, il tempo di calcolo aumenta\n";
 		SetConsoleTextAttribute(hConsole, 15);
-		getline(wcin, vel);
+		vel = get_line();
 		option = convert_string_to_enum(vel);
+		cout << '\n';
 		do {
 			if (vel.size() == 1) {
 				skip = 0;
@@ -1536,13 +1551,14 @@ int main()
 					system("cls");
 					SetConsoleTextAttribute(hConsole, 4);
 					return 0;
+					break;
 				default: vel += ' ';
 				}
 			}
 			if (option == r) do {
 				skip = 0;
 				cout << "scegli opzioni:: (...)\n";
-				getline(wcin, vel);
+				vel = get_line();
 				if (vel.size() == 1) {
 					stop = vel.at(0) != '0'
 						&& vel.at(0) != '1' && vel.at(0) != '.';
