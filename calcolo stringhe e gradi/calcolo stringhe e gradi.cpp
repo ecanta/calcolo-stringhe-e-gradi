@@ -1,11 +1,11 @@
 // program_START
 #include <chrono>
+#include <cmath>
 #include <condition_variable>
 #include <conio.h>
-#include <cmath>
 #include <cstdlib>
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 #include <ppl.h>
 #include <random>
 #include <regex>
@@ -266,13 +266,48 @@ namespace Prints
 }
 namespace Input {
 	static wstring get_line() {
+		int i = 0, j = 0;
 		wstring vel;
 		while (true) if (_kbhit()) {
 			char c = _getch();
-			if (c == '.') return L".";
 			if (c == '\r') break;
-			cout << c;
-			vel += c;
+			bool cond = c == '\b' ||
+				((c < 65 || c > 90) && c > 31);
+			if (cond) switch (c) {
+			case '.': return L".";
+			case '\r':
+				break;
+				break;
+			case '\b':
+				if (i > 1) {
+					vel.erase(i - 1);
+					i--;
+				}
+				else {
+					vel = L"";
+					i = 0;
+					j = 0;
+					wcout << '\r' << wstring(10, ' ');
+				}
+				break;
+			case 127:
+				vel = L"";
+				i = 0;
+				j = 0;
+				wcout << '\r' << wstring(10, ' ');
+				break;
+			default:
+				vel += c;
+				i++;
+				j++;
+			}
+			if (i > 10) {
+				vel = L"";
+				i = 0;
+				j = 0;
+				wcout << '\r' << wstring(10, ' ');
+			}
+			wcout << '\r' << wstring(j, ' ') << '\r' << vel;
 		}
 		return vel;
 	}
@@ -290,7 +325,6 @@ namespace Input {
 			wcout << txt;
 			check = get_line();
 			if (check == L"." || check.empty()) return check;
-			if (check.size() > 10) return L"";
 			option = convert_string_to_enum(check);
 			option = reassigne_enum(option);
 			if (option != r) return convert_enum_to_string(option);
@@ -1340,22 +1374,17 @@ namespace Evaluator
 		if (Input == L".") return rnd;
 		option = convert_string_to_enum(Input);
 		option = reassigne_enum(option);
-		if (option != r) {
-			cout << '\n';
-			return option;
-		}
+		if (option != r) return option;
 		long long lower_bound = stoi(Input) + 1;
-
+		
+		cout << '\n';
 		txt = L"inserisci il valore finale della ricerca\n";
 		do Input = get_user_enum(txt, 1, GlobalMax);
 		while (Input.empty());
 		if (Input == L".") return rnd;
 		option = convert_string_to_enum(Input);
 		option = reassigne_enum(option);
-		if (option != r) {
-			cout << '\n';
-			return option;
-		}
+		if (option != r) return option;
 		long long upper_bound = stoi(Input) + 1;
 
 		if (upper_bound < lower_bound) swap(lower_bound, upper_bound);
@@ -1569,6 +1598,7 @@ int main()
 					skip = option != r;
 				}
 				if (stop) {
+					cout << '\n';
 					SetConsoleTextAttribute(hConsole, 64);
 					cout << "NON CORRETTO !!";
 					SetConsoleTextAttribute(hConsole, 4);
