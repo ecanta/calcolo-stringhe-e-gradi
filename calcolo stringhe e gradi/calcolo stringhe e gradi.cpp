@@ -50,7 +50,6 @@ typedef struct {
 	int Div_product;
 	string Divpr;
 } data_t;
-vector_t PrimeNumbers;
 enum switchcase {
 	cc, ccc, cf,
 	cff, ccf, ct,
@@ -58,6 +57,7 @@ enum switchcase {
 	dff, dcf, dt,
 	ctn, rnd, r
 };
+vector_t PrimeNumbers;
 
 namespace EnumMod
 {
@@ -438,7 +438,8 @@ namespace Primitive
 }
 namespace Sort
 {
-	static void heapify(vector <data_t>& vect, int n, int i) {
+	template <typename struct_t>
+	static void heapify(vector <struct_t>& vect, int n, int i) {
 		int largest = i;
 		int left = 2 * i + 1;
 		int right = 2 * i + 2;
@@ -451,7 +452,8 @@ namespace Sort
 			heapify(vect, n, largest);
 		}
 	}
-	static vector <data_t> heap_sort(vector <data_t>& vect) {
+	template <typename struct_t>
+	static vector <struct_t> heap_sort(vector <struct_t>& vect) {
 		int n = vect.size();
 		for (int i = n / 2 - 1; i >= 0; i--) heapify(vect, n, i);
 		for (int i = n - 1; i > 0; i--) {
@@ -1333,18 +1335,13 @@ namespace Evaluator
 			do Input = get_user_enum(txt, 1, GlobalMax);
 			while (Input.empty());
 			if (Input == L".") return rnd;
-			else {
-				option = convert_string_to_enum(Input);
-				option = reassigne_enum(option);
-				if (option != r) {
-					cout << '\n';
-					return option;
-				}
-				input = stoi(Input);
-				if (input != 1) {
-					result = CPU(input);
-					data_printf(result);
-				}
+			option = convert_string_to_enum(Input);
+			option = reassigne_enum(option);
+			if (option != r) return option;
+			input = stoull(Input);
+			if (input != 1) {
+				result = CPU(input);
+				data_printf(result);
 			}
 		} while (input != 1);
 		return r;
@@ -1375,7 +1372,7 @@ namespace Evaluator
 		option = convert_string_to_enum(Input);
 		option = reassigne_enum(option);
 		if (option != r) return option;
-		long long lower_bound = stoi(Input) + 1;
+		long long lower_bound = stoull(Input) + 1;
 		
 		cout << '\n';
 		txt = L"inserisci il valore finale della ricerca\n";
@@ -1385,7 +1382,7 @@ namespace Evaluator
 		option = convert_string_to_enum(Input);
 		option = reassigne_enum(option);
 		if (option != r) return option;
-		long long upper_bound = stoi(Input) + 1;
+		long long upper_bound = stoull(Input) + 1;
 
 		if (upper_bound < lower_bound) swap(lower_bound, upper_bound);
 		long long datalenght = upper_bound - lower_bound;
