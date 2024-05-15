@@ -324,6 +324,7 @@ namespace Input {
 			bool general_error = 0;
 			wcout << txt;
 			check = get_line();
+			cout << '\n';
 			if (check == L"." || check.empty()) return check;
 			option = convert_string_to_enum(check);
 			option = reassigne_enum(option);
@@ -858,10 +859,10 @@ namespace Calc
 		}
 		if (output.DivSum < 0) output.DivSum = -1;
 		if (output.DivNumber > 0) {
-			int out = output.DivNumber / 2;
+			double out = (double) output.DivNumber / 2;
 			int y = pow(x, out);
 			if (y > 0) output.DivProduct = y;
-			else output.Div_pr = to_string(x) + "^" + to_string(out);
+			else output.Div_pr = to_string(x) + "^" + to_string((int) out);
 		}
 		else {
 			output.DivNumber = -1;
@@ -1374,7 +1375,6 @@ namespace Evaluator
 		if (option != r) return option;
 		long long lower_bound = stoull(Input) + 1;
 		
-		cout << '\n';
 		txt = L"inserisci il valore finale della ricerca\n";
 		do Input = get_user_enum(txt, 1, GlobalMax);
 		while (Input.empty());
