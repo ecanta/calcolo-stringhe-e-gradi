@@ -1,20 +1,19 @@
 // program_START
-#include <chrono>
-#include <cmath>
-#include <condition_variable>
-#include <conio.h>
-#include <cstdlib>
+#include <chrono> // per le misurazioni di tempo
+#include <cmath> // per i calcoli
+#include <condition_variable> // per il multithreading
+#include <conio.h> // per l'input avanzato
 #include <iomanip>
-#include <iostream>
-#include <ppl.h>
-#include <random>
-#include <regex>
+#include <iostream> // per l'output
+#include <ppl.h> // per la parallelizzazione
+#include <random> // per i generatori casuali
+#include <regex> // per la convalidazione
 #include <sstream>
 #include <string>
-#include <thread>
-#include <unordered_map>
+#include <thread> // per il multithreading
+#include <unordered_map> // per la conversione degli enum
 #include <vector>
-#include <windows.h>
+#include <windows.h> // per hConsole
 using namespace std;
 using namespace chrono;
 using Concurrency::parallel_for;
@@ -147,17 +146,50 @@ namespace EnumMod
 		else return option;
 	}
 }
+namespace Sort
+{
+	template <typename struct_t>
+	static void heapify(vector <struct_t>& vect, int n, int i) {
+		int largest = i;
+		int left = 2 * i + 1;
+		int right = 2 * i + 2;
+		if (left < n && vect[left].number > vect[largest].number)
+			largest = left;
+		if (right < n && vect[right].number > vect[largest].number)
+			largest = right;
+		if (largest != i) {
+			swap(vect[i], vect[largest]);
+			heapify(vect, n, largest);
+		}
+	}
+	template <typename struct_t>
+	static vector <struct_t> heap_sort(vector <struct_t>& vect) {
+		int n = vect.size();
+		for (int i = n / 2 - 1; i >= 0; i--) heapify(vect, n, i);
+		for (int i = n - 1; i > 0; i--) {
+			swap(vect[0], vect[i]);
+			heapify(vect, i, 0);
+		}
+		return vect;
+	}
+}
 namespace Prints
 {
 	static void progress_bar(double ratio, double barWidth)
 	{
+		// necessario per poter scrivere messaggi 
+		// sotto alla barra di progresso
 		SetConsoleCursorPosition(hConsole, { 0, 0 });
+
+		// stampa della barra principale
 		cout << "[[";
 		int pos = (int)(barWidth * ratio);
 		for (int i = 0; i < barWidth; ++i) {
 			if (i < pos) cout << "=";
 			else (i == pos) ? cout << ">" : cout << " ";
 		}
+
+		// calcolo della percentuale
 		ratio *= 100.0;
 		stringstream stream;
 		stream << fixed << setprecision(1) << ratio;
@@ -166,8 +198,8 @@ namespace Prints
 	}
 	static void print_circle()
 	{
-		COORD coord;
 		system("cls");
+		COORD coord;
 		int arc = 270;
 		const double SPEED = 50;
 		const double GAP = 0.05;
@@ -183,51 +215,81 @@ namespace Prints
 		const double R = 8;
 		const double R2 = 5;
 
+		// vettore dello spettro dei colori
 		const vector <int> spectrum = { 9, 9, 9, 11, 11, 3, 3, 12, 4};
+
 		for (int i = 0; i % 360 < 360; i += 3) {
 			double __i = (double)i / 180 * 3.141592653589;
+			// variazione centro del cerchio principale
+			// secondo lo spostamento su un secondo cerchio
 			centerX = const_x + R2 * cos(__i);
 			centerY = const_y + R2 * sin(__i);
+
+			// variazione dati cerchio
 			if (DIM <= 1 || DIM >= 2.5) decrease = !decrease;
 			if (arc <= 0 || arc >= 360) arc_decrease = !arc_decrease;
+
 			for (int deg = 0; deg < arc; deg++) {
+				// da gradi a radianti
 				double rad = (double)deg / 180 * 3.141592653589;
+
+				// calcolo punti della circonferenza del cerchio
 				setX = R * cos(rad);
 				setY = R * sin(rad);
+
+				// rotazione punti
 				coord.X = setX * cos(__i) - setY * sin(__i);
 				coord.Y = setX * sin(__i) + setY * cos(__i);
+
+				// ridimensionamento X
 				coord.X *= DIM;
+
+				// traslazione
 				coord.X += centerX;
 				coord.Y += centerY;
+
 				SetConsoleCursorPosition(hConsole, coord);
 				int colour;
+
+				// generatore casuale numeri
 				random_device rng;
 				mt19937 gen(rng());
 				uniform_int_distribution<> dis(0, 9);
 				random_device rnd;
+
+				// generatore casuale colori
 				mt19937 Gen(rnd());
 				uniform_int_distribution<> Dis(0, size(spectrum) - 1);
 				int DisGen = Dis(Gen);
+
+				// assegnazione colori
 				for (int j = 0; j < size(spectrum); j++)
 					if (DisGen == j) colour = spectrum[j];
+
+				// stampa
 				SetConsoleTextAttribute(hConsole, colour);
 				cout << dis(gen);
 			}
 			decrease ? DIM -= GAP : DIM += GAP;
 			arc_decrease ? arc -= SPEED * GAP : arc += SPEED * GAP;
 			if (is_done.load()) return;
-			this_thread::sleep_for(milliseconds(10));
 			system("cls");
 		}
 	}
 	static void data_printf(data_t structure)
 	{
 		setlocale(LC_ALL, "");
+
+		// stampa numero
 		cout << "numero " << structure.number << ":\n";
+
+		// stampa stringa
 		if (!structure.code.empty()) {
 			SetConsoleTextAttribute(hConsole, 12);
 			wcout << L"il codice è <" << structure.code << ">\n";
 		}
+
+		// stampa grado e sequenza
 		if (structure.degree != 0) {
 			SetConsoleTextAttribute(hConsole, 4);
 			wcout << L"il grado è " << structure.degree << '\n';
@@ -237,28 +299,37 @@ namespace Prints
 				cout << structure.sequence[i] << ", ";
 			cout << structure.sequence[size(structure.sequence) - 1] << ")\n";
 		}
+
 		if (!structure.expression.empty()) {
+			// se il numero è primo
 			if (PrimeNumbers.is_prime[structure.number]) {
 				SetConsoleTextAttribute(hConsole, 240);
 				wcout << L"il numero è primo";
 				SetConsoleTextAttribute(hConsole, 15);
 				cout << '\n';
 			}
+			// altrimenti stampa scomposizione
 			else {
 				SetConsoleTextAttribute(hConsole, 11);
 				wcout << L"la fattorizzazione è ";
 				cout << structure.expression << '\n';
-			}
-			if (structure.Div_number != 1) {
-				SetConsoleTextAttribute(hConsole, 8);
-				wcout << "il numero dei divisori è ";
-				cout << structure.Div_number << '\n';
-				wcout << "la somma dei divisori è ";
-				cout << structure.Div_sum << '\n';
-				wcout << "il prodotto dei divisori è ";
-				if (structure.Div_product != 1)
-					cout << structure.Div_product << '\n';
-				else cout << structure.Divpr << '\n';
+				if (structure.Div_number != 1) {
+					SetConsoleTextAttribute(hConsole, 8);
+
+					// stampa numero divisori
+					wcout << "il numero dei divisori è ";
+					cout << structure.Div_number << '\n';
+
+					// stampa somma divisori
+					wcout << "la somma dei divisori è ";
+					cout << structure.Div_sum << '\n';
+
+					// stampa prodotto divisori
+					wcout << "il prodotto dei divisori è ";
+					if (structure.Div_product != 1)
+						cout << structure.Div_product << '\n';
+					else cout << structure.Divpr << '\n';
+				}
 			}
 		}
 		SetConsoleTextAttribute(hConsole, 15);
@@ -271,13 +342,23 @@ namespace Input {
 		while (true) if (_kbhit()) {
 			char c = _getch();
 			if (c == '\r') break;
+
+			// ignora le lettere maiuscole
+			// e i caratteri non stampabili eccetto '\b'
 			bool cond = c == '\b' ||
 				((c < 65 || c > 90) && c > 31);
+
 			if (cond) switch (c) {
+
+			// '.' termina il programma
 			case '.': return L".";
+
+			// termine input
 			case '\r':
 				break;
 				break;
+
+			// '\b' cancella
 			case '\b':
 				if (i > 1) {
 					vel.erase(i - 1);
@@ -290,6 +371,8 @@ namespace Input {
 					wcout << '\r' << wstring(10, ' ');
 				}
 				break;
+
+			// ctrl + '\b' cancella tutto
 			case 127:
 				vel = L"";
 				i = 0;
@@ -301,6 +384,8 @@ namespace Input {
 				i++;
 				j++;
 			}
+
+			// stampa dei caratteri immessi
 			if (i > 10) {
 				vel = L"";
 				i = 0;
@@ -350,10 +435,13 @@ namespace Primitive
 {
 	static bool prime(long long number)
 	{
+		// se is_prime è nell'intervallo
 		bool is_prime = 1;
 		if (number == 1) return 0;
 		else if (number < size(PrimeNumbers.is_prime))
 			return PrimeNumbers.is_prime[number];
+
+		// metodo lento ma generale
 		else {
 			if (number == 1) is_prime = 0;
 			for (int a = 2; a < number; a++)
@@ -385,6 +473,8 @@ namespace Primitive
 		steady_clock::time_point begin = steady_clock::now();
 		if (N >= 100000 && USE_pro_bar) {
 			parallel_for(int(2), SQUARE, [&](int p) {
+
+				// calcolo numeri primi
 				if (is_prime[p]) {
 					for (int i = pow(p, 2); i <= N; i += p) {
 						mtx.lock();
@@ -397,15 +487,26 @@ namespace Primitive
 					mtx.lock();
 					steady_clock::time_point stop = steady_clock::now();
 					SetConsoleTextAttribute(hConsole, 112);
+
+					// stampa della barra di avanzamento
 					double progress = (double)size(counter) / NOTPRIMESIZE;
 					if (progress > 0.5) SPEED = 15;
 					if (progress > 1) progress = 1;
 					progress_bar(progress, BARWIDTH);
+
+					// calcolo tempo rimanente
 					int time = duration_cast <milliseconds> (stop - begin).count();
 					SetConsoleTextAttribute(hConsole, 15);
 					double time_rem = (time / progress) * (1 - progress);
-					int time_seconds = (double)time_rem / 1000;
+					double time_seconds = (double)time_rem / 1000;
+
+					// calcolo cifre decimali
+					stringstream stream;
+					stream << fixed << setprecision(1) << time_seconds;
+					string s = stream.str();
+					cout << "]] " << s << "%\r";
 					cout << "\ntempo rimanente: " << time_seconds << " [secondi] ";
+
 					mtx.unlock();
 				}
 				iter++;
@@ -413,12 +514,14 @@ namespace Primitive
 			SetConsoleTextAttribute(hConsole, 15);
 		}
 
+		// calcolo senza barra di progresso
 		else for (int p = 2; p < SQUARE; p++) {
 			for (int i = pow(p, 2); i <= N; i += p)
 				is_prime[i] = 0;
 		}
 		if (USE_pro_bar) cout << string(BARWIDTH + 11, '\\') << "\n\nattendere\r";
 
+		// multithreading
 		if (N >= 100'000 && USE_pro_bar) {
 			thread t1([&primes, &is_prime, &N]() {
 				for (long long p = 2; p < N + 1; p++)
@@ -431,37 +534,11 @@ namespace Primitive
 			t1.join();
 			t2.join();
 		}
+
 		else for (long long p = 2; p < N + 1; p++)
 			if (is_prime[p]) primes.push_back(p);
 		vector_t output = { is_prime, primes };
 		return output;
-	}
-}
-namespace Sort
-{
-	template <typename struct_t>
-	static void heapify(vector <struct_t>& vect, int n, int i) {
-		int largest = i;
-		int left = 2 * i + 1;
-		int right = 2 * i + 2;
-		if (left < n && vect[left].number > vect[largest].number)
-			largest = left;
-		if (right < n && vect[right].number > vect[largest].number)
-			largest = right;
-		if (largest != i) {
-			swap(vect[i], vect[largest]);
-			heapify(vect, n, largest);
-		}
-	}
-	template <typename struct_t>
-	static vector <struct_t> heap_sort(vector <struct_t>& vect) {
-		int n = vect.size();
-		for (int i = n / 2 - 1; i >= 0; i--) heapify(vect, n, i);
-		for (int i = n - 1; i > 0; i--) {
-			swap(vect[0], vect[i]);
-			heapify(vect, i, 0);
-		}
-		return vect;
 	}
 }
 namespace Operators
@@ -470,9 +547,14 @@ namespace Operators
 	{
 		using namespace Primitive;
 
-		if (input > PrimeNumbers.list_primes[size(PrimeNumbers.list_primes) - 1]) {
+		// correzione intervallo di PrimeNumbers
+		if (input > PrimeNumbers.list_primes[size(PrimeNumbers.list_primes) - 1]) 
+		{
 			vector_t PrimeN = sieve_of_Erastothens(input, 0);
-			for (int i = size(PrimeNumbers.list_primes); i < size(PrimeN.list_primes); i++) {
+
+			// riassegnazione
+			for (int i = size(PrimeNumbers.list_primes);
+				i < size(PrimeN.list_primes); i++) {
 				mtx.lock();
 				PrimeNumbers.list_primes.push_back(PrimeN.list_primes[i]);
 				mtx.unlock();
@@ -480,6 +562,8 @@ namespace Operators
 		}
 		int size = 0;
 		int product = 1;
+
+		// calcolo limite di approssimazione
 		do {
 			product *= PrimeNumbers.list_primes[size];
 			size++;
@@ -489,22 +573,32 @@ namespace Operators
 		for (int i = 0; i < size; i++) output.push_back(output_element);
 		int index = 0;
 
-		for (int i = 0; pow(PrimeNumbers.list_primes[i], 2) <= input; i++) {
+		// scomposizione
+		for (int i = 0; pow(PrimeNumbers.list_primes[i], 2) <= input; i++) 
+		{
 			if (input != 1) {
 				if (input % PrimeNumbers.list_primes[i] == 0) {
+
+					// se un fattore è gia presente, incrementa l'esponente
 					if (output[index].factors == PrimeNumbers.list_primes[i])
 						output[index].exp++;
+
+					// altrimenti aggiungi il fattore alla lista
 					else output[index].factors = PrimeNumbers.list_primes[i];
 					input /= PrimeNumbers.list_primes[i];
+
+					// incrementa l'indice
 					if (input % PrimeNumbers.list_primes[i] != 0)
 						index++;
 					i--;
 				}
 			}
 		}
+		// eccezione
 		if (output[index].factors == input)
 			output[index].exp++;
 		else output[index].factors = input;
+
 		return output;
 	}
 	static vector <wstring> fractioner(wstring polinomial)
@@ -517,9 +611,13 @@ namespace Operators
 		int find = 0;
 		for (int i = 0; i < backup.size(); i++) {
 			if (backup.at(i) == '(') parenthesis_balance++;
+
+			// solo in caso di bilancio tra le parentesi e carattere '+'
 			if ((parenthesis_balance == 0) && (backup.at(i) == '+')) {
 				temp = polinomial;
 				for (int finder = 0; finder < temp.size(); finder++) {
+
+					// scomposizione in monomi
 					if (find == 0) {
 						if (temp.at(finder) == '(') p_balance++;
 						if ((p_balance == 0) && (temp.at(finder) == '+'))
@@ -527,6 +625,8 @@ namespace Operators
 						if (temp.at(finder) == ')') p_balance--;
 					}
 				}
+
+				// aggiunta dei monomi alla lista
 				temp.erase(find);
 				monomials.push_back(temp);
 				polinomial.erase(0, find + 1);
@@ -535,20 +635,28 @@ namespace Operators
 			if (backup.at(i) == ')') parenthesis_balance--;
 		}
 		monomials.push_back(polinomial);
+
 		return monomials;
 	}
-	static vector <int> decompose_string(wstring Terminal) {
+	static vector <int> decompose_string(wstring Terminal) 
+	{
 		int pass = 0;
 		int ciphres_element;
 		vector <int> ciphres;
 		for (int i = 0; i < Terminal.size(); i++) {
+
+			// salta se pass è vero
 			while (pass != 0) {
 				i++;
 				pass--;
 			}
+
+			// eccezioni
 			if (i >= Terminal.size()) return ciphres;
 			if (i == Terminal.size() - 1)
 				ciphres_element = Terminal.at(i) - '0';
+
+			// caso di seconda eccezone
 			else if (i > Terminal.size() - 3) {
 				if (Terminal.at(i + 1) == '0') {
 					ciphres_element = 10 * (Terminal.at(i) - '0');
@@ -556,20 +664,29 @@ namespace Operators
 				}
 				else ciphres_element = Terminal.at(i) - '0';
 			}
+
+			// caso con '.'
 			else if (Terminal.at(i) == '.') {
 				ciphres_element = 10 * (Terminal.at(i + 1) - '0')
 					+ (Terminal.at(i + 2) - '0');
 				pass = 2;
 			}
+
+			// caso con gli zeri
 			else {
 				if (Terminal.at(i + 1) == '0') {
 					ciphres_element = 10 * (Terminal.at(i) - '0');
 					pass = 1;
 				}
+
+				// caso comune
 				else ciphres_element = Terminal.at(i) - '0';
 			}
+
+			// aggiunta
 			ciphres.push_back(ciphres_element);
 		}
+
 		return ciphres;
 	}
 	static wstring standardize(wstring ToEvaluate, bool NecBoundary)
@@ -577,6 +694,8 @@ namespace Operators
 		int start = -1, end = -1, count = 0;
 		int size_of = ToEvaluate.size();
 		if (NecBoundary) {
+
+			// cerca limiti se sono necessari
 			for (int find = 0; find < ToEvaluate.size(); find++) {
 				switch (ToEvaluate.at(find)) {
 				case '<': start = find + 1;
@@ -589,15 +708,20 @@ namespace Operators
 			ToEvaluate.erase(end);
 			ToEvaluate.erase(0, start);
 		}
+
+		// altrimenti cancellali
 		else for (int i = 0; i < size_of; i++) {
 			if (ToEvaluate.at(count) == '<' || ToEvaluate.at(count) == '>')
 				ToEvaluate.erase(count, 1);
 			else count++;
 		}
+
+		// eliminazione spazi
 		for (int space = ToEvaluate.size() - 1; space >= 0; space--) {
 			if (ToEvaluate.at(space) == ' ')
 				ToEvaluate.erase(space, 1);
 		}
+
 		return ToEvaluate;
 	}
 }
@@ -610,15 +734,20 @@ namespace Calc
 
 		int size = 0;
 		int product = 1;
+
+		// calcolo del limite di approssimazione
 		do {
 			product *= PrimeNumbers.list_primes[size];
 			size++;
 		} while (product < GlobalMax);
+
 		vector <compost_t> expfactors = decompose_number(input);
 		long long* PrimeFactors = new long long[size];
 		int* exponents = new int[size];
-		int factor_number;
+		int factor_number = 0;
 		bool when_null = 1;
+
+		// inizializzazione della scomposizione
 		for (int i = 0; i < size; i++) {
 			PrimeFactors[i] = expfactors[i].factors;
 			exponents[i] = expfactors[i].exp;
@@ -633,29 +762,42 @@ namespace Calc
 		long long analyse;
 		bool repeat;
 		wstring monomials[15];
+
+		// per ogni fattore primo
 		for (int what_factor = 0; what_factor < factor_number; what_factor++)
 		{
 			repeat = 0;
 			presence = 0;
 
+			// esponente
 			exp_verify = to_wstring(exponents[what_factor]);
 			analyse = PrimeFactors[what_factor];
 			wstring part_of1 = L"(";
 			wstring part_of2 = L")";
-			if (exponents[what_factor] != 1 && exponents[what_factor] < 11) {
+
+			// se l'esponente ha una cifra ed è maggiore di 1,
+			if (exponents[what_factor] != 1 && exponents[what_factor] < 11) 
+			{
 				part_of2.append(exp_verify);
 				presence = 1;
 			}
+
+			// se l'esponente ha due cifre,
 			else if (exponents[what_factor] > 10) {
 				part_of2.append(L".");
 				part_of2.append(exp_verify);
 				presence = 2;
 			}
+
+			// si esclude il caso di un esponente a tre cifre
 			wstring analyse_string = to_wstring(analyse);
 			the_string = part_of1 + analyse_string + part_of2;
 
 			do {
+				// caso con argomento primo
 				while (prime(analyse)) {
+
+					// riduzione dell'argomento
 					long long position = -1;
 					int a = 1;
 					do {
@@ -668,6 +810,7 @@ namespace Calc
 					the_string.erase(0, the_string.find(')'));
 					the_string = part_of1 + analyse_string + the_string;
 
+					// temporanea eliminazione dell'esponente normale
 					switch (presence) {
 					case 1:
 						exp_string = wstring(1, the_string.at(the_string.size() - 1));
@@ -679,6 +822,8 @@ namespace Calc
 						the_string.erase(the_string.size() - 3);
 						break;
 					}
+
+					// aggiunta dell'esponente primo
 					if (repeat) {
 						prime_exp_string = wstring(1, the_string.at(the_string.size() - 1));
 						the_string.erase(the_string.size() - 1);
@@ -689,10 +834,13 @@ namespace Calc
 							prime_exp_string = L"." + prime_exp_string;
 						the_string.append(prime_exp_string);
 					}
+
+					// riaggiunta dell'esponente normale
 					else the_string.append(L"1");
 					if (presence > 0) the_string.append(exp_string);
 					repeat = 1;
 				}
+				// caso con argomento composto
 				if (analyse != 1 && !prime(analyse)) {
 					analyse_string = cript(analyse);
 					the_string.erase(0, the_string.find(')'));
@@ -706,11 +854,13 @@ namespace Calc
 		delete[] PrimeFactors;
 		delete[] exponents;
 
+		// unione dei monomi
 		the_string = L"";
 		for (int i = 0; i < factor_number; i++)
 			the_string = the_string + L"+" + monomials[i];
 		the_string.erase(0, 1);
 
+		// rimozione basi
 		int* position = new int[size];
 		int j = 0;
 		for (int i = 0; i < (the_string.size() - 2); i++) {
@@ -722,6 +872,7 @@ namespace Calc
 		}
 		for (int k = j - 1; k >= 0; k--) the_string.erase(position[k], 3);
 
+		// eliminazione parentesi in più
 		int l = 0;
 		sizestring = the_string.size();
 		if (sizestring > 4) {
@@ -737,32 +888,38 @@ namespace Calc
 			}
 		}
 		delete[] position;
+
 		return the_string;
 	}
 	static string fact_number(long long input)
 	{
 		using namespace Operators;
 
+		// calcolo del limite di approssimazione
 		int size = 0;
 		int product = 1;
 		do {
 			product *= PrimeNumbers.list_primes[size];
 			size++;
 		} while (product < GlobalMax);
+
 		vector <compost_t> expfactors = decompose_number(input);
 		long long* PrimeFactors = new long long[size];
 		int* exponents = new int[size];
-		int factor_number;
-		bool tag2 = 1;
+		int factor_number = 0;
+		bool when_null = 1;
+
+		// inizializzazione della scomposizione
 		for (int i = 0; i < size; i++) {
 			PrimeFactors[i] = expfactors[i].factors;
 			exponents[i] = expfactors[i].exp;
-			if (tag2 && (PrimeFactors[i] == 0)) {
+			if (when_null && (PrimeFactors[i] == 0)) {
 				factor_number = i;
-				tag2 = 0;
+				when_null = 0;
 			}
 		}
 
+		// unione dei monomi
 		string output = "";
 		for (int i = 0; i < factor_number; i++) {
 			if (exponents[i] != 1)
@@ -772,39 +929,62 @@ namespace Calc
 		}
 		delete[] PrimeFactors;
 		delete[] exponents;
+
+		// rimozione della fine
 		output.erase(output.size() - 3);
+
 		return output;
 	}
 	static int execute_strings(wstring input)
 	{
 		using namespace Operators;
 
+		int size_s = 0;
+		int product = 1;
+
+		// calcolo del limite di approssimazione
+		do {
+			product *= PrimeNumbers.list_primes[size_s];
+			size_s++;
+		} while (product < GlobalMax);
+
 		int output = 0;
-		int values[15];
+		int location = 0;
+		bool presence = 1;
+		int* values = new int[size_s];
 		for (int i = 0; i < input.size(); i++)
 			if (input.at(i) == '.') input.erase(i, 1);
 		vector <wstring> monomials = fractioner(input);
 
-		int location;
-		bool presence = 1;
-		for (int i = 0; i < size(monomials); i++) {
+		for (int i = 0; i < size(monomials); i++) 
+		{
+			// caso con le parentesi
 			if (monomials[i].at(0) == '(') {
+
+				// acquisizione dati
 				for (int j = monomials[i].size() - 1; j >= 0; j--) {
 					if ((presence) && (monomials[i].at(j) == ')')) {
 						presence = 0;
 						location = j;
 					}
 				}
+
+				// calcolo risultato
 				wstring temp = monomials[i];
 				temp.erase(location);
 				temp.erase(0, 1);
 				monomials[i].erase(0, location + 1);
 				values[i] = execute_strings(temp) * (stoi(monomials[i]));
 			}
+
+			// caso senza parentesi
 			else values[i] = stoi(monomials[i]);
 			presence = 1;
 		}
+
+		// somma dei monomi
 		for (int end = 0; end < size(monomials); end++) output += values[end];
+
 		return output;
 	}
 	static divisor_t divisor_calculator(string factor)
@@ -814,6 +994,8 @@ namespace Calc
 		vector <long long> values;
 		vector <int> exponents;
 		bool pow_presence = 0;
+
+		// scompozizione in monomi
 		for (int i = factor.size() - 1; i >= 0; i--) {
 			if (factor.at(i) == '*') {
 				string backup = factor;
@@ -824,14 +1006,19 @@ namespace Calc
 				factor.erase(i);
 			}
 		}
+
+		// eccezione
 		if (factor.at(factor.size() - 1) == ' ')
 			factor.erase(factor.size() - 1);
 		monomials.push_back(factor);
 
+		// ricavo della scomposizione
 		for (int i = 0; i < size(monomials); i++) {
 			long long value = -1;
 			int exp = 1;
 			for (int j = 1; j < monomials[i].size(); j++) {
+
+				// caso con le potenze
 				if (monomials[i].at(j) == '^') {
 					string first = monomials[i];
 					string second = monomials[i];
@@ -841,6 +1028,8 @@ namespace Calc
 					exp = stoi(second);
 					pow_presence = 1;
 				}
+
+				// caso senza potenze
 				if (!pow_presence) value = stoi(monomials[i]);
 			}
 			if (value == -1) value = stoi(monomials[i]);
@@ -848,8 +1037,12 @@ namespace Calc
 			exponents.push_back(exp);
 		}
 
+		// calcolo del numero dei divisori
 		for (int i = 0; i < size(monomials); i++)
 			output.DivNumber *= exponents[i] + 1;
+
+		// calcolo del numero risultato
+		// e della sua somma dei divisori
 		int x = 1;
 		for (int i = 0; i < size(monomials); i++) {
 			long long num = -1 + pow(values[i], exponents[i] + 1);
@@ -857,17 +1050,31 @@ namespace Calc
 			output.DivSum *= (num / den);
 			x *= pow(values[i], exponents[i]);
 		}
+
+		// eccezione
 		if (output.DivSum < 0) output.DivSum = -1;
+
+		// calcolo del prodotto dei divisori
 		if (output.DivNumber > 0) {
 			double out = (double) output.DivNumber / 2;
 			int y = pow(x, out);
 			if (y > 0) output.DivProduct = y;
-			else output.Div_pr = to_string(x) + "^" + to_string((int) out);
+
+			// caso di overflow
+			else if (output.DivNumber % 2 == 0)
+				output.Div_pr = to_string(x) + "^" + to_string((int)out);
+
+			// caso di un quadrato perfetto pari
+			else output.Div_pr = to_string((int)sqrt(x)) 
+				+ "^" + to_string((int)(out * 2));
 		}
+
+		// eccezione
 		else {
 			output.DivNumber = -1;
 			output.DivProduct = -1;
 		}
+
 		return output;
 	}
 }
@@ -885,12 +1092,15 @@ namespace Execute
 		data_t output = { input, cript(input), 0, {}, "", 1, 1, 1, "" };
 		int counter = 0;
 		int copy = input;
+
+		// iterazione per ottenere grado e sequenza
 		do {
 			output.sequence.push_back(copy);
 			copy = execute_strings(cript(copy));
 			counter++;
 			if (copy < 4) output.degree = counter + copy;
 		} while (copy != 1);
+
 		output.sequence.push_back(1);
 		copy = input;
 		return output;
@@ -940,6 +1150,8 @@ namespace Convalid
 		bool local_error = 1, boolean = 1, stable = 0;
 		int start = -1, end = -1, parenthesis_balance = 0;
 		int size_of = ToEvaluate.size(), count = 0;
+
+		// ricerca dei limiti se sono necessari
 		if (NecBoundary) {
 			for (int find = 0; find < size_of; find++) {
 				switch (ToEvaluate.at(find)) {
@@ -955,11 +1167,21 @@ namespace Convalid
 			ToEvaluate.erase(end);
 			ToEvaluate.erase(0, start);
 		}
+
+		// rimozione altrimenti
 		else for (int i = 0; i < size_of; i++) {
 			if (ToEvaluate.at(count) == '<' || ToEvaluate.at(count) == '>')
 				ToEvaluate.erase(count, 1);
 			else count++;
 		}
+
+		// eliminazione degli spazi
+		for (int space = ToEvaluate.size() - 1; space >= 0; space--) {
+			if (ToEvaluate.at(space) == ' ')
+				ToEvaluate.erase(space, 1);
+		}
+
+		// ricerca del bilancio tra le parentesi
 		for (int i = 0; i < ToEvaluate.size(); i++) {
 			if (ToEvaluate.at(i) == '(') {
 				parenthesis_balance++;
@@ -968,22 +1190,28 @@ namespace Convalid
 			if (ToEvaluate.at(i) == ')') parenthesis_balance--;
 		}
 		if (parenthesis_balance != 0) return L"UNBALANCED_BRACKETS";
-		for (int space = ToEvaluate.size() - 1; space >= 0; space--) {
-			if (ToEvaluate.at(space) == ' ')
-				ToEvaluate.erase(space, 1);
-		}
+
+		// se la stringa è vuota
 		if (ToEvaluate.empty()) return L"EMPTY_IMPUT";
+
+		// se la stringa contiene caratteri non ammessi
 		wregex unallowed_chars(L"[^\\d+()._]");
 		if (regex_search(ToEvaluate, unallowed_chars))
 			return L"UNALLOWED_CHARACTERS";
+
+		// controllo sugli estremi
 		if (ToEvaluate.at(0) == '+') return L"NO_START_STRING";
 		if (ToEvaluate.at(0) == '0') return L"NULL_DIGIT";
 		if (ToEvaluate.at(0) == ')') return L"INVERTED_BRACKETS";
 		if (ToEvaluate.at(ToEvaluate.size() - 1) == '+')
 			return L"NO_END_STRING";
+
+		// controllo sulla non consecutività dei '+'
 		wregex no_monomial_(L"\\+{2,}");
 		if (regex_search(ToEvaluate, no_monomial_))
 			return L"MISSING_MONOMIAL";
+
+		// controlli sugli zeri
 		wregex cons_null_digits(L"0{2,}");
 		if (regex_search(ToEvaluate, cons_null_digits))
 			return L"CONSECUTIVE_NULL_DIGITS";
@@ -996,19 +1224,26 @@ namespace Convalid
 		wregex s_null_digits(L"[\\r\\D]0");
 		if (regex_search(ToEvaluate, s_null_digits))
 			return L"NULL_DIGITS";
+
 		mono = fractioner(ToEvaluate);
+
+		// per ogni monomio
 		for (int monomial = 0; monomial < size(mono); monomial++) {
-			int stackfinder = -1, stickfinder = -1, finder;
+			int stackfinder = -1, stickfinder = -1, finder = -1;
 			bool stop = 0, pass = 0;
 			int res = 0;
 			vector <int> min_ciphres, max_ciphres;
 			vector <int> ciphr_min, ciphr_max;
 			wstring min, max;
 			wstring stack = mono[monomial];
+
+			// per ogni secondo monomio
 			for (int second = 1; second < size(mono); second++) {
 				if (monomial != second) {
 					if (mono[monomial] == mono[second]) return L"1";
 					wstring stick = mono[second];
+
+					// paragone tra le dimensioni dei monomi
 					if (stack.size() < stick.size()) {
 						min = stack;
 						max = stick;
@@ -1017,7 +1252,11 @@ namespace Convalid
 						min = stick;
 						max = stack;
 					}
+
+					// caso con le parentesi
 					if (stack.at(0) == '(' || stick.at(0) == ')') {
+
+						// ricerca delle parentesi
 						boolean = 1;
 						for (int j = stack.size() - 1; j > 0; j--) {
 							if (boolean && stack.at(j) == ')') {
@@ -1032,10 +1271,14 @@ namespace Convalid
 								boolean = 0;
 							}
 						}
+
+						// caso con solo un monomio dotato di parentesi
 						if (stackfinder * stickfinder < 0) {
 							if (stackfinder > 0) finder = stackfinder;
 							else finder = stickfinder;
 						}
+
+						// caso con i monomi corrispondenti
 						else if (stickfinder == stackfinder) {
 							finder = stackfinder;
 							for (int l = 0; l <= finder + 1; l++) {
@@ -1069,6 +1312,8 @@ namespace Convalid
 						}
 					}
 					else {
+
+						// paragone tra il numero dei fattori
 						min_ciphres = decompose_string(min);
 						max_ciphres = decompose_string(max);
 						if (size(min_ciphres) < size(max_ciphres)) {
@@ -1079,6 +1324,8 @@ namespace Convalid
 							ciphr_min = max_ciphres;
 							ciphr_max = min_ciphres;
 						}
+
+						// conta delle ripetizioni
 						for (int l = 0; l < size(ciphr_min); l++) {
 							if (!stop && ciphr_min[l] == ciphr_max[l]) {
 								res++;
@@ -1088,9 +1335,12 @@ namespace Convalid
 							else stop = 1;
 						}
 					}
+
 					if (res % 2 == 1) return L"2";
 				}
 			}
+
+			// // controlli sugli oggetti adiacenti alle parentesi
 			boolean = 1;
 			for (int j = stack.size() - 1; j > 0; j--) {
 				if (boolean && stack.at(j) == ')') {
@@ -1104,10 +1354,13 @@ namespace Convalid
 				return L"INVERTED_BRACKETS";
 			if (stack.at(0) == '(') {
 				local_error = 1;
+
+				// controllo sulla necessità delle parentesi
 				for (int checkplus = 1; checkplus < finder; checkplus++) {
 					if (stack.at(checkplus) == '+') local_error = 0;
 				}
 				if (local_error) return L"USELESS_BRACKETS";
+
 				stack.erase(0, 1);
 				stack.erase(finder);
 				wstring message = syntax_validator(stack, 0);
@@ -1118,7 +1371,9 @@ namespace Convalid
 				if (mono[monomial].at(check) == '(') return L"WRONG_OBJECT";
 				if (mono[monomial].at(check) == ')') return L"WRONG_OBJECT";
 			}
+			// //
 		}
+
 		return L"";
 	}
 	static long long number_converter(long long root, wstring M)
@@ -1130,13 +1385,20 @@ namespace Convalid
 		bool XSubscriptOutOfRange = 0;
 		int sizeP = size(PrimeNumbers.list_primes), nums;
 		vector <int> ciphres = decompose_string(M);
+
+		// per ogni cifra
 		for (int iter = 0; iter < size(ciphres); iter++) {
+
 			WhichWay = !WhichWay;
 			nums = ciphres[iter];
+
+			// caso esponente
 			if (!XOutOfRange && WhichWay) {
 				UselessExponent = nums == 1;
 				root = pow(root, nums);
 			}
+
+			// caso esponente primo
 			else {
 				do {
 					if (!XOutOfRange && root < sizeP) {
@@ -1149,9 +1411,12 @@ namespace Convalid
 				} while (XSubscriptOutOfRange != 1 && XOutOfRange != 1 && nums != 0);
 			}
 		}
+
+		// eccezioni
 		if (XSubscriptOutOfRange) return -3;
 		if (UselessExponent) return -2;
 		if (XOutOfRange) return -1;
+
 		return root;
 	}
 	static long long string_converter(wstring ToEvaluate)
@@ -1162,21 +1427,27 @@ namespace Convalid
 		wstring backup, back;
 		vector <wstring> mono = fractioner(ToEvaluate);
 		int sizeP = size(PrimeNumbers.list_primes);
-		int finder;
-		bool TAG = 1;
+		int finder = -1;
+		bool boolean = 1;
+
+		// per ogni monomio
 		for (int monomial = 0; monomial < size(mono); monomial++) {
 			wstring M = mono[monomial];
 			long long root;
 			bool WhichWay = 0;
 			if (M.at(0) != '(') root = number_converter(1, M);
 			else {
-				TAG = 1;
+
+				// ricerca preliminare
+				boolean = 1;
 				for (int i = M.size() - 1; i > 0; i--) {
-					if (TAG && M.at(i) == ')') {
+					if (boolean && M.at(i) == ')') {
 						finder = i + 1;
-						TAG = 0;
+						boolean = 0;
 					}
 				}
+
+				// calcolo preciso
 				back = M;
 				backup = M;
 				backup.erase(0, finder);
@@ -1185,9 +1456,10 @@ namespace Convalid
 				root = string_converter(back);
 				root = number_converter(root, backup);
 			}
-			if (root < 0) return root;
-			else integer *= root;
+			if (root < 0) return root; // eccezione
+			else integer *= root; // caso comune
 		}
+
 		return integer;
 	}
 	static void code_converter(wstring ToEvaluate
@@ -1199,28 +1471,39 @@ namespace Convalid
 		setlocale(LC_ALL, "");
 		long long number;
 		if (ToEvaluate != L"f") {
+
 			ToEvaluate = standardize(ToEvaluate, NecBoundary);
 			number = string_converter(ToEvaluate);
+
+			// caso normale
 			if (ShowErrors || number > 0) {
 				SetConsoleTextAttribute(hConsole, 11);
 				wcout << "codice <" << ToEvaluate << "> :\n";
 				SetConsoleTextAttribute(hConsole, 15);
 			}
+
+			// caso con overflow interno
 			if (number < -2 && ShowErrors) {
 				SetConsoleTextAttribute(hConsole, 12);
 				cout << "ERR[413]: X_SUBSCRIPT_OUT_OF_RANGE\n";
 				SetConsoleTextAttribute(hConsole, 15);
 			}
+
+			// caso di comune overflow
 			if (number == -1 && ShowErrors) {
 				SetConsoleTextAttribute(hConsole, 12);
 				cout << "ERR[413]: X_OUT_OF_RANGE\n";
 				SetConsoleTextAttribute(hConsole, 15);
 			}
+
+			// caso errato per esponente inutile
 			if (number == -2 && ShowErrors) {
 				SetConsoleTextAttribute(hConsole, 6);
 				cout << "ERR[413]: USELESS_EXPONENT\n";
 				SetConsoleTextAttribute(hConsole, 15);
 			}
+
+			// caso errato con correzione
 			if (!message.empty() && ShowErrors && number > 0) {
 				cout << "ERR[400]: ";
 				message == L"1" ? cout << "EQUAL_MONOMIALS\n" : cout << "SIMILIAR_MONOMIALS\n";
@@ -1228,12 +1511,15 @@ namespace Convalid
 				wcout << "codice corretto: <" << cript(number) << ">\n";
 				SetConsoleTextAttribute(hConsole, 15);
 			}
+
+			// caso con errori nascosti per scelta utente
 			if (number > 0) {
 				cout << "il numero corrispondente e' ";
 				SetConsoleTextAttribute(hConsole, 4);
 				cout << number << '\n';
 				SetConsoleTextAttribute(hConsole, 15);
 			}
+
 		}
 	}
 }
@@ -1245,6 +1531,7 @@ namespace Evaluator
 		using namespace Operators;
 		using namespace Convalid;
 
+		// scelta
 		setlocale(LC_ALL, "");
 		wstring ToEvaluate, message;
 		switchcase option;
@@ -1261,8 +1548,11 @@ namespace Evaluator
 		cout << "aggiungendo '$' come primo carattere\n";
 		cout << "oppure '\\' o '/' senza <> non vengono mostrati gli errori\n\n";
 		SetConsoleTextAttribute(hConsole, 15);
+
 		do {
 			do {
+
+				// input e controllo
 				cout << "inserire una stringa (f = fine input)\n";
 				getline(wcin, ToEvaluate);
 				option = convert_string_to_enum(ToEvaluate);
@@ -1272,32 +1562,46 @@ namespace Evaluator
 					return option;
 				}
 				if (ToEvaluate == L".") return rnd;
+
+				// ammissione errori
 				if (!ToEvaluate.empty()) {
 					NecessaryBoundary = ToEvaluate.at(0) != '\\' && ToEvaluate.at(0) != '/';
 					ShowErrors = ToEvaluate.at(0) != '$' && NecessaryBoundary;
 					if (!NecessaryBoundary) ToEvaluate.erase(0, 1);
 				}
+
+				// individuazione degli errori
 				message = syntax_validator(ToEvaluate, NecessaryBoundary);
 				if (message.size() > 1) {
 					SetConsoleTextAttribute(hConsole, 4);
 					wcout << "ERR[404]: " << message << '\n';
 					SetConsoleTextAttribute(hConsole, 15);
 				}
+
 			} while (message.size() > 1);
+
+			// caso di fine input
 			if (ToEvaluate == L"f") return r;
 
+			// aggiustamento della stringa immessa
 			counter = 0;
 			if (NecessaryBoundary) ToEvaluate = L"<" + standardize(ToEvaluate, 1) + L">";
 			else ToEvaluate = standardize(ToEvaluate, 0);
 			wstring backup = ToEvaluate;
 			vector <int> pos;
+
+			// conta dei caratteri '_'
 			for (int i = 0; i < size(ToEvaluate); i++) {
 				if (ToEvaluate.at(i) == '_') {
 					pos.push_back(i);
 					counter++;
 				}
 			}
+
+			// caso di stringa univoca
 			if (counter == 0) code_converter(ToEvaluate, message, ShowErrors, NecessaryBoundary);
+
+			// caso di stringa ripetuta
 			else for (int i = 0; i < pow(10, counter); i++) {
 				string j = to_string(i);
 				int zero_counter = counter - j.size();
@@ -1305,6 +1609,8 @@ namespace Evaluator
 				for (int k = 0; k < j.size(); k++)
 					backup.replace(pos[k], 1, wstring(1, j.at(k)));
 				message = syntax_validator(backup, NecessaryBoundary);
+
+				// eventuale stampa degli errori
 				if (message.size() > 1 && ShowErrors) {
 					SetConsoleTextAttribute(hConsole, 11);
 					wcout << "codice " << backup << " :\n";
@@ -1314,12 +1620,13 @@ namespace Evaluator
 				}
 				else code_converter(backup, message, ShowErrors, NecessaryBoundary);
 			}
-		} while (0 == 0);
+		} while (true);
 	}
-	static switchcase repeater(string message, data_t CPU(long long input)) {
-		using Input::get_user_enum;
+	static switchcase repeater(string message, data_t CPU(long long input)) 
+	{
 		using namespace EnumMod;
 		using namespace Prints;
+		using Input::get_user_enum;
 
 		setlocale(LC_ALL, "");
 		wstring n_ = to_wstring(GlobalMax), Input;
@@ -1330,6 +1637,8 @@ namespace Evaluator
 		cout << message << "\n\n";
 		SetConsoleTextAttribute(hConsole, 15);
 		do {
+
+			// input e controllo
 			SetConsoleTextAttribute(hConsole, 14);
 			wstring txt = L"inserire un numero tra 2 e " + n_ + L" (1 = fine input)\n";
 			SetConsoleTextAttribute(hConsole, 15);
@@ -1340,19 +1649,23 @@ namespace Evaluator
 			option = reassigne_enum(option);
 			if (option != r) return option;
 			input = stoull(Input);
+
+			// calcolo e stampa dei risultati
 			if (input != 1) {
 				result = CPU(input);
 				data_printf(result);
 			}
+
 		} while (input != 1);
+
 		return r;
 	}
 	static switchcase loop(string message, data_t CPU(long long input))
 	{
-		using Input::get_user_enum;
 		using namespace EnumMod;
-		using namespace Prints;
 		using Sort::heap_sort;
+		using namespace Prints;
+		using Input::get_user_enum;
 
 		setlocale(LC_ALL, "");
 		wstring n_ = to_wstring(GlobalMax), Input;
@@ -1361,10 +1674,13 @@ namespace Evaluator
 		vector <data_t> data;
 		const double Barwidth = 60;
 		long long input;
+
 		cout << "debug::\n\n";
 		SetConsoleTextAttribute(hConsole, 14);
 		cout << message << '\n';
 		wcout << "gli estremi dell'intervallo devono essere compresi tra 1 e " << n_ << "\n\n";
+
+		// input e controllo valore iniziale
 		SetConsoleTextAttribute(hConsole, 15);
 		txt = L"inserisci il valore di inizio della ricerca\n";
 		do Input = get_user_enum(txt, 1, GlobalMax);
@@ -1375,6 +1691,7 @@ namespace Evaluator
 		if (option != r) return option;
 		long long lower_bound = stoull(Input) + 1;
 		
+		// input e controllo valore finale
 		txt = L"inserisci il valore finale della ricerca\n";
 		do Input = get_user_enum(txt, 1, GlobalMax);
 		while (Input.empty());
@@ -1387,6 +1704,7 @@ namespace Evaluator
 		if (upper_bound < lower_bound) swap(lower_bound, upper_bound);
 		long long datalenght = upper_bound - lower_bound;
 
+		// calcolo e parallelizzazione
 		system("cls");
 		if (datalenght >= 1000) {
 			int iter = 0;
@@ -1398,14 +1716,24 @@ namespace Evaluator
 				mtx.lock();
 				data.push_back(data_element);
 				if (iter % 200 == 0) {
+
+					// stampa della barra di avanzamento
 					steady_clock::time_point stop = steady_clock::now();
 					SetConsoleTextAttribute(hConsole, 112);
 					double Progress = (double)size(data) / datalenght;
 					progress_bar(Progress, Barwidth);
+
+					// calcolo del tempo rimanente
 					int time = duration_cast <milliseconds> (stop - begin).count();
 					SetConsoleTextAttribute(hConsole, 15);
 					double time_rem = (time / Progress) * (1 - Progress);
 					int time_seconds = (double)time_rem / 1000;
+
+					// calcolo cifre decimali
+					stringstream stream;
+					stream << fixed << setprecision(1) << time_seconds;
+					string s = stream.str();
+					cout << "]] " << s << "%\r";
 					cout << "\ntempo rimanente: " << time_seconds << " [secondi] ";
 				}
 				iter++;
@@ -1413,6 +1741,8 @@ namespace Evaluator
 
 				});
 			cout << string(Barwidth + 11, '\\') << '\n';
+
+			// multithreading
 			thread t1([&data]() {
 				data = heap_sort(data);
 				lock_guard <mutex> lock(mtx);
@@ -1423,11 +1753,15 @@ namespace Evaluator
 			t2.join();
 			t1.join();
 			system("cls");
+
+			// stampa risultati
 			for (int x = 0; x < size(data); ++x) data_printf(data[x]);
 			steady_clock::time_point end = steady_clock::now();
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
 				<< "[ms]\n\n";
 		}
+
+		// caso con intervallo di dimensioni minori
 		else {
 			steady_clock::time_point begin = steady_clock::now();
 			for (long long set = lower_bound; set < upper_bound; set++) {
@@ -1438,6 +1772,8 @@ namespace Evaluator
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
 				<< "[ms]\n\n\n";
 		}
+
+		// termine
 		char null;
 		cout << "premere un tasto per continuare\t\t";
 		null = _getch();
@@ -1454,6 +1790,7 @@ int main()
 	using namespace Execute;
 	using namespace Evaluator;
 
+	// scelta
 	setlocale(LC_ALL, "");
 	string simpledeg = "il programma calcola solo la codifica di un intero";
 	string simplefact = "il programma calcola solo la fattorizzazione di un intero";
@@ -1481,6 +1818,8 @@ int main()
 
 		if (!lock_prime_input) {
 			do {
+
+				// output e input controllato
 				redo = 0;
 				system("cls");
 				SetConsoleTextAttribute(hConsole, 10);
@@ -1491,11 +1830,15 @@ int main()
 				wstring G = get_user_enum(text, 0, GLOBAL_CAP);
 				if (convert_string_to_enum(G) != r) redo = 1;
 				else if (G.empty()) redo = 1;
+
+				// termine programma
 				else if (G == L".") {
 					system("cls");
 					SetConsoleTextAttribute(hConsole, 4);
 					return 0;
 				}
+
+				// casi 0 e 1
 				else global = stoi(G);
 				if (global == 1) redo = 1;
 				if (global == 0) {
@@ -1533,6 +1876,8 @@ int main()
 				this_thread::sleep_for(seconds(1));
 			}
 		}
+
+		// scelta
 		system("cls");
 		cout << "scegli opzioni::\n";
 		SetConsoleTextAttribute(hConsole, 4);
@@ -1557,11 +1902,14 @@ int main()
 		cout << "\t\"cf\" = codifica e fattorizzazione\n";
 		cout << "\t\"t\" = tutti i dati\n";
 		cout << "selezionando più operazioni, il tempo di calcolo aumenta\n";
+
 		SetConsoleTextAttribute(hConsole, 15);
 		vel = get_line();
 		option = convert_string_to_enum(vel);
 		cout << '\n';
 		do {
+
+			// input numeri primi
 			if (vel.size() == 1) {
 				skip = 0;
 				switch (vel.at(0)) {
@@ -1581,6 +1929,8 @@ int main()
 				default: vel += ' ';
 				}
 			}
+
+			// caso input non assegnato correttamente
 			if (option == r) do {
 				skip = 0;
 				cout << "scegli opzioni:: (...)\n";
@@ -1607,6 +1957,8 @@ int main()
 		} while (!skip);
 		cout << "\n\n";
 		option = reassigne_enum(option);
+
+		// scelta funzioni
 		do {
 			system("cls");
 			switch (option) {
