@@ -13,11 +13,18 @@
 #include <thread> // per il multithreading
 #include <unordered_map> // per la conversione degli enum
 #include <vector>
-#include <windows.h> // per hConsole
+
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h> // per hConsole
 using namespace std;
 using namespace chrono;
 using Concurrency::parallel_for;
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+CONSOLE_SCREEN_BUFFER_INFO csbi;
+
+// variabili globali
+const double PI = 3.1415926535897932;
 const long long GLOBAL_CAP = pow(10, 10);
 long long GlobalMax = pow(10, 10);
 atomic <bool> is_done = 0;
@@ -196,21 +203,73 @@ namespace Prints
 		string s = stream.str();
 		cout << "]] " << s << "%\r";
 	}
+	static void print_pframe(double deg
+		, int sides, double radius, COORD win_center)
+	{
+		SetConsoleTextAttribute(hConsole, 15);
+
+		COORD coord;
+		const double DIM = 1.9;
+		const int centerX = win_center.X;
+		const int centerY = win_center.Y;
+		double setX, setY;
+		double theta = 2 * PI / sides;
+
+		// calcolo apotema e lato con la goniometria e le formule
+		double sidelenght = sqrt(2 * pow(radius, 2) * (1 - cos(theta)));
+		double apotem = sqrt(pow(radius, 2) - pow(sidelenght / 2, 2));
+
+		// stringa dei caratteri per l'illuminazione del poligono
+		string prints = "@$#/*!+=~;:-,.";
+
+		for (double rad = 0; rad < 2 * PI; rad += theta) {
+			for (int i = 0; i < sidelenght; i++) {
+
+				// calcolo punti del poligono
+				setX = i - sidelenght / 2;
+				setY = apotem;
+				rad += deg;
+
+				// rotazione punti
+				coord.X = setX * cos(rad) - setY * sin(rad);
+				coord.Y = setX * sin(rad) + setY * cos(rad);
+
+				// traslazione e ridimensionamento X
+				coord.X *= DIM;
+				coord.X += centerX;
+				coord.Y += centerY;
+
+				rad -= deg;
+
+				// illuminazione
+				SetConsoleCursorPosition(hConsole, coord);
+				int index = coord.Y - centerY + radius;
+				index *= (double)prints.size() / (2 * radius);
+				cout << prints[index];
+			}
+		}
+	}
 	static void print_circle()
 	{
 		system("cls");
 		COORD coord;
-		int arc = 270;
+
+		// assegnazione delle coordinate del centro
+		GetConsoleScreenBufferInfo(hConsole, &csbi);
+		COORD win_center;
+		COORD min = { 26, 13 };
+		if (csbi.dwSize.X / 2 < min.X) win_center.X = min.X;
+		else win_center.X = csbi.dwSize.X / 2;
+		if (csbi.dwSize.Y / 2 < min.Y) win_center.Y = min.Y;
+		else win_center.Y = csbi.dwSize.Y / 2;
+
+		int arc = 270, square_radius = 0, sides = 4;
 		const double SPEED = 50;
 		const double GAP = 0.05;
-		bool arc_decrease = 1;
-		bool decrease = 1;
-		const int const_x = 46;
-		const int const_y = 13;
-		int centerX;
-		int centerY;
-		int setX;
-		int setY;
+		bool arc_decrease = 1, decrease = 1;
+		const int const_x = win_center.X;
+		const int const_y = win_center.Y;
+		int centerX, centerY, setX, setY;
 		double DIM = 1.9;
 		const double R = 8;
 		const double R2 = 5;
@@ -219,7 +278,7 @@ namespace Prints
 		const vector <int> spectrum = { 9, 9, 9, 11, 11, 3, 3, 12, 4};
 
 		for (int i = 0; i % 360 < 360; i += 3) {
-			double __i = (double)i / 180 * 3.141592653589;
+			double __i = (double)i / 180 * PI;
 			// variazione centro del cerchio principale
 			// secondo lo spostamento su un secondo cerchio
 			centerX = const_x + R2 * cos(__i);
@@ -231,7 +290,7 @@ namespace Prints
 
 			for (int deg = 0; deg < arc; deg++) {
 				// da gradi a radianti
-				double rad = (double)deg / 180 * 3.141592653589;
+				double rad = (double)deg / 180 * PI;
 
 				// calcolo punti della circonferenza del cerchio
 				setX = R * cos(rad);
@@ -270,8 +329,23 @@ namespace Prints
 				SetConsoleTextAttribute(hConsole, colour);
 				cout << dis(gen);
 			}
+
+			// stampa poligono e cambio variabili
 			decrease ? DIM -= GAP : DIM += GAP;
 			arc_decrease ? arc -= SPEED * GAP : arc += SPEED * GAP;
+			print_pframe(square_radius * PI / 180, sides, 10, win_center);
+			square_radius += 2;
+
+			// riassegnazione dei lati
+			if (square_radius % 180 == 0) 
+				switch (sides) {
+				case 4: sides = 6;
+					break;
+				case 6: sides = 8;
+					break;
+				case 8: sides = 4;
+					break;
+				}
 			if (is_done.load()) return;
 			system("cls");
 		}
@@ -335,7 +409,8 @@ namespace Prints
 		SetConsoleTextAttribute(hConsole, 15);
 	}
 }
-namespace Input {
+namespace Input
+{
 	static wstring get_line() {
 		int i = 0, j = 0;
 		wstring vel;
@@ -471,7 +546,7 @@ namespace Primitive
 		system("cls");
 
 		steady_clock::time_point begin = steady_clock::now();
-		if (N >= 100000 && USE_pro_bar) {
+		if (N >= 100'000 && USE_pro_bar) {
 			parallel_for(int(2), SQUARE, [&](int p) {
 
 				// calcolo numeri primi
@@ -504,8 +579,7 @@ namespace Primitive
 					stringstream stream;
 					stream << fixed << setprecision(1) << time_seconds;
 					string s = stream.str();
-					cout << "]] " << s << "%\r";
-					cout << "\ntempo rimanente: " << time_seconds << " [secondi] ";
+					cout << "\ntempo rimanente: " << s << " [secondi] ";
 
 					mtx.unlock();
 				}
@@ -1558,7 +1632,9 @@ namespace Evaluator
 				option = convert_string_to_enum(ToEvaluate);
 				option = reassigne_enum(option);
 				if (option != r) {
-					cout << '\n';
+					system("cls");
+					LPCWSTR title = ToEvaluate.c_str();
+					SetConsoleTitle(title);
 					return option;
 				}
 				if (ToEvaluate == L".") return rnd;
@@ -1647,7 +1723,12 @@ namespace Evaluator
 			if (Input == L".") return rnd;
 			option = convert_string_to_enum(Input);
 			option = reassigne_enum(option);
-			if (option != r) return option;
+			if (option != r) {
+				system("cls");
+				LPCWSTR title = Input.c_str();
+				SetConsoleTitle(title);
+				return option;
+			}
 			input = stoull(Input);
 
 			// calcolo e stampa dei risultati
@@ -1688,7 +1769,12 @@ namespace Evaluator
 		if (Input == L".") return rnd;
 		option = convert_string_to_enum(Input);
 		option = reassigne_enum(option);
-		if (option != r) return option;
+		if (option != r) {
+			system("cls");
+			LPCWSTR title = Input.c_str();
+			SetConsoleTitle(title);
+			return option;
+		}
 		long long lower_bound = stoull(Input) + 1;
 		
 		// input e controllo valore finale
@@ -1698,7 +1784,12 @@ namespace Evaluator
 		if (Input == L".") return rnd;
 		option = convert_string_to_enum(Input);
 		option = reassigne_enum(option);
-		if (option != r) return option;
+		if (option != r) {
+			system("cls");
+			LPCWSTR title = Input.c_str();
+			SetConsoleTitle(title);
+			return option;
+		}
 		long long upper_bound = stoull(Input) + 1;
 
 		if (upper_bound < lower_bound) swap(lower_bound, upper_bound);
@@ -1727,14 +1818,13 @@ namespace Evaluator
 					int time = duration_cast <milliseconds> (stop - begin).count();
 					SetConsoleTextAttribute(hConsole, 15);
 					double time_rem = (time / Progress) * (1 - Progress);
-					int time_seconds = (double)time_rem / 1000;
+					double time_seconds = (double)time_rem / 1000;
 
 					// calcolo cifre decimali
 					stringstream stream;
 					stream << fixed << setprecision(1) << time_seconds;
 					string s = stream.str();
-					cout << "]] " << s << "%\r";
-					cout << "\ntempo rimanente: " << time_seconds << " [secondi] ";
+					cout << "\ntempo rimanente: " << s << " [secondi] ";
 				}
 				iter++;
 				mtx.unlock();
@@ -1811,7 +1901,8 @@ int main()
 	bool start = 1;
 	bool lock_prime_input = 0;
 	long long global = 1;
-	do {
+	while (true) 
+	{
 		bool stop = 0;
 		bool skip = 1;
 		bool redo = 0;
@@ -1822,6 +1913,7 @@ int main()
 				// output e input controllato
 				redo = 0;
 				system("cls");
+				SetConsoleTitle(TEXT("START"));
 				SetConsoleTextAttribute(hConsole, 10);
 				cout << "CALCOLATRICE::\n\n";
 				text = L"fino a quale numero cercare i numeri primi?\n";
@@ -1848,6 +1940,7 @@ int main()
 			} while (redo);
 			SetConsoleTextAttribute(hConsole, 15);
 
+			// stampa del tempo
 			if (global != 0 || start) {
 				steady_clock::time_point begin = steady_clock::now();
 				GlobalMax = global;
@@ -1879,16 +1972,17 @@ int main()
 
 		// scelta
 		system("cls");
-		cout << "scegli opzioni::\n";
+		SetConsoleTitle(TEXT("switchcase scegli le opzioni"));
+		cout << "scegli opzioni::\v";
 		SetConsoleTextAttribute(hConsole, 4);
 		cout << "se stringa di un carattere:\n";
 		cout << "\t'0' = blocca input numeri primi ~[~sempre]\n";
 		cout << "\t'1' = sblocca input numeri primi\n";
-		cout << "\t'.' = fine programma [sempre]\n";
+		cout << "\t'.' = fine programma [sempre]\v";
 		SetConsoleTextAttribute(hConsole, 9);
 		cout << "altrimenti:\n";
 		cout << "\t\"rnd\" = casuale\n";
-		cout << "\t\"ctn\" = da codice a numero\n";
+		cout << "\t\"ctn\" = da codice a numero\v";
 		SetConsoleTextAttribute(hConsole, 11);
 		cout << "oppure:\n";
 		cout << "primo carattere:\n";
@@ -1901,7 +1995,7 @@ int main()
 		cout << "\t\"ff\" = fattoizzazione e dati dei divisori\n";
 		cout << "\t\"cf\" = codifica e fattorizzazione\n";
 		cout << "\t\"t\" = tutti i dati\n";
-		cout << "selezionando più operazioni, il tempo di calcolo aumenta\n";
+		cout << "selezionando più operazioni, il tempo di calcolo aumenta\v";
 
 		SetConsoleTextAttribute(hConsole, 15);
 		vel = get_line();
@@ -1915,11 +2009,11 @@ int main()
 				switch (vel.at(0)) {
 				case '0':
 					lock_prime_input = 1;
-					cout << "input numeri primi bloccato\n";
+					cout << "\ninput numeri primi bloccato\n";
 					break;
 				case '1':
 					lock_prime_input = 0;
-					cout << "input numeri primi sbloccato\n";
+					cout << "\ninput numeri primi sbloccato\n";
 					break;
 				case '.':
 					system("cls");
@@ -1957,11 +2051,17 @@ int main()
 		} while (!skip);
 		cout << "\n\n";
 		option = reassigne_enum(option);
+		wstring wtitle = convert_enum_to_string(option);
 
-		// scelta funzioni
+		// cambio titolo
+		system("cls");
+		LPCWSTR title = wtitle.c_str();
+		SetConsoleTitle(title);
+		
+		// scelta funzioni e opzioni
 		do {
-			system("cls");
-			switch (option) {
+			switch (option) 
+			{
 			case cc: option = repeater(simpledeg, execute_simpledeg);
 				break;
 			case ccc: option = repeater(message, execute_degree);
@@ -1995,6 +2095,6 @@ int main()
 				return 0;
 			}
 		} while (option != r);
-	} while (true);
+	}
 }
 // program_END
