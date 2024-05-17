@@ -22,6 +22,8 @@ using namespace chrono;
 using Concurrency::parallel_for;
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 CONSOLE_SCREEN_BUFFER_INFO csbi;
+CONSOLE_CURSOR_INFO cursorInfo = { 10, FALSE };
+CONSOLE_CURSOR_INFO cursor = { 10, TRUE };
 
 // variabili globali
 const double PI = 3.1415926535897932;
@@ -257,7 +259,7 @@ namespace Prints
 		// assegnazione delle coordinate del centro
 		GetConsoleScreenBufferInfo(hConsole, &csbi);
 		COORD win_center;
-		COORD min = { 26, 13 };
+		COORD min = { 25, 15 };
 		if (csbi.dwSize.X / 2 < min.X) win_center.X = min.X;
 		else win_center.X = csbi.dwSize.X / 2;
 		if (csbi.dwSize.Y / 2 < min.Y) win_center.Y = min.Y;
@@ -348,6 +350,8 @@ namespace Prints
 				}
 			if (is_done.load()) return;
 			system("cls");
+			SetConsoleCursorPosition(hConsole, { 0, 0 });
+			cout << "attendere";
 		}
 	}
 	static void data_printf(data_t structure)
@@ -579,7 +583,7 @@ namespace Primitive
 					stringstream stream;
 					stream << fixed << setprecision(1) << time_seconds;
 					string s = stream.str();
-					cout << "\ntempo rimanente: " << s << " [secondi] ";
+					cout << "\ntempo rimanente: " << s << " [secondi]  ";
 
 					mtx.unlock();
 				}
@@ -1321,8 +1325,7 @@ namespace Convalid
 					if (stack.size() < stick.size()) {
 						min = stack;
 						max = stick;
-					}
-					else {
+					} else {
 						min = stick;
 						max = stack;
 					}
@@ -1393,8 +1396,7 @@ namespace Convalid
 						if (size(min_ciphres) < size(max_ciphres)) {
 							ciphr_min = min_ciphres;
 							ciphr_max = max_ciphres;
-						}
-						else {
+						} else {
 							ciphr_min = max_ciphres;
 							ciphr_max = min_ciphres;
 						}
@@ -1797,6 +1799,7 @@ namespace Evaluator
 
 		// calcolo e parallelizzazione
 		system("cls");
+		SetConsoleCursorInfo(hConsole, &cursorInfo);
 		if (datalenght >= 1000) {
 			int iter = 0;
 			atomic <double> Progress = 0;
@@ -1845,6 +1848,7 @@ namespace Evaluator
 			system("cls");
 
 			// stampa risultati
+			SetConsoleCursorInfo(hConsole, &cursor);
 			for (int x = 0; x < size(data); ++x) data_printf(data[x]);
 			steady_clock::time_point end = steady_clock::now();
 			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
@@ -1944,6 +1948,7 @@ int main()
 			if (global != 0 || start) {
 				steady_clock::time_point begin = steady_clock::now();
 				GlobalMax = global;
+				SetConsoleCursorInfo(hConsole, &cursorInfo);
 				PrimeNumbers = sieve_of_Erastothens(GlobalMax, 1);
 				steady_clock::time_point end = steady_clock::now();
 				int delta = duration_cast <milliseconds> (end - begin).count();
@@ -1965,8 +1970,9 @@ int main()
 				}
 				else cout << "tempo di calcolo numeri primi = " << delta << " millisecondi\n\n";
 				start = 0;
-				SetConsoleTextAttribute(hConsole, 15);
 				this_thread::sleep_for(seconds(1));
+				SetConsoleTextAttribute(hConsole, 15);
+				SetConsoleCursorInfo(hConsole, &cursor);
 			}
 		}
 
