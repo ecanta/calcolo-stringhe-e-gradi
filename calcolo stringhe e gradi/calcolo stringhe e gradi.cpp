@@ -1,17 +1,15 @@
 // Descrizione ::
 	/*														  |
-	*	Strings ZP[2.2].cpp: il programma calcola singola e\o |
+	*  Strings ZP[2.2].cpp: il programma calcola singola e\o  |
 	*  doppia scomposizione di alcuni interi in una stringa   |
 	*  o il contrario, e i numeri primi						  |
 	*/
-//
 
 // program_START
 #include <chrono> // per le misurazioni di tempo
 #include <cmath> // per i calcoli
 #include <condition_variable> // per il multithreading
 #include <conio.h> // per l'input avanzato
-#include <future> // per le interruzioni
 #include <iomanip>
 #include <iostream> // per l'output
 #include <ppl.h> // per la parallelizzazione
@@ -26,10 +24,12 @@
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h> // per hConsole
+
 using namespace std;
 using namespace chrono;
 using Concurrency::parallel_for;
 using this_thread::sleep_for;
+
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 CONSOLE_SCREEN_BUFFER_INFO csbi;
 CONSOLE_CURSOR_INFO cursorInfo = { 10, FALSE };
@@ -39,12 +39,13 @@ CONSOLE_CURSOR_INFO cursor = { 10, TRUE };
 const double PI = 3.1415926535897932;
 const long long GLOBAL_CAP = pow(10, 10);
 long long GlobalMax = pow(10, 10);
+
 atomic <bool> GlobalInterr(0);
 atomic <bool> interrupted(0);
 atomic <bool> computing(0);
 atomic <bool> is_done(0);
-condition_variable cv;
-mutex coutMutex, mtx;
+condition_variable cv, Cv;
+mutex CoutMutex, mtx;
 
 static char NotBlockingGetch() { return _getch(); }
 typedef struct {
@@ -551,15 +552,8 @@ namespace Primitive
 	static void UserInputThread() {
 		while (computing) {
 
-			// controllo pressione tasto
-			char choice = ' ';
-			future <char> result =
-				async(launch::async, NotBlockingGetch);
-			if (result.wait_for(seconds(1)) == future_status::ready)
-				choice = result.get();
-			else return;
-
-			// controllo se è 's' oppure 'S'
+			// controllo
+			char choice = _getch();
 			if (choice == 'S' || choice == 's') {
 				GlobalInterr = 1;
 				interrupted = 1;
@@ -567,7 +561,7 @@ namespace Primitive
 			}
 
 			// riduzione uso della CPU
-			lock_guard <mutex> lock(coutMutex);
+			lock_guard <mutex> lock(CoutMutex);
 			sleep_for(milliseconds(100));
 		}
 	}
@@ -1262,7 +1256,8 @@ namespace Convalid
 		if (ToEvaluate == L"f") return L"";
 		vector <wstring> mono;
 		string charsAllowed = "0123456789+(_).";
-		bool local_error = 1, boolean = 1, stable = 0;
+		bool local_error = 1, boolean = 1;
+		int stable = 0;
 		int start = -1, end = -1, parenthesis_balance = 0;
 		int size_of = ToEvaluate.size(), count = 0;
 
@@ -1653,7 +1648,7 @@ namespace Convalid
 		}
 
 		// caso di stringa univoca
-		lock_guard <mutex> lock(coutMutex);
+		lock_guard <mutex> lock(CoutMutex);
 		if (counter == 0) CodeConverter(ToEvaluate, message, ShowErrors, NecBoundary);
 
 		// caso di stringa ripetuta
@@ -1677,6 +1672,7 @@ namespace Convalid
 			if (interrupted) break;
 		}
 		computing = 0;
+		Cv.notify_one();
 	}
 }
 namespace Evaluator
@@ -1732,7 +1728,7 @@ namespace Evaluator
 				// individuazione degli errori
 				message = SyntaxValidator(ToEvaluate, NecessaryBoundary);
 				if (message.size() > 1) {
-					lock_guard <mutex> lock(coutMutex);
+					lock_guard <mutex> lock(CoutMutex);
 					SetConsoleTextAttribute(hConsole, 4);
 					wcout << "ERR[404]: " << message << '\n';
 					SetConsoleTextAttribute(hConsole, 15);
@@ -1747,19 +1743,27 @@ namespace Evaluator
 			if (NecessaryBoundary) ToEvaluate = L"<" + Standardize(ToEvaluate, 1) + L">";
 			else ToEvaluate = Standardize(ToEvaluate, 0);
 			
-			// multithreading per consentire l'eventuale interruzione
+			GlobalInterr = 0;
+			computing = 1;
+			interrupted = 0;
+
+			// dichiarazione dei thread
 			thread ComputationThread([=]() {
-				LongComputation(ToEvaluate, message,
-				ShowErrors, NecessaryBoundary);
+				LongComputation(ToEvaluate, message, ShowErrors, NecessaryBoundary);
 				});
 			thread InputThread(UserInputThread);
 
-			ComputationThread.join();
-			interrupted = 1;
-			InputThread.join();
+			unique_lock <mutex> lock(CoutMutex);
+			Cv.wait(lock, [] { return !computing; });
 
+			if (ComputationThread.joinable())
+				ComputationThread.join();
+			interrupted = 1;
+			if (InputThread.joinable())
+				InputThread.join();
+
+			// se il calcolo viene interrotto
 			if (GlobalInterr) {
-				lock_guard <mutex> lock(coutMutex);
 				SetConsoleTextAttribute(hConsole, 15);
 				cout << '\n';
 				SetConsoleTextAttribute(hConsole, 64);
