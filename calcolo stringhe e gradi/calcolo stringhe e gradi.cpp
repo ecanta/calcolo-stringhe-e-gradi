@@ -13,6 +13,7 @@
 #include <iomanip>
 #include <iostream> // per l'output
 #include <ppl.h> // per la parallelizzazione
+#include <queue>
 #include <random> // per i generatori casuali
 #include <regex> // per la convalidazione
 #include <sstream>
@@ -31,9 +32,9 @@ using Concurrency::parallel_for;
 using this_thread::sleep_for;
 
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-CONSOLE_SCREEN_BUFFER_INFO csbi;
 CONSOLE_CURSOR_INFO cursorInfo = { 10, FALSE };
 CONSOLE_CURSOR_INFO cursor = { 10, TRUE };
+CONSOLE_SCREEN_BUFFER_INFO csbi;
 
 // variabili globali
 const double PI = 3.1415926535897932;
@@ -46,6 +47,7 @@ atomic <bool> computing(0);
 atomic <bool> is_done(0);
 condition_variable cv, Cv;
 mutex CoutMutex, mtx;
+COORD Min = { 25, 15 };
 
 static char NotBlockingGetch() { return _getch(); }
 typedef struct {
@@ -82,94 +84,108 @@ enum switchcase {
 };
 vector_t PrimeNumbers;
 
+class TestInputReader {
+public:
+	void enqueue(char c) { buffer.push(c); }
+	char read() {
+		if (buffer.empty()) buffer.push(_getch());
+		char front = buffer.front();
+		buffer.pop();
+		return front;
+	}
+
+private: queue <char> buffer;
+};
+TestInputReader ObjectGetCh;
+
 namespace EnumMod
-{
-	static unordered_map <wstring, switchcase> stringToEnumMap = {
-		{L"cc", switchcase::cc},
-		{L"ccc", switchcase::ccc},
-		{L"cf", switchcase::cf},
-		{L"cff", switchcase::cff},
-		{L"ccf", switchcase::ccf},
-		{L"ct", switchcase::ct},
-		{L"dc", switchcase::dc},
-		{L"dcc", switchcase::dcc},
-		{L"df", switchcase::df},
-		{L"dff", switchcase::dff},
-		{L"dcf", switchcase::dcf},
-		{L"dt", switchcase::dt},
-		{L"ctn", switchcase::ctn},
-		{L"rnd", switchcase::rnd}
-	};
-	static unordered_map <switchcase, wstring> enumToStringMap = {
-		{switchcase::cc, L"cc"},
-		{switchcase::ccc, L"ccc"},
-		{switchcase::cf, L"cf"},
-		{switchcase::cff, L"cff"},
-		{switchcase::ccf, L"ccf"},
-		{switchcase::ct, L"ct"},
-		{switchcase::dc, L"dc"},
-		{switchcase::dcc, L"dcc"},
-		{switchcase::df, L"df"},
-		{switchcase::dff, L"dff"},
-		{switchcase::dcf, L"dcf"},
-		{switchcase::dt, L"dt"},
-		{switchcase::ctn, L"ctn"},
-		{switchcase::rnd, L"rnd"}
-	};
-	static wstring ConvertEnumToWString(switchcase Enum) {
-		auto it = enumToStringMap.find(Enum);
-		if (it != enumToStringMap.end())
-			return it->second;
-	}
-	static switchcase ConvertWStringToEnum(wstring str) {
-		auto it = stringToEnumMap.find(str);
-		if (it != stringToEnumMap.end())
-			return it->second;
-		else {
-			stringToEnumMap.insert({ str , r });
-			it = stringToEnumMap.find(str);
-			return it->second;
+	{
+		static unordered_map <wstring, switchcase> stringToEnumMap = {
+			{L"cc", switchcase::cc},
+			{L"ccc", switchcase::ccc},
+			{L"cf", switchcase::cf},
+			{L"cff", switchcase::cff},
+			{L"ccf", switchcase::ccf},
+			{L"ct", switchcase::ct},
+			{L"dc", switchcase::dc},
+			{L"dcc", switchcase::dcc},
+			{L"df", switchcase::df},
+			{L"dff", switchcase::dff},
+			{L"dcf", switchcase::dcf},
+			{L"dt", switchcase::dt},
+			{L"ctn", switchcase::ctn},
+			{L"rnd", switchcase::rnd}
+		};
+		static unordered_map <switchcase, wstring> enumToStringMap = {
+			{switchcase::cc, L"cc"},
+			{switchcase::ccc, L"ccc"},
+			{switchcase::cf, L"cf"},
+			{switchcase::cff, L"cff"},
+			{switchcase::ccf, L"ccf"},
+			{switchcase::ct, L"ct"},
+			{switchcase::dc, L"dc"},
+			{switchcase::dcc, L"dcc"},
+			{switchcase::df, L"df"},
+			{switchcase::dff, L"dff"},
+			{switchcase::dcf, L"dcf"},
+			{switchcase::dt, L"dt"},
+			{switchcase::ctn, L"ctn"},
+			{switchcase::rnd, L"rnd"}
+		};
+		static wstring ConvertEnumToWString(switchcase Enum) {
+			auto it = enumToStringMap.find(Enum);
+			if (it != enumToStringMap.end())
+				return it->second;
 		}
-	}
-	static switchcase ReassigneEnum(switchcase option) {
-		if (option == rnd) {
-			random_device rng;
-			mt19937 gen(rng());
-			uniform_int_distribution<> dis(0, 13);
-			switch (dis(gen)) {
-			case 0: return cc;
-				break;
-			case 1: return ccc;
-				break;
-			case 2: return cf;
-				break;
-			case 3: return cff;
-				break;
-			case 4: return ccf;
-				break;
-			case 5: return dcf;
-				break;
-			case 6: return ct;
-				break;
-			case 7: return dc;
-				break;
-			case 8: return dcc;
-				break;
-			case 9: return df;
-				break;
-			case 10: return dff;
-				break;
-			case 11: return dff;
-				break;
-			case 12: return dt;
-				break;
-			case 13: return ctn;
-				break;
+		static switchcase ConvertWStringToEnum(wstring str) {
+			auto it = stringToEnumMap.find(str);
+			if (it != stringToEnumMap.end())
+				return it->second;
+			else {
+				stringToEnumMap.insert({ str , r });
+				it = stringToEnumMap.find(str);
+				return it->second;
 			}
 		}
-		else return option;
+		static switchcase ReassigneEnum(switchcase option) {
+			if (option == rnd) {
+				random_device rng;
+				mt19937 gen(rng());
+				uniform_int_distribution<> dis(0, 13);
+				switch (dis(gen)) {
+				case 0: return cc;
+					break;
+				case 1: return ccc;
+					break;
+				case 2: return cf;
+					break;
+				case 3: return cff;
+					break;
+				case 4: return ccf;
+					break;
+				case 5: return dcf;
+					break;
+				case 6: return ct;
+					break;
+				case 7: return dc;
+					break;
+				case 8: return dcc;
+					break;
+				case 9: return df;
+					break;
+				case 10: return dff;
+					break;
+				case 11: return dff;
+					break;
+				case 12: return dt;
+					break;
+				case 13: return ctn;
+					break;
+				}
+			}
+			else return option;
+		}
 	}
-}
 namespace Sort
 {
 	template <typename struct_t>
@@ -199,29 +215,24 @@ namespace Sort
 }
 namespace Prints
 {
-	static void ProgressBar(double ratio, double barWidth)
+	static void ClearArea(COORD win_center)
 	{
-		// necessario per poter scrivere messaggi 
-		// sotto alla barra di progresso
-		SetConsoleCursorPosition(hConsole, { 0, 0 });
+		GetConsoleScreenBufferInfo(hConsole, &csbi);
+		DWORD consoleSize = pow(2 * Min.X + 1, 2);
+		DWORD written;
+		COORD coord;
 
-		// stampa della barra principale
-		cout << "[[";
-		int pos = (int)(barWidth * ratio);
-		for (int i = 0; i < barWidth; ++i) {
-			if (i < pos) cout << "=";
-			else (i == pos) ? cout << ">" : cout << " ";
+		coord.X = win_center.X - Min.X;
+		coord.Y = win_center.Y - Min.Y;
+
+		for (int y = win_center.Y; y <= win_center.Y + 2 * Min.Y; y++) {
+			coord.Y = y - Min.Y;
+			FillConsoleOutputCharacter
+			(hConsole, ' ', 2 * Min.X + 1, coord, &written);
 		}
-
-		// calcolo della percentuale
-		ratio *= 100.0;
-		stringstream stream;
-		stream << fixed << setprecision(1) << ratio;
-		string s = stream.str();
-		cout << "]] " << s << "%\r";
 	}
-	static void PrintPFrame(double deg
-		, int sides, double radius, COORD win_center)
+	static void PrintPFrame
+	(double deg, int sides, double radius, COORD win_center)
 	{
 		SetConsoleTextAttribute(hConsole, 15);
 
@@ -266,35 +277,27 @@ namespace Prints
 			}
 		}
 	}
-	static void PrintCircle()
+	static void DrawCircleSquare(COORD circle_center) 
 	{
-		system("cls");
+		ClearArea(circle_center);
+
+		// calcolo variabili
 		COORD coord;
-
-		// assegnazione delle coordinate del centro
-		GetConsoleScreenBufferInfo(hConsole, &csbi);
-		COORD win_center;
-		COORD min = { 25, 15 };
-		if (csbi.dwSize.X / 2 < min.X) win_center.X = min.X;
-		else win_center.X = csbi.dwSize.X / 2;
-		if (csbi.dwSize.Y / 2 < min.Y) win_center.Y = min.Y;
-		else win_center.Y = csbi.dwSize.Y / 2;
-
 		int arc = 270, square_radius = 0, sides = 4;
 		const double SPEED = 50;
 		const double GAP = 0.05;
 		bool arc_decrease = 1, decrease = 1;
-		const int const_x = win_center.X;
-		const int const_y = win_center.Y;
+		const int const_x = circle_center.X;
+		const int const_y = circle_center.Y;
 		int centerX, centerY, setX, setY;
 		double DIM = 1.9;
 		const double R = 8;
 		const double R2 = 5;
 
 		// vettore dello spettro dei colori
-		const vector <int> spectrum = { 9, 9, 9, 11, 11, 3, 3, 12, 4};
+		const vector <int> spectrum = { 9, 9, 9, 11, 11, 3, 3, 12, 4 };
 
-		for (int i = 0; i % 360 < 360; i += 3) {
+		for (int i = 0; i % 360 < 360; i += 7) {
 			double __i = (double)i / 180 * PI;
 			// variazione centro del cerchio principale
 			// secondo lo spostamento su un secondo cerchio
@@ -350,11 +353,11 @@ namespace Prints
 			// stampa poligono e cambio variabili
 			decrease ? DIM -= GAP : DIM += GAP;
 			arc_decrease ? arc -= SPEED * GAP : arc += SPEED * GAP;
-			PrintPFrame(square_radius * PI / 180, sides, 10, win_center);
+			PrintPFrame(square_radius * PI / 180, sides, 10, circle_center);
 			square_radius += 2;
 
 			// riassegnazione dei lati
-			if (square_radius % 180 == 0) 
+			if (square_radius % 180 == 0)
 				switch (sides) {
 				case 4: sides = 6;
 					break;
@@ -364,10 +367,43 @@ namespace Prints
 					break;
 				}
 			if (is_done.load()) return;
-			system("cls");
-			SetConsoleCursorPosition(hConsole, { 0, 0 });
-			cout << "attendere";
+			sleep_for(microseconds(1));
+			ClearArea(circle_center);
 		}
+	}
+	static void CS_CenterPrinter()
+	{
+		// assegnazione delle coordinate del centro
+		GetConsoleScreenBufferInfo(hConsole, &csbi);
+		COORD win_center;
+		if (csbi.dwSize.X / 2 < Min.X) win_center.X = Min.X;
+		else win_center.X = csbi.dwSize.X / 2;
+		if (csbi.dwSize.Y / 2 < Min.Y) win_center.Y = Min.Y;
+		else win_center.Y = csbi.dwSize.Y / 2;
+
+		// animazione
+		DrawCircleSquare(win_center);
+	}
+	static void ProgressBar(double ratio, double barWidth)
+	{
+		// necessario per poter scrivere messaggi 
+		// sotto alla barra di progresso
+		SetConsoleCursorPosition(hConsole, { 0, 0 });
+
+		// stampa della barra principale
+		cout << "[[";
+		int pos = (int)(barWidth * ratio);
+		for (int i = 0; i < barWidth; ++i) {
+			if (i < pos) cout << "=";
+			else (i == pos) ? cout << ">" : cout << " ";
+		}
+
+		// calcolo della percentuale
+		ratio *= 100.0;
+		stringstream stream;
+		stream << fixed << setprecision(1) << ratio;
+		string s = stream.str();
+		cout << "]] " << s << "%\r";
 	}
 	static void DataPrintF(data_t structure)
 	{
@@ -553,7 +589,7 @@ namespace Primitive
 		while (computing) {
 
 			// controllo
-			char choice = _getch();
+			char choice = ObjectGetCh.read();
 			if (choice == 'S' || choice == 's') {
 				GlobalInterr = 1;
 				interrupted = 1;
@@ -561,7 +597,6 @@ namespace Primitive
 			}
 
 			// riduzione uso della CPU
-			lock_guard <mutex> lock(CoutMutex);
 			sleep_for(milliseconds(100));
 		}
 	}
@@ -639,7 +674,7 @@ namespace Primitive
 				is_done = 1;
 				cv.notify_one();
 				});
-			thread t2(PrintCircle);
+			thread t2(CS_CenterPrinter);
 			t1.join();
 			t2.join();
 		}
@@ -1444,7 +1479,8 @@ namespace Convalid
 						}
 					}
 
-					if (res % 2 == 1) return L"2";
+					if (res % 2 == size(ciphr_max) - size(ciphr_min))
+						return L"2";
 				}
 			}
 
@@ -1570,8 +1606,8 @@ namespace Convalid
 
 		return integer;
 	}
-	static void CodeConverter(wstring ToEvaluate
-		, wstring message, bool ShowErrors, bool NecBoundary)
+	static void CodeConverter
+	(wstring ToEvaluate, wstring message, bool ShowErrors, bool NecBoundary)
 	{
 		using namespace Operators;
 		using namespace Calc;
@@ -1630,9 +1666,10 @@ namespace Convalid
 
 		}
 	}
-	static void LongComputation(wstring ToEvaluate
-		, wstring message, bool ShowErrors, bool NecBoundary)
+	static void LongComputation
+	(wstring ToEvaluate, wstring message, bool ShowErrors, bool NecBoundary)
 	{
+		using namespace Prints;
 		computing = 1;
 		interrupted = 0;
 
@@ -1653,23 +1690,37 @@ namespace Convalid
 
 		// caso di stringa ripetuta
 		else for (int i = 0; i < pow(10, counter); i++) {
-			string j = to_string(i);
-			int zero_counter = counter - j.size();
-			for (int k = 0; k < zero_counter; k++) j = "0" + j;
-			for (int k = 0; k < j.size(); k++)
-				backup.replace(pos[k], 1, wstring(1, j.at(k)));
-			message = SyntaxValidator(backup, NecBoundary);
 
-			// eventuale stampa degli errori
-			if (message.size() > 1 && ShowErrors) {
-				SetConsoleTextAttribute(hConsole, 11);
-				wcout << "codice " << backup << " :\n";
-				SetConsoleTextAttribute(hConsole, 4);
-				wcout << "ERR[404]: " << message << '\n';
-				SetConsoleTextAttribute(hConsole, 15);
-			}
-			else CodeConverter(backup, message, ShowErrors, NecBoundary);
-			if (interrupted) break;
+			// passa variabili per indirizzo
+			thread t1([&]() {
+
+				string j = to_string(i);
+				int zero_counter = counter - j.size();
+				for (int k = 0; k < zero_counter; k++) j = "0" + j;
+				for (int k = 0; k < j.size(); k++)
+					backup.replace(pos[k], 1, wstring(1, j.at(k)));
+				message = SyntaxValidator(backup, NecBoundary);
+
+				// eventuale stampa degli errori
+				if (message.size() > 1 && ShowErrors) {
+					SetConsoleTextAttribute(hConsole, 11);
+					wcout << "codice " << backup << " :\n";
+					SetConsoleTextAttribute(hConsole, 4);
+					wcout << "ERR[404]: " << message << '\n';
+					SetConsoleTextAttribute(hConsole, 15);
+				}
+				else CodeConverter(backup, message, ShowErrors, NecBoundary);
+				if (interrupted) return;
+
+				is_done = 1;
+				cv.notify_one();
+				});
+
+			thread t2([=]() {
+
+				});
+			t1.join();
+			t2.join();
 		}
 		computing = 0;
 		Cv.notify_one();
@@ -1746,6 +1797,7 @@ namespace Evaluator
 			GlobalInterr = 0;
 			computing = 1;
 			interrupted = 0;
+			ObjectGetCh.enqueue(' ');
 
 			// dichiarazione dei thread
 			thread ComputationThread([=]() {
@@ -1915,7 +1967,7 @@ namespace Evaluator
 				is_done = 1;
 				cv.notify_one();
 				});
-			thread t2(PrintCircle);
+			thread t2(CS_CenterPrinter);
 			t2.join();
 			t1.join();
 			system("cls");
@@ -1999,7 +2051,6 @@ int main()
 				wstring G = GetUserNum(text, 0, GLOBAL_CAP);
 				if (ConvertWStringToEnum(G) != r) redo = 1;
 				else if (G.empty()) redo = 1;
-
 				// termine programma
 				else if (G == L".") {
 					system("cls");
@@ -2176,4 +2227,4 @@ int main()
 		} while (option != r);
 	}
 }
-// program_END
+// program_END 
