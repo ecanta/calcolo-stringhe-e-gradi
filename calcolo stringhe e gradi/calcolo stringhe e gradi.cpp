@@ -105,7 +105,8 @@ TestInputReader ObjectGetCh;
 
 namespace EnumMod
 {
-	static unordered_map <wstring, switchcase> stringToEnumMap = {
+	static unordered_map <wstring, switchcase> stringToEnumMap = 
+	{
 		{L"cc", switchcase::cc},
 		{L"ccc", switchcase::ccc},
 		{L"cf", switchcase::cf},
@@ -121,7 +122,8 @@ namespace EnumMod
 		{L"ctn", switchcase::ctn},
 		{L"rnd", switchcase::rnd}
 	};
-	static unordered_map <switchcase, wstring> enumToStringMap = {
+	static unordered_map <switchcase, wstring> enumToStringMap = 
+	{
 		{switchcase::cc, L"cc"},
 		{switchcase::ccc, L"ccc"},
 		{switchcase::cf, L"cf"},
@@ -137,12 +139,14 @@ namespace EnumMod
 		{switchcase::ctn, L"ctn"},
 		{switchcase::rnd, L"rnd"}
 	};
-	static wstring ConvertEnumToWString(switchcase Enum) {
+	static wstring ConvertEnumToWString(switchcase Enum) 
+	{
 		auto it = enumToStringMap.find(Enum);
 		if (it != enumToStringMap.end())
 			return it->second;
 	}
-	static switchcase ConvertWStringToEnum(wstring str) {
+	static switchcase ConvertWStringToEnum(wstring str) 
+	{
 		auto it = stringToEnumMap.find(str);
 		if (it != stringToEnumMap.end())
 			return it->second;
@@ -152,7 +156,8 @@ namespace EnumMod
 			return it->second;
 		}
 	}
-	static switchcase ReassigneEnum(switchcase option) {
+	static switchcase ReassigneEnum(switchcase option) 
+	{
 		if (option == rnd) {
 			random_device rng;
 			mt19937 gen(rng());
@@ -194,7 +199,8 @@ namespace EnumMod
 namespace Sort
 {
 	template <typename struct_t>
-	static void Heapify(vector <struct_t>& vect, int n, int i) {
+	static void Heapify(vector <struct_t>& vect, int n, int i) 
+	{
 		int largest = i;
 		int left = 2 * i + 1;
 		int right = 2 * i + 2;
@@ -208,7 +214,8 @@ namespace Sort
 		}
 	}
 	template <typename struct_t>
-	static vector <struct_t> HeapSort(vector <struct_t>& vect) {
+	static vector <struct_t> HeapSort(vector <struct_t>& vect) 
+	{
 		int n = vect.size();
 		for (int i = n / 2 - 1; i >= 0; i--) Heapify(vect, n, i);
 		for (int i = n - 1; i > 0; i--) {
@@ -218,7 +225,7 @@ namespace Sort
 		return vect;
 	}
 }
-namespace Prints
+namespace BasicPrints
 {
 	static void ClearArea(COORD win_center)
 	{
@@ -336,6 +343,7 @@ namespace Prints
 	}
 	static void DrawCircleSquare(COORD circle_center) 
 	{
+
 		// calcolo variabili
 		COORD cursor = { 0, circle_center.Y };
 		cursor.Y -= Min.Y;
@@ -389,8 +397,13 @@ namespace Prints
 			ClearArea(circle_center);
 		}
 	}
+}
+namespace Print 
+{
+	using namespace BasicPrints;
 	static void CS_CenterPrinter()
 	{
+
 		// assegnazione delle coordinate del centro
 		GetConsoleScreenBufferInfo(hConsole, &csbi);
 		COORD win_center;
@@ -404,10 +417,11 @@ namespace Prints
 	}
 	static void CS_CornerPrinter()
 	{
+
 		// lettura coordinate
 		COORD win_center = Min;
 		GetConsoleScreenBufferInfo(hConsole, &csbi);
-		for (int i = 0; i < csbi.dwSize.Y; i++) cout << '\n';
+		for (int i = 1; i < csbi.dwSize.Y; i++) cout << '\n';
 
 		// animazione
 		SetConsoleCursorPosition(hConsole, { 0, 0 });
@@ -495,7 +509,8 @@ namespace Prints
 }
 namespace Input
 {
-	static wstring GetLine() {
+	static wstring GetLine() 
+	{
 		int i = 0, j = 0;
 		wstring vel;
 		while (true) if (_kbhit()) {
@@ -608,13 +623,15 @@ namespace Primitive
 		}
 		return is_prime;
 	}
-	static double IntegralLog(int N) {
+	static double IntegralLog(int N) 
+	{
 		double sum = 0;
 		for (int x = 2; x <= N; x++)
 			sum += 1 / log(x);
 		return sum;
 	}
-	static void UserInputThread() {
+	static void UserInputThread() 
+	{
 		while (computing) {
 
 			// controllo
@@ -631,7 +648,7 @@ namespace Primitive
 	}
 	static vector_t SieveOfErastothens(long long N, bool USE_pro_bar)
 	{
-		using namespace Prints;
+		using namespace Print;
 
 		vector <bool> is_prime(N + 1, 1);
 		vector <int> primes;
@@ -718,7 +735,7 @@ namespace Operators
 {
 	static vector <compost_t> DecomposeNumber(long long input)
 	{
-		using namespace Primitive;
+		using Primitive::SieveOfErastothens;
 
 		// correzione intervallo di PrimeNumbers
 		if (input > PrimeNumbers.list_primes[size(PrimeNumbers.list_primes) - 1]) 
@@ -900,10 +917,10 @@ namespace Operators
 }
 namespace Calc
 {
+	using namespace Operators;
 	static wstring Cript(long long input)
 	{
-		using namespace Primitive;
-		using namespace Operators;
+		using Primitive::Prime;
 
 		int size = 0;
 		int product = 1;
@@ -1066,7 +1083,6 @@ namespace Calc
 	}
 	static string FactNumber(long long input)
 	{
-		using namespace Operators;
 
 		// calcolo del limite di approssimazione
 		int size = 0;
@@ -1110,8 +1126,6 @@ namespace Calc
 	}
 	static int ExecuteStrings(wstring input)
 	{
-		using namespace Operators;
-
 		int size_s = 0;
 		int product = 1;
 
@@ -1253,15 +1267,14 @@ namespace Calc
 }
 namespace Execute
 {
-	static data_t ExecuteSimpledeg(long long input) {
-		using namespace Calc;
-
+	using namespace Calc;
+	static data_t ExecuteSimpledeg(long long input) 
+	{
 		data_t output = { input, Cript(input), 0, {}, "", 1, 1, 1, "" };
 		return output;
 	}
-	static data_t ExecuteDegree(long long input) {
-		using namespace Calc;
-
+	static data_t ExecuteDegree(long long input) 
+	{
 		data_t output = { input, Cript(input), 0, {}, "", 1, 1, 1, "" };
 		int counter = 0;
 		int copy = input;
@@ -1278,15 +1291,13 @@ namespace Execute
 		copy = input;
 		return output;
 	}
-	static data_t ExecuteSimpleFact(long long input) {
-		using namespace Calc;
-
+	static data_t ExecuteSimpleFact(long long input) 
+	{
 		data_t output = { input, L"", 0, {}, FactNumber(input), 1, 1, 1, "" };
 		return output;
 	}
-	static data_t ExecuteFactor(long long input) {
-		using namespace Calc;
-
+	static data_t ExecuteFactor(long long input) 
+	{
 		data_t output = { input, L"", 0, {}, "", 1, 1, 1, "" };
 		output.expression = FactNumber(input);
 		divisor_t D = DivisorCalculator(output.expression);
@@ -1296,14 +1307,14 @@ namespace Execute
 		output.Divpr = D.Div_pr;
 		return output;
 	}
-	static data_t ExecuteSimpleDF(long long input) {
-		using namespace Calc;
-
+	static data_t ExecuteSimpleDF(long long input) 
+	{
 		data_t output = { input, Cript(input), 0,
 			{}, FactNumber(input), 1, 1, 1, "" };
 		return output;
 	}
-	static data_t ExecuteDegFactor(long long input) {
+	static data_t ExecuteDegFactor(long long input) 
+	{
 		data_t A = ExecuteDegree(input);
 		data_t B = ExecuteFactor(input);
 		data_t output = { input, A.code, A.degree, A.sequence,
@@ -1313,10 +1324,9 @@ namespace Execute
 }
 namespace Convalid
 {
+	using namespace Operators;
 	static wstring SyntaxValidator(wstring ToEvaluate, bool NecBoundary)
 	{
-		using namespace Operators;
-
 		if (ToEvaluate == L"f") return L"";
 		vector <wstring> mono;
 		string charsAllowed = "0123456789+(_).";
@@ -1551,8 +1561,6 @@ namespace Convalid
 	}
 	static long long NumberConverter(long long root, wstring M)
 	{
-		using namespace Operators;
-
 		bool WhichWay = 1, XOutOfRange = 0;
 		bool UselessExponent = 0, pass = 0;
 		bool XSubscriptOutOfRange = 0;
@@ -1594,8 +1602,6 @@ namespace Convalid
 	}
 	static long long StringConverter(wstring ToEvaluate)
 	{
-		using namespace Operators;
-
 		long long integer = 1;
 		wstring backup, back;
 		vector <wstring> mono = Fractioner(ToEvaluate);
@@ -1638,8 +1644,7 @@ namespace Convalid
 	static void CodeConverter
 	(wstring ToEvaluate, wstring message, bool ShowErrors, bool NecBoundary)
 	{
-		using namespace Operators;
-		using namespace Calc;
+		using Calc::Cript;
 
 		setlocale(LC_ALL, "");
 		long long number;
@@ -1696,7 +1701,8 @@ namespace Convalid
 	static void LongComputation
 	(wstring ToEvaluate, wstring message, bool ShowErrors, bool NecBoundary)
 	{
-		using namespace Prints;
+		using Print::CS_CornerPrinter;
+
 		computing = 1;
 		interrupted = 0;
 
@@ -1768,11 +1774,13 @@ namespace Convalid
 }
 namespace Evaluator
 {
+	using namespace EnumMod;
+	using namespace Print;
+	using Input::GetUserNum;
 	static switchcase CodeToNumber()
 	{
-		using namespace EnumMod;
-		using namespace Primitive;
-		using namespace Operators;
+		using Primitive::UserInputThread;
+		using Operators::Standardize;
 		using namespace Convalid;
 
 		// scelta
@@ -1867,10 +1875,6 @@ namespace Evaluator
 	}
 	static switchcase Repeater(string message, data_t CPU(long long input)) 
 	{
-		using namespace EnumMod;
-		using namespace Prints;
-		using Input::GetUserNum;
-
 		setlocale(LC_ALL, "");
 		wstring n_ = to_wstring(GlobalMax), Input;
 		switchcase option;
@@ -1910,10 +1914,8 @@ namespace Evaluator
 	}
 	static switchcase Loop(string message, data_t CPU(long long input))
 	{
-		using namespace EnumMod;
 		using Sort::HeapSort;
-		using namespace Prints;
-		using Input::GetUserNum;
+		using Print::CS_CenterPrinter;
 
 		setlocale(LC_ALL, "");
 		wstring n_ = to_wstring(GlobalMax), Input;
@@ -2043,9 +2045,9 @@ namespace Evaluator
 
 int main()
 {
+	using namespace EnumMod;
 	using namespace Input;
 	using Primitive::SieveOfErastothens;
-	using namespace EnumMod;
 	using namespace Execute;
 	using namespace Evaluator;
 
