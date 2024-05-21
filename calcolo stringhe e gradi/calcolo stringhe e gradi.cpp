@@ -6,6 +6,11 @@
 	*/
 
 // program_START
+
+#define _USE_MATH_DEFINES
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+
 #include <chrono> // per le misurazioni di tempo
 #include <cmath> // per i calcoli
 #include <condition_variable> // per il multithreading
@@ -21,9 +26,6 @@
 #include <thread> // per il multithreading
 #include <unordered_map> // per la conversione degli enum
 #include <vector>
-
-#define NOMINMAX
-#define WIN32_LEAN_AND_MEAN
 #include <Windows.h> // per hConsole
 
 using namespace std;
@@ -37,7 +39,6 @@ CONSOLE_CURSOR_INFO cursor = { 10, TRUE };
 CONSOLE_SCREEN_BUFFER_INFO csbi;
 
 // variabili globali
-const double PI = 3.1415926535897932;
 const long long GLOBAL_CAP = pow(10, 10);
 long long GlobalMax = pow(10, 10);
 
@@ -227,6 +228,12 @@ namespace Sort
 }
 namespace BasicPrints
 {
+	int RotAngle = 270, PolygDegree = 0, PolygonSides = 4;
+	double DWidth = 1.9;
+	int CircleCenterX, CircleCenterY;
+	bool DecreaseAngle = 1, DecreaseWidth = 1;
+	int CircleRotDegreeAngle = 0;
+
 	static void ClearArea(COORD win_center)
 	{
 		GetConsoleScreenBufferInfo(hConsole, &csbi);
@@ -253,7 +260,7 @@ namespace BasicPrints
 		const int centerX = win_center.X;
 		const int centerY = win_center.Y;
 		double setX, setY;
-		double theta = 2 * PI / sides;
+		double theta = 2 * M_PI / sides;
 
 		// calcolo apotema e lato con la goniometria e le formule
 		double sidelenght = sqrt(2 * pow(radius, 2) * (1 - cos(theta)));
@@ -262,7 +269,7 @@ namespace BasicPrints
 		// stringa dei caratteri per l'illuminazione del poligono
 		string prints = "@$#/*!+=~;:-,.";
 
-		for (double rad = 0; rad < 2 * PI; rad += theta) {
+		for (double rad = 0; rad < 2 * M_PI; rad += theta) {
 			for (int i = 0; i < sidelenght; i++) {
 
 				// calcolo punti del poligono
@@ -301,7 +308,7 @@ namespace BasicPrints
 
 		for (int deg = 0; deg < arc; deg++) {
 			// da gradi a radianti
-			double rad = (double)deg / 180 * PI;
+			double rad = (double)deg / 180 * M_PI;
 
 			// calcolo punti della circonferenza del cerchio
 			setX = R * cos(rad);
@@ -341,58 +348,60 @@ namespace BasicPrints
 			cout << dis(gen);
 		}
 	}
-	static void DrawCircleSquare(COORD circle_center) 
-	{
+	static void DrawCircleSquare(COORD circle_center) {
 
 		// calcolo variabili
 		COORD cursor = { 0, circle_center.Y };
 		cursor.Y -= Min.Y;
-		int arc = 270, square_radius = 0, sides = 4;
 		const double SPEED = 50;
 		const double GAP = 0.05;
-		bool arc_decrease = 1, decrease = 1;
 		const int const_x = circle_center.X;
 		const int const_y = circle_center.Y;
-		int centerX, centerY;
-		double DIM = 1.9;
 		const double R2 = 5;
+		bool Skip_skipping = 1;
 
-		for (int i = 0; i % 360 < 360; i += 7) {
-			double __i = (double)i / 180 * PI;
-			// variazione centro del cerchio principale
-			// secondo lo spostamento su un secondo cerchio
-			centerX = const_x + R2 * cos(__i);
-			centerY = const_y + R2 * sin(__i);
-
-			// variazione dati cerchio
-			if (DIM <= 1 || DIM >= 2.5) decrease = !decrease;
-			if (arc <= 0 || arc >= 360) arc_decrease = !arc_decrease;
-
-			// stampa cerchio
-			DrawFrame(arc, __i, centerX, centerY, DIM);
-
-			// stampa poligono e cambio variabili
-			decrease ? DIM -= GAP : DIM += GAP;
-			arc_decrease ? arc -= SPEED * GAP : arc += SPEED * GAP;
-			PrintPFrame(square_radius * PI / 180, sides, 10, circle_center);
-			square_radius += 2;
-
-			// riassegnazione dei lati
-			if (square_radius % 180 == 0)
-				switch (sides) {
-				case 4: sides = 6;
-					break;
-				case 6: sides = 8;
-					break;
-				case 8: sides = 4;
-					break;
-				}
-			if (is_done.load()) {
+		for (CircleRotDegreeAngle;
+			 CircleRotDegreeAngle % 2 < 2;
+			 CircleRotDegreeAngle += 7) 
+		{
+			// termine funzione
+			if (is_done.load() && !Skip_skipping) {
 				ClearArea(circle_center);
 				SetConsoleCursorPosition
 				(hConsole, cursor);
 				return;
 			}
+			Skip_skipping = 0;
+
+			double i = (double)CircleRotDegreeAngle / 180 * M_PI;
+			// variazione centro del cerchio principale
+			// secondo lo spostamento su un secondo cerchio
+			CircleCenterX = const_x + R2 * cos(i);
+			CircleCenterY = const_y + R2 * sin(i);
+
+			// variazione dati cerchio
+			if (DWidth <= 1 || DWidth >= 2.5) DecreaseWidth = !DecreaseWidth;
+			if (RotAngle <= 0 || RotAngle >= 360) DecreaseAngle = !DecreaseAngle;
+
+			// stampa cerchio
+			DrawFrame(RotAngle, i, CircleCenterX, CircleCenterY, DWidth);
+
+			// stampa poligono e cambio variabili
+			DecreaseWidth ? DWidth -= GAP : DWidth += GAP;
+			DecreaseAngle ? RotAngle -= SPEED * GAP : RotAngle += SPEED * GAP;
+			PrintPFrame(PolygDegree * M_PI / 180, PolygonSides, 10, circle_center);
+			PolygDegree += 2;
+
+			// riassegnazione dei lati
+			if (PolygDegree % 180 == 0)
+				switch (PolygonSides) {
+				case 4: PolygonSides = 6;
+					break;
+				case 6: PolygonSides = 8;
+					break;
+				case 8: PolygonSides = 4;
+					break;
+				}
 			sleep_for(microseconds(1));
 			ClearArea(circle_center);
 		}
@@ -426,6 +435,7 @@ namespace Print
 		// animazione
 		SetConsoleCursorPosition(hConsole, { 0, 0 });
 		DrawCircleSquare(Min);
+		
 	}
 	static void ProgressBar(double ratio, double barWidth)
 	{
@@ -1845,7 +1855,9 @@ namespace Evaluator
 			GlobalInterr = 0;
 			computing = 1;
 			interrupted = 0;
+
 			ObjectGetCh.enqueue(' ');
+			SetConsoleCursorInfo(hConsole, &cursorInfo);
 
 			// dichiarazione dei thread
 			thread ComputationThread([=]() {
@@ -1871,6 +1883,7 @@ namespace Evaluator
 				SetConsoleTextAttribute(hConsole, 15);
 				cout << "\n\n";
 			}
+			SetConsoleCursorInfo(hConsole, &cursor);
 		}
 	}
 	static switchcase Repeater(string message, data_t CPU(long long input)) 
