@@ -15,6 +15,7 @@
 #include <cmath> // per i calcoli
 #include <condition_variable> // per il multithreading
 #include <conio.h> // per l'input avanzato
+#include <exception>
 #include <iomanip>
 #include <iostream> // per l'output
 #include <ppl.h> // per la parallelizzazione
@@ -67,9 +68,9 @@ typedef struct {
 	int exp;
 } compost_t;
 typedef struct {
-	int DivNumber;
-	int DivSum;
-	int DivProduct;
+	size_t DivNumber;
+	size_t DivSum;
+	size_t DivProduct;
 	string Div_pr;
 } divisor_t;
 typedef struct {
@@ -78,9 +79,9 @@ typedef struct {
 	int degree;
 	vector <int> sequence;
 	string expression;
-	int Div_number;
-	int Div_sum;
-	int Div_product;
+	size_t Div_number;
+	size_t Div_sum;
+	size_t Div_product;
 	string Divpr;
 } data_t;
 enum switchcase {
@@ -89,6 +90,13 @@ enum switchcase {
 	dc, dcc, df,
 	dff, dcf, dt,
 	ctn, rnd, r
+};
+vector <wstring> commands = {
+	L"cc", L"ccc", L"cf",
+	L"cff", L"ccf", L"ct",
+	L"dc", L"dcc", L"df",
+	L"dff", L"dcf", L"dt",
+	L"ctn", L"rnd"
 };
 
 class TestInputReader {
@@ -519,10 +527,12 @@ namespace Print
 }
 namespace Input
 {
-	static wstring GetLine() 
+	static wstring GetLine(bool ShowSuggestions)
 	{
-		int i = 0, j = 0;
+		int i = 0;
+		wstring command = L"rnd";
 		wstring vel;
+		bool script;
 		while (true) if (_kbhit()) {
 			char c = _getch();
 			if (c == '\r') break;
@@ -530,19 +540,18 @@ namespace Input
 			// ignora le lettere maiuscole
 			// e i caratteri non stampabili eccetto '\b'
 			bool cond = c == '\b' ||
+						c == '\t' ||
 				((c < 65 || c > 90) && c > 31);
 
 			if (cond) switch (c) {
 
-			// '.' termina il programma
+				// '.' termina il programma
 			case '.': return L".";
 
-			// termine input
-			case '\r':
-				break;
-				break;
+				// termine input
+			case '\r': break;
 
-			// '\b' cancella
+				// '\b' cancella
 			case '\b':
 				if (i > 1) {
 					vel.erase(i - 1);
@@ -551,36 +560,67 @@ namespace Input
 				else {
 					vel = L"";
 					i = 0;
-					j = 0;
 					wcout << '\r' << wstring(10, ' ');
 				}
 				break;
 
-			// ctrl + '\b' cancella tutto
+				// tab per scegliere il suggerimento
+			case '\t':
+				if (ShowSuggestions) {
+					vel = command;
+					i++;
+				}
+				break;
+
+				// ctrl + '\b' cancella tutto
 			case 127:
 				vel = L"";
 				i = 0;
-				j = 0;
 				wcout << '\r' << wstring(10, ' ');
 				break;
 			default:
 				vel += c;
 				i++;
-				j++;
 			}
 
 			// stampa dei caratteri immessi
 			if (i > 10) {
 				vel = L"";
 				i = 0;
-				j = 0;
 				wcout << '\r' << wstring(10, ' ');
 			}
-			wcout << '\r' << wstring(j, ' ') << '\r' << vel;
+			script = 1;
+			if (ShowSuggestions && vel.size() > 0)
+
+				// ricerca suggerimento giusto
+				for (wstring comma : commands) {
+					command = comma;
+					wstring back = command;
+					if (back.size() == vel.size()) continue;
+					if (back.size() > vel.size())
+						back.erase(vel.size());
+					if (back == vel) {
+						SetConsoleTextAttribute(hConsole, 6);
+						wcout << '\r' << wstring(10, ' ');
+						wcout << '\r' << command;
+						SetConsoleTextAttribute(hConsole, 15);
+
+						wcout << '\r' << vel;
+						i = vel.size();
+						script = 0;
+						break;
+					}
+				}
+
+			if (script) {
+				wcout << '\r' << wstring(10, ' ') << '\r' << vel;
+				i = vel.size();
+			}
 		}
 		return vel;
 	}
-	static wstring GetUserNum(wstring txt, int low, long long high)
+	static wstring GetUserNum
+	(wstring txt, int low, long long high, bool ShowSuggestions)
 	{
 		using namespace EnumMod;
 
@@ -592,7 +632,7 @@ namespace Input
 			bool error = 1;
 			bool general_error = 0;
 			wcout << txt;
-			check = GetLine();
+			check = GetLine(ShowSuggestions);
 			cout << '\n';
 			if (check == L"." || check.empty()) return check;
 			option = ConvertWStringToEnum(check);
@@ -1242,8 +1282,8 @@ namespace Calc
 		// e della sua somma dei divisori
 		int x = 1;
 		for (int i = 0; i < size(monomials); i++) {
-			long long num = -1 + pow(values[i], exponents[i] + 1);
-			long long den = values[i] - 1;
+			size_t num = -1 + pow(values[i], exponents[i] + 1);
+			size_t den = values[i] - 1;
 			output.DivSum *= (num / den);
 			x *= pow(values[i], exponents[i]);
 		}
@@ -1254,16 +1294,16 @@ namespace Calc
 		// calcolo del prodotto dei divisori
 		if (output.DivNumber > 0) {
 			double out = (double) output.DivNumber / 2;
-			int y = pow(x, out);
+			size_t y = pow(x, out);
 			if (y > 0) output.DivProduct = y;
 
 			// caso di overflow
 			else if (output.DivNumber % 2 == 0)
-				output.Div_pr = to_string(x) + "^" + to_string((int)out);
+				output.Div_pr = to_string(x) + "^" + to_string((size_t)out);
 
 			// caso di un quadrato perfetto pari
-			else output.Div_pr = to_string((int)sqrt(x)) 
-				+ "^" + to_string((int)(out * 2));
+			else output.Div_pr = to_string((size_t)sqrt(x))
+				+ "^" + to_string((size_t)(out * 2));
 		}
 
 		// eccezione
@@ -1370,10 +1410,9 @@ namespace Convalid
 		}
 
 		// eliminazione degli spazi e dei tab
-		for (int space = ToEvaluate.size() - 1; space >= 0; space--) {
+		for (int space = ToEvaluate.size() - 1; space >= 0; space--)
 			if (ToEvaluate.at(space) == ' ' || ToEvaluate.at(space) == '\t')
 				ToEvaluate.erase(space, 1);
-		}
 
 		// ricerca del bilancio tra le parentesi
 		for (int i = 0; i < ToEvaluate.size(); i++) {
@@ -1410,11 +1449,10 @@ namespace Convalid
 		if (regex_search(ToEvaluate, cons_null_digits))
 			return L"CONSECUTIVE_NULL_DIGITS";
 		wregex excep_no_digits(L"\\.");
-		wregex no_digits(L"\\d\\.\\d{2,}");
-		if (regex_search(ToEvaluate, excep_no_digits)) {
+		wregex no_digits(L"[_\\d]\\.[_1-9][_\\d]");
+		if (regex_search(ToEvaluate, excep_no_digits))
 			if (!regex_search(ToEvaluate, no_digits))
 				return L"MISSING_DIGITS";
-		}
 		wregex s_null_digits(L"[\\r\\D]0");
 		if (regex_search(ToEvaluate, s_null_digits))
 			return L"NULL_DIGITS";
@@ -1451,19 +1489,17 @@ namespace Convalid
 
 						// ricerca delle parentesi
 						boolean = 1;
-						for (int j = stack.size() - 1; j > 0; j--) {
+						for (int j = stack.size() - 1; j > 0; j--)
 							if (boolean && stack.at(j) == ')') {
 								stackfinder = j - 1;
 								boolean = 0;
 							}
-						}
 						boolean = 1;
-						for (int k = stick.size() - 1; k > 0; k--) {
+						for (int k = stick.size() - 1; k > 0; k--)
 							if (boolean && stick.at(k) == ')') {
 								stickfinder = k - 1;
 								boolean = 0;
 							}
-						}
 
 						// caso con solo un monomio dotato di parentesi
 						if (stackfinder * stickfinder < 0) {
@@ -1549,9 +1585,8 @@ namespace Convalid
 				local_error = 1;
 
 				// controllo sulla necessità delle parentesi
-				for (int checkplus = 1; checkplus < finder; checkplus++) {
+				for (int checkplus = 1; checkplus < finder; checkplus++) 
 					if (stack.at(checkplus) == '+') local_error = 0;
-				}
 				if (local_error) return L"USELESS_BRACKETS";
 
 				stack.erase(0, 1);
@@ -1569,7 +1604,7 @@ namespace Convalid
 
 		return L"";
 	}
-	static long long NumberConverter(long long root, wstring M)
+	static size_t NumberConverter(size_t root, wstring M)
 	{
 		bool WhichWay = 1, XOutOfRange = 0;
 		bool UselessExponent = 0, pass = 0;
@@ -1610,9 +1645,9 @@ namespace Convalid
 
 		return root;
 	}
-	static long long StringConverter(wstring ToEvaluate)
+	static size_t StringConverter(wstring ToEvaluate)
 	{
-		long long integer = 1;
+		size_t integer = 1;
 		wstring backup, back;
 		vector <wstring> mono = Fractioner(ToEvaluate);
 		int sizeP = size(PrimeNumbers.list_primes);
@@ -1902,7 +1937,7 @@ namespace Evaluator
 			SetConsoleTextAttribute(hConsole, 14);
 			wstring txt = L"inserire un numero tra 2 e " + n_ + L" (1 = fine input)\n";
 			SetConsoleTextAttribute(hConsole, 15);
-			do Input = GetUserNum(txt, 1, GlobalMax);
+			do Input = GetUserNum(txt, 1, GlobalMax, 1);
 			while (Input.empty());
 			if (Input == L".") return rnd;
 			option = ConvertWStringToEnum(Input);
@@ -1946,7 +1981,7 @@ namespace Evaluator
 		// input e controllo valore iniziale
 		SetConsoleTextAttribute(hConsole, 15);
 		txt = L"inserisci il valore di inizio della ricerca\n";
-		do Input = GetUserNum(txt, 1, GlobalMax);
+		do Input = GetUserNum(txt, 1, GlobalMax, 1);
 		while (Input.empty());
 		if (Input == L".") return rnd;
 		option = ConvertWStringToEnum(Input);
@@ -1961,7 +1996,7 @@ namespace Evaluator
 		
 		// input e controllo valore finale
 		txt = L"inserisci il valore finale della ricerca\n";
-		do Input = GetUserNum(txt, 1, GlobalMax);
+		do Input = GetUserNum(txt, 1, GlobalMax, 1);
 		while (Input.empty());
 		if (Input == L".") return rnd;
 		option = ConvertWStringToEnum(Input);
@@ -2103,7 +2138,7 @@ int main()
 				text = L"fino a quale numero cercare i numeri primi?\n";
 				text.append(L"un limite più alto comporta un tempo di attesa più lungo\n");
 				text.append(L"ES.: 22'500'000 = 1 minuto di attesa circa\n");
-				wstring G = GetUserNum(text, 0, GLOBAL_CAP);
+				wstring G = GetUserNum(text, 0, GLOBAL_CAP, 0);
 				if (ConvertWStringToEnum(G) != r) redo = 1;
 				else if (G.empty()) redo = 1;
 				// termine programma
@@ -2183,7 +2218,7 @@ int main()
 		cout << "selezionando più operazioni, il tempo di calcolo aumenta\v";
 
 		SetConsoleTextAttribute(hConsole, 15);
-		vel = GetLine();
+		vel = GetLine(1);
 		option = ConvertWStringToEnum(vel);
 		cout << '\n';
 		do {
@@ -2213,7 +2248,7 @@ int main()
 			if (option == r) do {
 				skip = 0;
 				cout << "scegli opzioni:: (...)\n";
-				vel = GetLine();
+				vel = GetLine(1);
 				if (vel.size() == 1) {
 					stop = vel.at(0) != '0'
 						&& vel.at(0) != '1' && vel.at(0) != '.';
