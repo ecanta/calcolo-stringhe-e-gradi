@@ -1,16 +1,19 @@
-// Descrizione ::
-	/*                                                        |
-	*  Strings ZP[2.3].cpp: il programma calcola singola e\o  |
-	*  doppia scomposizione di alcuni interi in una stringa   |
-	*  o il contrario, e i numeri primi                       |
-	*/
-
 // program_START
 
+// Descrizione ::
+	/*                                                        |
+	*  Strings ZP[3.0].cpp: il programma calcola singola e\o  |
+	*  doppia scomposizione di alcuni interi in una stringa   |
+	*  o il contrario, i numeri primi e scompone anche i      |
+	*  polinomi                                               |
+	*/
+
+// macro
 #define _USE_MATH_DEFINES
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 
+// inclusioni
 #include <chrono> // per le misurazioni di tempo
 #include <cmath> // per i calcoli
 #include <condition_variable> // per il multithreading
@@ -29,11 +32,13 @@
 #include <vector>
 #include <Windows.h> // per hConsole
 
+// namespace globali
 using namespace std;
 using namespace chrono;
 using Concurrency::parallel_for;
 using this_thread::sleep_for;
 
+// variabili windows
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 CONSOLE_CURSOR_INFO cursorInfo = { 10, FALSE };
 CONSOLE_CURSOR_INFO cursor = { 10, TRUE };
@@ -43,6 +48,7 @@ CONSOLE_SCREEN_BUFFER_INFO csbi;
 const long long GLOBAL_CAP(pow(10, 10));
 long long GlobalMax(pow(10, 10));
 
+// strutture
 struct MONOMIAL {
 	int degree;
 	int coefficient;
@@ -62,6 +68,7 @@ typedef struct {
 vector <Console> ConsoleText;
 vector_t PrimeNumbers;
 
+// variabili globali e atomiche
 atomic <bool> GlobalInterr(0);
 atomic <bool> interrupted(0);
 atomic <bool> computing(0);
@@ -70,8 +77,7 @@ condition_variable cv, Cv;
 mutex CoutMutex, mtx;
 COORD Min = { 25, 15 };
 
-static char charVariable('x');
-static char NotBlockingGetch() { return _getch(); }
+// strutture
 struct compost {
 	int factors;
 	int exp;
@@ -101,7 +107,7 @@ enum switchcase {
 	ctn, pol, rnd,
 	r
 };
-vector <wstring> commands = {
+vector <wstring> commands {
 	L"cc", L"ccc", L"cf",
 	L"cff", L"ccf", L"ct",
 	L"dc", L"dcc", L"df",
@@ -109,6 +115,8 @@ vector <wstring> commands = {
 	L"ctn", L"pol", L"rnd"
 };
 
+// classi
+static char charVariable('x');
 class TestInputReader {
 public:
 	void enqueue(char c) { buffer.push(c); }
@@ -122,10 +130,10 @@ private: queue <char> buffer;
 };
 TestInputReader ObjectGetCh;
 
+// namespace e funzioni
 namespace EnumMod
 {
-	static unordered_map <wstring, switchcase> stringToEnumMap = 
-	{
+	static unordered_map <wstring, switchcase> stringToEnumMap {
 		{L"cc",  switchcase::cc },
 		{L"ccc", switchcase::ccc},
 		{L"cf",  switchcase::cf },
@@ -142,8 +150,7 @@ namespace EnumMod
 		{L"pol", switchcase::pol},
 		{L"rnd", switchcase::rnd}
 	};
-	static unordered_map <switchcase, wstring> enumToStringMap = 
-	{
+	static unordered_map <switchcase, wstring> enumToStringMap {
 		{switchcase::cc,  L"cc" },
 		{switchcase::ccc, L"ccc"},
 		{switchcase::cf,  L"cf" },
@@ -229,7 +236,6 @@ namespace Sort
 					swap(vect[i], vect[j]);
 		return vect;
 	}
-
 	template <typename struct_t>
 	static void Heapify(vector <struct_t>& vect, int n, int i) 
 	{
@@ -264,6 +270,7 @@ namespace BasicPrints
 	int CircleCenterX, CircleCenterY;
 	bool DecreaseAngle = 1, DecreaseWidth = 1;
 	int CircleRotDegreeAngle = 0;
+	const vector <int> spectrum { 9, 9, 9, 11, 11, 3, 3, 12, 4 };
 
 	static void ClearArea(COORD win_center)
 	{
@@ -290,12 +297,12 @@ namespace BasicPrints
 		const double DIM = 1.9;
 		const int centerX = win_center.X;
 		const int centerY = win_center.Y;
-		double setX, setY;
-		double theta = 2 * M_PI / sides;
+		long double setX, setY;
+		long double theta = 2 * M_PI / sides;
 
 		// calcolo apotema e lato con la goniometria e le formule
-		double sidelenght = sqrt(2 * pow(radius, 2) * (1 - cos(theta)));
-		double apotem = sqrt(pow(radius, 2) - pow(sidelenght / 2, 2));
+		long double sidelenght = sqrt(2 * pow(radius, 2) * (1 - cos(theta)));
+		long double apotem = sqrt(pow(radius, 2) - pow(sidelenght / 2, 2));
 
 		// stringa dei caratteri per l'illuminazione del poligono
 		string prints = "@$#/*!+=~;:-,.";
@@ -334,12 +341,9 @@ namespace BasicPrints
 		int setX, setY;
 		const double R = 8;
 
-		// vettore dello spettro dei colori
-		const vector <int> spectrum = { 9, 9, 9, 11, 11, 3, 3, 12, 4 };
-
 		for (int deg = 0; deg < arc; deg++) {
 			// da gradi a radianti
-			double rad = (double)deg / 180 * M_PI;
+			long double rad = (double)deg / 180 * M_PI;
 
 			// calcolo punti della circonferenza del cerchio
 			setX = R * cos(rad);
@@ -404,7 +408,7 @@ namespace BasicPrints
 			}
 			Skip_skipping = 0;
 
-			double i = (double)CircleRotDegreeAngle / 180 * M_PI;
+			long double i = (double)CircleRotDegreeAngle / 180 * M_PI;
 			// variazione centro del cerchio principale
 			// secondo lo spostamento su un secondo cerchio
 			CircleCenterX = const_x + R2 * cos(i);
@@ -495,6 +499,9 @@ namespace Print
 
 		// stampa numero
 		cout << "numero " << structure.number << ":\n";
+		SetConsoleTextAttribute(hConsole, 2);
+		cout << "in esadecimale è " << hex << uppercase;
+	    cout << structure.number << "\n" << dec << nouppercase;
 
 		// stampa stringa
 		if (!structure.code.empty()) {
@@ -550,7 +557,7 @@ namespace Print
 }
 namespace Input
 {
-	static wstring GetLine(bool ShowSuggestions)
+	static wstring GetLine(bool ShowSuggestions, int sizemax)
 	{
 		int i = 0;
 		wstring command = L"rnd";
@@ -583,7 +590,7 @@ namespace Input
 				else {
 					vel = L"";
 					i = 0;
-					wcout << '\r' << wstring(10, ' ');
+					wcout << '\r' << wstring(sizemax, ' ');
 				}
 				break;
 
@@ -607,10 +614,10 @@ namespace Input
 			}
 
 			// stampa dei caratteri immessi
-			if (i > 10) {
+			if (i > sizemax) {
 				vel = L"";
 				i = 0;
-				wcout << '\r' << wstring(10, ' ');
+				wcout << '\r' << wstring(sizemax, ' ');
 			}
 			script = 1;
 			if (ShowSuggestions && vel.size() > 0)
@@ -652,26 +659,21 @@ namespace Input
 		long long user_num;
 		wstring check;
 		do {
+
+			// input
 			bool error = 1;
 			bool general_error = 0;
 			wcout << txt;
-			check = GetLine(ShowSuggestions);
+			check = GetLine(ShowSuggestions, 10);
 			cout << '\n';
 			if (check == L"." || check.empty()) return check;
 			option = ConvertWStringToEnum(check);
 			option = ReassigneEnum(option);
 			if (option != r) return ConvertEnumToWString(option);
 
-			string digits = "0123456789";
-			for (int ch = 0; ch < check.size(); ch++) {
-				for (int chi = 0; chi < digits.size(); chi++) {
-					if (check.at(ch) == digits.at(chi))
-						error = 0;
-				}
-				if (error) general_error = 1;
-				error = 1;
-			}
-			if (general_error) user_num = 0;
+			// controllo
+			wregex CheckDigits(L"\\D");
+			if (regex_search(check, CheckDigits)) user_num = 0;
 			else user_num = stoull(check);
 
 		} while (user_num < low || user_num > high);
@@ -684,9 +686,9 @@ namespace Primitive
 		if (n <= 1) return 1;
 		else return n * Factorial(n - 1);
 	}
-	static double IntegralLog(int N) 
+	static long double IntegralLog(int N)
 	{
-		double sum = 0;
+		long double sum = 0;
 		for (int x = 2; x <= N; x++)
 			sum += 1 / log(x);
 		return sum;
@@ -758,7 +760,7 @@ namespace Primitive
 					SetConsoleTextAttribute(hConsole, 112);
 
 					// stampa della barra di avanzamento
-					double progress = (double)size(counter) / NOTPRIMESIZE;
+					long double progress = (double)size(counter) / NOTPRIMESIZE;
 					if (progress > 0.5) SPEED = 15;
 					if (progress > 1) progress = 1;
 					ProgressBar(progress, BARWIDTH);
@@ -766,8 +768,8 @@ namespace Primitive
 					// calcolo tempo rimanente
 					int time = duration_cast <milliseconds> (stop - begin).count();
 					SetConsoleTextAttribute(hConsole, 15);
-					double time_rem = (time / progress) * (1 - progress);
-					double time_seconds = (double)time_rem / 1000;
+					long double time_rem = (time / progress) * (1 - progress);
+					long double time_seconds = (double)time_rem / 1000;
 
 					// calcolo cifre decimali
 					stringstream stream;
@@ -999,32 +1001,18 @@ namespace Calc
 	static wstring Cript(long long input)
 	{
 		using Primitive::Prime;
-
-		int size = 0;
+		int size_s = 0;
 		int product = 1;
 
 		// calcolo del limite di approssimazione
 		do {
-			product *= PrimeNumbers.list_primes[size];
-			size++;
+			product *= PrimeNumbers.list_primes[size_s];
+			size_s++;
 		} while (product < GlobalMax);
 
 		vector <compost> expfactors = DecomposeNumber(input);
-		long long* PrimeFactors = new long long[size];
-		int* exponents = new int[size];
-		int factor_number = 0;
-		bool when_null = 1;
-
-		// inizializzazione della scomposizione
-		for (int i = 0; i < size; i++) {
-			PrimeFactors[i] = expfactors[i].factors;
-			exponents[i] = expfactors[i].exp;
-			if (when_null && PrimeFactors[i] == 0) {
-				factor_number = i;
-				when_null = 0;
-			}
-		}
-
+		while (expfactors[size(expfactors) - 1].factors == 0)
+			expfactors.pop_back();
 		wstring the_string, exp_verify, exp_string, prime_exp_string;
 		int prime_exp, sizestring, presence;
 		long long analyse;
@@ -1032,26 +1020,26 @@ namespace Calc
 		wstring monomials[15];
 
 		// per ogni fattore primo
-		for (int what_factor = 0; what_factor < factor_number; what_factor++)
+		for (int what_factor = 0; what_factor < size(expfactors); what_factor++)
 		{
 			repeat = 0;
 			presence = 0;
 
 			// esponente
-			exp_verify = to_wstring(exponents[what_factor]);
-			analyse = PrimeFactors[what_factor];
+			exp_verify = to_wstring(expfactors[what_factor].exp);
+			analyse = expfactors[what_factor].factors;
 			wstring part_of1 = L"(";
 			wstring part_of2 = L")";
 
 			// se l'esponente ha una cifra ed è maggiore di 1,
-			if (exponents[what_factor] != 1 && exponents[what_factor] < 11) 
+			if (expfactors[what_factor].exp != 1 && expfactors[what_factor].exp < 11)
 			{
 				part_of2.append(exp_verify);
 				presence = 1;
 			}
 
 			// se l'esponente ha due cifre,
-			else if (exponents[what_factor] > 10) {
+			else if (expfactors[what_factor].exp > 10) {
 				part_of2.append(L".");
 				part_of2.append(exp_verify);
 				presence = 2;
@@ -1119,17 +1107,15 @@ namespace Calc
 			} while (analyse != 1);
 			monomials[what_factor] = the_string;
 		}
-		delete[] PrimeFactors;
-		delete[] exponents;
 
 		// unione dei monomi
 		the_string = L"";
-		for (int i = 0; i < factor_number; i++)
+		for (int i = 0; i < size(expfactors); i++)
 			the_string = the_string + L"+" + monomials[i];
 		the_string.erase(0, 1);
 
 		// rimozione basi
-		int* position = new int[size];
+		int* position = new(nothrow) int[size_s];
 		int j = 0;
 		for (int i = 0; i < (the_string.size() - 2); i++) {
 			if ((the_string.at(i) == '(') && (the_string.at(i + 1) == '1')
@@ -1161,41 +1147,18 @@ namespace Calc
 	}
 	static string FactNumber(long long input)
 	{
-
-		// calcolo del limite di approssimazione
-		int size = 0;
-		int product = 1;
-		do {
-			product *= PrimeNumbers.list_primes[size];
-			size++;
-		} while (product < GlobalMax);
-
 		vector <compost> expfactors = DecomposeNumber(input);
-		long long* PrimeFactors = new long long[size];
-		int* exponents = new int[size];
-		int factor_number = 0;
-		bool when_null = 1;
-
-		// inizializzazione della scomposizione
-		for (int i = 0; i < size; i++) {
-			PrimeFactors[i] = expfactors[i].factors;
-			exponents[i] = expfactors[i].exp;
-			if (when_null && (PrimeFactors[i] == 0)) {
-				factor_number = i;
-				when_null = 0;
-			}
-		}
+		while (expfactors[size(expfactors) - 1].factors == 0)
+			expfactors.pop_back();
 
 		// unione dei monomi
 		string output = "";
-		for (int i = 0; i < factor_number; i++) {
-			if (exponents[i] != 1)
-				output = output + to_string(PrimeFactors[i])
-				+ "^" + to_string(exponents[i]) + " * ";
-			else output = output + to_string(PrimeFactors[i]) + " * ";
+		for (int i = 0; i < size(expfactors); i++) {
+			if (expfactors[i].exp != 1)
+				output = output + to_string(expfactors[i].factors)
+				+ "^" + to_string(expfactors[i].exp) + " * ";
+			else output = output + to_string(expfactors[i].factors) + " * ";
 		}
-		delete[] PrimeFactors;
-		delete[] exponents;
 
 		// rimozione della fine
 		output.erase(output.size() - 3);
@@ -1216,7 +1179,7 @@ namespace Calc
 		int output = 0;
 		int location = 0;
 		bool presence = 1;
-		int* values = new int[size_s];
+		int* values = new(nothrow) int[size_s];
 		for (int i = 0; i < input.size(); i++)
 			if (input.at(i) == '.') input.erase(i, 1);
 		vector <wstring> monomials = Fractioner(input);
@@ -1250,9 +1213,10 @@ namespace Calc
 		// somma dei monomi
 		for (int end = 0; end < size(monomials); end++) output += values[end];
 
+		delete[] values;
 		return output;
 	}
-	static divisor DivisorCalculator(string factor)
+	static divisor DivisorCounter(string factor)
 	{
 		divisor output = { 1, 1, 1, "" };
 		vector <string> monomials;
@@ -1342,6 +1306,34 @@ namespace Calc
 
 		return output;
 	}
+	static vector <int> DivisorCalculator(int num) 
+	{
+
+		// creazione dei vettori con i principali fattori
+		vector <int> vec;
+		vector <compost> expfact = DecomposeNumber(num);
+		vector <vector <int>> MainDiv;
+		for (int i = 0; i < size(expfact); i++) {
+			MainDiv.push_back({});
+			int EFelement = 1;
+			for (int j = 0; j < expfact[i].exp; j++) {
+				MainDiv[i].push_back(EFelement);
+				EFelement *= expfact[i].factors;
+			}
+		}
+
+		// prodotto cartesiano
+		vector <int> temp;
+		for (int i = size(MainDiv) - 1; i > 0; i--) {
+			for (int a : MainDiv[i]) 
+				for (int b : MainDiv[i - 1]) 
+					temp.push_back(a * b);
+			MainDiv[i - 1] = temp;
+			MainDiv.pop_back();
+		}
+
+		return MainDiv[0];
+	}
 }
 namespace Execute
 {
@@ -1378,7 +1370,7 @@ namespace Execute
 	{
 		data_t output = { input, L"", 0, {}, "", 1, 1, 1, "" };
 		output.expression = FactNumber(input);
-		divisor D = DivisorCalculator(output.expression);
+		divisor D = DivisorCounter(output.expression);
 		output.Div_product = D.DivProduct;
 		output.Div_number = D.DivNumber;
 		output.Div_sum = D.DivSum;
@@ -1403,12 +1395,15 @@ namespace Execute
 namespace Convalid
 {
 	using namespace Operators;
-	static bool Syntax(string polynomial)
+	static bool Syntax(wstring polynomial)
 	{
 		if (polynomial.empty()) return 0;
+		if (polynomial == L"0")  return 1;
 		bool error;
 		bool assigne = 0;
 		string charsAllowed = "0123456789+-^";
+
+		// controllo caratteri
 		for (char a : polynomial) {
 			error = 1;
 			for (char b : charsAllowed) if (a == b) error = 0;
@@ -1417,9 +1412,12 @@ namespace Convalid
 				charVariable = a;
 				charsAllowed += charVariable;
 				assigne = 1;
+				if (charVariable < 97 || charVariable > 122)
+					return 0;
 			}
 		}
 
+		// controllo successione caratteri
 		string sequence = "123456789+-";
 		sequence += charVariable;
 		for (char a : polynomial) {
@@ -1427,6 +1425,7 @@ namespace Convalid
 			for (char b : sequence) if (a == b) error = 0;
 			if (error) return 0;
 
+			// riassegnazione dei caratteri ammessi
 			if (a == charVariable) sequence = "+-^";
 			else switch (a) {
 			case '+':
@@ -1445,9 +1444,12 @@ namespace Convalid
 				sequence += charVariable;
 			}
 		}
+
+		// controllo al termine
 		char end = polynomial.at(polynomial.size() - 1);
 		if (end == '+' || end == '-' || end == '^')
 			return 0;
+
 		return 1;
 	}
 	static wstring SyntaxValidator(wstring ToEvaluate, bool NecBoundary)
@@ -1895,37 +1897,44 @@ namespace Convalid
 }
 namespace Traduce
 {
-	static vector <MONOMIAL> GetMonomials(string polynomial)
+	static vector <MONOMIAL> GetMonomials(wstring polynomial)
 	{
 		vector <MONOMIAL> output;
 		MONOMIAL output_element;
+
 		for (int i = polynomial.size() - 1; i >= 0; i--)
 			if (polynomial.at(i) == '+' ||
 				polynomial.at(i) == '-' ||
 				i == 0)
 			{
-				string mono = polynomial;
-				string coeff = "";
+				wstring mono = polynomial;
+				wstring coeff = L"";
 				mono.erase(0, i);
 
+				// calcolo del segno
 				int sign = 1;
 				if (mono.at(0) == '-') sign = -1;
 				if (mono.at(0) == '+' || mono.at(0) == '-')
 					mono.erase(0, 1);
 
+				// se il coefficiente è sottinteso
 				int j = 0;
 				if (mono.at(0) == charVariable)
 					output_element.coefficient = 1;
+
+				// caso con il coefficiente
 				else {
 					for (char j : mono) {
 						if (j == charVariable) break;
-						coeff += string(1, j);
+						coeff += wstring(1, j);
 					}
 					if (coeff == mono) output_element.degree = 0;
 					output_element.coefficient = stoi(coeff);
 				}
+
+				// caso di grado non nullo
 				if (coeff != mono) {
-					if (mono == string(1, charVariable))
+					if (mono == wstring(1, charVariable))
 						output_element.degree = 1;
 					else if (mono.at(mono.size() - 2) == '^') {
 						mono.erase(0, mono.size() - 1);
@@ -1933,54 +1942,71 @@ namespace Traduce
 					}
 					else output_element.degree = 1;
 				}
+
+				// aggiunta
 				output_element.coefficient *= sign;
 				output.push_back(output_element);
 				polynomial.erase(i);
 			}
+
 		return output;
 	}
-
-	static string GetFactor(vector <MONOMIAL> inp)
+	static wstring GetFactor(vector <MONOMIAL> inp)
 	{
-		string output = "";
-		string xout;
+		wstring output = L"";
+		wstring xout;
 		for (MONOMIAL x : inp) {
-			xout = "";
+			xout = L"";
+
+			// caso con coefficiente sottinteso
 			if (x.coefficient != 1 && x.coefficient != -1)
-				xout = to_string(x.coefficient);
+				xout = to_wstring(x.coefficient);
+
+			// caso con grado non nullo
 			if (x.degree != 0) {
-				xout.append(string(1, charVariable));
+				xout.append(wstring(1, charVariable));
 				if (x.degree != 1)
-					xout += '^' + to_string(x.degree);
+					xout += L"^" + to_wstring(x.degree);
 			}
-			else xout = to_string(x.coefficient);
+			else xout = to_wstring(x.coefficient);
+
+			// aggiunta del segno
 			if (x.coefficient < 0 && xout.at(0) != '-')
-				xout = '-' + xout;
-			else if (x.coefficient > 0) xout = '+' + xout;
+				xout = L"-" + xout;
+			else if (x.coefficient > 0) xout = L"+" + xout;
+
+			// aggiunta
 			output += xout;
 		}
 		return output;
 	}
-	static string GetPolynomial(vector <vector <MONOMIAL>> inp)
+	static wstring GetPolynomial(vector <vector <MONOMIAL>> inp)
 	{
-		string output = "";
+		wstring output = L"";
 		bool set_modifier = 0;
-		string exp;
+		wstring exp;
 		for (vector <MONOMIAL> T : inp) {
+
+			// caso di monomio modificatore
 			if (T[0].degree == -1) {
-				exp = to_string(T[0].coefficient);
+				exp = to_wstring(T[0].coefficient);
 				set_modifier = 1;
 				continue;
 			}
-			string xout = GetFactor(T);
+			wstring xout = GetFactor(T);
+
+			// caso con elevamento a potenza
 			if (set_modifier) {
-				xout = '(' + xout + ")^" + exp;
+				xout = L"(" + xout + L")^" + exp;
 				set_modifier = 0;
 			}
-			else xout = '(' + xout + ')';
+
+			// caso comune
+			else xout = L"(" + xout + L")";
 			output += xout;
 		}
-		if (output.empty()) return "0";
+		// caso nullo
+		if (output.empty()) return L"0";
 
 		return output;
 	}
@@ -1991,6 +2017,8 @@ namespace Techniques
 
 	static vector <MONOMIAL> Eval(vector <MONOMIAL> inp)
 	{
+
+		// ricerca di monomi simili
 		for (int i = size(inp) - 1; i >= 0; i--)
 			for (int j = i - 1; j >= 0; j--)
 				if (inp[i].degree >= 0 && inp[j].degree >= 0)
@@ -1998,9 +2026,13 @@ namespace Techniques
 						inp[i].coefficient += inp[j].coefficient;
 						inp[j].coefficient = 0;
 					}
+
+		// marcamento dei monomi simili
 		for (int i = size(inp) - 1; i >= 0; i--)
 			if (inp[i].coefficient == 0)
 				inp[i].degree = -1;
+
+		// rimozione
 		auto it = remove(inp.begin(), inp.end(), MONOMIAL{ -1, 0 });
 		inp.erase(it, inp.end());
 
@@ -2014,6 +2046,7 @@ namespace Techniques
 		if (inp.empty()) return output;
 		min = inp[0].degree;
 
+		// calcolo massimo comune divisore numerico
 		vector <MONOMIAL> termB = inp;
 		int GCD = inp[0].coefficient;
 		for (int i = 1; i < size(inp); i++) {
@@ -2027,6 +2060,7 @@ namespace Techniques
 			if (GCD == 1) break;
 		}
 
+		// calcolo grado minimo e riscrittura
 		for (MONOMIAL t : inp) if (t.degree < min) min = t.degree;
 		if (min > 0 || GCD != 1) {
 			output = {};
@@ -2037,29 +2071,34 @@ namespace Techniques
 			}
 		}
 
+		// eventuale aggiunta oppure reset
 		if (!(size(inp) == 1 && inp[0] == MONOMIAL{ 0, 1 })) {
 			if (!(min > 0 || GCD != 1))
 				output = {};
 			output.push_back(inp);
 		}
+
 		return output;
 	}
 	static vector <vector <MONOMIAL>> Partial(vector <MONOMIAL> inpt)
 	{
+
+		// filtro vettori a quattro termini
 		vector <vector <MONOMIAL>> outp;
 		outp.push_back(inpt);
 		if (size(inpt) != 4) return outp;
 
+		// riassegnazione e dichiarazioni
 		vector <MONOMIAL> part_1 = { inpt[0], inpt[1] };
 		vector <MONOMIAL> part_2 = { inpt[2], inpt[3] };
 		vector <vector <MONOMIAL>> Part1 = Total(part_1);
 		vector <vector <MONOMIAL>> Part2 = Total(part_2);
-
 		part_1 = Part1[size(Part1) - 1];
 		part_2 = Part2[size(Part2) - 1];
 		if (part_1 != part_2) return outp;
 		outp = {};
 
+		// riordinamento del totale
 		vector <vector <MONOMIAL>> mon_1;
 		vector <vector <MONOMIAL>> mon_2;
 		if (size(Part1) == 1) mon_1.push_back({ MONOMIAL{ 0, 1 } });
@@ -2069,6 +2108,7 @@ namespace Techniques
 		mon_1.push_back(part_1);
 		mon_2.push_back(part_2);
 
+		// riordinamento del parziale
 		outp.push_back(part_1);
 		part_2 = mon_1[0];
 		for (MONOMIAL a : mon_2[0])
@@ -2080,8 +2120,9 @@ namespace Techniques
 	}
 	static vector <vector <MONOMIAL>> Binomial(vector <MONOMIAL> InpT)
 	{
-		using namespace Primitive;
+		using Primitive::Factorial;
 
+		// filtro per vettori con più di un termine
 		vector <vector <MONOMIAL>> outp;
 		outp.push_back(InpT);
 		int exponent = size(InpT) - 1, sign = 1;
@@ -2092,15 +2133,18 @@ namespace Techniques
 		MONOMIAL A = InpT[0];
 		MONOMIAL B = InpT[size(InpT) - 1];
 
+		// controllo per evitare radici impossibili da eseguire nei reali
 		if (exponent % 2 == 0 && (A.coefficient < 0 || B.coefficient < 0))
 			return outp;
 
+		// calcolo delle radici
 		double Sq_A, Sq_B;
 		if (A.coefficient > 0) Sq_A = pow(A.coefficient, 1.0 / exponent);
 		else Sq_A = -pow(-A.coefficient, 1.0 / exponent);
 		if (B.coefficient > 0) Sq_B = pow(B.coefficient, 1.0 / exponent);
 		else Sq_B = -pow(-B.coefficient, 1.0 / exponent);
 
+		// controllo sulle potenze
 		if (floor(Sq_A) != ceil(Sq_A))
 			return outp;
 		if (floor(Sq_B) != ceil(Sq_B))
@@ -2111,10 +2155,13 @@ namespace Techniques
 		int Bdeg = B.degree / exponent;
 
 		for (int i = 1; i < exponent; i++) {
+
+			// calcolo coefficiente
 			if (InpT[i].degree != Adeg * (exponent - i) + Bdeg * i)
 				return outp;
 			int coeff = Factorial(exponent) / (Factorial(i) * Factorial(exponent - i));
 
+			// caso con la sottrazione
 			if (InpT[i].coefficient ==
 				-coeff * (int)pow(Sq_A, exponent - i) * (int)pow(Sq_B, i)
 				) {
@@ -2124,6 +2171,8 @@ namespace Techniques
 				}
 				else if (sign == 1) return outp;
 			}
+
+			// caso con l'addizione
 			else if (InpT[i].coefficient ==
 				coeff * (int)pow(Sq_A, exponent - i) * (int)pow(Sq_B, i)
 				) {
@@ -2133,9 +2182,12 @@ namespace Techniques
 				}
 				else if (sign == -1) return outp;
 			}
+
+			// caso non accettato
 			else return outp;
 		}
 
+		// composizione della potenza di binomio
 		outp = {};
 		outp.push_back({ {-1, exponent} });
 		outp.push_back(InpT);
@@ -2147,10 +2199,13 @@ namespace Techniques
 	}
 	static vector <vector <MONOMIAL>> Trinomial(vector <MONOMIAL> InpT)
 	{
+
+		// filtro per vettori di tre termini
 		vector <vector <MONOMIAL>> outp;
 		outp.push_back(InpT);
 		if (size(InpT) != 3) return outp;
 
+		// calcolo termini ed esponente
 		vector <MONOMIAL> terms;
 		int A, B, C;
 		for (int i = 0; i < size(InpT); i++) {
@@ -2160,24 +2215,24 @@ namespace Techniques
 		}
 		if (terms[0].degree > terms[1].degree)
 			swap(terms[0], terms[1]);
-
 		double exp = terms[1].degree / (terms[0].degree * 2);
 		if (floor(exp) != ceil(exp)) return outp;
 		A = terms[1].coefficient;
 		B = terms[0].coefficient;
 
+		// calcolo delle radici
 		double firstX, secondX, delta;
 		delta = pow(B, 2) - 4 * A * C;
 		if (delta <= 0) return outp;
 		if (floor(sqrt(delta)) != ceil(sqrt(delta)))
 			return outp;
-
 		firstX = (-B - sqrt(delta)) / (2 * A);
 		secondX = (-B + sqrt(delta)) / (2 * A);
 		if (floor(A * firstX * secondX) != ceil(A * firstX * secondX))
 			return outp;
 		outp = {};
 
+		// calcolo dei coefficienti
 		int I, J;
 		for (I = 1; I <= abs(A); I++)
 			if (floor(firstX * I) == ceil(firstX * I))
@@ -2188,11 +2243,14 @@ namespace Techniques
 			if (floor(secondX * J) == ceil(secondX * J))
 				break;
 		if (J == abs(A) + 1) J--;
+
+		// allocazione di memoria
 		outp.push_back(terms);
 		outp.push_back(terms);
 		outp[0] = {};
 		outp[1] = {};
 
+		// composizione del trinomio scomposto
 		outp[0].push_back(MONOMIAL{ (int)exp, I });
 		outp[0].push_back(MONOMIAL{ 0, (int)(-I * firstX) });
 		outp[1].push_back(MONOMIAL{ (int)exp, J });
@@ -2202,18 +2260,22 @@ namespace Techniques
 	}
 	static vector <vector <MONOMIAL>> SquareDifference(vector <MONOMIAL> InpT)
 	{
+		// filtro per vettori di due termini
 		vector <vector <MONOMIAL>> outp;
 		outp.push_back(InpT);
 		if (size(InpT) != 2) return outp;
 
+		// controllo sui quadrati perfetti
 		if (InpT[0].degree % 2 == 1) return outp;
 		if (InpT[1].degree % 2 == 1) return outp;
 
+		// riassegnazione se i segni non vanno bene
 		bool Sign_A = InpT[0].coefficient > 0;
 		bool Sign_B = InpT[1].coefficient > 0;
 		if (Sign_A == Sign_B) return outp;
 		if (Sign_A < 0) swap(InpT[0], InpT[1]);
 
+		// calcolo radici
 		double Sq_A = sqrt(abs(InpT[0].coefficient));
 		double Sq_B = sqrt(abs(InpT[1].coefficient));
 		if (floor(Sq_A) != ceil(Sq_A))
@@ -2221,10 +2283,12 @@ namespace Techniques
 		if (floor(Sq_B) != ceil(Sq_B))
 			return outp;
 
+		// allocazione di memoria
 		outp.push_back(InpT);
 		outp[0] = {};
 		outp[1] = {};
 
+		// composizione di somma e differenza
 		outp[0].push_back(MONOMIAL{ InpT[0].degree / 2, (int)Sq_A });
 		outp[0].push_back(MONOMIAL{ InpT[1].degree / 2, (int)Sq_B });
 		outp[1].push_back(MONOMIAL{ InpT[0].degree / 2, (int)Sq_A });
@@ -2234,14 +2298,27 @@ namespace Techniques
 	}
 	static vector <vector <MONOMIAL>> Ruffini(vector <MONOMIAL> vect)
 	{
+		using Calc::DivisorCalculator;
+
 		vector <vector <MONOMIAL>> VECT;
 		VECT.push_back(vect);
 		vect = SortVector(vect);
-
 		int DirectorTerm = vect[0].coefficient;
 		int KnownTerm = vect[size(vect) - 1].coefficient;
 
+		vector <int> P = DivisorCalculator(KnownTerm);
+		vector <int> Q = DivisorCalculator(DirectorTerm);
 		vector <int> PossibleRoots;
+
+		for (int p : P)
+			for (int q : Q)
+				PossibleRoots.push_back(p / q);
+		for (int root : PossibleRoots) {
+
+			// regola di ruffini
+
+		}
+
 		return VECT;
 	}
 }
@@ -2249,7 +2326,7 @@ namespace Evaluator
 {
 	using namespace EnumMod;
 	using namespace Print;
-	using Input::GetUserNum;
+	using namespace Input;
 	static switchcase CodeToNumber()
 	{
 		using Primitive::UserInputThread;
@@ -2445,7 +2522,7 @@ namespace Evaluator
 		SetConsoleCursorInfo(hConsole, &cursorInfo);
 		if (datalenght >= 1000) {
 			int iter = 0;
-			atomic <double> Progress = 0;
+			atomic <long double> Progress = 0;
 			steady_clock::time_point begin = steady_clock::now();
 			parallel_for(long long(lower_bound), upper_bound, [&](long long set) {
 
@@ -2457,14 +2534,14 @@ namespace Evaluator
 					// stampa della barra di avanzamento
 					steady_clock::time_point stop = steady_clock::now();
 					SetConsoleTextAttribute(hConsole, 112);
-					double Progress = (double)size(data) / datalenght;
+					Progress = (double)size(data) / datalenght;
 					ProgressBar(Progress, Barwidth);
 
 					// calcolo del tempo rimanente
 					int time = duration_cast <milliseconds> (stop - begin).count();
 					SetConsoleTextAttribute(hConsole, 15);
-					double time_rem = (time / Progress) * (1 - Progress);
-					double time_seconds = (double)time_rem / 1000;
+					long double time_rem = (time / Progress) * (1 - Progress);
+					long double time_seconds = (double)time_rem / 1000;
 
 					// calcolo cifre decimali
 					stringstream stream;
@@ -2524,25 +2601,44 @@ namespace Evaluator
 		using Convalid::Syntax;
 		using namespace Traduce;
 		setlocale(LC_ALL, "");
-		SetConsoleTextAttribute(hConsole, 15);
+		SetConsoleTextAttribute(hConsole, 14);
 
+		switchcase Option;
 		vector <MONOMIAL> polydata, pdata;
-		string polynomial, pol;
+		wstring polynomial, pol;
 		bool empty;
 
-		cout << "il programma scompone un polinomio\n";
+		cout << "il programma scompone un polinomio\n\n";
+		SetConsoleTextAttribute(hConsole, 15);
 		while (true) {
 			empty = 1;
 			bool No;
 			do {
-				SetConsoleTextAttribute(hConsole, 15);
-				cout << "inserisci un polinomio\n";
-				getline(cin, polynomial);
+				GetConsoleScreenBufferInfo(hConsole, &csbi);
 
+				// input
+				SetConsoleTextAttribute(hConsole, 15);
+				cout << "inserisci un polinomio (0 = fine input)\n";
+				do {
+					polynomial = GetLine(1, csbi.dwSize.X);
+					cout << '\n';
+				} while (polynomial.empty());
+				if (polynomial == L".") return rnd;
+				Option = ConvertWStringToEnum(polynomial);
+				Option = ReassigneEnum(Option);
+				if (Option != r) {
+					system("cls");
+					LPCWSTR title = polynomial.c_str();
+					SetConsoleTitle(title);
+					return Option;
+				}
+
+				// rimozione spazi
 				for (int i = polynomial.size() - 1; i >= 0; i--)
 					if (polynomial.at(i) == ' ' || polynomial.at(i) == '\t')
 						polynomial.erase(i, 1);
 
+				// controllo
 				No = !Syntax(polynomial);
 				if (No) {
 					SetConsoleTextAttribute(hConsole, 15);
@@ -2550,18 +2646,22 @@ namespace Evaluator
 				}
 
 			} while (No);
+			if (polynomial == L"0") break;
 
+			// somma
 			polydata = GetMonomials(polynomial);
 			pdata = Eval(polydata);
 
+			// risultato della somma
 			polynomial = GetFactor(pdata);
 			if (size(polydata) != size(pdata)) {
 				SetConsoleTextAttribute(hConsole, 2);
-				if (polynomial.empty()) polynomial = "0";
-				cout << "qualche calcolo dopo: " << polynomial << '\n';
+				if (polynomial.empty()) polynomial = L"0";
+				wcout << "qualche calcolo dopo: " << polynomial << '\n';
 				empty = 0;
 			}
 
+			// raccoglimento totale
 			polydata = pdata;
 			vector <vector <MONOMIAL>> BackT;
 			vector <vector <MONOMIAL>> Back_T;
@@ -2569,24 +2669,25 @@ namespace Evaluator
 			polynomial = GetPolynomial(HT);
 			if (size(HT) != 1) {
 				SetConsoleTextAttribute(hConsole, 12);
-				cout << "raccoglimento totale: " << polynomial << '\n';
+				wcout << "raccoglimento totale: " << polynomial << '\n';
 				empty = 0;
 			}
 
+			// raccoglimento parziale
 			polydata = HT[size(HT) - 1];
 			HT.pop_back();
 			BackT = Partial(polydata);
 			for (vector <MONOMIAL> a : BackT)
 				HT.push_back(a);
 			pol = GetPolynomial(HT);
-
 			if (pol != polynomial) {
 				polynomial = pol;
 				SetConsoleTextAttribute(hConsole, 4);
-				cout << "raccoglimento parziale: " << polynomial << '\n';
+				wcout << "raccoglimento parziale: " << polynomial << '\n';
 				empty = 0;
 			}
 
+			// potenza di binomio
 			Back_T = HT;
 			HT = {};
 			for (vector <MONOMIAL> a : Back_T) {
@@ -2595,14 +2696,14 @@ namespace Evaluator
 					HT.push_back(b);
 			}
 			pol = GetPolynomial(HT);
-
 			if (pol != polynomial) {
 				polynomial = pol;
 				SetConsoleTextAttribute(hConsole, 3);
-				cout << "potenza di binomio raccolto: " << polynomial << '\n';
+				wcout << "potenza di binomio raccolto: " << polynomial << '\n';
 				empty = 0;
 			}
 
+			// trinomio speciale
 			Back_T = HT;
 			HT = {};
 			for (vector <MONOMIAL> a : Back_T) {
@@ -2611,14 +2712,14 @@ namespace Evaluator
 					HT.push_back(b);
 			}
 			pol = GetPolynomial(HT);
-
 			if (pol != polynomial) {
 				polynomial = pol;
 				SetConsoleTextAttribute(hConsole, 9);
-				cout << "trinomio speciale raccolto: " << polynomial << '\n';
+				wcout << "trinomio speciale raccolto: " << polynomial << '\n';
 				empty = 0;
 			}
 
+			// differenza di quadrati
 			Back_T = HT;
 			HT = {};
 			int extend = 1;
@@ -2637,13 +2738,15 @@ namespace Evaluator
 			}
 			pol = GetPolynomial(HT);
 
+			// somma per differenza
 			if (pol != polynomial) {
 				polynomial = pol;
 				SetConsoleTextAttribute(hConsole, 5);
-				cout << "differenza di quadrati raccolta: " << polynomial << '\n';
+				wcout << "differenza di quadrati raccolta: " << polynomial << '\n';
 				empty = 0;
 			}
 
+			// caso vuoto
 			if (empty) {
 				SetConsoleTextAttribute(hConsole, 15);
 				wcout << "il polinomio non è scomponibile";
@@ -2651,9 +2754,11 @@ namespace Evaluator
 			}
 		}
 
+		return r;
 	}
 }
 
+// programma principale
 int main()
 {
 	using namespace EnumMod;
@@ -2661,9 +2766,9 @@ int main()
 	using Primitive::SieveOfErastothens;
 	using namespace Execute;
 	using namespace Evaluator;
-
-	// scelta
 	setlocale(LC_ALL, "");
+
+	// dichiarazione stringhe
 	string simpledeg = "il programma calcola solo la codifica di un intero";
 	string simplefact = "il programma calcola solo la fattorizzazione di un intero";
 	string def_sct = "il programma calcola solo codifica e fattorizzazione";
@@ -2705,11 +2810,7 @@ int main()
 				if (ConvertWStringToEnum(G) != r) redo = 1;
 				else if (G.empty()) redo = 1;
 				// termine programma
-				else if (G == L".") {
-					system("cls");
-					SetConsoleTextAttribute(hConsole, 4);
-					return 0;
-				}
+				else if (G == L".") goto End;
 
 				// casi 0 e 1
 				else global = stoi(G);
@@ -2782,7 +2883,7 @@ int main()
 		cout << "selezionando più operazioni, il tempo di calcolo aumenta\v";
 
 		SetConsoleTextAttribute(hConsole, 15);
-		vel = GetLine(1);
+		vel = GetLine(1, 10);
 		option = ConvertWStringToEnum(vel);
 		cout << '\n';
 		do {
@@ -2799,10 +2900,7 @@ int main()
 					lock_prime_input = 0;
 					cout << "\ninput numeri primi sbloccato\n";
 					break;
-				case '.':
-					system("cls");
-					SetConsoleTextAttribute(hConsole, 4);
-					return 0;
+				case '.': goto End;
 					break;
 				default: vel += ' ';
 				}
@@ -2812,7 +2910,7 @@ int main()
 			if (option == r) do {
 				skip = 0;
 				cout << "scegli opzioni:: (...)\n";
-				vel = GetLine(1);
+				vel = GetLine(1, 10);
 				if (vel.size() == 1) {
 					stop = vel.at(0) != '0'
 						&& vel.at(0) != '1' && vel.at(0) != '.';
@@ -2875,12 +2973,15 @@ int main()
 			case pol: option = DecompPolynomial();
 				break;
 			}
-			if (option == rnd) {
-				system("cls");
-				SetConsoleTextAttribute(hConsole, 4);
-				return 0;
-			}
+			if (option == rnd) goto End;
+
 		} while (option != r);
 	}
+
+// fine del programma
+End:
+	system("cls");
+	SetConsoleTextAttribute(hConsole, 4);
+	return 0;
 }
 // program_END
