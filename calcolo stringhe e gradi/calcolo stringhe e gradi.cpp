@@ -2,7 +2,7 @@
 
 // Descrizione ::
 	/*                                                        |
-	*  Strings ZP[3.0].cpp: il programma calcola singola e\o  |
+	*  Strings ZP[3.15].cpp: il programma calcola singola e\o |
 	*  doppia scomposizione di alcuni interi in una stringa   |
 	*  o il contrario, i numeri primi e scompone anche i      |
 	*  polinomi                                               |
@@ -38,7 +38,7 @@ using namespace chrono;
 using Concurrency::parallel_for;
 using this_thread::sleep_for;
 
-// variabili windows
+// oggetti windows
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 CONSOLE_CURSOR_INFO cursorInfo = { 10, FALSE };
 CONSOLE_CURSOR_INFO cursor = { 10, TRUE };
@@ -606,7 +606,7 @@ namespace Input
 			case 127:
 				vel = L"";
 				i = 0;
-				wcout << '\r' << wstring(10, ' ');
+				wcout << '\r' << wstring(sizemax, ' ');
 				break;
 			default:
 				vel += c;
@@ -631,7 +631,7 @@ namespace Input
 						back.erase(vel.size());
 					if (back == vel) {
 						SetConsoleTextAttribute(hConsole, 6);
-						wcout << '\r' << wstring(10, ' ');
+						wcout << '\r' << wstring(sizemax, ' ');
 						wcout << '\r' << command;
 						SetConsoleTextAttribute(hConsole, 15);
 
@@ -641,9 +641,8 @@ namespace Input
 						break;
 					}
 				}
-
 			if (script) {
-				wcout << '\r' << wstring(10, ' ') << '\r' << vel;
+				wcout << '\r' << wstring(sizemax, ' ') << '\r' << vel;
 				i = vel.size();
 			}
 		}
@@ -739,7 +738,7 @@ namespace Primitive
 		const int SQUARE = (int)sqrt(N) + 2;
 		const double NOTPRIMESIZE = (N - IntegralLog(N)) / COEFF;
 		int iter = 0;
-		system("cls");
+		if (USE_pro_bar) system("cls");
 
 		steady_clock::time_point begin = steady_clock::now();
 		if (N >= 100'000 && USE_pro_bar) {
@@ -1312,11 +1311,14 @@ namespace Calc
 		// creazione dei vettori con i principali fattori
 		vector <int> vec;
 		vector <compost> expfact = DecomposeNumber(num);
+		while (expfact[size(expfact) - 1].factors == 0)
+			expfact.pop_back();
+
 		vector <vector <int>> MainDiv;
 		for (int i = 0; i < size(expfact); i++) {
 			MainDiv.push_back({});
 			int EFelement = 1;
-			for (int j = 0; j < expfact[i].exp; j++) {
+			for (int j = 0; j <= expfact[i].exp; j++) {
 				MainDiv[i].push_back(EFelement);
 				EFelement *= expfact[i].factors;
 			}
@@ -2014,7 +2016,6 @@ namespace Traduce
 namespace Techniques
 {
 	using Sort::SortVector;
-
 	static vector <MONOMIAL> Eval(vector <MONOMIAL> inp)
 	{
 
@@ -2300,26 +2301,133 @@ namespace Techniques
 	{
 		using Calc::DivisorCalculator;
 
+		// filtro per vettori con più di un termine
 		vector <vector <MONOMIAL>> VECT;
 		VECT.push_back(vect);
+		if (size(vect) < 2) return VECT;
+		if (size(vect) == 2 && (vect[0].degree == 1 || vect[1].degree == 1))
+			return VECT;
 		vect = SortVector(vect);
+
 		int DirectorTerm = vect[0].coefficient;
 		int KnownTerm = vect[size(vect) - 1].coefficient;
+		if (DirectorTerm >= GlobalMax || KnownTerm >= GlobalMax) return {};
 
-		vector <int> P = DivisorCalculator(KnownTerm);
-		vector <int> Q = DivisorCalculator(DirectorTerm);
+		// calcolo divisori
+		vector <int> P = DivisorCalculator(abs(KnownTerm));
+		vector <int> Q = DivisorCalculator(abs(DirectorTerm));
 		vector <int> PossibleRoots;
 
+		// teorema delle radici razionali
 		for (int p : P)
 			for (int q : Q)
 				PossibleRoots.push_back(p / q);
+		int SetRoot = 0;
+		int Root;
+
+		// eventuale aggiunta dei coefficienti nulli
+		for (int i = 1; i < size(vect); i++)
+			for (int j = 1; j < vect[i - 1].degree - vect[i].degree; j++)
+				vect.insert(vect.begin() + i, { vect[i - 1].degree - j, 0 });
+
+		// regola di ruffini
+		vector <MONOMIAL> temp;
 		for (int root : PossibleRoots) {
+			Root = root;
+			do {
 
-			// regola di ruffini
+				// divisione polinomio per binomio
+				temp = vect;
+				for (int i = 1; i < size(vect); i++) {
+					temp[i].coefficient = Root * temp[i - 1].coefficient + temp[i].coefficient;
+					temp[i].degree--;
+				}
 
+				// caso con resto nullo
+				if (temp[size(temp) - 1].coefficient == 0) {
+					temp[0].degree--;
+					temp.pop_back();
+					SetRoot = Root;
+					vect = temp;
+					break;
+				}
+
+				Root = -Root;
+			} while (Root != root);
+			if (SetRoot != 0) break;
+		}
+		vect = Eval(vect);
+
+		// caso di polinomio scomposto
+		if (SetRoot != 0) {
+			VECT = {};
+			VECT.push_back({ {1, 1}, {0, -SetRoot} });
+			VECT.push_back(vect);
 		}
 
 		return VECT;
+	}
+	static vector <vector <MONOMIAL>> CompleteTheSquare(vector <MONOMIAL> vect)
+	{
+
+		// filtro per vettori con tre termini
+		vector <vector <MONOMIAL>> Vect;
+		Vect.push_back(vect);
+		if (size(vect) != 3) return Vect;
+		vect = SortVector(vect);
+		MONOMIAL A = vect[0];
+		MONOMIAL B = vect[2];
+
+		// calcolo delle radici
+		if (A.coefficient < 0 || B.coefficient < 0) return Vect;
+		double Sq_A = sqrt(A.coefficient);
+		double Sq_B = sqrt(B.coefficient);
+
+		// controllo sulle potenze
+		if (floor(Sq_A) != ceil(Sq_A))
+			return Vect;
+		if (floor(Sq_B) != ceil(Sq_B))
+			return Vect;
+
+		// controllo sui gradi
+		if (A.degree % 2 == 1 || A.degree / 2 == 1) return Vect;
+		if (B.degree % 2 == 1 || B.degree / 2 == 1) return Vect;
+		if (vect[1].degree != A.degree / 2 + B.degree / 2) return Vect;
+		if (floor(A.degree / 4 + B.degree / 4) != 
+			ceil(A.degree / 4 + B.degree / 4)) return Vect;
+
+		// calcolo quadrato di differenza
+		MONOMIAL DiffSquare, Diffneg;
+		DiffSquare.degree = A.degree / 4 + B.degree / 4;
+		int middleterm = 2 * (int)Sq_A * (int)Sq_B, sign;
+		int CasePlus = middleterm - vect[1].coefficient;
+		int CaseMinus = -middleterm - vect[1].coefficient;
+		if (CasePlus < 0) return Vect;
+		if (floor(sqrt(CasePlus)) == ceil(sqrt(CasePlus))) {
+			DiffSquare.coefficient = sqrt(CasePlus);
+			sign = 1;
+		}
+		else if (floor(sqrt(-CaseMinus)) == ceil(sqrt(-CaseMinus))) {
+			DiffSquare.coefficient = sqrt(-CaseMinus);
+			sign = -1;
+		}
+		else return Vect;
+		Diffneg.coefficient = -DiffSquare.coefficient;
+		Diffneg.degree = DiffSquare.degree;
+
+		// composizione di somma e differenza
+		Vect.push_back(vect);
+		Vect[0] = {};
+		Vect[1] = {};
+		
+		Vect[0].push_back({ A.degree / 2 , (int)Sq_A });
+		Vect[0].push_back({ B.degree / 2 , (int)Sq_B });
+		Vect[0].push_back(DiffSquare);
+		Vect[1].push_back({ A.degree / 2 , (int)Sq_A });
+		Vect[1].push_back({ B.degree / 2 , (int)Sq_B });
+		Vect[1].push_back(Diffneg);
+
+		return Vect;
 	}
 }
 namespace Evaluator
@@ -2583,8 +2691,8 @@ namespace Evaluator
 				DataPrintF(data_element);
 			}
 			steady_clock::time_point end = steady_clock::now();
-			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count()
-				<< "[ms]\n\n\n";
+			cout << "\ntempo di calcolo = " << duration_cast <milliseconds> (end - begin).count();
+			cout << "[ms]\n\n\n";
 		}
 
 		// termine
@@ -2603,22 +2711,25 @@ namespace Evaluator
 		setlocale(LC_ALL, "");
 		SetConsoleTextAttribute(hConsole, 14);
 
+		// variabili
 		switchcase Option;
 		vector <MONOMIAL> polydata, pdata;
-		wstring polynomial, pol;
-		bool empty;
+		wstring polynomial, pol, POL;
+		bool empty, Xout;
 
 		cout << "il programma scompone un polinomio\n\n";
 		SetConsoleTextAttribute(hConsole, 15);
 		while (true) {
 			empty = 1;
+			Xout = 0;
 			bool No;
 			do {
 				GetConsoleScreenBufferInfo(hConsole, &csbi);
 
 				// input
 				SetConsoleTextAttribute(hConsole, 15);
-				cout << "inserisci un polinomio (0 = fine input)\n";
+				cout << "inserisci un polinomio in una variabile"; 
+				cout << "(0 = fine input)\n";
 				do {
 					polynomial = GetLine(1, csbi.dwSize.X);
 					cout << '\n';
@@ -2687,70 +2798,122 @@ namespace Evaluator
 				empty = 0;
 			}
 
-			// potenza di binomio
+			do {
+
+				// potenza di binomio
+				Back_T = HT;
+				HT = {};
+				for (vector <MONOMIAL> a : Back_T) {
+					BackT = Binomial(a);
+					for (vector <MONOMIAL> b : BackT)
+						HT.push_back(b);
+				}
+				pol = GetPolynomial(HT);
+				if (pol != polynomial && !Xout) {
+					polynomial = pol;
+					SetConsoleTextAttribute(hConsole, 3);
+					wcout << "potenza di binomio scomposto: " << polynomial << '\n';
+					empty = 0;
+				}
+
+				// trinomio speciale
+				Back_T = HT;
+				HT = {};
+				for (vector <MONOMIAL> a : Back_T) {
+					BackT = Trinomial(a);
+					for (vector <MONOMIAL> b : BackT)
+						HT.push_back(b);
+				}
+				pol = GetPolynomial(HT);
+				if (pol != polynomial && !Xout) {
+					polynomial = pol;
+					SetConsoleTextAttribute(hConsole, 9);
+					wcout << "trinomio speciale scomposto: " << polynomial << '\n';
+					empty = 0;
+				}
+
+				// differenza di quadrati
+				Back_T = HT;
+				HT = {};
+				int extend = 1;
+				for (vector <MONOMIAL> a : Back_T) {
+					if (a[0].degree == -1) {
+						extend = a[0].coefficient;
+						continue;
+					}
+					BackT = SquareDifference(a);
+					for (vector <MONOMIAL> b : BackT) {
+						if (extend > 1)
+							HT.push_back({ {-1, extend} });
+						HT.push_back(b);
+					}
+					extend = 1;
+				}
+				pol = GetPolynomial(HT);
+
+				// somma per differenza
+				if (pol != polynomial && !Xout) {
+					polynomial = pol;
+					SetConsoleTextAttribute(hConsole, 5);
+					wcout << "differenza di quadrati scomposta: " << polynomial << '\n';
+					empty = 0;
+				}
+
+				// scomposizione con ruffini
+				Back_T = HT;
+				POL = GetPolynomial(HT);
+				HT = {};
+				for (vector <MONOMIAL> a : Back_T) {
+					BackT = Ruffini(a);
+					if (size(a) > 0 && size(BackT) == 0) {
+						Xout = 1;
+						break;
+					}
+					for (vector <MONOMIAL> b : BackT)
+						HT.push_back(b);
+				}
+
+				// ruffini
+				pol = GetPolynomial(HT);
+				if (pol != polynomial && !Xout) {
+					polynomial = pol;
+					SetConsoleTextAttribute(hConsole, 6);
+					wcout << "applicazione della regola di ruffini: " << polynomial << '\n';
+					empty = 0;
+				}
+			} while (pol != POL);
+
+			// completamento del quadrato
 			Back_T = HT;
 			HT = {};
 			for (vector <MONOMIAL> a : Back_T) {
-				BackT = Binomial(a);
+				BackT = CompleteTheSquare(a);
 				for (vector <MONOMIAL> b : BackT)
 					HT.push_back(b);
 			}
 			pol = GetPolynomial(HT);
-			if (pol != polynomial) {
+			if (pol != polynomial && !Xout) {
 				polynomial = pol;
-				SetConsoleTextAttribute(hConsole, 3);
-				wcout << "potenza di binomio raccolto: " << polynomial << '\n';
-				empty = 0;
-			}
-
-			// trinomio speciale
-			Back_T = HT;
-			HT = {};
-			for (vector <MONOMIAL> a : Back_T) {
-				BackT = Trinomial(a);
-				for (vector <MONOMIAL> b : BackT)
-					HT.push_back(b);
-			}
-			pol = GetPolynomial(HT);
-			if (pol != polynomial) {
-				polynomial = pol;
-				SetConsoleTextAttribute(hConsole, 9);
-				wcout << "trinomio speciale raccolto: " << polynomial << '\n';
-				empty = 0;
-			}
-
-			// differenza di quadrati
-			Back_T = HT;
-			HT = {};
-			int extend = 1;
-			for (vector <MONOMIAL> a : Back_T) {
-				if (a[0].degree == -1) {
-					extend = a[0].coefficient;
-					continue;
-				}
-				BackT = SquareDifference(a);
-				for (vector <MONOMIAL> b : BackT) {
-					if (extend > 1)
-						HT.push_back({ {-1, extend} });
-					HT.push_back(b);
-				}
-				extend = 1;
-			}
-			pol = GetPolynomial(HT);
-
-			// somma per differenza
-			if (pol != polynomial) {
-				polynomial = pol;
-				SetConsoleTextAttribute(hConsole, 5);
-				wcout << "differenza di quadrati raccolta: " << polynomial << '\n';
+				SetConsoleTextAttribute(hConsole, 79);
+				wcout << "completamento del quadrato: " << polynomial;
+				SetConsoleTextAttribute(hConsole, 15);
+				cout << '\n';
 				empty = 0;
 			}
 
 			// caso vuoto
-			if (empty) {
+			if (empty && !Xout) {
 				SetConsoleTextAttribute(hConsole, 15);
 				wcout << "il polinomio non è scomponibile";
 				wcout << " con i metodi standard\n";
+			}
+
+			// caso impossibile
+			if (Xout) {
+				SetConsoleTextAttribute(hConsole, 64);
+				cout << "X_OUT_OF_RANGE";
+				SetConsoleTextAttribute(hConsole, 15);
+				cout << '\n';
 			}
 		}
 
@@ -2835,8 +2998,8 @@ int main()
 				SetConsoleTextAttribute(hConsole, 6);
 				SetConsoleCursorPosition(hConsole, { 20, 10 });
 				if (delta <= 10) {
-					cout << "tempo di calcolo numeri primi = "
-						<< exception_delta << " microsecondi\n\n";
+					cout << "tempo di calcolo numeri primi = ";
+					cout << exception_delta << " microsecondi\n\n";
 				}
 				else if (delta > 10'000 && delta <= 600'000) {
 					delta = delta / 1000;
