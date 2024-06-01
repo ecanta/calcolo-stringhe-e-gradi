@@ -2,7 +2,7 @@
 
 // Descrizione ::
 	/*                                                        |
-	*  Strings ZP[3.15].cpp: il programma calcola singola e\o |
+	*  Strings ZP[3.3].cpp: il programma calcola singola e\o  |
 	*  doppia scomposizione di alcuni interi in una stringa   |
 	*  o il contrario, i numeri primi e scompone anche i      |
 	*  polinomi                                               |
@@ -1912,6 +1912,7 @@ namespace Traduce
 				wstring mono = polynomial;
 				wstring coeff = L"";
 				mono.erase(0, i);
+				int var_pos = -1;
 
 				// calcolo del segno
 				int sign = 1;
@@ -1921,14 +1922,19 @@ namespace Traduce
 
 				// se il coefficiente è sottinteso
 				int j = 0;
-				if (mono.at(0) == charVariable)
+				if (mono.at(0) == charVariable) {
 					output_element.coefficient = 1;
+					var_pos = 0;
+				}
 
 				// caso con il coefficiente
 				else {
-					for (char j : mono) {
-						if (j == charVariable) break;
-						coeff += wstring(1, j);
+					for (int j = 0; j < mono.size(); j++) {
+						if (mono.at(j) == charVariable) {
+							var_pos = j;
+							break;
+						}
+						coeff += wstring(1, mono.at(j));
 					}
 					if (coeff == mono) output_element.degree = 0;
 					output_element.coefficient = stoi(coeff);
@@ -1938,10 +1944,12 @@ namespace Traduce
 				if (coeff != mono) {
 					if (mono == wstring(1, charVariable))
 						output_element.degree = 1;
-					else if (mono.at(mono.size() - 2) == '^') {
-						mono.erase(0, mono.size() - 1);
-						output_element.degree = stoi(mono);
-					}
+					else if (mono.size() > var_pos + 1)
+						if (mono.at(var_pos + 1) == '^') {
+							mono.erase(0, var_pos + 2);
+							output_element.degree = stoi(mono);
+						}
+						else output_element.degree = 1;
 					else output_element.degree = 1;
 				}
 
@@ -2012,10 +2020,6 @@ namespace Traduce
 
 		return output;
 	}
-}
-namespace Techniques
-{
-	using Sort::SortVector;
 	static vector <MONOMIAL> Eval(vector <MONOMIAL> inp)
 	{
 
@@ -2039,6 +2043,10 @@ namespace Techniques
 
 		return inp;
 	}
+}
+namespace Techniques
+{
+	using Sort::SortVector;
 	static vector <vector <MONOMIAL>> Total(vector <MONOMIAL> inp)
 	{
 		vector <vector <MONOMIAL>> output;
@@ -2083,6 +2091,7 @@ namespace Techniques
 	}
 	static vector <vector <MONOMIAL>> Partial(vector <MONOMIAL> inpt)
 	{
+		using Traduce::Eval;
 
 		// filtro vettori a quattro termini
 		vector <vector <MONOMIAL>> outp;
@@ -2300,6 +2309,7 @@ namespace Techniques
 	static vector <vector <MONOMIAL>> Ruffini(vector <MONOMIAL> vect)
 	{
 		using Calc::DivisorCalculator;
+		using Traduce::Eval;
 
 		// filtro per vettori con più di un termine
 		vector <vector <MONOMIAL>> VECT;
@@ -2310,6 +2320,7 @@ namespace Techniques
 		vect = SortVector(vect);
 
 		int DirectorTerm = vect[0].coefficient;
+		int size_s = vect[0].degree;
 		int KnownTerm = vect[size(vect) - 1].coefficient;
 		if (DirectorTerm >= GlobalMax || KnownTerm >= GlobalMax) return {};
 
@@ -2324,47 +2335,73 @@ namespace Techniques
 				PossibleRoots.push_back(p / q);
 		int SetRoot = 0;
 		int Root;
+		
+		vector <MONOMIAL> Try;
+		bool assigne = 1;
+		for (int n = 1; n < size_s; n++) {
 
-		// eventuale aggiunta dei coefficienti nulli
-		for (int i = 1; i < size(vect); i++)
-			for (int j = 1; j < vect[i - 1].degree - vect[i].degree; j++)
-				vect.insert(vect.begin() + i, { vect[i - 1].degree - j, 0 });
-
-		// regola di ruffini
-		vector <MONOMIAL> temp;
-		for (int root : PossibleRoots) {
-			Root = root;
-			do {
-
-				// divisione polinomio per binomio
-				temp = vect;
-				for (int i = 1; i < size(vect); i++) {
-					temp[i].coefficient = Root * temp[i - 1].coefficient + temp[i].coefficient;
-					temp[i].degree--;
-				}
-
-				// caso con resto nullo
-				if (temp[size(temp) - 1].coefficient == 0) {
-					temp[0].degree--;
-					temp.pop_back();
-					SetRoot = Root;
-					vect = temp;
+			// riduzione del polinomio
+			Try = vect;
+			assigne = 1;
+			for (int m = 0; m < size(Try); m++) {
+				long double a = (double) Try[m].degree / n;
+				if (floor(a) != ceil(a)) {
+					assigne = 0;
 					break;
 				}
+				Try[m].degree = a;
+			}
+			if (assigne) vect = Try;
 
-				Root = -Root;
-			} while (Root != root);
-			if (SetRoot != 0) break;
+			// eventuale aggiunta dei coefficienti nulli
+			for (int i = 1; i < size(vect); i++)
+				for (int j = 1; j < vect[i - 1].degree - vect[i].degree; j++)
+					vect.insert(vect.begin() + i, { vect[i - 1].degree - j, 0 });
+
+			// regola di ruffini
+			vector <MONOMIAL> temp;
+			for (int root : PossibleRoots) {
+				Root = root;
+				do {
+
+					// divisione polinomio per binomio
+					temp = vect;
+					for (int i = 1; i < size(vect); i++) {
+						temp[i].coefficient = Root * temp[i - 1].coefficient 
+							+ temp[i].coefficient;
+						temp[i].degree--;
+					}
+
+					// caso con resto nullo
+					if (temp[size(temp) - 1].coefficient == 0) {
+						temp[0].degree--;
+						temp.pop_back();
+						SetRoot = Root;
+						vect = temp;
+						break;
+					}
+
+					Root = -Root;
+				} while (Root != root);
+				if (SetRoot != 0) break;
+			}
+			vect = Eval(vect);
+
+			// caso di polinomio scomposto
+			if (SetRoot != 0) {
+				for (int i = 0; i < size(vect); i++)
+					vect[i].degree *= n;
+				VECT = {};
+				VECT.push_back({ {n, 1}, {0, -SetRoot} });
+				VECT.push_back(vect);
+				break;
+			}
+
+			// ripristino polinomio
+			if (assigne) for (int i = 0; i < size(vect); i++) 
+				vect[i].degree *= n;
 		}
-		vect = Eval(vect);
-
-		// caso di polinomio scomposto
-		if (SetRoot != 0) {
-			VECT = {};
-			VECT.push_back({ {1, 1}, {0, -SetRoot} });
-			VECT.push_back(vect);
-		}
-
+		
 		return VECT;
 	}
 	static vector <vector <MONOMIAL>> CompleteTheSquare(vector <MONOMIAL> vect)
@@ -2428,6 +2465,102 @@ namespace Techniques
 		Vect[1].push_back(Diffneg);
 
 		return Vect;
+	}
+
+	static vector <vector <MONOMIAL>> GetDecomp(wstring polynomial)
+	{
+		using namespace Traduce;
+		setlocale(LC_ALL, "");
+
+		// rimozione spazi
+		vector <MONOMIAL> polydata;
+		wstring POL;
+		bool Xout = 0;
+		for (int i = polynomial.size() - 1; i >= 0; i--)
+			if (polynomial.at(i) == ' ' || polynomial.at(i) == '\t')
+				polynomial.erase(i, 1);
+
+		// somma e raccoglimento totale
+		polydata = Eval(GetMonomials(polynomial));
+		vector <vector <MONOMIAL>> BackT;
+		vector <vector <MONOMIAL>> Back_T;
+		vector <vector <MONOMIAL>> HT = Total(polydata);
+
+		// raccoglimento parziale
+		polydata = HT[size(HT) - 1];
+		HT.pop_back();
+		BackT = Partial(polydata);
+		for (vector <MONOMIAL> a : BackT)
+			HT.push_back(a);
+		polynomial = GetPolynomial(HT);
+
+		do {
+
+			// potenza di binomio
+			Back_T = HT;
+			HT = {};
+			for (vector <MONOMIAL> a : Back_T) {
+				BackT = Binomial(a);
+				for (vector <MONOMIAL> b : BackT)
+					HT.push_back(b);
+			}
+
+			// trinomio speciale
+			Back_T = HT;
+			HT = {};
+			for (vector <MONOMIAL> a : Back_T) {
+				BackT = Trinomial(a);
+				for (vector <MONOMIAL> b : BackT)
+					HT.push_back(b);
+			}
+
+			// differenza di quadrati
+			Back_T = HT;
+			HT = {};
+			int extend = 1;
+			for (vector <MONOMIAL> a : Back_T) {
+				if (a[0].degree == -1) {
+					extend = a[0].coefficient;
+					continue;
+				}
+				BackT = SquareDifference(a);
+				for (vector <MONOMIAL> b : BackT) {
+					if (extend > 1)
+						HT.push_back({ {-1, extend} });
+					HT.push_back(b);
+				}
+				extend = 1;
+			}
+
+			// scomposizione con ruffini
+			Back_T = HT;
+			POL = GetPolynomial(HT);
+			HT = {};
+			for (vector <MONOMIAL> a : Back_T) {
+				BackT = Ruffini(a);
+				if (size(a) > 0 && size(BackT) == 0) {
+					Xout = 1;
+					break;
+				}
+				for (vector <MONOMIAL> b : BackT)
+					HT.push_back(b);
+			}
+			polynomial = GetPolynomial(HT);
+
+			polynomial = GetPolynomial(HT);
+		} while (polynomial != POL);
+
+		// completamento del quadrato
+		Back_T = HT;
+		HT = {};
+		for (vector <MONOMIAL> a : Back_T) {
+			BackT = CompleteTheSquare(a);
+			for (vector <MONOMIAL> b : BackT)
+				HT.push_back(b);
+		}
+
+		if (Xout) return {};
+		return HT;
 	}
 }
 namespace Evaluator
@@ -2812,7 +2945,7 @@ namespace Evaluator
 				if (pol != polynomial && !Xout) {
 					polynomial = pol;
 					SetConsoleTextAttribute(hConsole, 3);
-					wcout << "potenza di binomio scomposto: " << polynomial << '\n';
+					wcout << "potenza di binomio scomposta: " << polynomial << '\n';
 					empty = 0;
 				}
 
