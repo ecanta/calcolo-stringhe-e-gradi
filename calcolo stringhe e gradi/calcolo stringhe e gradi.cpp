@@ -2162,62 +2162,84 @@ namespace Traduce
 	}
 
 	static deque <deque <MONOMIAL>> OpenPolynomial
-	(deque <deque <MONOMIAL>> inp)
+	(deque <deque <MONOMIAL>> vect)
 	{
-		for (int i = 0; i < size(inp); i++) {
-			if (inp[i][0].degree == -1) {
-				int repeat = inp[i][0].coefficient;
-				inp.erase(inp.begin() + i);
-				deque <MONOMIAL> push = inp[i];
+		for (int i = 0; i < size(vect); i++) {
+			if (vect[i][0].degree == -1) {
+				int repeat = vect[i][0].coefficient;
+				vect.erase(vect.begin() + i);
+				deque <MONOMIAL> push = vect[i];
 				for (int j = 1; j < repeat; j++)
-					inp.push_front(push);
+					vect.push_front(push);
 			}
 		}
-		return inp;
+		return vect;
 	}
 	static deque <deque <MONOMIAL>> ClosePolynomial
-	(deque <deque <MONOMIAL>> inp)
+	(deque <deque <MONOMIAL>> vect)
 	{
 		deque <MONOMIAL> CommonFactor;
-		for (int i = 0; i < size(inp); i++)
-			for (int j = size(inp) - 1; j > i; j--)
-				if (inp[i] == inp[j]) {
-					CommonFactor = inp[i];
+		for (int i = 0; i < size(vect); i++)
+			for (int j = size(vect) - 1; j > i; j--)
+				if (vect[i] == vect[j]) {
+					CommonFactor = vect[i];
 					if (i > 0) {
 
 						// caso con esponente
-						if (size(inp[i - 1]) == 1 &&
-							inp[i - 1][0].degree == -1) {
-							inp[i - 1][0].coefficient++;
-							inp.erase(inp.begin() + i + 1);
+						if (size(vect[i - 1]) == 1 &&
+							vect[i - 1][0].degree == -1) {
+							vect[i - 1][0].coefficient++;
+							vect.erase(vect.begin() + i + 1);
 						}
 
 						// caso senza esponente
 						else {
 							int setK;
-							inp.insert(inp.begin(), { {-1, 2} });
-							inp.erase(inp.begin() + i + 1);
-							for (int k = 0; k < size(inp); k++)
-								if (inp[k] == CommonFactor)
+							vect.insert(vect.begin(), { {-1, 2} });
+							vect.erase(vect.begin() + i + 1);
+							for (int k = 0; k < size(vect); k++)
+								if (vect[k] == CommonFactor)
 									setK = k;
-							if (inp[i + 1] != CommonFactor)
-								swap(inp[i + 1], inp[setK]);
+							if (vect[i + 1] != CommonFactor)
+								swap(vect[i + 1], vect[setK]);
 						}
 					}
 
 					// caso di eccezione
 					else {
-						int setK;
-						inp.insert(inp.begin(), { {-1, 2} });
-						inp.erase(inp.begin() + i + 1);
-						for (int k = 0; k < size(inp); k++)
-							if (inp[k] == CommonFactor)
+						int setK = 0;
+						vect.insert(vect.begin(), { {-1, 2} });
+						vect.erase(vect.begin() + i + 1);
+						for (int k = 0; k < size(vect); k++)
+							if (vect[k] == CommonFactor)
 								setK = k;
-						if (inp[i + 1] != CommonFactor)
-							swap(inp[i + 1], inp[setK]);
+						if (vect[i + 1] != CommonFactor)
+							swap(vect[i + 1], vect[setK]);
 					}
 				}
-		return inp;
+		return vect;
+	}
+	static deque <MONOMIAL> FillPolynomial(deque <MONOMIAL> vect, int s)
+	{
+		// riempimento buchi
+		for (int j = size(vect) - 1; j > 0; j--)
+			for (int k = 1; 
+				k < vect[j - 1].degree - vect[j].degree; k++)
+					vect.insert
+						(vect.begin() + j, 
+							{ vect[j - 1].degree - k, 0 }
+						);
+
+		// riempimento buchi agli estremi
+		if (size(vect) < s) {
+			while (vect[0].degree < s - 1)
+				vect.push_front({ vect[0].degree + 1, 0 });
+			while (vect[size(vect) - 1].degree > 0)
+				vect.push_back(
+					{vect[size(vect) - 1].degree - 1, 0});
+		}
+
+		return vect;
 	}
 
 	static deque <MONOMIAL> PolynomialSum(deque <MONOMIAL> inp)
@@ -2815,12 +2837,14 @@ namespace Algebraic
 
 			}
 
-		// espansione polinomio
+		if (size(Polynomial) == 0) return {};
 		return PolynomialMultiply(Polynomial);
 	}
 
-	static void Simplify
-	(deque <deque <MONOMIAL>> &num, deque <deque <MONOMIAL>> &den)
+	static void Simplify(
+		deque <deque <MONOMIAL>> &num, 
+		deque <deque <MONOMIAL>> &den,
+		int& ncoeff, int& dcoeff)
 	{
 		using namespace Traduce;
 		OpenPolynomial(num);
@@ -2861,7 +2885,6 @@ namespace Algebraic
 		}
 
 		// ricerca coefficenti
-		int ncoeff = 1, dcoeff = 1;
 		for (int i = 0; i < size(num); i++)
 			if (size(num[i]) == 1 && num[i][0].degree == 0) {
 				ncoeff = num[i][0].coefficient * sign;
@@ -2887,7 +2910,7 @@ namespace Algebraic
 		ClosePolynomial(den);
 	}
 
-	static int Determinant(vector <vector <int>> mx)
+	static int Determinant(deque <deque <int>> mx)
 	{
 		int det = 0;
 		int s = size(mx);
@@ -2895,7 +2918,7 @@ namespace Algebraic
 		if (s == 2) return mx[0][0] * mx[1][1] - mx[0][1] * mx[1][0];
 		for (int i = 0; i < s; i++) {
 
-			vector <vector <int>> MX;
+			deque <deque <int>> MX;
 			for (int a = 0; a < s - 1; a++) MX.push_back({});
 			for (int I = 0; I < s - 1; I++) {
 				for (int J = 0; J < s; J++) {
@@ -3411,7 +3434,7 @@ namespace Evaluator
 	static switchcase DecompAlgebraic()
 	{
 		using Convalid::Syntax;
-		using Traduce::ClosePolynomial;
+		using namespace Traduce;
 		setlocale(1, "");
 		SetConsoleOutputCP(CP_UTF8);
 		wcout.imbue(locale(""));
@@ -3460,7 +3483,9 @@ namespace Evaluator
 			DScomp = ClosePolynomial(DScomp);
 			if (NScomp.empty() || DScomp.empty())
 				skip = 1;
-			if (!skip) Simplify(NScomp, DScomp);
+			int NCOEFF = 1, DCOEFF = 1;
+			if (!skip) Simplify(NScomp, DScomp, NCOEFF, DCOEFF);
+			if (size(DScomp) == 1) skip = 1;
 			if (!skip) for (deque <MONOMIAL> a : DScomp)
 				for (MONOMIAL b : a)
 					if (b.degree > 1) skip = 1;
@@ -3468,7 +3493,7 @@ namespace Evaluator
 			// calcolo denominatori
 			bool is_modifier = 0;
 			deque <deque <MONOMIAL>> denominators;
-			for (int i = 0; i < size(DScomp); i++) {
+			if (!skip) for (int i = 0; i < size(DScomp); i++) {
 				if (DScomp[i][0].degree == -1) {
 					is_modifier = 1;
 					continue;
@@ -3483,47 +3508,38 @@ namespace Evaluator
 				);
 				is_modifier = 0;
 			}
-
-			// riempimento buchi
-			for (int i = 0; i < size(denominators); i++)
-				for (int j = size(denominators[i]) - 1; j > 0; j--)
-					for (
-						int k = 1; 
-						k < denominators[i][j - 1].degree 
-							- denominators[i][j].degree; 
-						k++
-						)
-						denominators[i].insert
-							(denominators[i].begin() + j, 
-								{ denominators[i][j - 1].degree - k, 0 }
-							);
-
-			// riempimento buchi agli estremi
-			for (int i = 0; i < size(denominators); i++)
-				if (size(denominators[i]) < size(denominators)) {
-					while (denominators[i][0].degree < size(denominators) - 1)
-						denominators[i].push_front(
-							{ denominators[i][0].degree + 1, 0 }
-						);
-					while (denominators[i][size(denominators[i]) - 1].degree > 0)
-						denominators[i].push_front(
-							{ denominators[i]
-								[size(denominators[i]) - 1].degree - 1
-								, 0 
-							}
-						);
-				}
-			
+			if (!skip) for (int i = 0; i < size(denominators); i++)
+					denominators[i] = FillPolynomial
+						(denominators[i], size(denominators));
 			// inizializzazione matrice
-			vector <vector <int>> Matrix;
-			for (int i = 0; i < size(denominators); i++) 
+			deque <deque <int>> Matrix;
+			if (!skip) for (int i = 0; i < size(denominators); i++)
 				Matrix.push_back({});
-			for (int i = 0; i < size(denominators); i++)
+			if (!skip) for (int i = 0; i < size(denominators); i++)
 				for (int j = 0; j < size(denominators); j++)
 					Matrix[i].push_back(denominators[i][j].coefficient);
 
 			// calcolo determinanti
+			deque <MONOMIAL> Results = PolynomialMultiply(NScomp);
+			deque <int> results;
+			deque <double> roots;
+			if (!skip) {
+				Results = FillPolynomial(Results, size(denominators));
+				for (MONOMIAL R : Results) results.push_front(R.coefficient);
+			}
 			int Det = Determinant(Matrix);
+			if (size(results) != size(denominators)) skip = 1;
+			if (!skip) for (int i = 0; i < size(results); i++) {
+				deque <deque <int>> MX = Matrix;
+				MX[i] = results;
+				roots.push_back((double)Determinant(MX) / Det);
+			}
+
+
+
+
+
+
 
 			if (skip) {
 				SetConsoleTextAttribute(hConsole, 64);
