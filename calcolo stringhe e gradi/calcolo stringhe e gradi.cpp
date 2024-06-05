@@ -2,13 +2,13 @@
 
 // Descrizione ::
 	/*                                                        |
-	*  Strings ZP[3.9].cpp: il programma calcola singola e\o  |
+	*  Strings ZP[4.0].cpp: il programma calcola singola e\o  |
 	*  doppia scomposizione di alcuni interi in una stringa   |
 	*  o il contrario, i numeri primi e scompone anche i      |
 	*  polinomi                                               |
 	*/
 
-// macro
+	// macro
 #define _USE_MATH_DEFINES
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
@@ -49,6 +49,8 @@ CONSOLE_SCREEN_BUFFER_INFO csbi;
 // variabili globali
 const long long GLOBAL_CAP(pow(10, 10));
 long long GlobalMax(pow(10, 10));
+bool HAS_BEEN_PRINTED(0);
+static const constexpr unsigned long long int __cdecl VARIABLE{};
 
 // strutture
 struct MONOMIAL {
@@ -565,16 +567,79 @@ namespace Print
 }
 namespace Input
 {
+	static wstring ElabExponents(wstring str, int &Size)
+	{
+		Size = 0;
+		int J = 1;
+		bool dobreak = 0;
+		for (int I = 0; I < str.size(); I++) {
+			int pointer = I + 1;
+			if (str.at(I) == '^' && I != str.size() - 1) {
+				while (isdigit(str.at(pointer))) 
+				{
+					// scelta carattere
+					dobreak = 0;
+					wstring replacer;
+					switch (str.at(pointer)) {
+					case '0': 
+						if (J > 1) {
+							replacer = L"⁰";
+							Size--;
+						}
+						else dobreak = 1;
+						break;
+					case '1': replacer = L"¹";
+						break;
+					case '2': replacer = L"²";
+						break;
+					case '3': replacer = L"³";
+						break;
+					case '4': replacer = L"⁴";
+						break;
+					case '5': replacer = L"⁵";
+						break;
+					case '6': replacer = L"⁶";
+						break;
+					case '7': replacer = L"⁷";
+						break;
+					case '8': replacer = L"⁸";
+						break;
+					case '9': replacer = L"⁹";
+						break;
+					}
+					if (dobreak) break;
+
+					// cambio caratteri e ridimensionamento stringa
+					str.replace(pointer, 1, replacer);
+					if (I < str.size() - 2 && J == 1) str.erase(I, 1);
+					if (HAS_BEEN_PRINTED) str.erase(I + J - 1, 1);
+					else Size--;
+					J++;
+					pointer = HAS_BEEN_PRINTED? 
+						I + J - 1 : I + 2 * (J - 1) + (J == 1);
+					if (pointer >= str.size()) break;
+				}
+				J = 1;
+			}
+		}
+		Size += str.size();
+		return str;
+	}
 	static void GetFraction(wstring &numerator, wstring &denominator)
 	{
+		setlocale(1, "");
+		SetConsoleOutputCP(CP_UTF8);
+		wcout.imbue(locale(""));
+
 		denominator = L"1";
 		int i = 0, j = 0, k;
 		wstring vel;
 		bool cursor_at_start = 1;
 
+		// aggiunta di spazio
 		GetConsoleScreenBufferInfo(hConsole, &csbi);
 		COORD START = csbi.dwCursorPosition;
-		for (int i = 0; i < 10; i++) cout << '\n';
+		for (int I = 0; I < 10; I++) cout << '\n';
 		GetConsoleScreenBufferInfo(hConsole, &csbi);
 		if (csbi.dwCursorPosition.Y >= START.Y)
 			START.Y -= 10 - csbi.dwCursorPosition.Y + START.Y;
@@ -653,22 +718,27 @@ namespace Input
 					}
 				}
 			}
-			int spaces = (numerator.size() - denominator.size()) / 2;
+
+			// calcolo dimensione stringhe
+			int sizenum, sizeden;
+			wstring Num = ElabExponents(numerator, sizenum);
+			wstring Den = ElabExponents(denominator, sizeden);
+			int spaces = (sizenum - sizeden) / 2;
 			spaces = abs(spaces);
 
 			// stampa frazione algebrica
 			SetConsoleCursorInfo(hConsole, &cursorInfo);
-			if (numerator.size() > denominator.size()) {
+			if (sizenum > sizeden) {
 				SetConsoleCursorPosition(hConsole, start);
-				wcout << S << numerator << '\n'; 
-				wcout << S << wstring(numerator.size(), '-') << '\n';
-				wcout << S << wstring(spaces, ' ') << denominator;
+				wcout << S << Num << '\n';
+				wcout << S << wstring(sizenum, '-') << '\n';
+				wcout << S << wstring(spaces, ' ') << Den;
 			}
 			else {
 				SetConsoleCursorPosition(hConsole, start);
-				wcout << S << wstring(spaces, ' ') << numerator << '\n';
-				wcout << S << wstring(denominator.size(), '-') << '\n';
-				wcout << S << denominator;
+				wcout << S << wstring(spaces, ' ') << Num << '\n';
+				wcout << S << wstring(sizeden, '-') << '\n';
+				wcout << S << Den;
 			}
 
 			// reset riga
@@ -679,23 +749,23 @@ namespace Input
 
 			// reset cursore
 			if (cursor_at_start) {
-				start.X += numerator.size();
-				if (numerator.size() < denominator.size())
+				start.X += sizenum;
+				if (sizenum < sizeden)
 					start.X += spaces;
 				SetConsoleCursorPosition(hConsole, start);
-				start.X -= numerator.size();
-				if (numerator.size() < denominator.size())
+				start.X -= sizenum;
+				if (sizenum < sizeden)
 					start.X -= spaces;
 			}
 			else {
-				start.X += denominator.size();
-				if (numerator.size() > denominator.size())
+				start.X += sizeden;
+				if (sizenum > sizeden)
 					start.X += spaces;
 				start.Y += 2;
 				SetConsoleCursorPosition(hConsole, start);
-				if (numerator.size() > denominator.size())
+				if (sizenum > sizeden)
 					start.X -= spaces;
-				start.X -= denominator.size();
+				start.X -= sizeden;
 				start.Y -= 2;
 			}
 			SetConsoleCursorInfo(hConsole, &cursor);
@@ -1571,6 +1641,8 @@ namespace Convalid
 		// controllo successione caratteri
 		string sequence = "123456789+-";
 		sequence += charVariable;
+		bool is_an_exponent = 0;
+		int i = 0;
 		for (char a : polynomial) {
 			error = 1;
 			for (char b : sequence) if (a == b) error = 0;
@@ -1582,17 +1654,22 @@ namespace Convalid
 			case '+':
 				sequence = "123456789";
 				sequence += charVariable;
+				if (is_an_exponent) is_an_exponent = 0;
 				break;
 			case '-':
 				sequence = "123456789";
 				sequence += charVariable;
+				if (is_an_exponent) is_an_exponent = 0;
 				break;
 			case '^':
 				sequence = "123456789";
+				is_an_exponent = 1;
 				break;
 			default:
 				sequence = "0123456789+-";
 				sequence += charVariable;
+				if (is_an_exponent) i++;
+				if (i > 2) return 0;
 			}
 		}
 
@@ -2143,6 +2220,8 @@ namespace Traduce
 	}
 	static wstring GetPolynomial(deque <deque <MONOMIAL>> inp)
 	{
+		using Input::ElabExponents;
+
 		wstring output = L"";
 		bool set_modifier = 0;
 		wstring exp;
@@ -2169,6 +2248,7 @@ namespace Traduce
 		// caso nullo
 		if (output.empty()) return L"0";
 
+		//ElabExponents(output);
 		return output;
 	}
 
@@ -3544,6 +3624,7 @@ namespace Evaluator
 				cout << " (0 = fine input)\n\n";
 				do GetFraction(numerator, denominator);
 				while (numerator.empty());
+				HAS_BEEN_PRINTED = 1;
 				if (numerator == L".") return Random;
 				Option = ConvertWStringToEnum(numerator);
 				Option = ReassigneEnum(Option);
@@ -3558,8 +3639,9 @@ namespace Evaluator
 				No1 = !Syntax(numerator);
 				No2 = !Syntax(denominator) || denominator == L"0";
 				if (No1 || No2) {
-					SetConsoleTextAttribute(hConsole, 15);
+					SetConsoleTextAttribute(hConsole, 10);
 					wcout << "quella non è una frazione algebrica\n";
+					SetConsoleTextAttribute(hConsole, 15);
 				}
 
 			} while (No1 || No2);
