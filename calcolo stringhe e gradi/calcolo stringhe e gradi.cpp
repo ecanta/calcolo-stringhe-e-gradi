@@ -3852,6 +3852,14 @@ namespace Programs
 				roots.push_back((double) Determinant(MX) / Det);
 			}
 
+			// eliminazione degli zeri
+			for (int i = size(denominators) - 1; i >= 0; i--)
+				if (roots[i] == 0) {
+					denominators.erase(denominators.begin() + i);
+					roots.erase(roots.begin() + i);
+				}
+			if (size(roots) == 0) skip = 1;
+
 			// output frazioni
 			if (!skip) {
 				SetConsoleTextAttribute(hConsole, 10);
@@ -3892,6 +3900,14 @@ namespace Programs
 
 			// caso impossibile
 			if (skip) {
+
+				// reset cursore
+				GetConsoleScreenBufferInfo(hConsole, &csbi);
+				COORD cursorPos = csbi.dwCursorPosition;
+				cursorPos.Y -= 2;
+				SetConsoleCursorPosition(hConsole, cursorPos);
+
+				// messaggio di errore
 				SetConsoleTextAttribute(hConsole, 64);
 				cout << "NON E' POSSIBILE SCOMPORRE!!";
 				SetConsoleTextAttribute(hConsole, 15);
