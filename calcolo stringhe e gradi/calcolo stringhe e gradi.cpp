@@ -962,6 +962,7 @@ namespace Input
 			if (regex_search(check, CheckDigits)) user_num = 0;
 			else user_num = stoull(check);
 
+			if (user_num < low || user_num > high) cout << '\a';
 		} while (user_num < low || user_num > high);
 		return to_wstring(user_num);
 	}
@@ -3206,12 +3207,16 @@ namespace Programs
 		wstring ToEvaluate, message;
 		switchcase option;
 		bool ShowErrors = 1, NecessaryBoundary = 1;
-		cout << "il programma traduce una stringa di codice\n";
+		SetConsoleTextAttribute(hConsole, 14);
+		cout << "il PROGRAMMA traduce una stringa di codice\n\n";
+		SetConsoleTextAttribute(hConsole, 12);
+
 		cout << "il codice non deve avere errori o saranno segnalati\n";
 		cout << "il codice deve essere compreso tra <>\n";
 		cout << "se sono presenti piu' caratteri '<', '>',\n";
 		cout << "verranno considerati solo quelli che compaiono prima\n";
-		cout << "unici caratteri non numerici ammessi: '(', ')', '+', '.' \n";
+		cout << "unici caratteri non numerici ammessi: '(', ')', '+', '.' \n\n";
+
 		SetConsoleTextAttribute(hConsole, 9);
 		cout << "si indichino le cifre incognite con caratteri '_'\n";
 		cout << "aggiungendo '$' come primo carattere\n";
@@ -3482,7 +3487,7 @@ namespace Programs
 		wstring polynomial, pol, POL;
 		bool empty, Xout;
 
-		cout << "il programma scompone i polinomi\n\n";
+		cout << "il PROGRAMMA scompone i polinomi\n\n";
 		SetConsoleTextAttribute(hConsole, 15);
 		while (true) {
 			empty = 1;
@@ -3518,7 +3523,7 @@ namespace Programs
 				No = !Syntax(polynomial);
 				if (No) {
 					SetConsoleTextAttribute(hConsole, 15);
-					wcout << "quello non è un polinomio in una variabile\n";
+					wcout << "quello non è un polinomio in una variabile\n\a";
 				}
 
 			} while (No);
@@ -3703,7 +3708,7 @@ namespace Programs
 		switchcase Option;
 		
 		SetConsoleTextAttribute(hConsole, 14);
-		cout << "il programma scompone le frazioni algebriche\n";
+		cout << "il PROGRAMMA scompone le frazioni algebriche\n";
 
 		while (true) {
 
@@ -3735,7 +3740,7 @@ namespace Programs
 				No2 = !Syntax(denominator) || denominator == L"0";
 				if (No1 || No2) {
 					SetConsoleTextAttribute(hConsole, 10);
-					wcout << "quella non e' una frazione algebrica\n";
+					wcout << "quella non e' una frazione algebrica\n\a";
 					SetConsoleTextAttribute(hConsole, 15);
 				}
 
@@ -3909,7 +3914,7 @@ namespace Programs
 
 				// messaggio di errore
 				SetConsoleTextAttribute(hConsole, 64);
-				cout << "NON E' POSSIBILE SCOMPORRE!!";
+				cout << "NON E' POSSIBILE SCOMPORRE!!\a";
 				SetConsoleTextAttribute(hConsole, 15);
 				cout << '\n';
 			}
@@ -3925,6 +3930,8 @@ int main()
 	setlocale(1, "");
 	SetConsoleOutputCP(CP_UTF8);
 	wcout.imbue(locale(""));
+	Beep(1000, 50);
+	Beep(1000, 50);
 
 	using namespace EnumMod;
 	using Print::WaitingScreen;
@@ -3934,18 +3941,18 @@ int main()
 	using namespace Programs;
 	
 	// dichiarazione stringhe
-	string simpledeg = "il programma calcola solo la codifica di un intero";
-	string simplefact = "il programma calcola solo la fattorizzazione di un intero";
-	string def_sct = "il programma calcola solo codifica e fattorizzazione";
-	string desimpledeg = "il programma calcola solo la codifica di una serie";
-	string desimplefact = "il programma calcola solo la fattorizzazione di una serie";
-	string defact_message = "il programma calcola la fattorizzazione di una serie";
+	string simpledeg = "il PROGRAMMA calcola solo la codifica di un intero";
+	string simplefact = "il PROGRAMMA calcola solo la fattorizzazione di un intero";
+	string def_sct = "il PROGRAMMA calcola solo codifica e fattorizzazione";
+	string desimpledeg = "il PROGRAMMA calcola solo la codifica di una serie";
+	string desimplefact = "il PROGRAMMA calcola solo la fattorizzazione di una serie";
+	string defact_message = "il PROGRAMMA calcola la fattorizzazione di una serie";
 	defact_message.append("\ne numero, somma e prodotto dei divisori");
-	string deg_message = "il programma calcola codice, sequenza e grado di una serie";
-	string fact_message = "il programma calcola la fattorizzazione di un intero";
+	string deg_message = "il PROGRAMMA calcola codice, sequenza e grado di una serie";
+	string fact_message = "il PROGRAMMA calcola la fattorizzazione di un intero";
 	fact_message.append("\ne numero, somma e prodotto dei divisori");
-	string message = "il programma calcola codice, sequenza e grado di un intero";
-	string AllMessage = "il programma calcola \"tutti\" i dati di alcuni interi";
+	string message = "il PROGRAMMA calcola codice, sequenza e grado di un intero";
+	string AllMessage = "il PROGRAMMA calcola \"tutti\" i dati di alcuni interi";
 	wstring vel = L"";
 	wstring text;
 	switchcase option;
@@ -3961,16 +3968,27 @@ int main()
 
 		if (!lock_prime_input) {
 			do {
-
-				// output e input controllato
 				redo = 0;
 				system("cls");
 				SetConsoleTitle(TEXT("START"));
+
+				// // output
+				SetConsoleTextAttribute(hConsole, 2);
+				cout << "*****.*****.*****.*****.******.*****.*****.*****.*****\n\n";
+				cout << "*****.*****.*****.[> CALCOLATRICE <].*****.*****.*****\n\n";
+
 				SetConsoleTextAttribute(hConsole, 10);
-				cout << "CALCOLATRICE::\n\n";
-				text = L"fino a quale numero cercare i numeri primi?\n";
-				text.append(L"un limite più alto comporta un tempo di attesa più lungo\n");
-				text.append(L"ES.: 22'500'000 = 1 minuto di attesa circa\n");
+				cout << "Scegliere il limite per la ricerca dei numeri primi\n";
+				cout << "Un limite più alto comporta un tempo di attesa più lungo\n";
+				cout << "inserire un numero tra 2 e 10.000.000.000\n\n";
+				
+				SetConsoleTextAttribute(hConsole, 2);
+				cout << "*****.*****.*****.*****.******.*****.*****.*****.*****\n\n";
+				SetConsoleTextAttribute(hConsole, 9);
+				// //
+
+				//input controllato
+				text = L"ESEMPIO: 30.000.000 = ~1 minuto di attesa\n";
 				wstring G = GetUserNum(text, 0, GLOBAL_CAP, 0);
 				if (ConvertWStringToEnum(G) != NotAssigned) redo = 1;
 				else if (G.empty()) redo = 1;
@@ -3994,6 +4012,7 @@ int main()
 				GlobalMax = global;
 				SetConsoleCursorInfo(hConsole, &cursorInfo);
 				PrimeNumbers = SieveOfErastothens(GlobalMax, 1);
+
 				steady_clock::time_point end = steady_clock::now();
 				WaitingScreen(begin, end);
 				SetConsoleTextAttribute(hConsole, 15);
@@ -4002,21 +4021,24 @@ int main()
 			}
 		}
 
-		// scelta
+		// titolo e audio
 		system("cls");
 		SetConsoleTitle(TEXT("switchcase scegli le opzioni"));
-		cout << "scegli opzioni::\v";
+		Beep(750, 300);
+
+		// scelta
+		cout << "scegliere la modalità di calcolo::\n\n";
 		SetConsoleTextAttribute(hConsole, 4);
 		cout << "se stringa di un carattere:\n";
 		cout << "\t'0' = blocca input numeri primi ~[~sempre]\n";
 		cout << "\t'1' = sblocca input numeri primi\n";
-		cout << "\t'.' = fine programma [sempre]\v";
+		cout << "\t'.' = fine programma [sempre]\n";
 		SetConsoleTextAttribute(hConsole, 9);
 		cout << "altrimenti:\n";
 		cout << "\t\"rnd\" = casuale\n";
 		cout << "\t\"ctn\" = da codice a numero\n";
 		cout << "\t\"pol\" = scomposizione polinomi\n";
-		cout << "\t\"alg\" = scomposizione frazioni algebriche\v";
+		cout << "\t\"alg\" = scomposizione frazioni algebriche\n";
 		SetConsoleTextAttribute(hConsole, 11);
 		cout << "oppure:\n";
 		cout << "primo carattere:\n";
@@ -4029,7 +4051,7 @@ int main()
 		cout << "\t\"ff\" = fattoizzazione e dati dei divisori\n";
 		cout << "\t\"cf\" = codifica e fattorizzazione\n";
 		cout << "\t\"t\" = tutti i dati\n";
-		cout << "selezionando più operazioni, il tempo di calcolo aumenta\v";
+		cout << "selezionando più operazioni, il tempo di calcolo aumenta\n";
 
 		SetConsoleTextAttribute(hConsole, 15);
 		vel = GetLine(1, 10);
@@ -4058,11 +4080,12 @@ int main()
 			// caso input non assegnato correttamente
 			if (option == NotAssigned) do {
 				skip = 0;
-				cout << "scegli opzioni:: (...)\n";
+				cout << "scegli opzioni:: (...)\n\a";
 				vel = GetLine(1, 10);
 				if (vel.size() == 1) {
-					stop = vel.at(0) != '0'
-						and vel.at(0) != '1' and vel.at(0) != '.';
+					stop = vel.at(0) != '0' and
+						   vel.at(0) != '1' and 
+						   vel.at(0) != '.';
 				}
 				else {
 					option = ConvertWStringToEnum(vel);
@@ -4072,7 +4095,7 @@ int main()
 				if (stop) {
 					cout << '\n';
 					SetConsoleTextAttribute(hConsole, 64);
-					cout << "NON CORRETTO !!";
+					cout << "NON CORRETTO !!\a";
 					SetConsoleTextAttribute(hConsole, 4);
 					cout << '\n';
 				}
@@ -4091,6 +4114,7 @@ int main()
 		
 		// scelta funzioni e opzioni
 		do {
+			Beep(500, 200);
 			switch (option) 
 			{
 			case DoSimpleCode:
@@ -4148,6 +4172,9 @@ int main()
 End:
 	system("cls");
 	SetConsoleTextAttribute(hConsole, 4);
+	Beep(750, 100);
+	Beep(650, 75);
+	Beep(550, 50);
 	return 0;
 }
 // program_END
