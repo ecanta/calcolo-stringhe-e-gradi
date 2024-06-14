@@ -8,7 +8,7 @@
 	*  doppia scomposizione di alcuni interi in una stringa o   |
 	*  il contrario, i numeri primi, cifre e divisori, scompone |
 	*  anche i polinomi e le frazioni algebriche                |
-	*/
+	*///                                                        |
 
 	// macro
 #define _USE_MATH_DEFINES
@@ -17,6 +17,8 @@
 #define integer(x) (floor(x) == ceil(x))
 
 // inclusioni
+#include <algorithm>
+#include <atomic>
 #include <chrono> // per le misurazioni di tempo
 #include <cmath> // per i calcoli
 #include <condition_variable> // per il multithreading
@@ -53,6 +55,7 @@ CONSOLE_CURSOR_INFO cursor{ 10, TRUE };
 CONSOLE_SCREEN_BUFFER_INFO csbi;
 
 // funzioni e variabili globali
+static char charVariable('x');
 const long long GLOBAL_CAP(pow(10, 10));
 long long GlobalMax(pow(10, 10));
 bool HAS_BEEN_PRINTED(false);
@@ -63,7 +66,8 @@ bool PRINTN(true);
 struct MONOMIAL {
 	int degree;
 	int coefficient;
-	bool operator == (const MONOMIAL& other) const {
+	bool operator == (const MONOMIAL& other) const
+	{
 		return coefficient == other.coefficient and
 			degree == other.degree;
 	}
@@ -73,13 +77,15 @@ struct Console {
 	int Attribute;
 };
 vector <Console> ConsoleText;
-template <typename T>
-using primetype = vector <T>;
+template <typename T> using primetype = vector <T>;
 typedef struct {
 	primetype <bool> is_prime;
 	primetype <int> list_primes;
 } vector_t;
-vector_t PrimeNumbers{};
+vector_t PrimeNumbers{
+	{},
+	{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31}
+};
 
 // variabili globali e atomiche
 atomic <bool> GlobalInterr(false);
@@ -108,6 +114,8 @@ struct digitRatio {
 	int digitProductRatioDen{};
 };
 digitRatio items;
+
+// enum e mappe
 enum switchcase
 {
 	DoSimpleCode,
@@ -154,20 +162,79 @@ vector <wstring> commands{
 	L"alg",
 	L"rnd"
 };
+unordered_map <wstring, switchcase> stringToEnumMap{
+{L"cc" , switchcase::DoSimpleCode        },
+{L"ccc", switchcase::DoComplexCode       },
+{L"cf" , switchcase::DoSimpleFactor      },
+{L"cff", switchcase::DoComplexFactor     },
+{L"ccf", switchcase::DoCodeFactor        },
+{L"ct" , switchcase::DoAll               },
+{L"dc" , switchcase::DebugSimpleCode     },
+{L"dcc", switchcase::DebugComplexCode    },
+{L"df" , switchcase::DebugSimpleFactor   },
+{L"dff", switchcase::DebugComplexFactor  },
+{L"dcf", switchcase::DebugCodeFactor     },
+{L"dt" , switchcase::DebugAll            },
+{L"dr" , switchcase::DebugDigits         },
+{L"drc", switchcase::DebugDigitsAndCode  },
+{L"drf", switchcase::DebugDigitsAndFactor},
+{L"drt", switchcase::DebugComplete       },
+{L"ctn", switchcase::ConvertCodeInverse  },
+{L"pol", switchcase::FactorPolynomial    },
+{L"alg", switchcase::FactorFraction      },
+{L"rnd", switchcase::Random              }
+};
+unordered_map <switchcase, wstring> enumToStringMap{
+	{switchcase::DoSimpleCode        , L"cc" },
+	{switchcase::DoComplexCode       , L"ccc"},
+	{switchcase::DoSimpleFactor      , L"cf" },
+	{switchcase::DoComplexFactor     , L"cff"},
+	{switchcase::DoCodeFactor        , L"ccf"},
+	{switchcase::DoAll               , L"ct" },
+	{switchcase::DebugSimpleCode     , L"dc" },
+	{switchcase::DebugComplexCode    , L"dcc"},
+	{switchcase::DebugSimpleFactor   , L"df" },
+	{switchcase::DebugComplexFactor  , L"dff"},
+	{switchcase::DebugCodeFactor     , L"dcf"},
+	{switchcase::DebugAll            , L"dt" },
+	{switchcase::DebugDigits         , L"dr" },
+	{switchcase::DebugDigitsAndCode  , L"drc"},
+	{switchcase::DebugDigitsAndFactor, L"drf"},
+	{switchcase::DebugComplete       , L"drt"},
+	{switchcase::ConvertCodeInverse  , L"ctn"},
+	{switchcase::FactorPolynomial    , L"pol"},
+	{switchcase::FactorFraction      , L"alg"},
+	{switchcase::Random              , L"rnd"}
+};
+unordered_map <wstring, wstring> ConvertFromSuperScript{
+	{L"⁰", L"0"},
+	{L"¹", L"1"},
+	{L"²", L"2"},
+	{L"³", L"3"},
+	{L"⁴", L"4"},
+	{L"⁵", L"5"},
+	{L"⁶", L"6"},
+	{L"⁷", L"7"},
+	{L"⁸", L"8"},
+	{L"⁹", L"9"},
+};
 
 // classi
-static char charVariable('x');
 class TestInputReader
 {
+	queue <char> buffer;
 public:
-	void enqueue(char c) { buffer.push(c); }
-	char read() {
+	void enqueue(char c)
+	{
+		buffer.push(c);
+	}
+	char read()
+	{
 		if (size(buffer) == 0) buffer.push(_getch());
 		char front{ buffer.front() };
 		buffer.pop();
 		return front;
 	}
-private: queue <char> buffer;
 };
 TestInputReader ObjectGetCh;
 class NumberData
@@ -180,56 +247,186 @@ public:
 	vector <int> sequence{};
 	divisor div;
 	digitRatio digit;
+
+	NumberData() = default;
+	NumberData(
+		int num,
+		const wstring& c,
+		int deg,
+		const wstring& expr,
+		const vector<int>& seq,
+		const divisor& d,
+		const digitRatio& dr
+	) :
+		number(num),
+		code(c),
+		degree(deg),
+		expression(expr),
+		sequence(seq),
+		div(d),
+		digit(dr)
+	{}
+
+	void DataPrintF()
+	{
+		setlocale(1, "");
+		SetConsoleOutputCP(CP_UTF8);
+		wcout.imbue(locale(""));
+
+		// stampa numero
+		if (PRINTN) {
+			cout << "numero " << number << ":\n";
+			SetConsoleTextAttribute(hConsole, 2);
+			cout << "in esadecimale è " << hex << uppercase;
+			cout << number << "\n" << dec << nouppercase;
+		}
+
+		// stampa dati cifre
+		else if (number >= 10) {
+
+			// stampa numero
+			if (
+				digit.digitSumRatioNum == 0 and
+				digit.digitProductRatioNum == 0
+				) return;
+			cout << "numero " << number << ":\n";
+			SetConsoleTextAttribute(hConsole, 2);
+			cout << "in esadecimale è " << hex << uppercase;
+			cout << number << "\n" << dec << nouppercase;
+			SetConsoleTextAttribute(hConsole, 13);
+
+			// stampa somma cifre
+			if (digit.digitSumRatioNum != 0) {
+				wcout << L"la somma delle cifre è ";
+				cout << '(' << digit.digitSumRatioNum;
+				cout << '/' << digit.digitSumRatioDen;
+				cout << ")x\n";
+			}
+
+			// stampa prodotto cifre
+			if (digit.digitProductRatioNum != 0) {
+				wcout << L"il prodotto delle cifre è ";
+				if (digit.digitProductRatioDen != 1)
+					cout << '(';
+				cout << digit.digitProductRatioNum;
+				if (digit.digitProductRatioDen != 1) {
+					cout << '/';
+					cout << digit.digitProductRatioDen;
+					cout << ')';
+				}
+				cout << "x\n";
+			}
+		}
+
+		// stampa stringa
+		if (!code.empty()) {
+			SetConsoleTextAttribute(hConsole, 12);
+			wcout << L"il codice è <" << code << ">\n";
+		}
+
+		// stampa grado e sequenza
+		if (degree != 0) {
+			SetConsoleTextAttribute(hConsole, 4);
+			wcout << L"il grado è " << degree << '\n';
+			SetConsoleTextAttribute(hConsole, 3);
+			wcout << L"la sequenza è :\n(";
+			for (int i = 0; i < size(sequence) - 1; i++)
+				cout << sequence[i] << ", ";
+			cout << sequence[size(sequence) - 1] << ")\n";
+		}
+
+		if (!expression.empty()) {
+
+			// se il numero è primo
+			if (PrimeNumbers.is_prime[number]) {
+				SetConsoleTextAttribute(hConsole, 240);
+				wcout << L"il numero è primo";
+				SetConsoleTextAttribute(hConsole, 15);
+				cout << '\n';
+			}
+
+			// altrimenti stampa scomposizione
+			else {
+				SetConsoleTextAttribute(hConsole, 11);
+				wcout << L"la fattorizzazione è ";
+				wcout << expression << '\n';
+				if (div.DivNumber != 1) {
+					SetConsoleTextAttribute(hConsole, 8);
+
+					// stampa numero divisori
+					wcout << L"il numero dei divisori è ";
+					cout << div.DivNumber << '\n';
+
+					// stampa somma divisori
+					wcout << L"la somma dei divisori è ";
+					cout << div.DivSum << '\n';
+
+					// stampa prodotto divisori
+					wcout << "il prodotto dei divisori è ";
+					if (div.DivProduct != 1)
+						cout << div.DivProduct << '\n';
+					else cout << div.Div_pr << '\n';
+				}
+			}
+
+		}
+		SetConsoleTextAttribute(hConsole, 15);
+	}
+};
+class NumberDataVector : public vector <NumberData>
+{
+public:
+	NumberDataVector() : vector<NumberData>() {}
+	NumberDataVector(initializer_list<NumberData> init) :
+		vector<NumberData>(init)
+	{}
+
+	void DataPrintF()
+	{
+		for (auto& data : *this) data.DataPrintF();
+	}
+	void Heapify(int n, int i)
+	{
+		int largest{ i };
+		int left{ 2 * i + 1 };
+		int right{ 2 * i + 2 };
+		if (left < n and this->at(left).number > this->at(largest).number)
+			largest = left;
+		if (right < n and this->at(right).number > this->at(largest).number)
+			largest = right;
+		if (largest != i) {
+			iter_swap(this->begin() + i, this->begin() + largest);
+			Heapify(n, largest);
+		}
+	}
+	void HeapSort()
+	{
+		int n = this->size();
+		for (int i = n / 2 - 1; i >= 0; i--) Heapify(n, i);
+		for (int i = n - 1; i > 0; i--) {
+			iter_swap(this->begin(), this->begin() + i);
+			Heapify(i, 0);
+		}
+	}
+};
+template <typename Ty> class deque_t : public deque<Ty>
+{
+public:
+	deque_t() : deque<Ty>() {}
+	deque_t(initializer_list<Ty> init) : deque<Ty>(init) {}
+
+	void SortDeq()
+	{
+		for (int i = 0; i < this->size(); i++)
+			for (int j = i + 1; j < this->size(); j++)
+				if (this->at(i).degree < this->at(j).degree)
+					swap(this->at(i), this->at(j));
+	}
 };
 
 // namespace e funzioni
 namespace EnumMod
 {
-	static unordered_map <wstring, switchcase> stringToEnumMap{
-		{L"cc" , switchcase::DoSimpleCode        },
-		{L"ccc", switchcase::DoComplexCode       },
-		{L"cf" , switchcase::DoSimpleFactor      },
-		{L"cff", switchcase::DoComplexFactor     },
-		{L"ccf", switchcase::DoCodeFactor        },
-		{L"ct" , switchcase::DoAll               },
-		{L"dc" , switchcase::DebugSimpleCode     },
-		{L"dcc", switchcase::DebugComplexCode    },
-		{L"df" , switchcase::DebugSimpleFactor   },
-		{L"dff", switchcase::DebugComplexFactor  },
-		{L"dcf", switchcase::DebugCodeFactor     },
-		{L"dt" , switchcase::DebugAll            },
-		{L"dr" , switchcase::DebugDigits         },
-		{L"drc", switchcase::DebugDigitsAndCode  },
-		{L"drf", switchcase::DebugDigitsAndFactor},
-		{L"drt", switchcase::DebugComplete       },
-		{L"ctn", switchcase::ConvertCodeInverse  },
-		{L"pol", switchcase::FactorPolynomial    },
-		{L"alg", switchcase::FactorFraction      },
-		{L"rnd", switchcase::Random              }
-	};
-	static unordered_map <switchcase, wstring> enumToStringMap{
-		{switchcase::DoSimpleCode        , L"cc" },
-		{switchcase::DoComplexCode       , L"ccc"},
-		{switchcase::DoSimpleFactor      , L"cf" },
-		{switchcase::DoComplexFactor     , L"cff"},
-		{switchcase::DoCodeFactor        , L"ccf"},
-		{switchcase::DoAll               , L"ct" },
-		{switchcase::DebugSimpleCode     , L"dc" },
-		{switchcase::DebugComplexCode    , L"dcc"},
-		{switchcase::DebugSimpleFactor   , L"df" },
-		{switchcase::DebugComplexFactor  , L"dff"},
-		{switchcase::DebugCodeFactor     , L"dcf"},
-		{switchcase::DebugAll            , L"dt" },
-		{switchcase::DebugDigits         , L"dr" },
-		{switchcase::DebugDigitsAndCode  , L"drc"},
-		{switchcase::DebugDigitsAndFactor, L"drf"},
-		{switchcase::DebugComplete       , L"drt"},
-		{switchcase::ConvertCodeInverse  , L"ctn"},
-		{switchcase::FactorPolynomial    , L"pol"},
-		{switchcase::FactorFraction      , L"alg"},
-		{switchcase::Random              , L"rnd"}
-	};
-
 	static wstring ConvertEnumToWString(switchcase Enum)
 	{
 		auto it = enumToStringMap.find(Enum);
@@ -313,42 +510,6 @@ namespace EnumMod
 			option = FactorFraction;
 			break;
 		}
-	}
-}
-namespace Sort
-{
-	static void SortDeq(deque <MONOMIAL>& vect)
-	{
-		for (int i = 0; i < size(vect); i++)
-			for (int j = i + 1; j < size(vect); j++)
-				if (vect[i].degree < vect[j].degree)
-					swap(vect[i], vect[j]);
-	}
-	template <typename struct_t>
-	static void Heapify(vector <struct_t>& vect, int n, int i)
-	{
-		int largest{ i };
-		int left{ 2 * i + 1 };
-		int right{ 2 * i + 2 };
-		if (left < n and vect[left].number > vect[largest].number)
-			largest = left;
-		if (right < n and vect[right].number > vect[largest].number)
-			largest = right;
-		if (largest != i) {
-			swap(vect[i], vect[largest]);
-			Heapify(vect, n, largest);
-		}
-	}
-	template <typename struct_t>
-	static vector <struct_t> HeapSort(vector <struct_t>& vect)
-	{
-		int n = vect.size();
-		for (int i = n / 2 - 1; i >= 0; i--) Heapify(vect, n, i);
-		for (int i = n - 1; i > 0; i--) {
-			swap(vect[0], vect[i]);
-			Heapify(vect, i, 0);
-		}
-		return vect;
 	}
 }
 namespace BasicPrints
@@ -582,112 +743,6 @@ namespace Print
 		stream << fixed << setprecision(1) << ratio;
 		cout << "]] " << stream.str() << "%\r";
 	}
-	static void DataPrintF(NumberData structure)
-	{
-		setlocale(1, "");
-		SetConsoleOutputCP(CP_UTF8);
-		wcout.imbue(locale(""));
-
-		// stampa numero
-
-		if (PRINTN) {
-			cout << "numero " << structure.number << ":\n";
-			SetConsoleTextAttribute(hConsole, 2);
-			cout << "in esadecimale è " << hex << uppercase;
-			cout << structure.number << "\n" << dec << nouppercase;
-		}
-
-		// stampa dati cifre
-		else if (structure.number >= 10) {
-
-			// stampa numero
-			if (
-				structure.digit.digitSumRatioNum == 0 and
-				structure.digit.digitProductRatioNum == 0
-				) return;
-			cout << "numero " << structure.number << ":\n";
-			SetConsoleTextAttribute(hConsole, 2);
-			cout << "in esadecimale è " << hex << uppercase;
-			cout << structure.number << "\n" << dec << nouppercase;
-			SetConsoleTextAttribute(hConsole, 13);
-
-			// stampa somma cifre
-			if (structure.digit.digitSumRatioNum != 0) {
-				wcout << L"la somma delle cifre è ";
-				cout << '(' << structure.digit.digitSumRatioNum;
-				cout << '/' << structure.digit.digitSumRatioDen;
-				cout << ")x\n";
-			}
-
-			// stampa prodotto cifre
-			if (structure.digit.digitProductRatioNum != 0) {
-				wcout << L"il prodotto delle cifre è ";
-				if (structure.digit.digitProductRatioDen != 1)
-					cout << '(';
-				cout << structure.digit.digitProductRatioNum;
-				if (structure.digit.digitProductRatioDen != 1) {
-					cout << '/';
-					cout << structure.digit.digitProductRatioDen;
-					cout << ')';
-				}
-				cout << "x\n";
-			}
-		}
-
-		// stampa stringa
-		if (!structure.code.empty()) {
-			SetConsoleTextAttribute(hConsole, 12);
-			wcout << L"il codice è <" << structure.code << ">\n";
-		}
-
-		// stampa grado e sequenza
-		if (structure.degree != 0) {
-			SetConsoleTextAttribute(hConsole, 4);
-			wcout << L"il grado è " << structure.degree << '\n';
-			SetConsoleTextAttribute(hConsole, 3);
-			wcout << L"la sequenza è :\n(";
-			for (int i = 0; i < size(structure.sequence) - 1; i++)
-				cout << structure.sequence[i] << ", ";
-			cout << structure.sequence[size(structure.sequence) - 1] << ")\n";
-		}
-
-		if (!structure.expression.empty()) {
-
-			// se il numero è primo
-			if (PrimeNumbers.is_prime[structure.number]) {
-				SetConsoleTextAttribute(hConsole, 240);
-				wcout << L"il numero è primo";
-				SetConsoleTextAttribute(hConsole, 15);
-				cout << '\n';
-			}
-
-			// altrimenti stampa scomposizione
-			else {
-				SetConsoleTextAttribute(hConsole, 11);
-				wcout << L"la fattorizzazione è ";
-				wcout << structure.expression << '\n';
-				if (structure.div.DivNumber != 1) {
-					SetConsoleTextAttribute(hConsole, 8);
-
-					// stampa numero divisori
-					wcout << L"il numero dei divisori è ";
-					cout << structure.div.DivNumber << '\n';
-
-					// stampa somma divisori
-					wcout << L"la somma dei divisori è ";
-					cout << structure.div.DivSum << '\n';
-
-					// stampa prodotto divisori
-					wcout << "il prodotto dei divisori è ";
-					if (structure.div.DivProduct != 1)
-						cout << structure.div.DivProduct << '\n';
-					else cout << structure.div.Div_pr << '\n';
-				}
-			}
-
-		}
-		SetConsoleTextAttribute(hConsole, 15);
-	}
 	static long double WaitingScreen
 	(steady_clock::time_point begin, steady_clock::time_point end)
 	{
@@ -738,18 +793,6 @@ namespace Print
 }
 namespace SuperScript
 {
-	static unordered_map <wstring, wstring> ConvertFromSuperScript{
-		{L"⁰", L"0"},
-		{L"¹", L"1"},
-		{L"²", L"2"},
-		{L"³", L"3"},
-		{L"⁴", L"4"},
-		{L"⁵", L"5"},
-		{L"⁶", L"6"},
-		{L"⁷", L"7"},
-		{L"⁸", L"8"},
-		{L"⁹", L"9"},
-	};
 	static wstring CTSuperScript(char input)
 	{
 		switch (input) {
@@ -1185,19 +1228,15 @@ namespace Primitive
 
 	static bool Prime(long long number)
 	{
-		// se is_prime è nell'intervallo
 		bool is_prime{ true };
-		if (number == 1) return 0;
-		else if (number < size(PrimeNumbers.is_prime))
+		if (number <= 1) return 0;
+		if (number % 2 == 0 or number % 3 == 0) return 0;
+		if (number < size(PrimeNumbers.is_prime))
 			return PrimeNumbers.is_prime[number];
-
-		// metodo lento ma generale
-		else {
-			if (number == 1) is_prime = 0;
-			for (int a = 2; a < number; a++)
-				if (number % a == 0) is_prime = 0;
-		}
-		return is_prime;
+		else for (int i = 5; pow(i, 2) <= number; i += 6)
+			if (number % i == 0 or number % (i + 2) == 0)
+				return 0;
+		return 1;
 	}
 	static void UserInputThread()
 	{
@@ -1275,7 +1314,7 @@ namespace Primitive
 
 		// calcolo senza barra di progresso
 		else for (int p = 2; p < SQUARE; p++)
-			for (int i = pow(p, 2); i <= N; i += p) is_prime[i] = 0;
+			for (int i = p * p; i <= N; i += p) is_prime[i] = 0;
 		if (USE_pro_bar) {
 			SetConsoleCursorPosition(hConsole, { 0, 0 });
 			cout << string(BARWIDTH + 11, '\\') << "\n\nattendere\r";
@@ -2524,9 +2563,9 @@ namespace Convalid
 }
 namespace Traduce
 {
-	static deque <MONOMIAL> GetMonomials(wstring polynomial)
+	static deque_t <MONOMIAL> GetMonomials(wstring polynomial)
 	{
-		deque <MONOMIAL> output;
+		deque_t <MONOMIAL> output;
 		MONOMIAL output_element;
 
 		for (int i = polynomial.size() - 1; i >= 0; i--)
@@ -2585,7 +2624,7 @@ namespace Traduce
 
 		return output;
 	}
-	static wstring GetFactor(deque <MONOMIAL> inp)
+	static wstring GetFactor(deque_t <MONOMIAL> inp)
 	{
 		wstring output{};
 		wstring xout;
@@ -2613,14 +2652,15 @@ namespace Traduce
 		}
 		return output;
 	}
-	static wstring GetPolynomial(deque <deque <MONOMIAL>> inp, int& Size)
+	static wstring GetPolynomial
+	(deque_t <deque_t <MONOMIAL>> inp, int& Size)
 	{
 		using SuperScript::ElabExponents;
 
 		wstring output{};
 		bool set_modifier{ false };
 		wstring exp;
-		for (deque <MONOMIAL> T : inp) {
+		for (deque_t <MONOMIAL> T : inp) {
 
 			// caso di monomio modificatore
 			if (T[0].degree == -1) {
@@ -2650,20 +2690,20 @@ namespace Traduce
 }
 namespace HandPolynomials
 {
-	static void OpenPolynomial(deque <deque <MONOMIAL>>& vect)
+	static void OpenPolynomial(deque_t <deque_t <MONOMIAL>>& vect)
 	{
 		for (int i = 0; i < size(vect); i++) {
 			if (vect[i][0].degree == -1) {
 				int repeat{ vect[i][0].coefficient };
 				vect.erase(vect.begin() + i);
-				deque <MONOMIAL> push{ vect[i] };
+				deque_t <MONOMIAL> push{ vect[i] };
 				for (int j = 1; j < repeat; j++) vect.push_front(push);
 			}
 		}
 	}
-	static void ClosePolynomial(deque <deque <MONOMIAL>>& vect)
+	static void ClosePolynomial(deque_t <deque_t <MONOMIAL>>& vect)
 	{
-		deque <MONOMIAL> CommonFactor;
+		deque_t <MONOMIAL> CommonFactor;
 		for (int i = 0; i < size(vect); i++)
 			for (int j = size(vect) - 1; j > i; j--)
 				if (vect[i] == vect[j]) {
@@ -2701,7 +2741,7 @@ namespace HandPolynomials
 					}
 				}
 	}
-	static deque <MONOMIAL> FillPolynomial(deque <MONOMIAL> vect, int s)
+	static deque_t <MONOMIAL> FillPolynomial(deque_t <MONOMIAL> vect, int s)
 	{
 		// riempimento buchi
 		for (int i = size(vect) - 1; i > 0; i--)
@@ -2728,7 +2768,7 @@ namespace HandPolynomials
 		return vect;
 	}
 
-	static deque <MONOMIAL> PolynomialSum(deque <MONOMIAL> inp)
+	static deque_t <MONOMIAL> PolynomialSum(deque_t <MONOMIAL> inp)
 	{
 
 		// ricerca di monomi simili
@@ -2750,15 +2790,15 @@ namespace HandPolynomials
 
 		return inp;
 	}
-	static deque <MONOMIAL> PolynomialMultiply
-	(deque <deque <MONOMIAL>> Polynomial)
+	static deque_t <MONOMIAL> PolynomialMultiply
+	(deque_t <deque_t <MONOMIAL>> Polynomial)
 	{
 		if (size(Polynomial) == 0) return { {0, 1} };
 		OpenPolynomial(Polynomial);
 		while (size(Polynomial) > 1) {
 
 			MONOMIAL temp;
-			deque <MONOMIAL> Temp;
+			deque_t <MONOMIAL> Temp;
 			for (MONOMIAL A : Polynomial[0])
 				for (MONOMIAL B : Polynomial[1]) {
 					temp.coefficient = A.coefficient * B.coefficient;
@@ -2773,25 +2813,24 @@ namespace HandPolynomials
 	}
 	static void PolynomialDivide
 	(
-		deque <MONOMIAL> dividend,
-		deque <MONOMIAL> divisor,
-		deque <MONOMIAL>& quotient,
-		deque <MONOMIAL>& rest
+		deque_t <MONOMIAL> dividend,
+		deque_t <MONOMIAL> divisor,
+		deque_t <MONOMIAL>& quotient,
+		deque_t <MONOMIAL>& rest
 	)
 	{
-		using Sort::SortDeq;
 
 		// aggiustamento polinomi
 		dividend = FillPolynomial(dividend, dividend[0].degree);
 		divisor = FillPolynomial(divisor, divisor[0].degree);
-		SortDeq(dividend);
-		SortDeq(divisor);
+		dividend.SortDeq();
+		divisor.SortDeq();
 		quotient = {};
 
 		// divisione
 		while (dividend[0].degree >= divisor[0].degree) {
 
-			deque <MONOMIAL> divide{ divisor };
+			deque_t <MONOMIAL> divide{ divisor };
 			int deg{ dividend[0].degree };
 			int _deg{ divisor[0].degree };
 			int rest_element{ dividend[0].coefficient };
@@ -2804,7 +2843,7 @@ namespace HandPolynomials
 				divide.insert(divide.begin() + i, dividend[i]);
 			dividend = PolynomialSum(divide);
 			dividend = FillPolynomial(dividend, deg);
-			SortDeq(dividend);
+			dividend.SortDeq();
 			quotient.push_back({ deg - _deg, rest_element });
 		}
 		rest = dividend;
@@ -2812,17 +2851,16 @@ namespace HandPolynomials
 }
 namespace Techniques
 {
-	using Sort::SortDeq;
-	static deque <deque <MONOMIAL>> Total(deque <MONOMIAL> inp)
+	static deque_t <deque_t <MONOMIAL>> Total(deque_t <MONOMIAL> inp)
 	{
-		deque <deque <MONOMIAL>> output;
+		deque_t <deque_t <MONOMIAL>> output;
 		output.push_back(inp);
 		int min;
 		if (inp.empty()) return output;
 		min = inp[0].degree;
 
 		// calcolo massimo comune divisore numerico
-		deque <MONOMIAL> termB{ inp };
+		deque_t <MONOMIAL> termB{ inp };
 		int GCD{ inp[0].coefficient };
 		for (int i = 1; i < size(inp); i++) {
 			GCD = gcd(GCD, termB[i].coefficient);
@@ -2850,28 +2888,28 @@ namespace Techniques
 
 		return output;
 	}
-	static deque <deque <MONOMIAL>> Partial(deque <MONOMIAL> inpt)
+	static deque_t <deque_t <MONOMIAL>> Partial(deque_t <MONOMIAL> inpt)
 	{
 		using HandPolynomials::PolynomialSum;
 
 		// filtro vettori a quattro termini
-		deque <deque <MONOMIAL>> outp;
+		deque_t <deque_t <MONOMIAL>> outp;
 		outp.push_back(inpt);
 		if (size(inpt) != 4) return outp;
 
 		// riassegnazione e dichiarazioni
-		deque <MONOMIAL> part_1{ inpt[0], inpt[1] };
-		deque <MONOMIAL> part_2{ inpt[2], inpt[3] };
-		deque <deque <MONOMIAL>> Part1{ Total(part_1) };
-		deque <deque <MONOMIAL>> Part2{ Total(part_2) };
+		deque_t <MONOMIAL> part_1{ inpt[0], inpt[1] };
+		deque_t <MONOMIAL> part_2{ inpt[2], inpt[3] };
+		deque_t <deque_t <MONOMIAL>> Part1{ Total(part_1) };
+		deque_t <deque_t <MONOMIAL>> Part2{ Total(part_2) };
 		part_1 = Part1[size(Part1) - 1];
 		part_2 = Part2[size(Part2) - 1];
 		if (part_1 != part_2) return outp;
 		outp = {};
 
 		// riordinamento del totale
-		deque <deque <MONOMIAL>> mon_1;
-		deque <deque <MONOMIAL>> mon_2;
+		deque_t <deque_t <MONOMIAL>> mon_1;
+		deque_t <deque_t <MONOMIAL>> mon_2;
 		if (size(Part1) == 1) mon_1.push_back({ MONOMIAL{ 0, 1 } });
 		else mon_1.push_back(Part1[0]);
 		if (size(Part2) == 1) mon_2.push_back({ MONOMIAL{ 0, 1 } });
@@ -2888,17 +2926,17 @@ namespace Techniques
 		outp.push_back(part_2);
 		return outp;
 	}
-	static deque <deque <MONOMIAL>> Binomial(deque <MONOMIAL> InpT)
+	static deque_t <deque_t <MONOMIAL>> Binomial(deque_t <MONOMIAL> InpT)
 	{
 		using Primitive::Factorial;
 
 		// filtro per vettori con più di un termine
-		deque <deque <MONOMIAL>> outp;
+		deque_t <deque_t <MONOMIAL>> outp;
 		outp.push_back(InpT);
 		int exponent = size(InpT) - 1, sign{ 1 };
 		if (exponent <= 1) return outp;
 		bool reassigne{ false };
-		SortDeq(InpT);
+		InpT.SortDeq();
 
 		MONOMIAL A{ InpT[0] };
 		MONOMIAL B{ InpT[size(InpT) - 1] };
@@ -2966,16 +3004,16 @@ namespace Techniques
 
 		return outp;
 	}
-	static deque <deque <MONOMIAL>> Trinomial(deque <MONOMIAL> InpT)
+	static deque_t <deque_t <MONOMIAL>> Trinomial(deque_t <MONOMIAL> InpT)
 	{
 
 		// filtro per vettori di tre termini
-		deque <deque <MONOMIAL>> outp;
+		deque_t <deque_t <MONOMIAL>> outp;
 		outp.push_back(InpT);
 		if (size(InpT) != 3) return outp;
 
 		// calcolo termini ed esponente
-		deque <MONOMIAL> terms;
+		deque_t <MONOMIAL> terms;
 		int A, B, C;
 		for (int i = 0; i < size(InpT); i++) {
 			if (InpT[i].degree != 0) terms.push_back(InpT[i]);
@@ -3020,10 +3058,10 @@ namespace Techniques
 
 		return outp;
 	}
-	static deque <deque <MONOMIAL>> SquareDifference(deque <MONOMIAL> InpT)
+	static deque_t <deque_t <MONOMIAL>> SquareDifference(deque_t <MONOMIAL> InpT)
 	{
 		// filtro per vettori di due termini
-		deque <deque <MONOMIAL>> outp;
+		deque_t <deque_t <MONOMIAL>> outp;
 		outp.push_back(InpT);
 		if (size(InpT) != 2) return outp;
 
@@ -3055,18 +3093,18 @@ namespace Techniques
 
 		return outp;
 	}
-	static deque <deque <MONOMIAL>> Ruffini(deque <MONOMIAL> vect)
+	static deque_t <deque_t <MONOMIAL>> Ruffini(deque_t <MONOMIAL> vect)
 	{
 		using Calc::DivisorCounter;
 		using HandPolynomials::PolynomialSum;
 
 		// filtro per vettori con più di un termine
-		deque <deque <MONOMIAL>> VECT;
+		deque_t <deque_t <MONOMIAL>> VECT;
 		VECT.push_back(vect);
 		if (size(vect) < 2) return VECT;
 		if (size(vect) == 2 and (vect[0].degree == 1 or vect[1].degree == 1))
 			return VECT;
-		SortDeq(vect);
+		vect.SortDeq();
 
 		int DirectorTerm{ vect[0].coefficient };
 		int size_s{ vect[0].degree };
@@ -3084,7 +3122,7 @@ namespace Techniques
 		int SetRoot{};
 		int Root;
 
-		deque <MONOMIAL> Try;
+		deque_t <MONOMIAL> Try;
 		bool assigne{ true };
 		for (int n = 1; n < size_s; n++) {
 
@@ -3107,7 +3145,7 @@ namespace Techniques
 					vect.insert(vect.begin() + i, { vect[i - 1].degree - j, 0 });
 
 			// regola di ruffini
-			deque <MONOMIAL> temp;
+			deque_t <MONOMIAL> temp;
 			for (int root : PossibleRoots) {
 				Root = root;
 				do {
@@ -3151,14 +3189,14 @@ namespace Techniques
 
 		return VECT;
 	}
-	static deque <deque <MONOMIAL>> CompleteTheSquare(deque <MONOMIAL> vect)
+	static deque_t <deque_t <MONOMIAL>> CompleteTheSquare(deque_t <MONOMIAL> vect)
 	{
 
 		// filtro per vettori con tre termini
-		deque <deque <MONOMIAL>> Vect;
+		deque_t <deque_t <MONOMIAL>> Vect;
 		Vect.push_back(vect);
 		if (size(vect) != 3) return Vect;
-		SortDeq(vect);
+		vect.SortDeq();
 		MONOMIAL A{ vect[0] };
 		MONOMIAL B{ vect[2] };
 
@@ -3211,14 +3249,14 @@ namespace Techniques
 		return Vect;
 	}
 
-	static deque <deque <MONOMIAL>> GetDecomp(wstring polynomial)
+	static deque_t <deque_t <MONOMIAL>> GetDecomp(wstring polynomial)
 	{
 		using namespace Traduce;
 		using HandPolynomials::PolynomialSum;
 		setlocale(LC_ALL, "");
 
 		// rimozione spazi
-		deque <MONOMIAL> polydata;
+		deque_t <MONOMIAL> polydata;
 		wstring POL;
 		bool Xout{ false };
 		for (int i = polynomial.size() - 1; i >= 0; i--)
@@ -3228,15 +3266,15 @@ namespace Techniques
 
 		// somma e raccoglimento totale
 		polydata = PolynomialSum(GetMonomials(polynomial));
-		deque <deque <MONOMIAL>> BackT;
-		deque <deque <MONOMIAL>> Back_T;
-		deque <deque <MONOMIAL>> HT{ Total(polydata) };
+		deque_t <deque_t <MONOMIAL>> BackT;
+		deque_t <deque_t <MONOMIAL>> Back_T;
+		deque_t <deque_t <MONOMIAL>> HT{ Total(polydata) };
 
 		// raccoglimento parziale
 		polydata = HT[size(HT) - 1];
 		HT.pop_back();
 		BackT = Partial(polydata);
-		for (deque <MONOMIAL> a : BackT) HT.push_back(a);
+		for (deque_t <MONOMIAL> a : BackT) HT.push_back(a);
 		polynomial = GetPolynomial(HT, sizep);
 
 		do {
@@ -3244,18 +3282,18 @@ namespace Techniques
 			// potenza di binomio
 			Back_T = HT;
 			HT = {};
-			for (deque <MONOMIAL> a : Back_T) {
+			for (deque_t <MONOMIAL> a : Back_T) {
 				BackT = Binomial(a);
-				for (deque <MONOMIAL> b : BackT)
+				for (deque_t <MONOMIAL> b : BackT)
 					HT.push_back(b);
 			}
 
 			// trinomio speciale
 			Back_T = HT;
 			HT = {};
-			for (deque <MONOMIAL> a : Back_T) {
+			for (deque_t <MONOMIAL> a : Back_T) {
 				BackT = Trinomial(a);
-				for (deque <MONOMIAL> b : BackT)
+				for (deque_t <MONOMIAL> b : BackT)
 					HT.push_back(b);
 			}
 
@@ -3263,13 +3301,13 @@ namespace Techniques
 			Back_T = HT;
 			HT = {};
 			int extend{ 1 };
-			for (deque <MONOMIAL> a : Back_T) {
+			for (deque_t <MONOMIAL> a : Back_T) {
 				if (a[0].degree == -1) {
 					extend = a[0].coefficient;
 					continue;
 				}
 				BackT = SquareDifference(a);
-				for (deque <MONOMIAL> b : BackT) {
+				for (deque_t <MONOMIAL> b : BackT) {
 					if (extend > 1)
 						HT.push_back({ {-1, extend} });
 					HT.push_back(b);
@@ -3281,13 +3319,13 @@ namespace Techniques
 			Back_T = HT;
 			POL = GetPolynomial(HT, sizep);
 			HT = {};
-			for (deque <MONOMIAL> a : Back_T) {
+			for (deque_t <MONOMIAL> a : Back_T) {
 				BackT = Ruffini(a);
 				if (size(a) > 0 and size(BackT) == 0) {
 					Xout = 1;
 					break;
 				}
-				for (deque <MONOMIAL> b : BackT)
+				for (deque_t <MONOMIAL> b : BackT)
 					HT.push_back(b);
 			}
 			polynomial = GetPolynomial(HT, sizep);
@@ -3298,9 +3336,9 @@ namespace Techniques
 		// completamento del quadrato
 		Back_T = HT;
 		HT = {};
-		for (deque <MONOMIAL> a : Back_T) {
+		for (deque_t <MONOMIAL> a : Back_T) {
 			BackT = CompleteTheSquare(a);
-			for (deque <MONOMIAL> b : BackT)
+			for (deque_t <MONOMIAL> b : BackT)
 				HT.push_back(b);
 		}
 
@@ -3310,8 +3348,8 @@ namespace Techniques
 }
 namespace Algebraic
 {
-	static deque <MONOMIAL> Complementary
-	(deque <deque <MONOMIAL>> Polynomial, deque <MONOMIAL> factor, int exp)
+	static deque_t <MONOMIAL> Complementary
+	(deque_t <deque_t <MONOMIAL>> Polynomial, deque_t <MONOMIAL> factor, int exp)
 	{
 		using HandPolynomials::PolynomialMultiply;
 
@@ -3342,16 +3380,15 @@ namespace Algebraic
 	}
 
 	static void Simplify(
-		deque <deque <MONOMIAL>>& num,
-		deque <deque <MONOMIAL>>& den,
+		deque_t <deque_t <MONOMIAL>>& num,
+		deque_t <deque_t <MONOMIAL>>& den,
 		int& ncoeff, int& dcoeff)
 	{
 		using namespace HandPolynomials;
-		using Sort::SortDeq;
 		OpenPolynomial(num);
 		OpenPolynomial(den);
-		for (int i = 0; i < size(num); i++) SortDeq(num[i]);
-		for (int i = 0; i < size(den); i++) SortDeq(den[i]);
+		for (int i = 0; i < size(num); i++) num[i].SortDeq();
+		for (int i = 0; i < size(den); i++) den[i].SortDeq();
 
 		// semplificazione fattori
 		int sign{ 1 };
@@ -3413,7 +3450,7 @@ namespace Algebraic
 		ClosePolynomial(den);
 	}
 
-	static int Determinant(deque <deque <int>> mx)
+	static int Determinant(deque_t <deque_t <int>> mx)
 	{
 		int det{};
 		int s = size(mx);
@@ -3425,7 +3462,7 @@ namespace Algebraic
 		// caso generico
 		for (int i = 0; i < s; i++) {
 
-			deque <deque <int>> MX;
+			deque_t <deque_t <int>> MX;
 			for (int a = 0; a < s - 1; a++) MX.push_back({});
 			for (int I = 0; I < s - 1; I++) {
 				for (int J = 0; J < s; J++) {
@@ -3441,7 +3478,7 @@ namespace Algebraic
 
 	static void PrintFraction
 	(int NC, int DC, double root, int& LINE, bool WritePlus,
-		deque <deque <MONOMIAL>> denominator)
+		deque_t <deque_t <MONOMIAL>> denominator)
 	{
 
 		// aggiunta di spazio
@@ -3677,7 +3714,7 @@ namespace Programs
 			// calcolo e stampa dei risultati
 			if (input != 1) {
 				result = CPU(input);
-				DataPrintF(result);
+				result.DataPrintF();
 			}
 
 		} while (input != 1);
@@ -3690,7 +3727,6 @@ namespace Programs
 		bool select
 	)
 	{
-		using Sort::HeapSort;
 		using Print::CS_CenterPrinter;
 		using Input::SetDebug;
 
@@ -3699,7 +3735,7 @@ namespace Programs
 		wcout.imbue(locale(""));
 		wstring n_{ to_wstring(GlobalMax) }, Input, txt;
 		switchcase option;
-		vector <NumberData> data;
+		NumberDataVector data;
 		long long input, lower_bound, upper_bound, datalenght;
 		bool do_return;
 
@@ -3838,7 +3874,7 @@ namespace Programs
 
 			// multithreading
 			thread t1([&data]() {
-				data = HeapSort(data);
+				data.HeapSort();
 				lock_guard <mutex> lock(mtx);
 				is_done = 1;
 				cv.notify_one();
@@ -3850,7 +3886,7 @@ namespace Programs
 
 			// stampa risultati
 			SetConsoleCursorInfo(hConsole, &cursor);
-			for (int x = 0; x < size(data); ++x) DataPrintF(data[x]);
+			data.DataPrintF();
 			steady_clock::time_point end{ steady_clock::now() };
 			cout << "\ntempo di calcolo = ";
 			cout << duration_cast <milliseconds> (end - begin).count();
@@ -3861,10 +3897,9 @@ namespace Programs
 		else {
 			SetConsoleCursorInfo(hConsole, &cursor);
 			steady_clock::time_point begin{ steady_clock::now() };
-			for (long long set = lower_bound; set < upper_bound; set++) {
-				NumberData data_element{ CPU(set) };
-				DataPrintF(data_element);
-			}
+			for (long long set = lower_bound; set < upper_bound; set++)
+				data.push_back({ CPU(set) });
+			data.DataPrintF();
 			steady_clock::time_point end{ steady_clock::now() };
 			cout << "\ntempo di calcolo = ";
 			cout << duration_cast <milliseconds> (end - begin).count();
@@ -3895,7 +3930,7 @@ namespace Programs
 
 		// variabili
 		switchcase Option;
-		deque <MONOMIAL> polydata, pdata;
+		deque_t <MONOMIAL> polydata, pdata;
 		wstring polynomial, pol, POL;
 		bool empty, Xout;
 
@@ -3985,9 +4020,9 @@ namespace Programs
 
 			// raccoglimento totale
 			polydata = pdata;
-			deque <deque <MONOMIAL>> BackT;
-			deque <deque <MONOMIAL>> Back_T;
-			deque <deque <MONOMIAL>> HT{ Total(polydata) };
+			deque_t <deque_t <MONOMIAL>> BackT;
+			deque_t <deque_t <MONOMIAL>> Back_T;
+			deque_t <deque_t <MONOMIAL>> HT{ Total(polydata) };
 			int sizep;
 			polynomial = GetPolynomial(HT, sizep);
 			if (size(HT) != 1) {
@@ -4000,7 +4035,7 @@ namespace Programs
 			polydata = HT[size(HT) - 1];
 			HT.pop_back();
 			BackT = Partial(polydata);
-			for (deque <MONOMIAL> a : BackT) HT.push_back(a);
+			for (deque_t <MONOMIAL> a : BackT) HT.push_back(a);
 			pol = GetPolynomial(HT, sizep);
 			if (pol != polynomial) {
 				polynomial = pol;
@@ -4015,9 +4050,9 @@ namespace Programs
 				ClosePolynomial(HT);
 				Back_T = HT;
 				HT = {};
-				for (deque <MONOMIAL> a : Back_T) {
+				for (deque_t <MONOMIAL> a : Back_T) {
 					BackT = Binomial(a);
-					for (deque <MONOMIAL> b : BackT) HT.push_back(b);
+					for (deque_t <MONOMIAL> b : BackT) HT.push_back(b);
 				}
 				ClosePolynomial(HT);
 				pol = GetPolynomial(HT, sizep);
@@ -4032,9 +4067,9 @@ namespace Programs
 				// trinomio speciale
 				Back_T = HT;
 				HT = {};
-				for (deque <MONOMIAL> a : Back_T) {
+				for (deque_t <MONOMIAL> a : Back_T) {
 					BackT = Trinomial(a);
-					for (deque <MONOMIAL> b : BackT) HT.push_back(b);
+					for (deque_t <MONOMIAL> b : BackT) HT.push_back(b);
 				}
 				ClosePolynomial(HT);
 				pol = GetPolynomial(HT, sizep);
@@ -4050,13 +4085,13 @@ namespace Programs
 				Back_T = HT;
 				HT = {};
 				int extend{ 1 };
-				for (deque <MONOMIAL> a : Back_T) {
+				for (deque_t <MONOMIAL> a : Back_T) {
 					if (a[0].degree == -1) {
 						extend = a[0].coefficient;
 						continue;
 					}
 					BackT = SquareDifference(a);
-					for (deque <MONOMIAL> b : BackT) {
+					for (deque_t <MONOMIAL> b : BackT) {
 						if (extend > 1)
 							HT.push_back({ {-1, extend} });
 						HT.push_back(b);
@@ -4079,13 +4114,13 @@ namespace Programs
 				Back_T = HT;
 				POL = GetPolynomial(HT, sizep);
 				HT = {};
-				for (deque <MONOMIAL> a : Back_T) {
+				for (deque_t <MONOMIAL> a : Back_T) {
 					BackT = Ruffini(a);
 					if (size(a) > 0 and size(BackT) == 0) {
 						Xout = 1;
 						break;
 					}
-					for (deque <MONOMIAL> b : BackT) HT.push_back(b);
+					for (deque_t <MONOMIAL> b : BackT) HT.push_back(b);
 				}
 
 				// ruffini
@@ -4103,9 +4138,9 @@ namespace Programs
 			// completamento del quadrato
 			Back_T = HT;
 			HT = {};
-			for (deque <MONOMIAL> a : Back_T) {
+			for (deque_t <MONOMIAL> a : Back_T) {
 				BackT = CompleteTheSquare(a);
-				for (deque <MONOMIAL> b : BackT) HT.push_back(b);
+				for (deque_t <MONOMIAL> b : BackT) HT.push_back(b);
 			}
 			ClosePolynomial(HT);
 			pol = GetPolynomial(HT, sizep);
@@ -4218,21 +4253,21 @@ namespace Programs
 			if (numerator == L"0") break;
 
 			// semplificazione fattori
-			deque <deque <MONOMIAL>> NScomp{ GetDecomp(numerator) };
-			deque <deque <MONOMIAL>> DScomp{ GetDecomp(denominator) };
+			deque_t <deque_t <MONOMIAL>> NScomp{ GetDecomp(numerator) };
+			deque_t <deque_t <MONOMIAL>> DScomp{ GetDecomp(denominator) };
 			ClosePolynomial(DScomp);
 			if (size(NScomp) == 0 or size(DScomp) == 0) skip = 1;
 			int NCOEFF{ 1 }, DCOEFF{ 1 };
 			if (!skip) Simplify(NScomp, DScomp, NCOEFF, DCOEFF);
 			if (size(DScomp) == 1) skip = 1;
-			if (!skip) for (deque <MONOMIAL> a : DScomp)
+			if (!skip) for (deque_t <MONOMIAL> a : DScomp)
 				for (MONOMIAL b : a)
 					if (size(a) != 1 and b.degree > 1) skip = 1;
 
 			// calcolo denominatori
 			bool is_modifier{ false };
-			deque <deque <deque <MONOMIAL>>> denominators;
-			deque <deque <MONOMIAL>> complementaries;
+			deque_t <deque_t <deque_t <MONOMIAL>>> denominators;
+			deque_t <deque_t <MONOMIAL>> complementaries;
 			int index{};
 			if (!skip) for (int i = 0; i < size(DScomp); i++) {
 				if (DScomp[i][0].degree == -1) {
@@ -4261,7 +4296,7 @@ namespace Programs
 						denominators.push_back({});
 						denominators[index].push_back({ {j, 1} });
 						index++;
-						deque <deque <MONOMIAL>> NewScomp{ DScomp };
+						deque_t <deque_t <MONOMIAL>> NewScomp{ DScomp };
 						NewScomp.erase(NewScomp.begin() + i);
 						NewScomp.insert(NewScomp.begin() + i, { {1, 1} });
 						NewScomp.insert(NewScomp.begin() + i, {
@@ -4288,7 +4323,7 @@ namespace Programs
 				(complementaries[i], size(complementaries));
 
 			// inizializzazione matrice
-			deque <deque <int>> Matrix;
+			deque_t <deque_t <int>> Matrix;
 			if (!skip) for (int i = 0; i < size(complementaries); i++)
 				Matrix.push_back({});
 			if (!skip) for (int i = 0; i < size(complementaries); i++)
@@ -4296,12 +4331,12 @@ namespace Programs
 					Matrix[i].push_back(complementaries[i][j].coefficient);
 
 			// calcolo determinanti
-			deque <MONOMIAL> Results;
-			deque <int> results;
-			deque <double> roots;
+			deque_t <MONOMIAL> Results;
+			deque_t <int> results;
+			deque_t <double> roots;
 			int Det;
-			deque <MONOMIAL> Quotient;
-			deque <MONOMIAL> Rest;
+			deque_t <MONOMIAL> Quotient;
+			deque_t <MONOMIAL> Rest;
 			if (!skip) {
 
 				// divisione polinomi
@@ -4316,12 +4351,12 @@ namespace Programs
 					);
 				}
 				Results = FillPolynomial(Rest, size(complementaries));
-				SortDeq(Results);
+				Results.SortDeq();
 				for (MONOMIAL R : Results) results.push_back(R.coefficient);
 				Det = Determinant(Matrix);
 			}
 			if (!skip) for (int i = 0; i < size(results); i++) {
-				deque <deque <int>> MX{ Matrix };
+				deque_t <deque_t <int>> MX{ Matrix };
 				MX[i] = results;
 				roots.push_back((double)Determinant(MX) / Det);
 			}
@@ -4686,3 +4721,130 @@ End:
 	return 0;
 }
 // program_END
+
+/*
+static vector_t SieveOfAtkin(long long N, bool USE_pro_bar)
+{
+	using namespace Print;
+	GetConsoleScreenBufferInfo(hConsole, &csbi);
+	const int BARWIDTH{ csbi.dwSize.X - 11 };
+
+	primetype <bool> is_prime(N + 1, 0);
+	primetype <bool> sieve(N + 1, 0);
+	primetype <int> primes;
+	primetype <int> counter;
+	int SPEED{ 75 };
+	const double COEFF{ 0.3 };
+	const long long sqrt_limit{ (int)sqrt(N) + 1 };
+	const double NOTPRIMESIZE = (N - IntegralLog(N)) / COEFF;
+	int iter{};
+	if (USE_pro_bar) system("cls");
+	if (N >= 2) primes.push_back(2);
+	if (N >= 3) primes.push_back(3);
+
+	steady_clock::time_point begin{ steady_clock::now() };
+	if (N >= 100'000 and USE_pro_bar) {
+		parallel_for(long long(1), sqrt_limit + 1, [&](long long x) {
+
+			// calcolo numeri primi
+			for (long long y = 1; y <= sqrt_limit; y++) {
+				atomic <size_t> n = (4 * x * x) + (y * y);
+				if (n <= N and (n % 12 == 1 or n % 12 == 5)) {
+					mtx.lock();
+					sieve[n] = !sieve[n];
+					counter.push_back(0);
+					mtx.unlock();
+				}
+
+				n = 3 * x * x + y * y;
+				if (n <= N and n % 12 == 7) {
+					mtx.lock();
+					sieve[n] = !sieve[n];
+					counter.push_back(0);
+					mtx.unlock();
+				}
+
+				n = 3 * x * x - y * y;
+				if (x > y and n <= N and n % 12 == 11) {
+					mtx.lock();
+					sieve[n] = !sieve[n];
+					counter.push_back(0);
+					mtx.unlock();
+				}
+			}
+
+			if (iter % SPEED == 0) {
+				mtx.lock();
+				steady_clock::time_point stop{ steady_clock::now() };
+				SetConsoleTextAttribute(hConsole, 112);
+
+				// stampa della barra di avanzamento
+				long double progress{ (double)size(counter) / NOTPRIMESIZE };
+				if (progress > 0.5) SPEED = 15;
+				if (progress > 1) progress = 1;
+				ProgressBar(progress, BARWIDTH);
+
+				// calcolo tempo rimanente
+				int time = duration_cast <milliseconds> (stop - begin).count();
+				SetConsoleTextAttribute(hConsole, 15);
+				long double time_rem{ (time / progress) * (1 - progress) };
+				long double time_seconds{ (double)time_rem / 1000 };
+
+				// calcolo cifre decimali
+				stringstream stream;
+				stream << fixed << setprecision(1) << time_seconds;
+				cout << "\ntempo rimanente: " << stream.str() << " [secondi]  ";
+
+				mtx.unlock();
+			}
+			iter++;
+			SetConsoleTextAttribute(hConsole, 15);
+		});
+	}
+
+	// calcolo senza barra di progresso
+	else for (long long x = 1; x < sqrt_limit + 1; x++)
+		for (long long y = 1; y <= sqrt_limit; y++) {
+			size_t n = (4 * x * x) + (y * y);
+			if (n <= N and (n % 12 == 1 or n % 12 == 5))
+				sieve[n] = !sieve[n];
+
+			n = 3 * x * x + y * y;
+			if (n <= N and n % 12 == 7) sieve[n] = !sieve[n];
+
+			n = 3 * x * x - y * y;
+			if (x > y and n <= N and n % 12 == 11)
+				sieve[n] = !sieve[n];
+		}
+	if (USE_pro_bar) {
+		SetConsoleCursorPosition(hConsole, { 0, 0 });
+		cout << string(BARWIDTH + 11, '\\') << "\n\nattendere\r";
+	}
+	if (N >= 100'000 and USE_pro_bar) {
+		thread t1([&]() {
+			for (long long n = 5; n <= sqrt_limit; n++)
+				if (sieve[n]) {
+					long long sqr = n * n;
+					for (long long k = sqr; k <= N; k += sqr) sieve[k] = 0;
+				}
+			for (int n = 5; n <= N; n++) if (sieve[n]) primes.push_back(n);
+			lock_guard <mutex> lock(mtx);
+			is_done = 1;
+			cv.notify_one();
+			});
+		thread t2(CS_CenterPrinter);
+		t1.join();
+		t2.join();
+	}
+	else {
+		for (long long n = 5; n <= sqrt_limit; n++)
+			if (sieve[n]) {
+				long long sqr = n * n;
+				for (long long k = sqr; k <= N; k += sqr) sieve[k] = 0;
+			}
+		for (long long n = 5; n <= N; n++) if (sieve[n]) primes.push_back(n);
+	}
+
+	return { is_prime, primes };
+}
+*/
