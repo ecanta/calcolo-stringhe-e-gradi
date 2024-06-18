@@ -4,7 +4,7 @@
 
 // Descrizione programma ::
 	/*                                                          |
-	*  Strings ZP[4.7].cpp: il programma calcola singola e\o    |
+	*  Strings ZP[4.9].cpp: il programma calcola singola e\o    |
 	*  doppia scomposizione di alcuni interi in una stringa o   |
 	*  il contrario, i numeri primi, cifre e divisori, scompone |
 	*  anche i polinomi e le frazioni algebriche                |
@@ -28,7 +28,6 @@
 #include <iostream> // per l'output
 #include <list>
 #include <new> // per nothrow
-#include <numeric> // per l'MCD
 #include <ppl.h> // per la parallelizzazione
 #include <queue>
 #include <random> // per i generatori casuali
@@ -43,8 +42,7 @@
 // namespace globali
 using namespace std;
 using namespace chrono;
-using Concurrency::parallel_for;
-using this_thread::sleep_for;
+using Concurrency::parallel_for, this_thread::sleep_for;
 
 // oggetti windows
 HANDLE hConsole{
@@ -56,8 +54,8 @@ CONSOLE_SCREEN_BUFFER_INFO csbi;
 
 // funzioni e variabili globali
 static char charVariable('x');
-const long long GLOBAL_CAP(pow(10, 10));
 long long GlobalMax(pow(10, 10));
+const long long GLOBAL_CAP(pow(10, 10));
 bool HAS_BEEN_PRINTED(false);
 bool BOOLALPHA(true);
 bool PRINTN(true);
@@ -425,6 +423,55 @@ public:
 };
 
 // namespace e funzioni
+namespace Math
+{
+	static size_t Factorial(size_t n)
+	{
+		if (n <= 1) return 1;
+		return n * Factorial(n - 1);
+	}
+	static long double IntegralLog(int N)
+	{
+		long double sum{};
+		for (int x = 2; x <= N; x++) sum += 1 / log(x);
+		return sum;
+	}
+	static int Gcd(int A, int B)
+	{
+		if (A < B) swap(A, B);
+		while (B != 0) {
+			int quotient = A / B;
+			int rest = A % B;
+			if (rest == 0) return B;
+			A = quotient;
+			B = rest;
+			if (A < B) swap(A, B);
+		}
+		return A;
+	}
+	static int Gcd(deque_t <int> terms)
+	{
+		if (size(terms) == 0) return 0;
+		if (size(terms) == 1) return terms[0];
+		int GCD{ terms[0] };
+		for (int i = 1; i < size(terms); i++) {
+			GCD = Gcd(GCD, terms[i]);
+			if (GCD == 1) break;
+		}
+		return GCD;
+	}
+	static int Gcd(deque_t <MONOMIAL> terms)
+	{
+		if (size(terms) == 0) return 0;
+		if (size(terms) == 1) return terms[0].coefficient;
+		int GCD{ terms[0].coefficient };
+		for (int i = 1; i < size(terms); i++) {
+			GCD = Gcd(GCD, terms[i].coefficient);
+			if (GCD == 1) break;
+		}
+		return GCD;
+	}
+}
 namespace EnumMod
 {
 	static wstring ConvertEnumToWString(switchcase Enum)
@@ -702,8 +749,8 @@ namespace Print
 		COORD win_center;
 		if (csbi.dwSize.X / 2 < Min.X) win_center.X = Min.X;
 		else win_center.X = csbi.dwSize.X / 2;
-		if (csbi.dwSize.Y / 2 < Min.Y) win_center.Y = Min.Y;
-		else win_center.Y = csbi.dwSize.Y / 2;
+		if (csbi.dwSize.Y / 2 < Min.Y) win_center.Y = Min.Y + 1;
+		else win_center.Y = csbi.dwSize.Y / 2 + 1;
 
 		// animazione
 		DrawCircleSquare(win_center);
@@ -761,15 +808,13 @@ namespace Print
 			output << " microsecondi\n\n";
 		}
 		else if (delta > 10'000 and delta <= 600'000) {
-			delta = delta / 1'000;
 			output << "tempo di calcolo numeri primi = ";
-			output << delta;
+			output << delta / 1'000;
 			output << " secondi\n\n";
 		}
 		else if (delta > 600'000) {
-			delta = delta / 60'000;
 			output << "tempo di calcolo numeri primi = ";
-			output << delta;
+			output << delta / 60'000;
 			output << " minuti\n\n";
 		}
 		else {
@@ -888,7 +933,7 @@ namespace Input
 		numerator = L"";
 		denominator = L"";
 		int i{}, j{}, k;
-		wstring vel;
+		wstring vel, command{ L"rnd" };
 		bool cursor_at_start{ true };
 
 		// aggiunta di spazio
@@ -946,6 +991,12 @@ namespace Input
 				}
 				break;
 
+				// tab per scegliere i suggerimenti
+			case '\t':
+				numerator = command;
+				i = command.size();
+				break;
+
 				// ctrl + '\b' cancella tutto
 			case 127:
 				if (cursor_at_start) {
@@ -985,17 +1036,44 @@ namespace Input
 			int spaces{ (sizenum - sizeden) / 2 };
 			spaces = abs(spaces);
 
+
+			// ricerca suggerimento giusto
+			bool script{ true };
+			if (sizenum > 0) for (wstring comma : commands) {
+				command = comma;
+				wstring back{ command };
+				if (back.size() == sizenum) continue;
+				if (back.size() > sizenum) back.erase(sizenum);
+				if (back == Num) {
+					script = 0;
+					break;
+				}
+			}
+
 			// stampa frazione algebrica
 			SetConsoleCursorInfo(hConsole, &cursorInfo);
 			if (sizenum > sizeden) {
 				SetConsoleCursorPosition(hConsole, start);
-				wcout << S << Num << '\n';
+				if (!script) {
+					SetConsoleTextAttribute(hConsole, 6);
+					wcout << S << command << '\r';
+					SetConsoleTextAttribute(hConsole, 15);
+				}
+				else wcout << S;
+				wcout << Num << '\n';
 				wcout << S << wstring(sizenum, '-') << '\n';
 				wcout << S << wstring(spaces, ' ') << Den;
 			}
 			else {
 				SetConsoleCursorPosition(hConsole, start);
-				wcout << S << wstring(spaces, ' ') << Num << '\n';
+				if (!script) {
+					SetConsoleTextAttribute(hConsole, 6);
+					wcout << S << wstring(spaces, ' ');
+					wcout << command << '\r';
+					SetConsoleTextAttribute(hConsole, 15);
+				}
+				else wcout << S;
+				wcout << wstring(spaces, ' ') << Num << '\n';
 				wcout << S << wstring(sizeden, '-') << '\n';
 				wcout << S << Den;
 			}
@@ -1068,7 +1146,7 @@ namespace Input
 			case '\t':
 				if (ShowSuggestions) {
 					vel = command;
-					i++;
+					i = command.size();
 				}
 				break;
 
@@ -1116,10 +1194,8 @@ namespace Input
 						break;
 					}
 				}
-			if (script) {
+			if (script)
 				wcout << '\r' << wstring(sizemax, ' ') << '\r' << E_Vel;
-				i = sizevel;
-			}
 			SetConsoleCursorInfo(hConsole, &cursor);
 		}
 		return vel;
@@ -1214,26 +1290,14 @@ namespace Input
 }
 namespace Primitive
 {
-	static size_t Factorial(size_t n)
-	{
-		if (n <= 1) return 1;
-		else return n * Factorial(n - 1);
-	}
-	static long double IntegralLog(int N)
-	{
-		long double sum{};
-		for (int x = 2; x <= N; x++) sum += 1 / log(x);
-		return sum;
-	}
-
 	static bool Prime(long long number)
 	{
 		bool is_prime{ true };
 		if (number <= 1) return 0;
+		if (number <= 3) return 1;
+		if (number < GlobalMax) return PrimeNumbers.is_prime[number];
 		if (number % 2 == 0 or number % 3 == 0) return 0;
-		if (number < size(PrimeNumbers.is_prime))
-			return PrimeNumbers.is_prime[number];
-		else for (int i = 5; pow(i, 2) <= number; i += 6)
+		for (int i = 5; i * i <= number; i += 6)
 			if (number % i == 0 or number % (i + 2) == 0)
 				return 0;
 		return 1;
@@ -1254,77 +1318,80 @@ namespace Primitive
 			sleep_for(milliseconds(100));
 		}
 	}
-	static vector_t SieveOfErastothens(long long N, bool USE_pro_bar)
+	static vector_t SieveOfAtkin(long long N, bool USE_pro_bar)
 	{
+		using Math::IntegralLog;
 		using namespace Print;
 		GetConsoleScreenBufferInfo(hConsole, &csbi);
 		const int BARWIDTH{ csbi.dwSize.X - 11 };
 
-		primetype <bool> is_prime(N + 1, true);
+		primetype <bool> is_prime(N + 1, 0);
 		primetype <int> primes;
 		primetype <int> counter;
 		int SPEED{ 75 };
 		const double COEFF{ 0.3 };
-		const int SQUARE{ (int)sqrt(N) + 2 };
+		const long long SQUARE{ (int)sqrt(N) + 1 };
 		const double NOTPRIMESIZE = (N - IntegralLog(N)) / COEFF;
 		int iter{};
 		if (USE_pro_bar) system("cls");
+		if (N >= 2) primes.push_back(2);
+		if (N >= 3) primes.push_back(3);
 
 		steady_clock::time_point begin{ steady_clock::now() };
-		if (N >= 100'000 and USE_pro_bar) {
-			parallel_for(int(2), SQUARE, [&](int p) {
+		for (long long x = 1; x <= SQUARE; x++) {
 
-				// calcolo numeri primi
-				if (is_prime[p]) {
-					for (int i = pow(p, 2); i <= N; i += p) {
-						mtx.lock();
-						is_prime[i] = 0;
-						counter.push_back(0);
-						mtx.unlock();
-					}
-				}
-				if (iter % SPEED == 0) {
-					mtx.lock();
-					steady_clock::time_point stop{ steady_clock::now() };
-					SetConsoleTextAttribute(hConsole, 112);
+			// calcolo numeri primi
+			for (long long y = 1; y <= SQUARE; y++) {
+				size_t n = 4 * x * x + y * y;
+				if (n <= N and (n % 12 == 1 or n % 12 == 5))
+					is_prime[n] = !is_prime[n];
 
-					// stampa della barra di avanzamento
-					long double progress{ (double)size(counter) / NOTPRIMESIZE };
-					if (progress > 0.5) SPEED = 15;
-					if (progress > 1) progress = 1;
-					ProgressBar(progress, BARWIDTH);
+				n = 3 * x * x + y * y;
+				if (n <= N and n % 12 == 7) is_prime[n] = !is_prime[n];
 
-					// calcolo tempo rimanente
-					int time = duration_cast <milliseconds> (stop - begin).count();
-					SetConsoleTextAttribute(hConsole, 15);
-					long double time_rem{ (time / progress) * (1 - progress) };
-					long double time_seconds{ (double)time_rem / 1000 };
+				n = 3 * x * x - y * y;
+				if (x > y and n <= N and n % 12 == 11)
+					is_prime[n] = !is_prime[n];
+			}
 
-					// calcolo cifre decimali
-					stringstream stream;
-					stream << fixed << setprecision(1) << time_seconds;
-					cout << "\ntempo rimanente: " << stream.str() << " [secondi]  ";
+			if (x % 100 && USE_pro_bar) {
 
-					mtx.unlock();
-				}
-				iter++;
-				});
-			SetConsoleTextAttribute(hConsole, 15);
+				// stampa della barra di avanzamento
+				steady_clock::time_point stop{ steady_clock::now() };
+				SetConsoleTextAttribute(hConsole, 112);
+				long double Progress = (long double)x / SQUARE;
+				if (Progress > 1) Progress = 1;
+				ProgressBar(Progress, BARWIDTH);
+
+				// calcolo del tempo rimanente
+				int time = duration_cast <milliseconds> (stop - begin).count();
+				SetConsoleTextAttribute(hConsole, 15);
+				long double time_rem = (time / Progress) * (1 - Progress);
+				long double time_seconds{ (long double)time_rem / 1000 };
+
+				// calcolo cifre decimali
+				stringstream stream;
+				stream << fixed << setprecision(1) << time_seconds;
+				cout << "\ntempo rimanente: " << stream.str() << " [secondi] ";
+			}
 		}
 
-		// calcolo senza barra di progresso
-		else for (int p = 2; p < SQUARE; p++)
-			for (int i = p * p; i <= N; i += p) is_prime[i] = 0;
 		if (USE_pro_bar) {
+
+			// cancellamento barra di progresso
 			SetConsoleCursorPosition(hConsole, { 0, 0 });
 			cout << string(BARWIDTH + 11, '\\') << "\n\nattendere\r";
-		}
 
-		// multithreading
-		if (N >= 100'000 and USE_pro_bar) {
-			thread t1([&primes, &is_prime, &N]() {
-				for (long long p = 2; p < N + 1; p++)
-					if (is_prime[p]) primes.push_back(p);
+			// stampa cerchio e poligoni
+			thread t1([&]() {
+				for (long long n = 5; n <= SQUARE; n++)
+					if (is_prime[n]) {
+						long long sqr = n * n;
+						for (long long k = sqr; k <= N; k += sqr)
+							is_prime[k] = 0;
+					}
+				for (int n = 5; n <= N; n++)
+					if (is_prime[n]) primes.push_back(n);
 				lock_guard <mutex> lock(mtx);
 				is_done = 1;
 				cv.notify_one();
@@ -1334,22 +1401,31 @@ namespace Primitive
 			t2.join();
 		}
 
-		else for (long long p = 2; p < N + 1; p++)
-			if (is_prime[p]) primes.push_back(p);
-		vector_t output{ is_prime, primes };
-		return output;
+		// calcolo senza cerchio e poligoni
+		else {
+			for (long long n = 5; n <= SQUARE; n++)
+				if (is_prime[n]) {
+					long long sqr = n * n;
+					for (long long k = sqr; k <= N; k += sqr)
+						is_prime[k] = 0;
+				}
+			for (long long n = 5; n <= N; n++) if (is_prime[n])
+				primes.push_back(n);
+		}
+
+		return { is_prime, primes };
 	}
 }
 namespace Operators
 {
 	static vector <compost> DecomposeNumber(long long input)
 	{
-		using Primitive::SieveOfErastothens;
+		using Primitive::SieveOfAtkin;
 
 		// correzione intervallo di PrimeNumbers
 		if (input > PrimeNumbers.list_primes[size(PrimeNumbers.list_primes) - 1])
 		{
-			vector_t PrimeN{ SieveOfErastothens(input, 0) };
+			vector_t PrimeN{ SieveOfAtkin(input, 0) };
 
 			// riassegnazione
 			for (int i = size(PrimeNumbers.list_primes);
@@ -2093,11 +2169,13 @@ namespace Convalid
 				sequence = "123456789";
 				sequence += charVariable;
 				if (is_an_exponent) is_an_exponent = 0;
+				i = 0;
 				break;
 			case '-':
 				sequence = "123456789";
 				sequence += charVariable;
 				if (is_an_exponent) is_an_exponent = 0;
+				i = 0;
 				break;
 			case '^':
 				sequence = "123456789";
@@ -2105,8 +2183,8 @@ namespace Convalid
 				break;
 			default:
 				sequence = "0123456789+-";
-				sequence += charVariable;
 				if (is_an_exponent) i++;
+				else sequence += charVariable;
 				if (i > 2) return 0;
 			}
 		}
@@ -2279,6 +2357,8 @@ namespace Convalid
 							}
 						}
 					}
+
+					// caso senza le parentesi
 					else {
 
 						// paragone tra il numero dei fattori
@@ -2303,7 +2383,7 @@ namespace Convalid
 						}
 					}
 
-					if (res % 2 == 1 and size(ciphr_max) - size(ciphr_min) == 1)
+					if (res % 2 == 1 and size(ciphr_max) - size(ciphr_min) <= 1)
 						return L"2";
 				}
 			}
@@ -2368,13 +2448,12 @@ namespace Convalid
 			else {
 				do {
 					if (!XOutOfRange and root < sizeP) {
-						if (root > 0)
-							root = PrimeNumbers.list_primes[root - 1];
+						if (root > 0) root = PrimeNumbers.list_primes[root - 1];
 						else XSubscriptOutOfRange = 1;
 						nums--;
 					}
 					else XOutOfRange = 1;
-				} while (XSubscriptOutOfRange != 1 and XOutOfRange != 1 and nums != 0);
+				} while (!XSubscriptOutOfRange and !XOutOfRange and nums != 0);
 			}
 		}
 
@@ -2650,6 +2729,7 @@ namespace Traduce
 			// aggiunta
 			output += xout;
 		}
+		if (output.at(0) == '+') output.erase(0, 1);
 		return output;
 	}
 	static wstring GetPolynomial
@@ -2706,7 +2786,7 @@ namespace HandPolynomials
 		deque_t <MONOMIAL> CommonFactor;
 		for (int i = 0; i < size(vect); i++)
 			for (int j = size(vect) - 1; j > i; j--)
-				if (vect[i] == vect[j]) {
+				if (vect[i] == vect[j] and vect[i][0].degree != -1) {
 					CommonFactor = vect[i];
 					if (i > 0) {
 
@@ -2750,7 +2830,7 @@ namespace HandPolynomials
 				vect.insert
 				(vect.begin() + i,
 					{ vect[i - 1].degree - j, 0 }
-		);
+				);
 
 		// riempimento buchi agli estremi
 		if (size(vect) == 0) {
@@ -2853,23 +2933,17 @@ namespace Techniques
 {
 	static deque_t <deque_t <MONOMIAL>> Total(deque_t <MONOMIAL> inp)
 	{
+		using Math::Gcd;
 		deque_t <deque_t <MONOMIAL>> output;
 		output.push_back(inp);
 		int min;
-		if (inp.empty()) return output;
+		if (size(inp) <= 1) return output;
 		min = inp[0].degree;
 
-		// calcolo massimo comune divisore numerico
-		deque_t <MONOMIAL> termB{ inp };
-		int GCD{ inp[0].coefficient };
-		for (int i = 1; i < size(inp); i++) {
-			GCD = gcd(GCD, termB[i].coefficient);
-			if (GCD == 1) break;
-		}
-
 		// calcolo grado minimo e riscrittura
+		int GCD{ Gcd(inp) };
 		for (MONOMIAL t : inp) if (t.degree < min) min = t.degree;
-		if (min > 0 or GCD != 1) {
+		if (abs(GCD) != 1 or min > 0) {
 			output = {};
 			output.push_back({ {min, GCD} });
 			for (int i = 0; i < size(inp); i++) {
@@ -2878,15 +2952,14 @@ namespace Techniques
 			}
 		}
 
-		// eventuale aggiunta oppure reset
-		if (!(size(inp) == 1 and
-			(inp[0] == MONOMIAL{ 0, 1 } or inp[0] == MONOMIAL{ 0, -1 })))
-		{
-			if (!(min > 0 or GCD != 1)) output = {};
+		// totale
+		if (abs(GCD) != 1 or min > 0) {
+			output = {};
+			output.push_back({ {min, GCD} });
 			output.push_back(inp);
+			return output;
 		}
-
-		return output;
+		return { inp };
 	}
 	static deque_t <deque_t <MONOMIAL>> Partial(deque_t <MONOMIAL> inpt)
 	{
@@ -2896,12 +2969,21 @@ namespace Techniques
 		deque_t <deque_t <MONOMIAL>> outp;
 		outp.push_back(inpt);
 		if (size(inpt) != 4) return outp;
+		inpt.SortDeq();
 
 		// riassegnazione e dichiarazioni
 		deque_t <MONOMIAL> part_1{ inpt[0], inpt[1] };
 		deque_t <MONOMIAL> part_2{ inpt[2], inpt[3] };
 		deque_t <deque_t <MONOMIAL>> Part1{ Total(part_1) };
 		deque_t <deque_t <MONOMIAL>> Part2{ Total(part_2) };
+		deque_t part_3{ Part1[size(Part1) - 1] };
+		for (MONOMIAL a : Part2[size(Part2) - 1]) part_3.push_back(a);
+		if (size(PolynomialSum(part_3)) == 0) {
+			if (size(Part1) == 1) swap(Part1, Part2);
+			Part2.push_front({ { 0, -1 } });
+			for (int i = 0; i < size(Part2[1]); i++)
+				Part2[1][i].coefficient *= -1;
+		}
 		part_1 = Part1[size(Part1) - 1];
 		part_2 = Part2[size(Part2) - 1];
 		if (part_1 != part_2) return outp;
@@ -2928,7 +3010,7 @@ namespace Techniques
 	}
 	static deque_t <deque_t <MONOMIAL>> Binomial(deque_t <MONOMIAL> InpT)
 	{
-		using Primitive::Factorial;
+		using Math::Factorial;
 
 		// filtro per vettori con più di un termine
 		deque_t <deque_t <MONOMIAL>> outp;
@@ -3028,7 +3110,7 @@ namespace Techniques
 
 		// calcolo delle radici
 		double firstX, secondX, delta;
-		delta = pow(B, 2) - 4 * A * C;
+		delta = B * B - 4 * A * C;
 		if (delta <= 0) return outp;
 		if (!integer(sqrt(delta))) return outp;
 		firstX = (-B - sqrt(delta)) / (2 * A);
@@ -3044,13 +3126,8 @@ namespace Techniques
 		for (J = 1; J <= abs(A); J++) if (integer(secondX * J)) break;
 		if (J == abs(A) + 1) J--;
 
-		// allocazione di memoria
-		outp.push_back(terms);
-		outp.push_back(terms);
-		outp[0] = {};
-		outp[1] = {};
-
 		// composizione del trinomio scomposto
+		outp = { {}, {} };
 		outp[0].push_back(MONOMIAL{ (int)exp, I });
 		outp[0].push_back(MONOMIAL{ 0, (int)(-I * firstX) });
 		outp[1].push_back(MONOMIAL{ (int)exp, J });
@@ -3080,12 +3157,8 @@ namespace Techniques
 		if (!integer(Sq_A)) return outp;
 		if (!integer(Sq_B)) return outp;
 
-		// allocazione di memoria
-		outp.push_back(InpT);
-		outp[0] = {};
-		outp[1] = {};
-
 		// composizione di somma e differenza
+		outp = { {}, {} };
 		outp[0].push_back(MONOMIAL{ InpT[1].degree / 2, +(int)Sq_B });
 		outp[0].push_back(MONOMIAL{ InpT[0].degree / 2, +(int)Sq_A });
 		outp[1].push_back(MONOMIAL{ InpT[1].degree / 2, +(int)Sq_B });
@@ -3095,8 +3168,7 @@ namespace Techniques
 	}
 	static deque_t <deque_t <MONOMIAL>> Ruffini(deque_t <MONOMIAL> vect)
 	{
-		using Calc::DivisorCounter;
-		using HandPolynomials::PolynomialSum;
+		using Calc::DivisorCounter, HandPolynomials::PolynomialSum;
 
 		// filtro per vettori con più di un termine
 		deque_t <deque_t <MONOMIAL>> VECT;
@@ -3248,6 +3320,88 @@ namespace Techniques
 
 		return Vect;
 	}
+	static deque_t <deque_t <MONOMIAL>> TrinomialSquare(deque_t <MONOMIAL> vect)
+	{
+		// filtro per vettori con 5 o 6 termini
+		deque_t <deque_t <MONOMIAL>> output;
+		output.push_back(vect);
+		vect.SortDeq();
+		if (size(vect) != 5 and size(vect) != 6) return output;
+
+		// calcolo coefficienti
+		double A{ sqrt(vect[0].coefficient) };
+		if (!integer(A)) return output;
+		double C{ sqrt(vect[size(vect) - 1].coefficient) };
+		if (!integer(C)) return output;
+		double B{ (double)vect[size(vect) - 2].coefficient / (2 * C) };
+		if (!integer(B)) return output;
+		if (abs(B) != (double)vect[1].coefficient / (2 * A)) return output;
+		double middle_deg = vect[size(vect) - 2].degree, director_deg;
+
+		// caso generico
+		bool AB2, AC2, BC2;
+		if (size(vect) == 6) {
+
+			// controllo gradi
+			bool direct_double_middle;
+			director_deg = (double)vect[0].degree / 2;
+			if (!integer(director_deg)) return output;
+			if (vect[1].degree != middle_deg + director_deg) return output;
+			if (vect[2].degree == 2 * middle_deg and
+				vect[3].degree == director_deg)
+				direct_double_middle = 0;
+			else if (
+				vect[3].degree == 2 * middle_deg and
+				vect[2].degree == director_deg
+				)
+				direct_double_middle = 1;
+			else return output;
+
+			// verifica coefficienti centrali
+			if (direct_double_middle) {
+				if (abs(vect[2].coefficient) != abs(2 * A * C)) return output;
+				if (vect[3].coefficient != B * B) return output;
+			}
+			else {
+				if (abs(vect[3].coefficient) != abs(2 * A * C)) return output;
+				if (vect[2].coefficient != B * B) return output;
+			}
+			AC2 = vect[3 - direct_double_middle].coefficient >= 0;
+		}
+
+		// caso specifico
+		else if (size(vect) == 5) {
+
+			// verifica
+			for (int i = 0; i <= 2; i++)
+				if (vect[i].degree != (4 - i) * vect[3].degree) return output;
+			if (abs(vect[2].coefficient) == abs(2 * A * C + B * B))
+				AC2 = vect[2].coefficient - B * B >= 0;
+			else if (abs(vect[2].coefficient) == abs(2 * A * C - B * B))
+				AC2 = vect[2].coefficient + B * B >= 0;
+			else return output;
+			director_deg = 2 * middle_deg;
+		}
+		AB2 = vect[1].coefficient >= 0;
+		BC2 = vect[size(vect) - 2].coefficient >= 0;
+		int sign_number = AB2 + AC2 + BC2;
+
+		if (sign_number % 2 == 1) return output;
+		A = A >= 0 ? A : -A;
+		B = B >= 0 ? B : -B;
+		C = C >= 0 ? C : -C;
+		if (AB2) C = -C;
+		else if (AC2) B = -B;
+		else if (BC2) C = -C;
+
+		// composizione del quadrato di trinomio
+		output = { {}, {} };
+		output[0].push_back({ -1, 2 });
+		output[1].push_back({ (int)director_deg, (int)A });
+		output[1].push_back({ (int)middle_deg, (int)B });
+		output[1].push_back({ 0, (int)C });
+		return output;
+	}
 
 	static deque_t <deque_t <MONOMIAL>> GetDecomp(wstring polynomial)
 	{
@@ -3258,7 +3412,6 @@ namespace Techniques
 		// rimozione spazi
 		deque_t <MONOMIAL> polydata;
 		wstring POL;
-		bool Xout{ false };
 		for (int i = polynomial.size() - 1; i >= 0; i--)
 			if (polynomial.at(i) == ' ' or polynomial.at(i) == '\t')
 				polynomial.erase(i, 1);
@@ -3270,22 +3423,21 @@ namespace Techniques
 		deque_t <deque_t <MONOMIAL>> Back_T;
 		deque_t <deque_t <MONOMIAL>> HT{ Total(polydata) };
 
-		// raccoglimento parziale
-		polydata = HT[size(HT) - 1];
-		HT.pop_back();
-		BackT = Partial(polydata);
-		for (deque_t <MONOMIAL> a : BackT) HT.push_back(a);
-		polynomial = GetPolynomial(HT, sizep);
-
 		do {
+
+			// raccoglimento parziale
+			polydata = HT[size(HT) - 1];
+			HT.pop_back();
+			BackT = Partial(polydata);
+			for (deque_t <MONOMIAL> a : BackT) HT.push_back(a);
+			polynomial = GetPolynomial(HT, sizep);
 
 			// potenza di binomio
 			Back_T = HT;
 			HT = {};
 			for (deque_t <MONOMIAL> a : Back_T) {
 				BackT = Binomial(a);
-				for (deque_t <MONOMIAL> b : BackT)
-					HT.push_back(b);
+				for (deque_t <MONOMIAL> b : BackT) HT.push_back(b);
 			}
 
 			// trinomio speciale
@@ -3293,8 +3445,7 @@ namespace Techniques
 			HT = {};
 			for (deque_t <MONOMIAL> a : Back_T) {
 				BackT = Trinomial(a);
-				for (deque_t <MONOMIAL> b : BackT)
-					HT.push_back(b);
+				for (deque_t <MONOMIAL> b : BackT) HT.push_back(b);
 			}
 
 			// differenza di quadrati
@@ -3308,41 +3459,31 @@ namespace Techniques
 				}
 				BackT = SquareDifference(a);
 				for (deque_t <MONOMIAL> b : BackT) {
-					if (extend > 1)
-						HT.push_back({ {-1, extend} });
+					if (extend > 1) HT.push_back({ {-1, extend} });
 					HT.push_back(b);
 				}
 				extend = 1;
 			}
 
 			// scomposizione con ruffini
-			Back_T = HT;
 			POL = GetPolynomial(HT, sizep);
+			Back_T = HT;
 			HT = {};
+			extend = 1;
 			for (deque_t <MONOMIAL> a : Back_T) {
-				BackT = Ruffini(a);
-				if (size(a) > 0 and size(BackT) == 0) {
-					Xout = 1;
-					break;
+				if (a[0].degree == -1) {
+					extend = a[0].coefficient;
+					continue;
 				}
-				for (deque_t <MONOMIAL> b : BackT)
+				BackT = Ruffini(a);
+				if (size(a) > 0 and size(BackT) == 0) return {};
+				for (deque_t <MONOMIAL> b : BackT) {
+					if (extend > 1) HT.push_back({ {-1, extend} });
 					HT.push_back(b);
+				}
 			}
 			polynomial = GetPolynomial(HT, sizep);
-
-			polynomial = GetPolynomial(HT, sizep);
 		} while (polynomial != POL);
-
-		// completamento del quadrato
-		Back_T = HT;
-		HT = {};
-		for (deque_t <MONOMIAL> a : Back_T) {
-			BackT = CompleteTheSquare(a);
-			for (deque_t <MONOMIAL> b : BackT)
-				HT.push_back(b);
-		}
-
-		if (Xout) return {};
 		return HT;
 	}
 }
@@ -3384,6 +3525,7 @@ namespace Algebraic
 		deque_t <deque_t <MONOMIAL>>& den,
 		int& ncoeff, int& dcoeff)
 	{
+		using Math::Gcd;
 		using namespace HandPolynomials;
 		OpenPolynomial(num);
 		OpenPolynomial(den);
@@ -3439,7 +3581,7 @@ namespace Algebraic
 			}
 
 		// semplificazione coefficienti
-		int GCD{ gcd(abs(ncoeff), abs(dcoeff)) };
+		int GCD{ Gcd(abs(ncoeff), abs(dcoeff)) };
 		ncoeff /= GCD;
 		dcoeff /= GCD;
 		if (FindN > 0) num[FindN][0].coefficient = 1;
@@ -3573,8 +3715,7 @@ namespace Programs
 
 	static switchcase CodeToNumber()
 	{
-		using Primitive::UserInputThread;
-		using Operators::Standardize;
+		using Primitive::UserInputThread, Operators::Standardize;
 		using namespace Convalid;
 
 		// scelta
@@ -3727,8 +3868,7 @@ namespace Programs
 		bool select
 	)
 	{
-		using Print::CS_CenterPrinter;
-		using Input::SetDebug;
+		using Print::CS_CenterPrinter, Input::SetDebug;
 
 		setlocale(1, "");
 		SetConsoleOutputCP(CP_UTF8);
@@ -3851,14 +3991,14 @@ namespace Programs
 					// stampa della barra di avanzamento
 					steady_clock::time_point stop{ steady_clock::now() };
 					SetConsoleTextAttribute(hConsole, 112);
-					Progress = (double)size(data) / datalenght;
+					Progress = (long double)size(data) / datalenght;
 					ProgressBar(Progress, Barwidth);
 
 					// calcolo del tempo rimanente
 					int time = duration_cast <milliseconds> (stop - begin).count();
 					SetConsoleTextAttribute(hConsole, 15);
 					long double time_rem{ (time / Progress) * (1 - Progress) };
-					long double time_seconds{ (double)time_rem / 1000 };
+					long double time_seconds{ (long double)time_rem / 1000 };
 
 					// calcolo cifre decimali
 					stringstream stream;
@@ -3907,14 +4047,16 @@ namespace Programs
 		}
 
 		// termine
+		char null;
 		PRINTN = 1;
 		Beep(750, 100);
 		Beep(650, 75);
 		Beep(550, 50);
 		cout << "premi un tasto per continuare\t\t";
-		char null = _getch();
+		do null = _getch();
+		while ((null > 64 and null < 91) or null < 32);
 		if (null == '.') return Random;
-		else return NotAssigned;
+		return NotAssigned;
 	}
 
 	using namespace Techniques;
@@ -4030,21 +4172,20 @@ namespace Programs
 				wcout << "raccoglimento totale: " << polynomial << '\n';
 				empty = 0;
 			}
-
-			// raccoglimento parziale
-			polydata = HT[size(HT) - 1];
-			HT.pop_back();
-			BackT = Partial(polydata);
-			for (deque_t <MONOMIAL> a : BackT) HT.push_back(a);
-			pol = GetPolynomial(HT, sizep);
-			if (pol != polynomial) {
-				polynomial = pol;
-				SetConsoleTextAttribute(hConsole, 4);
-				wcout << "raccoglimento parziale: " << polynomial << '\n';
-				empty = 0;
-			}
-
 			do {
+
+				// raccoglimento parziale
+				polydata = HT[size(HT) - 1];
+				HT.pop_back();
+				BackT = Partial(polydata);
+				for (deque_t <MONOMIAL> a : BackT) HT.push_back(a);
+				pol = GetPolynomial(HT, sizep);
+				if (pol != polynomial) {
+					polynomial = pol;
+					SetConsoleTextAttribute(hConsole, 4);
+					wcout << "raccoglimento parziale: " << polynomial << '\n';
+					empty = 0;
+				}
 
 				// potenza di binomio
 				ClosePolynomial(HT);
@@ -4092,8 +4233,7 @@ namespace Programs
 					}
 					BackT = SquareDifference(a);
 					for (deque_t <MONOMIAL> b : BackT) {
-						if (extend > 1)
-							HT.push_back({ {-1, extend} });
+						if (extend > 1) HT.push_back({ {-1, extend} });
 						HT.push_back(b);
 					}
 					extend = 1;
@@ -4111,16 +4251,24 @@ namespace Programs
 				}
 
 				// scomposizione con ruffini
-				Back_T = HT;
 				POL = GetPolynomial(HT, sizep);
+				Back_T = HT;
 				HT = {};
+				extend = 1;
 				for (deque_t <MONOMIAL> a : Back_T) {
+					if (a[0].degree == -1) {
+						extend = a[0].coefficient;
+						continue;
+					}
 					BackT = Ruffini(a);
 					if (size(a) > 0 and size(BackT) == 0) {
 						Xout = 1;
 						break;
 					}
-					for (deque_t <MONOMIAL> b : BackT) HT.push_back(b);
+					for (deque_t <MONOMIAL> b : BackT) {
+						if (extend > 1) HT.push_back({ {-1, extend} });
+						HT.push_back(b);
+					}
 				}
 
 				// ruffini
@@ -4153,6 +4301,24 @@ namespace Programs
 				empty = 0;
 			}
 
+			// quadrato del trinomio
+			Back_T = HT;
+			HT = {};
+			for (deque_t <MONOMIAL> a : Back_T) {
+				BackT = TrinomialSquare(a);
+				for (deque_t <MONOMIAL> b : BackT) HT.push_back(b);
+			}
+			ClosePolynomial(HT);
+			pol = GetPolynomial(HT, sizep);
+			if (pol != polynomial and !Xout) {
+				polynomial = pol;
+				SetConsoleTextAttribute(hConsole, 79);
+				wcout << "quadrato di trinomio scomposto: " << polynomial;
+				SetConsoleTextAttribute(hConsole, 15);
+				cout << '\n';
+				empty = 0;
+			}
+
 			// caso vuoto
 			if (empty and !Xout) {
 				SetConsoleTextAttribute(hConsole, 15);
@@ -4175,8 +4341,7 @@ namespace Programs
 	using namespace Algebraic;
 	static switchcase DecompAlgebraic()
 	{
-		using Convalid::Syntax;
-		using Traduce::GetPolynomial;
+		using Convalid::Syntax, Traduce::GetPolynomial;
 		using namespace HandPolynomials;
 		setlocale(1, "");
 		SetConsoleOutputCP(CP_UTF8);
@@ -4245,7 +4410,7 @@ namespace Programs
 				No2 = !Syntax(denominator) or denominator == L"0";
 				if ((No1 or No2) and wrong) {
 					SetConsoleTextAttribute(hConsole, 10);
-					wcout << "quella non e' una frazione algebrica\n\a";
+					wcout << "quella non è una frazione algebrica\n\a";
 					SetConsoleTextAttribute(hConsole, 15);
 				}
 
@@ -4256,7 +4421,7 @@ namespace Programs
 			deque_t <deque_t <MONOMIAL>> NScomp{ GetDecomp(numerator) };
 			deque_t <deque_t <MONOMIAL>> DScomp{ GetDecomp(denominator) };
 			ClosePolynomial(DScomp);
-			if (size(NScomp) == 0 or size(DScomp) == 0) skip = 1;
+			if (size(DScomp) == 1) skip = 1;
 			int NCOEFF{ 1 }, DCOEFF{ 1 };
 			if (!skip) Simplify(NScomp, DScomp, NCOEFF, DCOEFF);
 			if (size(DScomp) == 1) skip = 1;
@@ -4301,7 +4466,7 @@ namespace Programs
 						NewScomp.insert(NewScomp.begin() + i, { {1, 1} });
 						NewScomp.insert(NewScomp.begin() + i, {
 							{-1, DScomp[i][0].degree} }
-						);
+							);
 						complementaries.push_back(
 							Complementary(NewScomp, NewScomp[i + 1], j)
 						);
@@ -4372,7 +4537,7 @@ namespace Programs
 			// output frazioni
 			if (!skip) {
 				SetConsoleTextAttribute(hConsole, 10);
-				wcout << L"\nla scomposizione e' \n\n";
+				wcout << L"\nla scomposizione è: \n\n";
 				SetConsoleTextAttribute(hConsole, 12);
 			}
 			bool ShowPlus{ false };
@@ -4437,10 +4602,9 @@ int main()
 	Beep(1000, 50);
 	Beep(1000, 50);
 
+	using Print::WaitingScreen, Primitive::SieveOfAtkin;
 	using namespace EnumMod;
-	using Print::WaitingScreen;
 	using namespace Input;
-	using Primitive::SieveOfErastothens;
 	using namespace Execute;
 	using namespace Programs;
 
@@ -4527,7 +4691,7 @@ int main()
 				steady_clock::time_point begin{ steady_clock::now() };
 				GlobalMax = global;
 				SetConsoleCursorInfo(hConsole, &cursorInfo);
-				PrimeNumbers = SieveOfErastothens(GlobalMax, 1);
+				PrimeNumbers = SieveOfAtkin(GlobalMax, 1);
 
 				steady_clock::time_point end{ steady_clock::now() };
 				ComputationTime = WaitingScreen(begin, end);
@@ -4535,7 +4699,7 @@ int main()
 				SetConsoleCursorInfo(hConsole, &cursor);
 				start = 0;
 			}
-			if (GlobalMax > 10'000) {
+			if (GlobalMax > 10'000 && global > 1) {
 				ComputationTime /= 1'000'000;
 				Timer = GlobalMax * 60'000 / ComputationTime;
 			}
@@ -4547,7 +4711,7 @@ int main()
 		Beep(750, 300);
 
 		// scelta
-		cout << "scegliere la modalità di calcolo::\n\n";
+		cout << "scegliere la modalità di calcolo::\n";
 		SetConsoleTextAttribute(hConsole, 4);
 		cout << "se stringa di un carattere:\n";
 		cout << "\t'0' = blocca input numeri primi ~[~sempre]\n";
@@ -4721,130 +4885,3 @@ End:
 	return 0;
 }
 // program_END
-
-/*
-static vector_t SieveOfAtkin(long long N, bool USE_pro_bar)
-{
-	using namespace Print;
-	GetConsoleScreenBufferInfo(hConsole, &csbi);
-	const int BARWIDTH{ csbi.dwSize.X - 11 };
-
-	primetype <bool> is_prime(N + 1, 0);
-	primetype <bool> sieve(N + 1, 0);
-	primetype <int> primes;
-	primetype <int> counter;
-	int SPEED{ 75 };
-	const double COEFF{ 0.3 };
-	const long long sqrt_limit{ (int)sqrt(N) + 1 };
-	const double NOTPRIMESIZE = (N - IntegralLog(N)) / COEFF;
-	int iter{};
-	if (USE_pro_bar) system("cls");
-	if (N >= 2) primes.push_back(2);
-	if (N >= 3) primes.push_back(3);
-
-	steady_clock::time_point begin{ steady_clock::now() };
-	if (N >= 100'000 and USE_pro_bar) {
-		parallel_for(long long(1), sqrt_limit + 1, [&](long long x) {
-
-			// calcolo numeri primi
-			for (long long y = 1; y <= sqrt_limit; y++) {
-				atomic <size_t> n = (4 * x * x) + (y * y);
-				if (n <= N and (n % 12 == 1 or n % 12 == 5)) {
-					mtx.lock();
-					sieve[n] = !sieve[n];
-					counter.push_back(0);
-					mtx.unlock();
-				}
-
-				n = 3 * x * x + y * y;
-				if (n <= N and n % 12 == 7) {
-					mtx.lock();
-					sieve[n] = !sieve[n];
-					counter.push_back(0);
-					mtx.unlock();
-				}
-
-				n = 3 * x * x - y * y;
-				if (x > y and n <= N and n % 12 == 11) {
-					mtx.lock();
-					sieve[n] = !sieve[n];
-					counter.push_back(0);
-					mtx.unlock();
-				}
-			}
-
-			if (iter % SPEED == 0) {
-				mtx.lock();
-				steady_clock::time_point stop{ steady_clock::now() };
-				SetConsoleTextAttribute(hConsole, 112);
-
-				// stampa della barra di avanzamento
-				long double progress{ (double)size(counter) / NOTPRIMESIZE };
-				if (progress > 0.5) SPEED = 15;
-				if (progress > 1) progress = 1;
-				ProgressBar(progress, BARWIDTH);
-
-				// calcolo tempo rimanente
-				int time = duration_cast <milliseconds> (stop - begin).count();
-				SetConsoleTextAttribute(hConsole, 15);
-				long double time_rem{ (time / progress) * (1 - progress) };
-				long double time_seconds{ (double)time_rem / 1000 };
-
-				// calcolo cifre decimali
-				stringstream stream;
-				stream << fixed << setprecision(1) << time_seconds;
-				cout << "\ntempo rimanente: " << stream.str() << " [secondi]  ";
-
-				mtx.unlock();
-			}
-			iter++;
-			SetConsoleTextAttribute(hConsole, 15);
-		});
-	}
-
-	// calcolo senza barra di progresso
-	else for (long long x = 1; x < sqrt_limit + 1; x++)
-		for (long long y = 1; y <= sqrt_limit; y++) {
-			size_t n = (4 * x * x) + (y * y);
-			if (n <= N and (n % 12 == 1 or n % 12 == 5))
-				sieve[n] = !sieve[n];
-
-			n = 3 * x * x + y * y;
-			if (n <= N and n % 12 == 7) sieve[n] = !sieve[n];
-
-			n = 3 * x * x - y * y;
-			if (x > y and n <= N and n % 12 == 11)
-				sieve[n] = !sieve[n];
-		}
-	if (USE_pro_bar) {
-		SetConsoleCursorPosition(hConsole, { 0, 0 });
-		cout << string(BARWIDTH + 11, '\\') << "\n\nattendere\r";
-	}
-	if (N >= 100'000 and USE_pro_bar) {
-		thread t1([&]() {
-			for (long long n = 5; n <= sqrt_limit; n++)
-				if (sieve[n]) {
-					long long sqr = n * n;
-					for (long long k = sqr; k <= N; k += sqr) sieve[k] = 0;
-				}
-			for (int n = 5; n <= N; n++) if (sieve[n]) primes.push_back(n);
-			lock_guard <mutex> lock(mtx);
-			is_done = 1;
-			cv.notify_one();
-			});
-		thread t2(CS_CenterPrinter);
-		t1.join();
-		t2.join();
-	}
-	else {
-		for (long long n = 5; n <= sqrt_limit; n++)
-			if (sieve[n]) {
-				long long sqr = n * n;
-				for (long long k = sqr; k <= N; k += sqr) sieve[k] = 0;
-			}
-		for (long long n = 5; n <= N; n++) if (sieve[n]) primes.push_back(n);
-	}
-
-	return { is_prime, primes };
-}
-*/
