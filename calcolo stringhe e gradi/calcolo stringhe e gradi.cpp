@@ -4,7 +4,7 @@
 
 // Descrizione programma ::
 	/*                                                          |
-	*  Strings ZP[4.9].cpp: il programma calcola singola e\o    |
+	*  Strings ZP[5.0].cpp: il programma calcola singola e\o    |
 	*  doppia scomposizione di alcuni interi in una stringa o   |
 	*  il contrario, i numeri primi, cifre e divisori, scompone |
 	*  anche i polinomi e le frazioni algebriche                |
@@ -24,9 +24,12 @@
 #include <condition_variable> // per il multithreading
 #include <conio.h> // per l'input avanzato
 #include <deque>
+#include <fcntl.h> // per unicode
 #include <iomanip>
 #include <iostream> // per l'output
+#include <io.h> // per unicode
 #include <list>
+#include <locale> // per unicode
 #include <new> // per nothrow
 #include <ppl.h> // per la parallelizzazione
 #include <queue>
@@ -1603,26 +1606,30 @@ namespace Calc
 	static wstring Cript(long long input)
 	{
 		using Primitive::Prime;
-		int size_s{};
+		int size{};
 		int product{ 1 };
 
 		// calcolo del limite di approssimazione
 		do {
-			product *= PrimeNumbers.list_primes[size_s];
-			size_s++;
+			product *= PrimeNumbers.list_primes[size];
+			size++;
 		} while (product < GlobalMax);
 
 		vector <compost> expfactors{ DecomposeNumber(input) };
-		while (expfactors[size(expfactors) - 1].factors == 0)
+		while (expfactors[::size(expfactors) - 1].factors == 0)
 			expfactors.pop_back();
 		wstring the_string, exp_verify, exp_string, prime_exp_string;
 		int prime_exp, sizestring, presence;
 		long long analyse;
 		bool repeat;
-		wstring* monomials{ new(nothrow) wstring[size_s] };
+		wstring* monomials{ new(nothrow) wstring[size] };
 
 		// per ogni fattore primo
-		for (int what_factor = 0; what_factor < size(expfactors); what_factor++)
+		for (
+			int what_factor = 0; 
+			what_factor < ::size(expfactors); 
+			what_factor++
+			)
 		{
 			repeat = 0;
 			presence = 0;
@@ -1634,7 +1641,8 @@ namespace Calc
 			wstring part_of2{ L")" };
 
 			// se l'esponente ha una cifra ed è maggiore di 1,
-			if (expfactors[what_factor].exp != 1 and expfactors[what_factor].exp < 11)
+			if (expfactors[what_factor].exp != 1 and 
+				expfactors[what_factor].exp < 11)
 			{
 				part_of2.append(exp_verify);
 				presence = 1;
@@ -1711,12 +1719,12 @@ namespace Calc
 
 		// unione dei monomi
 		the_string = L"";
-		for (int i = 0; i < size(expfactors); i++)
+		for (int i = 0; i < ::size(expfactors); i++)
 			the_string = the_string + L"+" + monomials[i];
 		the_string.erase(0, 1);
 
 		// rimozione basi
-		int* position{ new(nothrow) int[size_s] };
+		int* position{ new(nothrow) int[size] };
 		int j{};
 		for (int i = 0; i < (the_string.size() - 2); i++) {
 			if ((the_string.at(i) == '(') and (the_string.at(i + 1) == '1')
@@ -1779,24 +1787,24 @@ namespace Calc
 	}
 	static int ExecuteStrings(wstring input)
 	{
-		int size_s{};
+		int size{};
 		int product{ 1 };
 
 		// calcolo del limite di approssimazione
 		do {
-			product *= PrimeNumbers.list_primes[size_s];
-			size_s++;
+			product *= PrimeNumbers.list_primes[size];
+			size++;
 		} while (product < GlobalMax);
 
 		int output{};
 		int location{};
 		bool presence{ true };
-		int* values{ new(nothrow) int[size_s] };
+		int* values{ new(nothrow) int[size] };
 		for (int i = 0; i < input.size(); i++)
 			if (input.at(i) == '.') input.erase(i, 1);
 		vector <wstring> monomials{ Fractioner(input) };
 
-		for (int i = 0; i < size(monomials); i++)
+		for (int i = 0; i < ::size(monomials); i++)
 		{
 			// caso con le parentesi
 			if (monomials[i].at(0) == '(') {
@@ -1823,7 +1831,8 @@ namespace Calc
 		}
 
 		// somma dei monomi
-		for (int end = 0; end < size(monomials); end++) output += values[end];
+		for (int end = 0; end < ::size(monomials); end++) 
+			output += values[end];
 
 		delete[] values;
 		return output;
@@ -2760,8 +2769,12 @@ namespace Traduce
 			else xout = L"(" + xout + L")";
 			output += xout;
 		}
+		
 		// caso nullo
-		if (output.empty()) return L"0";
+		if (output.empty()) {
+			Size = 1;
+			return L"0";
+		}
 
 		if (BOOLALPHA) output = ElabExponents(output, Size);
 		else Size = output.size();
@@ -3179,8 +3192,8 @@ namespace Techniques
 		vect.SortDeq();
 
 		int DirectorTerm{ vect[0].coefficient };
-		int size_s{ vect[0].degree };
-		int KnownTerm{ vect[size(vect) - 1].coefficient };
+		int size{ vect[0].degree };
+		int KnownTerm{ vect[::size(vect) - 1].coefficient };
 		if (abs(DirectorTerm) >= GlobalMax or abs(KnownTerm) >= GlobalMax)
 			return {};
 
@@ -3196,12 +3209,12 @@ namespace Techniques
 
 		deque_t <MONOMIAL> Try;
 		bool assigne{ true };
-		for (int n = 1; n < size_s; n++) {
+		for (int n = 1; n < size; n++) {
 
 			// riduzione del polinomio
 			Try = vect;
 			assigne = 1;
-			for (int m = 0; m < size(Try); m++) {
+			for (int m = 0; m < ::size(Try); m++) {
 				long double a{ (double)Try[m].degree / n };
 				if (!integer(a)) {
 					assigne = 0;
@@ -3212,7 +3225,7 @@ namespace Techniques
 			if (assigne) vect = Try;
 
 			// eventuale aggiunta dei coefficienti nulli
-			for (int i = 1; i < size(vect); i++)
+			for (int i = 1; i < ::size(vect); i++)
 				for (int j = 1; j < vect[i - 1].degree - vect[i].degree; j++)
 					vect.insert(vect.begin() + i, { vect[i - 1].degree - j, 0 });
 
@@ -3224,14 +3237,14 @@ namespace Techniques
 
 					// divisione polinomio per binomio
 					temp = vect;
-					for (int i = 1; i < size(vect); i++) {
+					for (int i = 1; i < ::size(vect); i++) {
 						temp[i].coefficient = Root * temp[i - 1].coefficient
 							+ temp[i].coefficient;
 						temp[i].degree--;
 					}
 
 					// caso con resto nullo
-					if (temp[size(temp) - 1].coefficient == 0) {
+					if (temp[::size(temp) - 1].coefficient == 0) {
 						temp[0].degree--;
 						temp.pop_back();
 						SetRoot = Root;
@@ -3247,7 +3260,7 @@ namespace Techniques
 
 			// caso di polinomio scomposto
 			if (SetRoot != 0) {
-				for (int i = 0; i < size(vect); i++) vect[i].degree *= n;
+				for (int i = 0; i < ::size(vect); i++) vect[i].degree *= n;
 				VECT = {};
 				VECT.push_back({ {n, 1}, {0, -SetRoot} });
 				VECT.push_back(vect);
@@ -3255,7 +3268,7 @@ namespace Techniques
 			}
 
 			// ripristino polinomio
-			if (assigne) for (int i = 0; i < size(vect); i++)
+			if (assigne) for (int i = 0; i < ::size(vect); i++)
 				vect[i].degree *= n;
 		}
 
@@ -3618,9 +3631,83 @@ namespace Algebraic
 		return det;
 	}
 
+	static vector <long double> ExistenceConditions
+	(deque_t <MONOMIAL> equation)
+	{
+		equation.SortDeq();
+		vector <long double> answer;
+		long double A, B, C;
+		long double delta;
+		switch (size(equation)) 
+		{
+			// caso coefficiente
+		case 1: return { nan("") };
+
+			// caso di primo grado
+		case 2: return {
+			(long double)
+			-equation[1].coefficient /
+			equation[0].coefficient
+		};
+			
+			// caso di secondo grado
+		case 3:
+			A = equation[0].coefficient;
+			B = equation[1].coefficient;
+			C = equation[2].coefficient;
+
+			delta = sqrt(B * B - 4 * A * C);
+			answer.push_back((-B + delta / (2 * A)));
+			answer.push_back((-B - delta / (2 * A)));
+			return answer;
+
+			// metodo di newton-raphson
+		default:
+
+			double size = ::size(answer);
+			const double TOL = 0.0001;
+			long double start_point = 0;
+			for (int i = 0; i < 100; i++) {
+				long double fx, dfx;
+				for (int j = 0; j < ::size(equation); j++)
+					fx += equation[i].coefficient * 
+						pow(start_point, equation[i].degree);
+
+				// calcolo derivata
+				auto derivative{ equation };
+				for (int i = 0; i < ::size(derivative); i++) {
+					derivative[i].coefficient *= derivative[i].degree;
+					derivative[i].degree--;
+				}
+				for (int j = 0; j < ::size(derivative); j++)
+					dfx += derivative[i].coefficient *
+						pow(start_point, derivative[i].degree);
+
+				// calcolo nuovo punto
+				if (dfx == 0) dfx += TOL;
+				long double next = start_point - fx / dfx;
+				if (abs(next - start_point) < TOL)
+					answer.push_back(next);
+				start_point = next;
+			}
+
+			// metodo delle secanti
+			if (size == ::size(answer)) {
+
+				// continua tu ... ... ... ... ... ... ... ... ... ...
+
+			}
+
+			return answer;
+		}
+	}
+
 	static void PrintFraction
-	(int NC, int DC, double root, int& LINE, bool WritePlus,
-		deque_t <deque_t <MONOMIAL>> denominator)
+	(
+		int NC, int DC, int& LINE, bool WritePlus,
+		deque_t <deque_t <MONOMIAL>> numerator,
+		deque_t <deque_t <MONOMIAL>> denominator
+	)
 	{
 
 		// aggiunta di spazio
@@ -3633,44 +3720,59 @@ namespace Algebraic
 			start.Y -= 10 - csbi.dwCursorPosition.Y + start.Y;
 		SetConsoleCursorPosition(hConsole, start);
 
-		// calcolo coefficienti
-		int I{ 1 };
-		while (true) {
-			if (integer(I * root)) break;
-			I++;
-		}
+		// calcolo numeratore
+		int root{}, I{ 1 }, Root, sizenum{}, sizeden;
 		bool is_minus{ false };
-		int Root = root * I;
-		DC *= I;
-		if (NC * Root < 0 and DC < 0) {
-			NC = -NC;
-			DC = -DC;
-		}
-		else if (NC * Root < 0) {
-			NC = -NC;
-			is_minus = 1;
-		}
-		else if (DC < 0) {
-			DC = -DC;
-			is_minus = 1;
-		}
+		size_t Sizenum, Sizeden;
+		wstring den_, num_;
+		if (size(numerator) == 1) if (size(numerator[0]) == 1)
+				if (numerator[0][0].degree == 0)
+					root = numerator[0][0].coefficient;
 
+		// calcolo coefficienti
+		if (root != 0) {
+			while (true) {
+				if (integer(I * root)) break;
+				I++;
+			}
+			Root = root * I;
+			DC *= I;
+			if (NC * Root < 0 and DC < 0) {
+				NC = -NC;
+				DC = -DC;
+			}
+			else if (NC * Root < 0) {
+				NC = -NC;
+				is_minus = 1;
+			}
+			else if (DC < 0) {
+				DC = -DC;
+				is_minus = 1;
+			}
+
+			num_ = to_wstring(NC * Root);
+			sizenum = num_.size();
+		}
+		
 		// calcolo stringhe
-		int sizeden;
-		wstring den_;
+		else if (NC == 1) num_ = GetPolynomial(numerator, sizenum);
+		else {
+			den_ = to_wstring(NC) + GetPolynomial(numerator, sizeden);
+			sizenum += to_wstring(NC).size();
+		}
 		if (DC == 1) den_ = GetPolynomial(denominator, sizeden);
 		else {
 			den_ = to_wstring(DC) + GetPolynomial(denominator, sizeden);
 			sizeden += to_wstring(DC).size();
 		}
-		wstring num_{ to_wstring(NC * Root) };
-		size_t Sizeden = sizeden;
+		Sizeden = sizeden;
+		Sizenum = sizenum;
 
 		// calcolo dati
-		int sizemax = max(num_.size(), Sizeden);
-		int spacing = num_.size() - Sizeden;
+		int sizemax = max(Sizenum, Sizeden);
+		int spacing = Sizenum - Sizeden;
 		spacing = abs(spacing) / 2;
-		if (num_.size() > Sizeden) den_ = wstring(spacing, ' ') + den_;
+		if (Sizenum > Sizeden) den_ = wstring(spacing, ' ') + den_;
 		else num_ = wstring(spacing, ' ') + num_;
 
 		// caso di fine riga
@@ -4341,7 +4443,8 @@ namespace Programs
 	using namespace Algebraic;
 	static switchcase DecompAlgebraic()
 	{
-		using Convalid::Syntax, Traduce::GetPolynomial;
+		using Convalid::Syntax;
+		using namespace Traduce;
 		using namespace HandPolynomials;
 		setlocale(1, "");
 		SetConsoleOutputCP(CP_UTF8);
@@ -4410,7 +4513,7 @@ namespace Programs
 				No2 = !Syntax(denominator) or denominator == L"0";
 				if ((No1 or No2) and wrong) {
 					SetConsoleTextAttribute(hConsole, 10);
-					wcout << "quella non è una frazione algebrica\n\a";
+					wcout << "quella non e' una frazione algebrica\n\a";
 					SetConsoleTextAttribute(hConsole, 15);
 				}
 
@@ -4420,11 +4523,11 @@ namespace Programs
 			// semplificazione fattori
 			deque_t <deque_t <MONOMIAL>> NScomp{ GetDecomp(numerator) };
 			deque_t <deque_t <MONOMIAL>> DScomp{ GetDecomp(denominator) };
+			deque_t <deque_t <MONOMIAL>> DenBackup{ DScomp };
 			ClosePolynomial(DScomp);
-			if (size(DScomp) == 1) skip = 1;
 			int NCOEFF{ 1 }, DCOEFF{ 1 };
-			if (!skip) Simplify(NScomp, DScomp, NCOEFF, DCOEFF);
-			if (size(DScomp) == 1) skip = 1;
+			Simplify(NScomp, DScomp, NCOEFF, DCOEFF);
+			if (size(DScomp) <= 1) skip = 1;
 			if (!skip) for (deque_t <MONOMIAL> a : DScomp)
 				for (MONOMIAL b : a)
 					if (size(a) != 1 and b.degree > 1) skip = 1;
@@ -4534,18 +4637,71 @@ namespace Programs
 				}
 			if (size(roots) == 0) skip = 1;
 
+			// output condizioni di esistenza
+			SetConsoleTextAttribute(hConsole, 11);
+			wcout << L"C.E.: ";
+			SetConsoleTextAttribute(hConsole, 12);
+			vector <double> C_E_;
+			bool has_been_printed{ false };
+			for (deque_t <MONOMIAL> d : DenBackup) {
+				vector <double> CEtemp{ ExistenceConditions(d)};
+				for (double i : CEtemp) if (!isnan(i))
+					C_E_.push_back(i);
+			}
+			for (double i : C_E_) {
+				wcout << charVariable << L" != " << i << ", ";
+				has_been_printed = 1;
+			}
+			if (!has_been_printed) wcout << "\r      \r";
+			else cout << '\n';
+
 			// output frazioni
-			if (!skip) {
+			if (!skip or DenBackup != DScomp) {
 				SetConsoleTextAttribute(hConsole, 10);
-				wcout << L"\nla scomposizione è: \n\n";
+				wcout << L"\nla scomposizione e': ";
 				SetConsoleTextAttribute(hConsole, 12);
 			}
 			bool ShowPlus{ false };
 			int lines{};
-			if (!skip) for (int i = 0; i < size(denominators); i++) {
-				PrintFraction
-				(NCOEFF, DCOEFF, roots[i], lines, ShowPlus, denominators[i]);
-				ShowPlus = 1;
+			if (!skip) {
+				cout << "\n\n";
+				for (int i = 0; i < size(denominators); i++) {
+					PrintFraction(
+						NCOEFF,
+						DCOEFF,
+						lines,
+						ShowPlus,
+						{ { { 0, (int)roots[i] } } },
+						denominators[i]
+					);
+					ShowPlus = 1;
+				}
+				cout << "\n\n";
+			}
+
+			// caso di frazione semplificata ma non scomposta
+			else if (DenBackup != DScomp) {
+				int size{};
+				if (::size(DScomp) > 0) {
+					cout << "\n\n";
+					PrintFraction(
+						NCOEFF,
+						DCOEFF,
+						lines,
+						0,
+						NScomp,
+						DScomp
+					);
+					cout << "\n\n";
+				}
+				else if (::size(NScomp) == 1) {
+					wcout << ' ' << GetFactor(NScomp[0]);
+					wcout << "\n\n";
+				}
+				else {
+					wcout << ' ';
+					wcout << GetPolynomial(NScomp, size);
+				}
 			}
 
 			// reset cursore
@@ -4557,8 +4713,8 @@ namespace Programs
 
 			// output polinomio di resto
 			if (!skip) for (MONOMIAL a : Quotient) {
-				int size_s{};
-				wstring pol{ GetPolynomial({ {a} }, size_s) };
+				int size{};
+				wstring pol{ GetPolynomial({ {a} }, size) };
 				pol.erase(pol.size() - 1);
 				pol.erase(0, 1);
 				bool is_minus{ false };
@@ -4569,11 +4725,11 @@ namespace Programs
 				else if (pol.at(0) == '+') pol.erase(0, 1);
 				is_minus ? cout << "- " : cout << "+ ";
 				wcout << pol << ' ';
+				cout << "\n\n";
 			}
-			cout << "\n\n";
-
+			
 			// caso impossibile
-			if (skip) {
+			if (skip and DScomp == DenBackup) {
 
 				// reset cursore
 				GetConsoleScreenBufferInfo(hConsole, &csbi);
