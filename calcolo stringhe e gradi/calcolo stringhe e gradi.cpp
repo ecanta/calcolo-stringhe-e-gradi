@@ -73,6 +73,10 @@ struct MONOMIAL {
 			degree == other.degree;
 	}
 };
+struct REAL_MONOMIAL {
+	long double degree;
+	long double coefficient;
+};
 struct Console {
 	wstring Text;
 	int Attribute;
@@ -3181,7 +3185,8 @@ namespace Techniques
 	}
 	static deque_t <deque_t <MONOMIAL>> Ruffini(deque_t <MONOMIAL> vect)
 	{
-		using Calc::DivisorCounter, HandPolynomials::PolynomialSum;
+		using Calc::DivisorCounter;
+		using namespace HandPolynomials;
 
 		// filtro per vettori con più di un termine
 		deque_t <deque_t <MONOMIAL>> VECT;
@@ -3224,7 +3229,7 @@ namespace Techniques
 			}
 			if (assigne) vect = Try;
 
-			// eventuale aggiunta dei coefficienti nulli
+			// eventuale aggiunta dei coefficienti nulli	
 			for (int i = 1; i < ::size(vect); i++)
 				for (int j = 1; j < vect[i - 1].degree - vect[i].degree; j++)
 					vect.insert(vect.begin() + i, { vect[i - 1].degree - j, 0 });
@@ -3631,25 +3636,80 @@ namespace Algebraic
 		return det;
 	}
 
-	static vector <long double> ExistenceConditions
-	(deque_t <MONOMIAL> equation)
+	static void Approximator
+	(deque_t <REAL_MONOMIAL>& equation, long double& root)
 	{
+		// calcolo derivata
+		auto derivative{ equation };
+		for (int j = 0; j < ::size(derivative); j++) {
+			derivative[j].coefficient *= derivative[j].degree;
+			derivative[j].degree--;
+		}
+		derivative.pop_back();
+
+		// calcolo radice
+		int size = ::size(equation);
+		const double TOL = 0.000001;
+		for (int i = 0; i < 100; i++) {
+			long double fx{}, dfx{};
+
+			// calcolo parametri
+			for (int j = 0; j < ::size(equation); j++)
+				fx += equation[j].coefficient *
+					pow(root, equation[j].degree);
+			for (int j = 0; j < ::size(derivative); j++)
+				dfx += derivative[j].coefficient *
+					pow(root, derivative[j].degree);
+
+			// calcolo nuovo punto
+			if (dfx == 0) dfx += TOL;
+			long double next = root - fx / dfx;
+			if (abs(next - root) < TOL) {
+				root = next;
+				break;
+			}
+			root = next;
+		}
+
+		// divisione del polinomio
+		for (int i = 1; i < ::size(equation); i++) {
+			equation[i].coefficient = 
+				root * equation[i - 1].coefficient
+				+ equation[i].coefficient;
+			equation[i].degree--;
+		}
+		equation[0].degree--;
+		equation.pop_back();
+	}
+
+	static vector <long double> ExistenceConditions
+	(deque_t <REAL_MONOMIAL> equation)
+	{
+		using HandPolynomials::FillPolynomial;
 		equation.SortDeq();
+		for (int i = size(equation) - 1; i > 0; i--)
+			for (int j = 1; j < equation[i - 1].degree - equation[i].degree; j++)
+				equation.insert
+					(equation.begin() + i, { equation[i - 1].degree - j, 0 });
+
 		vector <long double> answer;
 		long double A, B, C;
 		long double delta;
-		switch (size(equation)) 
-		{
+		while (true) switch (size(equation)) {
+
 			// caso coefficiente
-		case 1: return { nan("") };
+		case 1: 
+			answer.push_back(nan(""));
+			return answer;
 
 			// caso di primo grado
-		case 2: return {
-			(long double)
-			-equation[1].coefficient /
-			equation[0].coefficient
-		};
-			
+		case 2: 
+			answer.push_back((long double)
+				-equation[1].coefficient /
+				+equation[0].coefficient
+			);
+			return answer;
+
 			// caso di secondo grado
 		case 3:
 			A = equation[0].coefficient;
@@ -3657,48 +3717,16 @@ namespace Algebraic
 			C = equation[2].coefficient;
 
 			delta = sqrt(B * B - 4 * A * C);
-			answer.push_back((-B + delta / (2 * A)));
-			answer.push_back((-B - delta / (2 * A)));
+			answer.push_back((-B + delta) / (2 * A));
+			answer.push_back((-B - delta) / (2 * A));
 			return answer;
 
 			// metodo di newton-raphson
 		default:
 
-			double size = ::size(answer);
-			const double TOL = 0.0001;
-			long double start_point = 0;
-			for (int i = 0; i < 100; i++) {
-				long double fx, dfx;
-				for (int j = 0; j < ::size(equation); j++)
-					fx += equation[i].coefficient * 
-						pow(start_point, equation[i].degree);
-
-				// calcolo derivata
-				auto derivative{ equation };
-				for (int i = 0; i < ::size(derivative); i++) {
-					derivative[i].coefficient *= derivative[i].degree;
-					derivative[i].degree--;
-				}
-				for (int j = 0; j < ::size(derivative); j++)
-					dfx += derivative[i].coefficient *
-						pow(start_point, derivative[i].degree);
-
-				// calcolo nuovo punto
-				if (dfx == 0) dfx += TOL;
-				long double next = start_point - fx / dfx;
-				if (abs(next - start_point) < TOL)
-					answer.push_back(next);
-				start_point = next;
-			}
-
-			// metodo delle secanti
-			if (size == ::size(answer)) {
-
-				// continua tu ... ... ... ... ... ... ... ... ... ...
-
-			}
-
-			return answer;
+			long double root{};
+			Approximator(equation, root);
+			answer.push_back(root);
 		}
 	}
 
@@ -4637,19 +4665,35 @@ namespace Programs
 				}
 			if (size(roots) == 0) skip = 1;
 
-			// output condizioni di esistenza
+			// calcolo deque
 			SetConsoleTextAttribute(hConsole, 11);
 			wcout << L"C.E.: ";
-			SetConsoleTextAttribute(hConsole, 12);
-			vector <double> C_E_;
+			SetConsoleTextAttribute(hConsole, 10);
+			vector <long double> C_E_;
 			bool has_been_printed{ false };
-			for (deque_t <MONOMIAL> d : DenBackup) {
-				vector <double> CEtemp{ ExistenceConditions(d)};
-				for (double i : CEtemp) if (!isnan(i))
+			int Idx{};
+			deque_t <deque_t <REAL_MONOMIAL>> DBCKP;
+			for (deque_t <MONOMIAL> D : DenBackup) {
+				DBCKP.push_back({});
+				for (MONOMIAL M : D) DBCKP[Idx].push_back
+				(
+					REAL_MONOMIAL{
+						(long double)M.degree,
+						(long double)M.coefficient 
+					}
+				);
+				Idx++;
+			}
+			
+			// output condizioni di esistenza
+			for (deque_t <REAL_MONOMIAL> d : DBCKP) {
+				vector <long double> CEtemp{ ExistenceConditions(d)};
+				for (long double i : CEtemp) if (!isnan(i))
 					C_E_.push_back(i);
 			}
-			for (double i : C_E_) {
-				wcout << charVariable << L" != " << i << ", ";
+			for (long double i : C_E_) {
+				wcout << charVariable << L" != "; 
+				cout << fixed << setprecision(5) << i << "; ";
 				has_been_printed = 1;
 			}
 			if (!has_been_printed) wcout << "\r      \r";
