@@ -1,3 +1,26 @@
+﻿/*
+
+memcpy()::
+
+	memcpy : //alg// --> fix ::
+		
+	goto /(PF);
+		
+		problema dei segni negativi
+		problema della stampa con parentesi
+		problemi++
+		
+	goto *memcpty;
+
+	\fix : unicode
+	in /(WS) i decimali sono sbagliati
+	/(SOA) è lento
+	++add GPolynomial con Syntax, GetM, GetF, GTotal, GPartial
+
+goto memcpty;
+
+*/
+
 // program_START
 #pragma once
 #pragma optimize("", on)
@@ -59,11 +82,12 @@ CONSOLE_SCREEN_BUFFER_INFO csbi;
 static char charVariable('x');
 long long GlobalMax(pow(10, 10));
 const long long GLOBAL_CAP(pow(10, 10));
-bool HAS_BEEN_PRINTED(false);
 bool BOOLALPHA(true);
 bool PRINTN(true);
 
-// strutture globali e template
+// monomi
+struct MONOMIAL; 
+struct REAL_MONOMIAL;
 struct MONOMIAL {
 	int degree;
 	int coefficient;
@@ -76,7 +100,14 @@ struct MONOMIAL {
 struct REAL_MONOMIAL {
 	long double degree;
 	long double coefficient;
+	bool operator == (const MONOMIAL& other) const
+	{
+		return coefficient == other.coefficient and
+			degree == other.degree;
+	}
 };
+
+// strutture globali e template
 struct Console {
 	wstring Text;
 	int Attribute;
@@ -274,7 +305,7 @@ public:
 
 	void DataPrintF()
 	{
-		setlocale(1, "");
+		setlocale(LC_ALL, "");
 		SetConsoleOutputCP(CP_UTF8);
 		wcout.imbue(locale(""));
 
@@ -890,7 +921,7 @@ namespace SuperScript
 	}
 	static wstring ElabExponents(wstring str, int& Size)
 	{
-		Size = 0;
+		Size = str.size();
 		int J{ 1 };
 		bool dobreak{ false };
 		for (int I = 0; I < str.size(); I++) {
@@ -902,10 +933,7 @@ namespace SuperScript
 					dobreak = 0;
 					wstring replacer;
 					if (str.at(pointer) == '0') {
-						if (J > 1) {
-							replacer = L"⁰";
-							Size--;
-						}
+						if (J > 1) replacer = L"⁰";
 						else dobreak = 1;
 					}
 					else replacer = CTSuperScript(str.at(pointer));
@@ -913,18 +941,17 @@ namespace SuperScript
 
 					// cambio caratteri e ridimensionamento stringa
 					str.replace(pointer, 1, replacer);
-					if (I < str.size() - 2 and J == 1) str.erase(I, 1);
-					if (HAS_BEEN_PRINTED) str.erase(I + J - 1, 1);
-					else Size--;
+					if (I < str.size() - 1 and J == 1) {
+						str.erase(I, 1);
+						Size--;
+					}
 					J++;
-					pointer = HAS_BEEN_PRINTED ?
-						I + J - 1 : I + 2 * (J - 1) + (J == 1);
+					pointer = I + J - 1 + (J == 1);
 					if (pointer >= str.size()) break;
 				}
 				J = 1;
 			}
 		}
-		Size += str.size();
 		return str;
 	}
 }
@@ -933,7 +960,7 @@ namespace Input
 	static void GetFraction(wstring& numerator, wstring& denominator)
 	{
 		using SuperScript::ElabExponents;
-		setlocale(1, "");
+		setlocale(LC_ALL, "");
 		SetConsoleOutputCP(CP_UTF8);
 		wcout.imbue(locale(""));
 
@@ -1041,7 +1068,7 @@ namespace Input
 				Den = ElabExponents(denominator, sizeden);
 			}
 			int spaces{ (sizenum - sizeden) / 2 };
-			spaces = abs(spaces);
+			spaces = fabs(spaces);
 
 
 			// ricerca suggerimento giusto
@@ -1212,7 +1239,7 @@ namespace Input
 	{
 		using namespace EnumMod;
 
-		setlocale(1, "");
+		setlocale(LC_ALL, "");
 		SetConsoleOutputCP(CP_UTF8);
 		wcout.imbue(locale(""));
 		switchcase option;
@@ -1630,8 +1657,8 @@ namespace Calc
 
 		// per ogni fattore primo
 		for (
-			int what_factor = 0; 
-			what_factor < ::size(expfactors); 
+			int what_factor = 0;
+			what_factor < ::size(expfactors);
 			what_factor++
 			)
 		{
@@ -1645,7 +1672,7 @@ namespace Calc
 			wstring part_of2{ L")" };
 
 			// se l'esponente ha una cifra ed è maggiore di 1,
-			if (expfactors[what_factor].exp != 1 and 
+			if (expfactors[what_factor].exp != 1 and
 				expfactors[what_factor].exp < 11)
 			{
 				part_of2.append(exp_verify);
@@ -1835,7 +1862,7 @@ namespace Calc
 		}
 
 		// somma dei monomi
-		for (int end = 0; end < ::size(monomials); end++) 
+		for (int end = 0; end < ::size(monomials); end++)
 			output += values[end];
 
 		delete[] values;
@@ -2523,7 +2550,7 @@ namespace Convalid
 	{
 		using Calc::Cript;
 
-		setlocale(1, "");
+		setlocale(LC_ALL, "");
 		SetConsoleOutputCP(CP_UTF8);
 		wcout.imbue(locale(""));
 		long long number;
@@ -2773,7 +2800,7 @@ namespace Traduce
 			else xout = L"(" + xout + L")";
 			output += xout;
 		}
-		
+
 		// caso nullo
 		if (output.empty()) {
 			Size = 1;
@@ -2847,7 +2874,7 @@ namespace HandPolynomials
 				vect.insert
 				(vect.begin() + i,
 					{ vect[i - 1].degree - j, 0 }
-				);
+		);
 
 		// riempimento buchi agli estremi
 		if (size(vect) == 0) {
@@ -2960,7 +2987,7 @@ namespace Techniques
 		// calcolo grado minimo e riscrittura
 		int GCD{ Gcd(inp) };
 		for (MONOMIAL t : inp) if (t.degree < min) min = t.degree;
-		if (abs(GCD) != 1 or min > 0) {
+		if (fabs(GCD) != 1 or min > 0) {
 			output = {};
 			output.push_back({ {min, GCD} });
 			for (int i = 0; i < size(inp); i++) {
@@ -2970,7 +2997,7 @@ namespace Techniques
 		}
 
 		// totale
-		if (abs(GCD) != 1 or min > 0) {
+		if (fabs(GCD) != 1 or min > 0) {
 			output = {};
 			output.push_back({ {min, GCD} });
 			output.push_back(inp);
@@ -3137,11 +3164,11 @@ namespace Techniques
 
 		// calcolo dei coefficienti
 		int I, J;
-		for (I = 1; I <= abs(A); I++) if (integer(firstX * I)) break;
-		if (I == abs(A) + 1) I--;
+		for (I = 1; I <= fabs(A); I++) if (integer(firstX * I)) break;
+		if (I == fabs(A) + 1) I--;
 		if (A < 0) I = -I;
-		for (J = 1; J <= abs(A); J++) if (integer(secondX * J)) break;
-		if (J == abs(A) + 1) J--;
+		for (J = 1; J <= fabs(A); J++) if (integer(secondX * J)) break;
+		if (J == fabs(A) + 1) J--;
 
 		// composizione del trinomio scomposto
 		outp = { {}, {} };
@@ -3169,8 +3196,8 @@ namespace Techniques
 		if (Sign_A == Sign_B) return outp;
 
 		// calcolo radici
-		double Sq_A{ sqrt(abs(InpT[0].coefficient)) };
-		double Sq_B{ sqrt(abs(InpT[1].coefficient)) };
+		double Sq_A{ sqrt(fabs(InpT[0].coefficient)) };
+		double Sq_B{ sqrt(fabs(InpT[1].coefficient)) };
 		if (!integer(Sq_A)) return outp;
 		if (!integer(Sq_B)) return outp;
 
@@ -3180,6 +3207,10 @@ namespace Techniques
 		outp[0].push_back(MONOMIAL{ InpT[0].degree / 2, +(int)Sq_A });
 		outp[1].push_back(MONOMIAL{ InpT[1].degree / 2, +(int)Sq_B });
 		outp[1].push_back(MONOMIAL{ InpT[0].degree / 2, -(int)Sq_A });
+		if (Sign_A) {
+			outp[1][0].coefficient *= -1;
+			outp[1][1].coefficient *= -1;
+		}
 
 		return outp;
 	}
@@ -3199,12 +3230,12 @@ namespace Techniques
 		int DirectorTerm{ vect[0].coefficient };
 		int size{ vect[0].degree };
 		int KnownTerm{ vect[::size(vect) - 1].coefficient };
-		if (abs(DirectorTerm) >= GlobalMax or abs(KnownTerm) >= GlobalMax)
+		if (fabs(DirectorTerm) >= GlobalMax or fabs(KnownTerm) >= GlobalMax)
 			return {};
 
 		// calcolo divisori
-		vector <int> P{ DivisorCounter(abs(KnownTerm)) };
-		vector <int> Q{ DivisorCounter(abs(DirectorTerm)) };
+		vector <int> P{ DivisorCounter(fabs(KnownTerm)) };
+		vector <int> Q{ DivisorCounter(fabs(DirectorTerm)) };
 		vector <int> PossibleRoots;
 
 		// teorema delle radici razionali
@@ -3353,7 +3384,7 @@ namespace Techniques
 		if (!integer(C)) return output;
 		double B{ (double)vect[size(vect) - 2].coefficient / (2 * C) };
 		if (!integer(B)) return output;
-		if (abs(B) != (double)vect[1].coefficient / (2 * A)) return output;
+		if (fabs(B) != (double)vect[1].coefficient / (2 * A)) return output;
 		double middle_deg = vect[size(vect) - 2].degree, director_deg;
 
 		// caso generico
@@ -3377,11 +3408,11 @@ namespace Techniques
 
 			// verifica coefficienti centrali
 			if (direct_double_middle) {
-				if (abs(vect[2].coefficient) != abs(2 * A * C)) return output;
+				if (fabs(vect[2].coefficient) != fabs(2 * A * C)) return output;
 				if (vect[3].coefficient != B * B) return output;
 			}
 			else {
-				if (abs(vect[3].coefficient) != abs(2 * A * C)) return output;
+				if (fabs(vect[3].coefficient) != fabs(2 * A * C)) return output;
 				if (vect[2].coefficient != B * B) return output;
 			}
 			AC2 = vect[3 - direct_double_middle].coefficient >= 0;
@@ -3393,9 +3424,9 @@ namespace Techniques
 			// verifica
 			for (int i = 0; i <= 2; i++)
 				if (vect[i].degree != (4 - i) * vect[3].degree) return output;
-			if (abs(vect[2].coefficient) == abs(2 * A * C + B * B))
+			if (fabs(vect[2].coefficient) == fabs(2 * A * C + B * B))
 				AC2 = vect[2].coefficient - B * B >= 0;
-			else if (abs(vect[2].coefficient) == abs(2 * A * C - B * B))
+			else if (fabs(vect[2].coefficient) == fabs(2 * A * C - B * B))
 				AC2 = vect[2].coefficient + B * B >= 0;
 			else return output;
 			director_deg = 2 * middle_deg;
@@ -3552,12 +3583,14 @@ namespace Algebraic
 
 		// semplificazione fattori
 		int sign{ 1 };
-		for (int i = 0; i < size(num); i++) {
+		for (int i = size(num) - 1; i >= 0; i--) {
 
 			// caso coefficiente
 			if (size(num[i]) == 1 and num[i][0].degree == 0)
 				continue;
-			for (int j = 0; j < size(den); j++) {
+			for (int j = size(den) - 1; j >= 0; j--) {
+
+				if (i >= size(num) or j >= size(den)) continue;
 
 				// caso coefficiente
 				if (size(den[j]) == 1 and den[j][0].degree == 0) continue;
@@ -3566,19 +3599,32 @@ namespace Algebraic
 				if (num[i] == den[j]) {
 					num.erase(num.begin() + i);
 					den.erase(den.begin() + j);
+					continue;
 				}
-				else {
-					for (int k = 0; k < size(den[j]); k++)
-						den[j][k].coefficient = -den[j][k].coefficient;
-
-					// caso con polinomi opposti
-					if (num[i] == den[j]) {
-						num.erase(num.begin() + i);
-						den.erase(den.begin() + j);
-						sign = -sign;
+				
+				// caso con polinomi opposti
+				for (int k = 0; k < size(den[j]); k++)
+					den[j][k].coefficient = -den[j][k].coefficient;
+				if (num[i] == den[j]) {
+					num.erase(num.begin() + i);
+					den.erase(den.begin() + j);
+					sign = -sign;
+					continue;
+				}
+				else for (int k = 0; k < size(den[j]); k++)
+					den[j][k].coefficient = -den[j][k].coefficient;
+				
+				// caso di potenze
+				if (size(num[i]) == 1 and size(den[j]) == 1) {
+					int grade_difference = num[i][0].degree - den[j][0].degree;
+					if (num[i][0].degree > den[j][0].degree) {
+						num[i][0].degree = grade_difference;
+						den[j][0].degree = 0;
 					}
-					else for (int k = 0; k < size(den[j]); k++)
-						den[j][k].coefficient = -den[j][k].coefficient;
+					else {
+						num[i][0].degree = 0;
+						den[j][0].degree = grade_difference;
+					}
 				}
 			}
 		}
@@ -3599,7 +3645,7 @@ namespace Algebraic
 			}
 
 		// semplificazione coefficienti
-		int GCD{ Gcd(abs(ncoeff), abs(dcoeff)) };
+		int GCD{ Gcd(fabs(ncoeff), fabs(dcoeff)) };
 		ncoeff /= GCD;
 		dcoeff /= GCD;
 		if (FindN > 0) num[FindN][0].coefficient = 1;
@@ -3656,15 +3702,15 @@ namespace Algebraic
 			// calcolo parametri
 			for (int j = 0; j < ::size(equation); j++)
 				fx += equation[j].coefficient *
-					pow(root, equation[j].degree);
+				pow(root, equation[j].degree);
 			for (int j = 0; j < ::size(derivative); j++)
 				dfx += derivative[j].coefficient *
-					pow(root, derivative[j].degree);
+				pow(root, derivative[j].degree);
 
 			// calcolo nuovo punto
 			if (dfx == 0) dfx += TOL;
 			long double next = root - fx / dfx;
-			if (abs(next - root) < TOL) {
+			if (fabs(next - root) < TOL) {
 				root = next;
 				break;
 			}
@@ -3673,7 +3719,7 @@ namespace Algebraic
 
 		// divisione del polinomio
 		for (int i = 1; i < ::size(equation); i++) {
-			equation[i].coefficient = 
+			equation[i].coefficient =
 				root * equation[i - 1].coefficient
 				+ equation[i].coefficient;
 			equation[i].degree--;
@@ -3690,7 +3736,7 @@ namespace Algebraic
 		for (int i = size(equation) - 1; i > 0; i--)
 			for (int j = 1; j < equation[i - 1].degree - equation[i].degree; j++)
 				equation.insert
-					(equation.begin() + i, { equation[i - 1].degree - j, 0 });
+				(equation.begin() + i, { equation[i - 1].degree - j, 0 });
 
 		vector <long double> answer;
 		long double A, B, C;
@@ -3698,12 +3744,12 @@ namespace Algebraic
 		while (true) switch (size(equation)) {
 
 			// caso coefficiente
-		case 1: 
+		case 1:
 			answer.push_back(nan(""));
 			return answer;
 
 			// caso di primo grado
-		case 2: 
+		case 2:
 			answer.push_back((long double)
 				-equation[1].coefficient /
 				+equation[0].coefficient
@@ -3730,11 +3776,11 @@ namespace Algebraic
 		}
 	}
 
-	static void PrintFraction
+	template <typename TN, typename TD> static void PrintFraction
 	(
 		int NC, int DC, int& LINE, bool WritePlus,
-		deque_t <deque_t <MONOMIAL>> numerator,
-		deque_t <deque_t <MONOMIAL>> denominator
+		deque_t <deque_t <TN>> numerator,
+		deque_t <deque_t <TD>> denominator
 	)
 	{
 
@@ -3754,8 +3800,8 @@ namespace Algebraic
 		size_t Sizenum, Sizeden;
 		wstring den_, num_;
 		if (size(numerator) == 1) if (size(numerator[0]) == 1)
-				if (numerator[0][0].degree == 0)
-					root = numerator[0][0].coefficient;
+			if (numerator[0][0].degree == 0)
+				root = numerator[0][0].coefficient;
 
 		// calcolo coefficienti
 		if (root != 0) {
@@ -3781,25 +3827,44 @@ namespace Algebraic
 			num_ = to_wstring(NC * Root);
 			sizenum = num_.size();
 		}
-		
-		// calcolo stringhe
-		else if (NC == 1) num_ = GetPolynomial(numerator, sizenum);
+
+		// calcolo numeratore
 		else {
-			den_ = to_wstring(NC) + GetPolynomial(numerator, sizeden);
-			sizenum += to_wstring(NC).size();
+			num_ = GetPolynomial(numerator, sizenum);
+			if (size(numerator) == 1) {
+				num_.erase(num_.size() - 1);
+				num_.erase(0, 1);
+				sizenum -= 2;
+			}
+			if (NC != 1) {
+				num_ += to_wstring(NC);
+				sizenum += to_wstring(NC).size();
+			}
+			if (num_ == L"0") num_ = L"1";
 		}
-		if (DC == 1) den_ = GetPolynomial(denominator, sizeden);
-		else {
-			den_ = to_wstring(DC) + GetPolynomial(denominator, sizeden);
+		
+		// calcolo denominatore
+		den_ = L"";
+		wstring tempden =  GetPolynomial(denominator, sizeden);
+		if (tempden != L"(1)") den_ = tempden;
+		else sizeden -= 3;
+		if (size(denominator) == 1) {
+			den_.erase(den_.size() - 1);
+			den_.erase(0, 1);
+			sizeden -= 2;
+		}
+		if (DC != 1) {
+			den_ += to_wstring(DC);
 			sizeden += to_wstring(DC).size();
 		}
+		
 		Sizeden = sizeden;
 		Sizenum = sizenum;
 
 		// calcolo dati
 		int sizemax = max(Sizenum, Sizeden);
 		int spacing = Sizenum - Sizeden;
-		spacing = abs(spacing) / 2;
+		spacing = fabs(spacing) / 2;
 		if (Sizenum > Sizeden) den_ = wstring(spacing, ' ') + den_;
 		else num_ = wstring(spacing, ' ') + num_;
 
@@ -3817,6 +3882,7 @@ namespace Algebraic
 			SetConsoleCursorPosition(hConsole, start);
 			is_minus ? cout << '-' : cout << '+';
 			start.X += 2;
+			LINE += 2;
 			start.Y--;
 		}
 
@@ -3834,7 +3900,7 @@ namespace Algebraic
 		SetConsoleCursorPosition(hConsole, start);
 
 		// aggiornamento linea
-		LINE += sizemax + WritePlus * 2 + 1;
+		LINE += sizemax + 1;
 	}
 }
 namespace Programs
@@ -3849,7 +3915,7 @@ namespace Programs
 		using namespace Convalid;
 
 		// scelta
-		setlocale(1, "");
+		setlocale(LC_ALL, "");
 		SetConsoleOutputCP(CP_UTF8);
 		wcout.imbue(locale(""));
 		wstring ToEvaluate, message;
@@ -3950,7 +4016,7 @@ namespace Programs
 		NumberData CPU(long long input)
 	)
 	{
-		setlocale(1, "");
+		setlocale(LC_ALL, "");
 		SetConsoleOutputCP(CP_UTF8);
 		wcout.imbue(locale(""));
 		wstring n_{ to_wstring(GlobalMax) }, Input;
@@ -4000,7 +4066,7 @@ namespace Programs
 	{
 		using Print::CS_CenterPrinter, Input::SetDebug;
 
-		setlocale(1, "");
+		setlocale(LC_ALL, "");
 		SetConsoleOutputCP(CP_UTF8);
 		wcout.imbue(locale(""));
 		wstring n_{ to_wstring(GlobalMax) }, Input, txt;
@@ -4195,7 +4261,7 @@ namespace Programs
 		using Convalid::Syntax;
 		using namespace Traduce;
 		using namespace HandPolynomials;
-		setlocale(1, "");
+		setlocale(LC_ALL, "");
 		SetConsoleOutputCP(CP_UTF8);
 		wcout.imbue(locale(""));
 		SetConsoleTextAttribute(hConsole, 14);
@@ -4471,10 +4537,10 @@ namespace Programs
 	using namespace Algebraic;
 	static switchcase DecompAlgebraic()
 	{
-		using Convalid::Syntax;
+		using SuperScript::ElabExponents, Convalid::Syntax;
 		using namespace Traduce;
 		using namespace HandPolynomials;
-		setlocale(1, "");
+		setlocale(LC_ALL, "");
 		SetConsoleOutputCP(CP_UTF8);
 		wcout.imbue(locale(""));
 		switchcase Option;
@@ -4503,7 +4569,6 @@ namespace Programs
 				cout << " (0 = fine input)\n\n";
 				do GetFraction(numerator, denominator);
 				while (numerator.empty());
-				HAS_BEEN_PRINTED = 1;
 
 				if (numerator == L".") return Random;
 				Option = ConvertWStringToEnum(numerator);
@@ -4541,16 +4606,17 @@ namespace Programs
 				No2 = !Syntax(denominator) or denominator == L"0";
 				if ((No1 or No2) and wrong) {
 					SetConsoleTextAttribute(hConsole, 10);
-					wcout << "quella non e' una frazione algebrica\n\a";
+					wcout << "quella non è una frazione algebrica\n\a";
 					SetConsoleTextAttribute(hConsole, 15);
 				}
 
 			} while (No1 or No2);
 			if (numerator == L"0") break;
 
-			// semplificazione fattori
+			// semplificazione fattori e backup
 			deque_t <deque_t <MONOMIAL>> NScomp{ GetDecomp(numerator) };
 			deque_t <deque_t <MONOMIAL>> DScomp{ GetDecomp(denominator) };
+			for (int i = 0; i < size(DScomp); i++) DScomp[i].SortDeq();
 			deque_t <deque_t <MONOMIAL>> DenBackup{ DScomp };
 			ClosePolynomial(DScomp);
 			int NCOEFF{ 1 }, DCOEFF{ 1 };
@@ -4597,7 +4663,7 @@ namespace Programs
 						NewScomp.insert(NewScomp.begin() + i, { {1, 1} });
 						NewScomp.insert(NewScomp.begin() + i, {
 							{-1, DScomp[i][0].degree} }
-							);
+						);
 						complementaries.push_back(
 							Complementary(NewScomp, NewScomp[i + 1], j)
 						);
@@ -4665,7 +4731,7 @@ namespace Programs
 				}
 			if (size(roots) == 0) skip = 1;
 
-			// calcolo deque
+			// calcolo condizioni di esistenza
 			SetConsoleTextAttribute(hConsole, 11);
 			wcout << L"C.E.: ";
 			SetConsoleTextAttribute(hConsole, 10);
@@ -4679,30 +4745,39 @@ namespace Programs
 				(
 					REAL_MONOMIAL{
 						(long double)M.degree,
-						(long double)M.coefficient 
+						(long double)M.coefficient
 					}
 				);
 				Idx++;
 			}
-			
+
 			// output condizioni di esistenza
+			COORD cursorPos;
 			for (deque_t <REAL_MONOMIAL> d : DBCKP) {
-				vector <long double> CEtemp{ ExistenceConditions(d)};
+				vector <long double> CEtemp{ ExistenceConditions(d) };
 				for (long double i : CEtemp) if (!isnan(i))
 					C_E_.push_back(i);
 			}
 			for (long double i : C_E_) {
-				wcout << charVariable << L" != "; 
-				cout << fixed << setprecision(5) << i << "; ";
+				wcout << charVariable << L" != ";
+				if (integer(i)) cout << i << "; ";
+				else cout << fixed << setprecision(5) << i << "; ";
 				has_been_printed = 1;
 			}
 			if (!has_been_printed) wcout << "\r      \r";
+			GetConsoleScreenBufferInfo(hConsole, &csbi);
+			cursorPos = csbi.dwCursorPosition;
+			if (!has_been_printed) {
+				cursorPos.X = 0;
+				cursorPos.Y--;
+				SetConsoleCursorPosition(hConsole, cursorPos);
+			}
 			else cout << '\n';
 
 			// output frazioni
 			if (!skip or DenBackup != DScomp) {
 				SetConsoleTextAttribute(hConsole, 10);
-				wcout << L"\nla scomposizione e': ";
+				wcout << L"\nla scomposizione è: ";
 				SetConsoleTextAttribute(hConsole, 12);
 			}
 			bool ShowPlus{ false };
@@ -4710,12 +4785,12 @@ namespace Programs
 			if (!skip) {
 				cout << "\n\n";
 				for (int i = 0; i < size(denominators); i++) {
-					PrintFraction(
+					PrintFraction<REAL_MONOMIAL, MONOMIAL>(
 						NCOEFF,
 						DCOEFF,
 						lines,
 						ShowPlus,
-						{ { { 0, (int)roots[i] } } },
+						{ { { 0, roots[i] } } },
 						denominators[i]
 					);
 					ShowPlus = 1;
@@ -4723,12 +4798,13 @@ namespace Programs
 				cout << "\n\n";
 			}
 
-			// caso di frazione semplificata ma non scomposta
 			else if (DenBackup != DScomp) {
+
+				// caso di frazione semplificata ma non scomposta
 				int size{};
 				if (::size(DScomp) > 0) {
 					cout << "\n\n";
-					PrintFraction(
+					PrintFraction<MONOMIAL, MONOMIAL>(
 						NCOEFF,
 						DCOEFF,
 						lines,
@@ -4738,22 +4814,68 @@ namespace Programs
 					);
 					cout << "\n\n";
 				}
+
+				// caso di denominatore coefficiente
+				else if (DCOEFF != 1 and ::size(NScomp) != 0) {
+					cout << "\n\n";
+					PrintFraction<MONOMIAL, MONOMIAL>(
+						NCOEFF,
+						DCOEFF,
+						lines,
+						0,
+						NScomp,
+						{ { MONOMIAL{ 0, 1 } } }
+					);
+					cout << "\n\n";
+				}
+
+				// caso di frazione normale
+				else if (DCOEFF != 1 and ::size(NScomp) == 0) {
+					cout << "\n\n";
+					PrintFraction<MONOMIAL, MONOMIAL>(
+						NCOEFF,
+						DCOEFF,
+						lines,
+						0,
+						{ { MONOMIAL{ 0, 1 } } },
+						{ { MONOMIAL{ 0, 1 } } }
+					);
+					cout << "\n\n";
+				}
+
+				// caso costante
+				else if (::size(NScomp) == 0) cout << ' ' << NCOEFF;
+
+				// caso fattore
 				else if (::size(NScomp) == 1) {
-					wcout << ' ' << GetFactor(NScomp[0]);
+					wcout << ' ' << ElabExponents(GetFactor(NScomp[0]), size);
 					wcout << "\n\n";
 				}
+
+				// caso polinomio
 				else {
 					wcout << ' ';
 					wcout << GetPolynomial(NScomp, size);
 				}
 			}
 
+			// caso non scomponibile
+			else {
+
+				// messaggio di errore
+				SetConsoleTextAttribute(hConsole, 64);
+				cout << "NON E' POSSIBILE SCOMPORRE!!\a";
+				SetConsoleTextAttribute(hConsole, 15);
+				cout << '\n';
+				continue;
+			}
+
 			// reset cursore
 			GetConsoleScreenBufferInfo(hConsole, &csbi);
-			COORD cursorPos{ csbi.dwCursorPosition };
-			cursorPos.X++;
-			cursorPos.Y++;
-			SetConsoleCursorPosition(hConsole, cursorPos);
+			COORD cursorP{ csbi.dwCursorPosition };
+			cursorP.X = lines;
+			cursorP.Y--;
+			SetConsoleCursorPosition(hConsole, cursorP);
 
 			// output polinomio di resto
 			if (!skip) for (MONOMIAL a : Quotient) {
@@ -4769,26 +4891,10 @@ namespace Programs
 				else if (pol.at(0) == '+') pol.erase(0, 1);
 				is_minus ? cout << "- " : cout << "+ ";
 				wcout << pol << ' ';
-				cout << "\n\n";
 			}
-			
-			// caso impossibile
-			if (skip and DScomp == DenBackup) {
+			cout << "\n\n";
 
-				// reset cursore
-				GetConsoleScreenBufferInfo(hConsole, &csbi);
-				COORD cursorPos{ csbi.dwCursorPosition };
-				cursorPos.Y -= 2;
-				SetConsoleCursorPosition(hConsole, cursorPos);
-
-				// messaggio di errore
-				SetConsoleTextAttribute(hConsole, 64);
-				cout << "NON E' POSSIBILE SCOMPORRE!!\a";
-				SetConsoleTextAttribute(hConsole, 15);
-				cout << '\n';
-			}
 		}
-
 		return NotAssigned;
 	}
 }
@@ -4796,7 +4902,7 @@ namespace Programs
 // programma principale
 int main()
 {
-	setlocale(1, "");
+	setlocale(LC_ALL, "");
 	SetConsoleOutputCP(CP_UTF8);
 	wcout.imbue(locale(""));
 	Beep(1000, 50);
