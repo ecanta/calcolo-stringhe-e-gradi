@@ -1,11 +1,40 @@
 ﻿// program_START
 #pragma region Files
+
+// pragma
 #pragma once
 #pragma optimize("", on)
 
+// pragma warning
+#pragma warning(disable : 4101)
+#pragma warning(disable : 4244)
+#pragma warning(disable : 4247)
+#pragma warning(disable : 4267)
+#pragma warning(disable : 4551)
+#pragma warning(disable : 4715)
+#pragma warning(disable : 6001)
+#pragma warning(disable : 6385)
+#pragma warning(disable : 6386)
+#pragma warning(disable : 28182)
+#pragma warning(disable : 28193)
+
+// messaggi
+#pragma message("COMPILAZIONE IN CORSO")
+#pragma message("COMPILAZIONE IN CORSO")
+#pragma message("COMPILAZIONE IN CORSO")
+#pragma message("COMPILAZIONE IN CORSO")
+#pragma message("COMPILAZIONE IN CORSO")
+#pragma message("COMPILAZIONE IN CORSO")
+#pragma message("perché è così lento questo compilatore?")
+#pragma message("?????")
+#pragma message("????")
+#pragma message("???")
+#pragma message("??")
+#pragma message("?")
+
 // Descrizione programma ::
 	/*                                                          |
-	*  Strings ZP[5.0].cpp: il programma calcola singola e\o    |
+	*  Strings ZP[5.3].cpp: il programma calcola singola e\o    |
 	*  doppia scomposizione di alcuni interi in una stringa o   |
 	*  il contrario, i numeri primi, cifre e divisori, scompone |
 	*  anche i polinomi e le frazioni algebriche                |
@@ -349,7 +378,7 @@ public:
 			SetConsoleTextAttribute(hConsole, 4);
 			wcout << L"il grado è " << degree << '\n';
 			SetConsoleTextAttribute(hConsole, 3);
-			wcout << L"la sequenza è :\n(";
+			wcout << L"la sequenza del grado è :\n(";
 			for (int i = 0; i < size(sequence) - 1; i++)
 				cout << sequence[i] << ", ";
 			cout << sequence[size(sequence) - 1] << ")\n";
@@ -444,6 +473,408 @@ public:
 	}
 };
 #pragma endregion
+#pragma region Declarations
+
+static size_t Factorial(size_t n);
+static int Gcd(int A, int B);
+static int Gcd(deque_t <int> terms);
+static int Gcd(deque_t <MONOMIAL> terms);
+static long long intpow(long long base, int exp);
+static wstring ConvertEnumToWString(switchcase Enum);
+static switchcase ConvertWStringToEnum(wstring str);
+static void ReassigneEnum(switchcase& option);
+static void ClearArea(COORD win_center);
+static void PrintPFrame
+(double deg, int sides, double radius, COORD win_center);
+static void DrawFrame
+(int arc, double __i, int centerX, int centerY, double DIM);
+static void DrawCircleSquare(COORD circle_center);
+static void CS_CenterPrinter();
+static void CS_CornerPrinter();
+static void ProgressBar(double ratio, double barWidth);
+static long double WaitingScreen
+(steady_clock::time_point begin, steady_clock::time_point end);
+static void GetFraction(wstring& numerator, wstring& denominator);
+static wstring GetLine(bool ShowSuggestions, int sizemax);
+static wstring GetUserNum
+(wstring txt, int low, long long high, bool ShowSuggestions);
+static void SetDebug(string message, switchcase& opt, bool& do_return,
+	long long& lower_bound, long long& upper_bound, long long& datalenght
+);
+static bool Prime(long long number);
+static void UserInputThread();
+static vector_t PrimeNCalculator(long long N, bool USE_pro_bar);
+static vector <compost> DecomposeNumber(long long input);
+static vector <wstring> Fractioner(wstring polinomial);
+static vector <int> DecomposeStrings(wstring Terminal);
+static wstring Standardize(wstring ToEvaluate, bool NecBoundary);
+static wstring Cript(long long input);
+static wstring FactNumber(long long input);
+static int ExecuteStrings(wstring input);
+static divisor DivisorCalculator(wstring factor);
+static digitRatio DigitRationalizer(long long inpt);
+static vector <int> DivisorCounter(int num);
+static NumberData ExecuteSimpledeg(long long input);
+static NumberData ExecuteDegree(long long input);
+static NumberData ExecuteSimpleFact(long long input);
+static NumberData ExecuteFactor(long long input);
+static NumberData ExecuteSimpleDF(long long input);
+static NumberData ExecuteDigit(long long input);
+static NumberData ExecuteDegFactor(long long input);
+static NumberData ExecuteDegDigit(long long input);
+static NumberData ExecuteFactDigit(long long input);
+static NumberData ExecuteAll(long long input);
+static bool Syntax(wstring polynomial); 
+static wstring SyntaxValidator(wstring ToEvaluate, bool NecBoundary);
+static size_t NumberConverter(size_t root, wstring M);
+static size_t StringConverter(wstring ToEvaluate);
+static void CodeConverter
+(wstring ToEvaluate, wstring message, bool ShowErrors, bool NecBoundary);
+static void LongComputation
+(wstring ToEvaluate, wstring message, bool ShowErrors, bool NecBoundary);
+static deque_t <MONOMIAL> GetMonomials(wstring polynomial);
+static wstring GetFactor(deque_t <MONOMIAL> inp);
+static wstring GetPolynomial
+(deque_t <deque_t <MONOMIAL>> inp, int& Size);
+static void OpenPolynomial(deque_t <deque_t <MONOMIAL>>& vect);
+static void ClosePolynomial(deque_t <deque_t <MONOMIAL>>& vect);
+static deque_t <MONOMIAL> FillPolynomial(deque_t <MONOMIAL> vect, int s);
+static deque_t <MONOMIAL> PolynomialSum(deque_t <MONOMIAL> inp);
+static deque_t <MONOMIAL> PolynomialMultiply
+(deque_t <deque_t <MONOMIAL>> Polynomial);
+static void PolynomialDivide
+(
+	deque_t <MONOMIAL> dividend,
+	deque_t <MONOMIAL> divisor,
+	deque_t <MONOMIAL>& quotient,
+	deque_t <MONOMIAL>& rest
+);
+static deque_t <deque_t <MONOMIAL>> Total(deque_t <MONOMIAL> inp);
+static deque_t <deque_t <MONOMIAL>> Partial(deque_t <MONOMIAL> inpt);
+static deque_t <deque_t <MONOMIAL>> Binomial(deque_t <MONOMIAL> InpT);
+static deque_t <deque_t <MONOMIAL>> Trinomial(deque_t <MONOMIAL> InpT);
+static deque_t <deque_t <MONOMIAL>> SquareDifference(deque_t <MONOMIAL> InpT);
+static deque_t <deque_t <MONOMIAL>> Ruffini(deque_t <MONOMIAL> vect);
+static deque_t <deque_t <MONOMIAL>> CompleteTheSquare(deque_t <MONOMIAL> vect);
+static deque_t <deque_t <MONOMIAL>> TrinomialSquare(deque_t <MONOMIAL> vect);
+static deque_t <deque_t <MONOMIAL>> GetDecomp(wstring polynomial);
+static deque_t <MONOMIAL> Complementary
+(deque_t <deque_t <MONOMIAL>> Polynomial, deque_t <MONOMIAL> factor, int exp);
+static void Simplify(
+	deque_t <deque_t <MONOMIAL>>& num,
+	deque_t <deque_t <MONOMIAL>>& den,
+	int& ncoeff, int& dcoeff);
+static int Determinant(deque_t <deque_t <int>> mx);
+static void Approximator
+(deque_t <REAL_MONOMIAL>& equation, long double& root);
+static vector <long double> ExistenceConditions
+(deque_t <REAL_MONOMIAL> equation);
+template <typename TN, typename TD> static void PrintFraction
+(
+	int NC, int DC, int& LINE, bool WritePlus,
+	deque_t <deque_t <TN>> numerator,
+	deque_t <deque_t <TD>> denominator
+);
+static switchcase CodeToNumber();
+static switchcase Repeater(string message,
+	NumberData CPU(long long input)
+);
+static switchcase Loop(
+	string message,
+	NumberData CPU(long long input),
+	bool select
+);
+static switchcase DecompPolynomial();
+static switchcase DecompAlgebraic();
+
+#pragma endregion
+
+int main()
+{	
+	setlocale(LC_ALL, "");
+	SetConsoleOutputCP(CP_UTF8);
+	wcout.imbue(locale(""));
+
+	Beep(1000, 50);
+	Beep(1000, 50);
+
+	// dichiarazione stringhe
+	string simpledeg{ "il PROGRAMMA calcola solo la codifica di un intero" };
+	string simplefact{ "il PROGRAMMA calcola solo la fattorizzazione di un intero" };
+	string def_sct{ "il PROGRAMMA calcola solo codifica e fattorizzazione" };
+	string desimpledeg{ "il PROGRAMMA calcola solo la codifica di una serie" };
+	string desimplefact{ "il PROGRAMMA calcola solo la fattorizzazione di una serie" };
+	string defact_message{ "il PROGRAMMA calcola la fattorizzazione di una serie" };
+	defact_message.append("\ne numero, somma e prodotto dei divisori");
+	string deg_message{ "il PROGRAMMA calcola codice, sequenza e grado di una serie" };
+	string fact_message{ "il PROGRAMMA calcola la fattorizzazione di un intero" };
+	fact_message.append("\ne numero, somma e prodotto dei divisori");
+	string message{ "il PROGRAMMA calcola codice, sequenza e grado di un intero" };
+	string AllMessage{ "il PROGRAMMA calcola \"tutti\" i dati di alcuni interi" };
+	string de_digit{ "il PROGRAMMA ricerca numeri con particolari" };
+	de_digit.append(" occorrenze di somma e prodotto cifre");
+	string deg_digit{ "il PROGRAMMA calcola cifre, codice, sequenza e grado" };
+	string fact_digit{ "il PROGRAMMA calcola cifre, fattorizzazione, e divisori" };
+	string defact_digit{ "il PROGRAMMA calcola tutti i dati, cifre comprese" };
+	wstring vel{};
+	wstring text;
+	switchcase option;
+
+	bool start{ true };
+	bool lock_prime_input{ false };
+	long long global{ 1 };
+	long double ComputationTime;
+	size_t Timer{ 100'000'000 };
+	while (true)
+	{
+		bool stop{ false };
+		bool skip{ true };
+		bool redo{ false };
+
+		if (!lock_prime_input) {
+			do {
+				redo = 0;
+				system("cls");
+				SetConsoleTitle(TEXT("START"));
+
+				// // output
+				SetConsoleTextAttribute(hConsole, 2);
+				cout << "*****.*****.*****.*****.******.*****.*****.*****.*****\n\n";
+				cout << "*****.*****.*****.[> CALCOLATRICE <].*****.*****.*****\n\n";
+
+				SetConsoleTextAttribute(hConsole, 10);
+				cout << "Scegliere il limite per la ricerca dei numeri primi\n";
+				cout << "Un limite più alto comporta un tempo di attesa più lungo\n";
+				cout << "inserire un numero tra 2 e 10.000.000.000\n\n";
+
+				SetConsoleTextAttribute(hConsole, 2);
+				cout << "*****.*****.*****.*****.******.*****.*****.*****.*****\n\n";
+				SetConsoleTextAttribute(hConsole, 9);
+				// //
+
+				// inserimento punti
+				wstring Timer_t{ to_wstring(Timer) };
+				for (int i = Timer_t.size() - 3; i > 0; i -= 3)
+					Timer_t.insert(Timer_t.begin() + i, '.');
+
+				// input controllato
+				text = L"ESEMPIO: " + Timer_t + L" = ~1 minuto di attesa\n";
+				wstring G{ GetUserNum(text, 0, GLOBAL_CAP, 0) };
+				if (ConvertWStringToEnum(G) != NotAssigned) redo = 1;
+				else if (G.empty()) redo = 1;
+
+				// termine programma
+				else if (G == L".") goto End;
+
+				// casi 0 e 1
+				else global = stoi(G);
+				if (global == 1) redo = 1;
+				if (global == 0) {
+					lock_prime_input = 1;
+					if (start) redo = 1;
+				}
+			} while (redo);
+			SetConsoleTextAttribute(hConsole, 15);
+
+			// output del tempo
+			if (global != 0 or start) {
+				steady_clock::time_point begin{ steady_clock::now() };
+				GlobalMax = global;
+				SetConsoleCursorInfo(hConsole, &cursorInfo);
+				PrimeNumbers = PrimeNCalculator(GlobalMax + 1'000, 1);
+
+				steady_clock::time_point end{ steady_clock::now() };
+				ComputationTime = WaitingScreen(begin, end);
+				SetConsoleTextAttribute(hConsole, 15);
+				SetConsoleCursorInfo(hConsole, &cursor);
+				start = 0;
+			}
+			if (GlobalMax > 9'000 && global > 1) {
+				ComputationTime /= 1'000'000;
+				Timer = (GlobalMax + 1'000) *60'000 / ComputationTime;
+			}
+		}
+
+		// titolo e audio
+		system("cls");
+		SetConsoleTitle(TEXT("switchcase scegli le opzioni"));
+		Beep(750, 300);
+
+		// scelta
+		cout << "scegliere la modalità di calcolo::\n";
+		SetConsoleTextAttribute(hConsole, 4);
+		cout << "se stringa di un carattere:\n";
+		cout << "\t'0' = blocca input numeri primi ~[~sempre]\n";
+		cout << "\t'1' = sblocca input numeri primi\n";
+		cout << "\t'.' = fine programma [sempre]\n";
+		SetConsoleTextAttribute(hConsole, 9);
+		cout << "altrimenti:\n";
+		cout << "\t\"rnd\" = casuale\n";
+		cout << "\t\"ctn\" = da codice a numero\n";
+		cout << "\t\"pol\" = scomposizione polinomi\n";
+		cout << "\t\"alg\" = scomposizione frazioni algebriche\n";
+		SetConsoleTextAttribute(hConsole, 11);
+		cout << "oppure:\n";
+		cout << "primi caratteri:\n";
+		cout << "\t'c' = calcolo\n";
+		cout << "\t'd' = debug\n";
+		cout << "\t\"dr\" = debug ristretto\n";
+		SetConsoleTextAttribute(hConsole, 14);
+		cout << "caratteri seguenti:\n";
+		cout << "\t'c' = solo codifica\n";
+		cout << "\t'f' = scomposizione in fattori primi\n";
+		cout << "\t\"cc\" = codifica, sequenza e grado\n";
+		cout << "\t\"ff\" = fattoizzazione e dati dei divisori\n";
+		cout << "\t\"cf\" = codifica e fattorizzazione\n";
+		cout << "\t't' = tutti i dati\n";
+		SetConsoleTextAttribute(hConsole, 6);
+		cout << "solo per il debug ristretto:\n";
+		cout << "\t'' = solo dati sulle cifre dei numeri\n";
+		cout << "\t'c' = cifre, codifica, sequenza e grado\n";
+		cout << "\t'f' = fattorizzazione, cifre e divisori\n";
+		cout << "\t't' = tutti i dati compresi quelli sulle cifre\n";
+		SetConsoleTextAttribute(hConsole, 15);
+		cout << "selezionando più operazioni, il tempo di calcolo aumenta\n";
+
+		vel = GetLine(1, 10);
+		option = ConvertWStringToEnum(vel);
+		bool lock{ false };
+		do {
+
+			// gestione input numeri primi
+			lock = 0;
+			if (vel.size() == 1) {
+				skip = 0;
+				switch (vel.at(0)) {
+				case '0':
+					lock = 1;
+					lock_prime_input = 1;
+					cout << "\ninput numeri primi bloccato\n";
+					break;
+				case '1':
+					lock = 1;
+					lock_prime_input = 0;
+					cout << "\ninput numeri primi sbloccato\n";
+					break;
+				case '.': goto End;
+					break;
+				default: vel += ' ';
+				}
+			}
+
+			// caso input non assegnato correttamente
+			if (option == NotAssigned) do {
+				skip = 0;
+				if (vel.size() == 1)
+					stop = vel.at(0) != '0' and
+					vel.at(0) != '1';
+				else {
+					option = ConvertWStringToEnum(vel);
+					stop = option == NotAssigned;
+					skip = option != NotAssigned;
+				}
+				if (stop) {
+					cout << "\n\n";
+					SetConsoleTextAttribute(hConsole, 64);
+					cout << "NON CORRETTO !!\a";
+					SetConsoleTextAttribute(hConsole, 15);
+					cout << "\nscegli opzioni:: (...)\n";
+					vel = GetLine(1, 10);
+				}
+			} while (stop);
+			if (stop or lock) {
+				cout << "\nscegli opzioni:: (...)\n";
+				vel = GetLine(1, 10);
+				stop = 0;
+			}
+		} while (!skip);
+		cout << "\n\n";
+		ReassigneEnum(option);
+		wstring wtitle{ ConvertEnumToWString(option) };
+
+		// cambio titolo
+		system("cls");
+		LPCWSTR title{ wtitle.c_str() };
+		SetConsoleTitle(title);
+
+		// scelta funzioni e opzioni
+		do {
+			Beep(500, 200);
+			switch (option)
+			{
+			case DoSimpleCode:
+				option = Repeater(simpledeg, ExecuteSimpledeg);
+				break;
+			case DoComplexCode:
+				option = Repeater(message, ExecuteDegree);
+				break;
+			case DoSimpleFactor:
+				option = Repeater(simplefact, ExecuteSimpleFact);
+				break;
+			case DoComplexFactor:
+				option = Repeater(fact_message, ExecuteFactor);
+				break;
+			case DoCodeFactor:
+				option = Repeater(def_sct, ExecuteSimpleDF);
+				break;
+			case DoAll:
+				option = Repeater(AllMessage, ExecuteDegFactor);
+				break;
+			case DebugSimpleCode:
+				option = Loop(desimpledeg, ExecuteSimpledeg, 0);
+				break;
+			case DebugComplexCode:
+				option = Loop(deg_message, ExecuteDegree, 0);
+				break;
+			case DebugSimpleFactor:
+				option = Loop(desimplefact, ExecuteSimpleFact, 0);
+				break;
+			case DebugComplexFactor:
+				option = Loop(defact_message, ExecuteFactor, 0);
+				break;
+			case DebugCodeFactor:
+				option = Loop(def_sct, ExecuteSimpleDF, 0);
+				break;
+			case DebugAll:
+				option = Loop(AllMessage, ExecuteDegFactor, 0);
+				break;
+			case DebugDigits:
+				option = Loop(de_digit, ExecuteDigit, 1);
+				break;
+			case DebugDigitsAndCode:
+				option = Loop(deg_digit, ExecuteDegDigit, 1);
+				break;
+			case DebugDigitsAndFactor:
+				option = Loop(fact_digit, ExecuteFactDigit, 1);
+				break;
+			case DebugComplete:
+				option = Loop(defact_digit, ExecuteAll, 1);
+				break;
+			case ConvertCodeInverse:
+				option = CodeToNumber();
+				break;
+			case FactorPolynomial:
+				option = DecompPolynomial();
+				break;
+			case FactorFraction:
+				option = DecompAlgebraic();
+				break;
+			}
+			if (option == Random) goto End;
+
+		} while (option != NotAssigned);
+	}
+
+	// fine del programma
+End:
+	system("cls");
+	SetConsoleTextAttribute(hConsole, 4);
+	Beep(750, 100);
+	Beep(650, 75);
+	Beep(550, 50);
+	return 0;
+}
+
 #pragma region Functions
 
 #pragma region Math
@@ -493,6 +924,7 @@ static long long intpow(long long base, int exp)
 	long long power{ 1 };
 	while (exp > 0) {
 		power *= base;
+		if (power < 0) return -1;
 		exp--;
 	}
 	return power;
@@ -3555,7 +3987,7 @@ static void Simplify(
 				
 			// caso di potenze
 			if (size(num[i]) == 1 and size(den[j]) == 1) {
-				int grade_difference = num[i][0].degree - den[j][0].degree;
+				int grade_difference = fabs(num[i][0].degree - den[j][0].degree);
 				if (num[i][0].degree > den[j][0].degree) {
 					num[i][0].degree = grade_difference;
 					den[j][0].degree = 0;
@@ -3671,6 +4103,10 @@ static void Approximator
 static vector <long double> ExistenceConditions
 (deque_t <REAL_MONOMIAL> equation)
 {
+	// caso di potenza
+	if (size(equation) == 1) return { 0 };
+
+	// completamento dei termini
 	equation.SortDeq();
 	for (int i = size(equation) - 1; i > 0; i--)
 		for (int j = 1; j < equation[i - 1].degree - equation[i].degree; j++)
@@ -3743,7 +4179,7 @@ template <typename TN, typename TD> static void PrintFraction
 			root = numerator[0][0].coefficient;
 
 	// traduzione numeratore
-	deque_t <deque_t <MONOMIAL>> Numerator;
+	deque_t <deque_t <MONOMIAL>> Numerator{};
 	for (deque_t <TN> d : numerator) {
 		deque_t <MONOMIAL> TEMP;
 		for (TN t : d) {
@@ -3789,11 +4225,12 @@ template <typename TN, typename TD> static void PrintFraction
 			num_.erase(0, 1);
 			sizenum -= 2;
 		}
+		if (num_ == L"0") num_ = L"";
 		if (NC != 1) {
 			num_ = to_wstring(NC) + num_;
 			sizenum += to_wstring(NC).size();
 		}
-		if (num_ == L"0") num_ = L"1";
+		if (num_ == L"") num_ = L"1";
 	}
 
 	// calcolo denominatore
@@ -4475,7 +4912,6 @@ static switchcase DecompPolynomial()
 
 	return NotAssigned;
 }
-
 static switchcase DecompAlgebraic()
 {
 	setlocale(LC_ALL, "");
@@ -4839,289 +5275,4 @@ static switchcase DecompAlgebraic()
 #pragma endregion
 
 #pragma endregion
-
-int main()
-{
-	setlocale(LC_ALL, "");
-	SetConsoleOutputCP(CP_UTF8);
-	wcout.imbue(locale(""));
-	Beep(1000, 50);
-	Beep(1000, 50);
-
-	// dichiarazione stringhe
-	string simpledeg{ "il PROGRAMMA calcola solo la codifica di un intero" };
-	string simplefact{ "il PROGRAMMA calcola solo la fattorizzazione di un intero" };
-	string def_sct{ "il PROGRAMMA calcola solo codifica e fattorizzazione" };
-	string desimpledeg{ "il PROGRAMMA calcola solo la codifica di una serie" };
-	string desimplefact{ "il PROGRAMMA calcola solo la fattorizzazione di una serie" };
-	string defact_message{ "il PROGRAMMA calcola la fattorizzazione di una serie" };
-	defact_message.append("\ne numero, somma e prodotto dei divisori");
-	string deg_message{ "il PROGRAMMA calcola codice, sequenza e grado di una serie" };
-	string fact_message{ "il PROGRAMMA calcola la fattorizzazione di un intero" };
-	fact_message.append("\ne numero, somma e prodotto dei divisori");
-	string message{ "il PROGRAMMA calcola codice, sequenza e grado di un intero" };
-	string AllMessage{ "il PROGRAMMA calcola \"tutti\" i dati di alcuni interi" };
-	string de_digit{ "il PROGRAMMA ricerca numeri con particolari" };
-	de_digit.append(" occorrenze di somma e prodotto cifre");
-	string deg_digit{ "il PROGRAMMA calcola cifre, codice, sequenza e grado" };
-	string fact_digit{ "il PROGRAMMA calcola cifre, fattorizzazione, e divisori" };
-	string defact_digit{ "il PROGRAMMA calcola tutti i dati, cifre comprese" };
-	wstring vel{};
-	wstring text;
-	switchcase option;
-
-	bool start{ true };
-	bool lock_prime_input{ false };
-	long long global{ 1 };
-	long double ComputationTime;
-	size_t Timer{ 100'000'000 };
-	while (true)
-	{
-		bool stop{ false };
-		bool skip{ true };
-		bool redo{ false };
-
-		if (!lock_prime_input) {
-			do {
-				redo = 0;
-				system("cls");
-				SetConsoleTitle(TEXT("START"));
-
-				// // output
-				SetConsoleTextAttribute(hConsole, 2);
-				cout << "*****.*****.*****.*****.******.*****.*****.*****.*****\n\n";
-				cout << "*****.*****.*****.[> CALCOLATRICE <].*****.*****.*****\n\n";
-
-				SetConsoleTextAttribute(hConsole, 10);
-				cout << "Scegliere il limite per la ricerca dei numeri primi\n";
-				cout << "Un limite più alto comporta un tempo di attesa più lungo\n";
-				cout << "inserire un numero tra 2 e 10.000.000.000\n\n";
-
-				SetConsoleTextAttribute(hConsole, 2);
-				cout << "*****.*****.*****.*****.******.*****.*****.*****.*****\n\n";
-				SetConsoleTextAttribute(hConsole, 9);
-				// //
-
-				// inserimento punti
-				wstring Timer_t{ to_wstring(Timer) };
-				for (int i = Timer_t.size() - 3; i > 0; i -= 3)
-					Timer_t.insert(Timer_t.begin() + i, '.');
-
-				// input controllato
-				text = L"ESEMPIO: " + Timer_t + L" = ~1 minuto di attesa\n";
-				wstring G{ GetUserNum(text, 0, GLOBAL_CAP, 0) };
-				if (ConvertWStringToEnum(G) != NotAssigned) redo = 1;
-				else if (G.empty()) redo = 1;
-
-				// termine programma
-				else if (G == L".") goto End;
-
-				// casi 0 e 1
-				else global = stoi(G);
-				if (global == 1) redo = 1;
-				if (global == 0) {
-					lock_prime_input = 1;
-					if (start) redo = 1;
-				}
-			} while (redo);
-			SetConsoleTextAttribute(hConsole, 15);
-
-			// output del tempo
-			if (global != 0 or start) {
-				steady_clock::time_point begin{ steady_clock::now() };
-				GlobalMax = global;
-				SetConsoleCursorInfo(hConsole, &cursorInfo);
-				PrimeNumbers = PrimeNCalculator(GlobalMax + 1'000, 1);
-
-				steady_clock::time_point end{ steady_clock::now() };
-				ComputationTime = WaitingScreen(begin, end);
-				SetConsoleTextAttribute(hConsole, 15);
-				SetConsoleCursorInfo(hConsole, &cursor);
-				start = 0;
-			}
-			if (GlobalMax > 9'000 && global > 1) {
-				ComputationTime /= 1'000'000;
-				Timer = (GlobalMax + 1'000) *60'000 / ComputationTime;
-			}
-		}
-
-		// titolo e audio
-		system("cls");
-		SetConsoleTitle(TEXT("switchcase scegli le opzioni"));
-		Beep(750, 300);
-
-		// scelta
-		cout << "scegliere la modalità di calcolo::\n";
-		SetConsoleTextAttribute(hConsole, 4);
-		cout << "se stringa di un carattere:\n";
-		cout << "\t'0' = blocca input numeri primi ~[~sempre]\n";
-		cout << "\t'1' = sblocca input numeri primi\n";
-		cout << "\t'.' = fine programma [sempre]\n";
-		SetConsoleTextAttribute(hConsole, 9);
-		cout << "altrimenti:\n";
-		cout << "\t\"rnd\" = casuale\n";
-		cout << "\t\"ctn\" = da codice a numero\n";
-		cout << "\t\"pol\" = scomposizione polinomi\n";
-		cout << "\t\"alg\" = scomposizione frazioni algebriche\n";
-		SetConsoleTextAttribute(hConsole, 11);
-		cout << "oppure:\n";
-		cout << "primi caratteri:\n";
-		cout << "\t'c' = calcolo\n";
-		cout << "\t'd' = debug\n";
-		cout << "\t\"dr\" = debug ristretto\n";
-		SetConsoleTextAttribute(hConsole, 14);
-		cout << "caratteri seguenti:\n";
-		cout << "\t'c' = solo codifica\n";
-		cout << "\t'f' = scomposizione in fattori primi\n";
-		cout << "\t\"cc\" = codifica, sequenza e grado\n";
-		cout << "\t\"ff\" = fattoizzazione e dati dei divisori\n";
-		cout << "\t\"cf\" = codifica e fattorizzazione\n";
-		cout << "\t't' = tutti i dati\n";
-		SetConsoleTextAttribute(hConsole, 6);
-		cout << "solo per il debug ristretto:\n";
-		cout << "\t'' = solo dati sulle cifre dei numeri\n";
-		cout << "\t'c' = cifre, codifica, sequenza e grado\n";
-		cout << "\t'f' = fattorizzazione, cifre e divisori\n";
-		cout << "\t't' = tutti i dati compresi quelli sulle cifre\n";
-		SetConsoleTextAttribute(hConsole, 15);
-		cout << "selezionando più operazioni, il tempo di calcolo aumenta\n";
-
-		vel = GetLine(1, 10);
-		option = ConvertWStringToEnum(vel);
-		bool lock{ false };
-		do {
-
-			// gestione input numeri primi
-			lock = 0;
-			if (vel.size() == 1) {
-				skip = 0;
-				switch (vel.at(0)) {
-				case '0':
-					lock = 1;
-					lock_prime_input = 1;
-					cout << "\ninput numeri primi bloccato\n";
-					break;
-				case '1':
-					lock = 1;
-					lock_prime_input = 0;
-					cout << "\ninput numeri primi sbloccato\n";
-					break;
-				case '.': goto End;
-					break;
-				default: vel += ' ';
-				}
-			}
-
-			// caso input non assegnato correttamente
-			if (option == NotAssigned) do {
-				skip = 0;
-				if (vel.size() == 1)
-					stop = vel.at(0) != '0' and
-					vel.at(0) != '1';
-				else {
-					option = ConvertWStringToEnum(vel);
-					stop = option == NotAssigned;
-					skip = option != NotAssigned;
-				}
-				if (stop) {
-					cout << "\n\n";
-					SetConsoleTextAttribute(hConsole, 64);
-					cout << "NON CORRETTO !!\a";
-					SetConsoleTextAttribute(hConsole, 15);
-					cout << "\nscegli opzioni:: (...)\n";
-					vel = GetLine(1, 10);
-				}
-			} while (stop);
-			if (stop or lock) {
-				cout << "\nscegli opzioni:: (...)\n";
-				vel = GetLine(1, 10);
-				stop = 0;
-			}
-		} while (!skip);
-		cout << "\n\n";
-		ReassigneEnum(option);
-		wstring wtitle{ ConvertEnumToWString(option) };
-
-		// cambio titolo
-		system("cls");
-		LPCWSTR title{ wtitle.c_str() };
-		SetConsoleTitle(title);
-
-		// scelta funzioni e opzioni
-		do {
-			Beep(500, 200);
-			switch (option)
-			{
-			case DoSimpleCode:
-				option = Repeater(simpledeg, ExecuteSimpledeg);
-				break;
-			case DoComplexCode:
-				option = Repeater(message, ExecuteDegree);
-				break;
-			case DoSimpleFactor:
-				option = Repeater(simplefact, ExecuteSimpleFact);
-				break;
-			case DoComplexFactor:
-				option = Repeater(fact_message, ExecuteFactor);
-				break;
-			case DoCodeFactor:
-				option = Repeater(def_sct, ExecuteSimpleDF);
-				break;
-			case DoAll:
-				option = Repeater(AllMessage, ExecuteDegFactor);
-				break;
-			case DebugSimpleCode:
-				option = Loop(desimpledeg, ExecuteSimpledeg, 0);
-				break;
-			case DebugComplexCode:
-				option = Loop(deg_message, ExecuteDegree, 0);
-				break;
-			case DebugSimpleFactor:
-				option = Loop(desimplefact, ExecuteSimpleFact, 0);
-				break;
-			case DebugComplexFactor:
-				option = Loop(defact_message, ExecuteFactor, 0);
-				break;
-			case DebugCodeFactor:
-				option = Loop(def_sct, ExecuteSimpleDF, 0);
-				break;
-			case DebugAll:
-				option = Loop(AllMessage, ExecuteDegFactor, 0);
-				break;
-			case DebugDigits:
-				option = Loop(de_digit, ExecuteDigit, 1);
-				break;
-			case DebugDigitsAndCode:
-				option = Loop(deg_digit, ExecuteDegDigit, 1);
-				break;
-			case DebugDigitsAndFactor:
-				option = Loop(fact_digit, ExecuteFactDigit, 1);
-				break;
-			case DebugComplete:
-				option = Loop(defact_digit, ExecuteAll, 1);
-				break;
-			case ConvertCodeInverse:
-				option = CodeToNumber();
-				break;
-			case FactorPolynomial:
-				option = DecompPolynomial();
-				break;
-			case FactorFraction:
-				option = DecompAlgebraic();
-				break;
-			}
-			if (option == Random) goto End;
-
-		} while (option != NotAssigned);
-	}
-
-	// fine del programma
-End:
-	system("cls");
-	SetConsoleTextAttribute(hConsole, 4);
-	Beep(750, 100);
-	Beep(650, 75);
-	Beep(550, 50);
-	return 0;
-}
 // program_END
