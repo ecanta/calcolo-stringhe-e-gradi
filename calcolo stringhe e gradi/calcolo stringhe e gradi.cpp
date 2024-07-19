@@ -1533,6 +1533,12 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 				ElabExponents(Den);
 			}
 		}
+		else {
+			if (Num == testN) Num = numerator;
+			else numerator = Num;
+			if (Den == testD) Den = denominator;
+			else denominator = Den;
+		}
 
 		// ricerca suggerimento giusto
 		int spaces = fabs(((int)Num.size() - (int)Den.size()) / 2);
@@ -1691,6 +1697,8 @@ static wstring GetLine(bool ShowSuggestions, int sizemax)
 				ElabExponents(E_Vel);
 			}
 		}
+		else if (E_Vel == Test) E_Vel = vel;
+		else vel = E_Vel;
 		auto Velpart{ E_Vel };
 		if (Velpart.size() - diff >= 0)
 			Velpart.erase(Velpart.size() - diff);
