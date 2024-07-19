@@ -5368,3 +5368,95 @@ static void DecompAlgebraic(switchcase& argc)
 
 #pragma endregion
 // program_END
+/*
+#define issign(x) (x == '+' or x == '-')
+#include <cmath>
+#include <deque>
+#include <iostream>
+#include <vector>
+using namespace std;
+
+class monomial{
+public:
+	int coefficient;
+	vector<int> degrees;
+};
+vector<char> Variables;
+
+static bool Syntax(wstring pol);
+static deque<monomial> GetMonomials(wstring pol);
+static wstring GetString(deque<monomial> pol);
+
+int main()
+{
+
+	return 0;
+}
+
+static bool Syntax(wstring pol)
+{
+	// controllo caratteri ammessi
+	for (char c : pol) if (!isalnum(c) and c != '^' and !issign(c)) return 1;
+
+	// controllo segni consecutivi
+	for (int i = 1; i < pol.size(); i++)
+		if (issign(pol.at(i)) and issign(pol.at(i - 1))) return 1;
+
+	// suddivisione in parti
+	vector <wstring> parts;
+	for (int i = pol.size() - 1; i >= 0; i--)
+		if (issign(pol.at(i))) {
+			auto part{ pol };
+			part.erase(0, i + 1);
+			pol.erase(i);
+			parts.push_back(part);
+		}
+
+	for (wstring part : parts) {
+
+		// cancellamento coefficiente
+		while (isdigit(part.at(0))) {
+			part.erase(0, 1);
+			if (part.empty()) break;
+		}
+		if (part.empty()) continue;
+
+		// controllo estremi
+		if (part.at(0) == '^' or part.at(part.size() - 1) == '^') return 1;
+
+		// controllo variabili ripetute
+		for (int i = 0; i < part.size(); i++)
+			for (int j = i + 1; j < part.size(); j++)
+				if (isalpha(part.at(i)) and part.at(i) == part.at(j))
+					return 1;
+
+		// controllo limite esponenti
+		for (int i = 0; i < part.size() - 1; i++) if (isdigit(part.at(i)))
+			for (int j = i; j < part.size(); j++) {
+				if (j >= part.size()) break;
+				if (!isdigit(part.at(j))) break;
+				if (j - i >= 2) return 1;
+			}
+
+		// controllo esponenti corretti
+		for (int i = 1; i < part.size(); i++) if (
+			isdigit(part.at(i)) and
+			!isdigit(part.at(i - 1)) and
+			part.at(i - 1) != '^'
+			)
+			return 1;
+	}
+
+	return 0;
+}
+static deque<monomial> GetMonomials(wstring pol)
+{
+
+	return {};
+}
+static wstring GetString(deque<monomial> pol)
+{
+
+	return L"";
+}
+*/
