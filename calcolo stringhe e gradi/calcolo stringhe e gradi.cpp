@@ -486,6 +486,10 @@ static void CS_CenterPrinter();
 static void CS_CornerPrinter();
 static void ProgressBar(double ratio, double barWidth);
 static long double WaitingScreen(auto begin, auto end);
+static wstring CTSuperScript(char input);
+static wstring CFSuperScript(wstring script);
+static void ElabExponents(wstring& str);
+static void DeduceFromExponents(wstring& str);
 static void GetFraction(wstring& numerator, wstring& denominator);
 static wstring GetLine(bool ShowSuggestions, int sizemax);
 static wstring GetUserNum
@@ -526,8 +530,7 @@ static void LongComputation
 (wstring ToEvaluate, wstring message, bool ShowErrors, bool NecBoundary);
 static deque_t<MONOMIAL> GetMonomials(wstring polynomial);
 static wstring GetFactor(deque_t<MONOMIAL> inp);
-static wstring GetPolynomial
-(deque_t<deque_t<MONOMIAL>> inp, int& Size);
+static wstring GetPolynomial(deque_t<deque_t<MONOMIAL>> inp);
 static void OpenPolynomial(deque_t<deque_t<MONOMIAL>>& vect);
 static void ClosePolynomial(deque_t<deque_t<MONOMIAL>>& vect);
 static deque_t<MONOMIAL> FillPolynomial(deque_t<MONOMIAL> vect, int s);
@@ -785,11 +788,11 @@ int main()
 		} while (!skip);
 		cout << "\n\n";
 		ReassigneEnum(option);
-		wstring wtitle{ ConvertEnumToWString(option) };
+		auto wtitle{ ConvertEnumToWString(option) };
 
 		// cambio titolo
 		system("cls");
-		LPCWSTR title{ wtitle.c_str() };
+		auto title{ wtitle.c_str() };
 		SetConsoleTitle(title);
 
 		// scelta funzioni e opzioni
@@ -1210,6 +1213,7 @@ static void CS_CenterPrinter()
 
 	// animazione
 	DrawCircleSquare(win_center);
+
 }
 static void CS_CornerPrinter()
 {
@@ -1257,19 +1261,23 @@ static long double WaitingScreen(auto begin, auto end)
 	output << fixed << setprecision(1) << "tempo di calcolo numeri primi = ";
 
 	// calcolo output
-	if (delta <= 10'000) {
+	if (delta <= 10'000) 
+	{
 		output << exception_delta / 1'000;
 		output << " microsecondi\n\n";
 	}
-	else if (delta > 10'000'000 and delta <= 600'000'000) {
+	else if (delta > 10'000'000 and delta <= 600'000'000) 
+	{
 		output << delta / 1'000'000;
 		output << " secondi\n\n";
 	}
-	else if (delta > 600'000'000) {
+	else if (delta > 600'000'000) 
+	{
 		output << delta / 60'000'000;
 		output << " minuti\n\n";
 	}
-	else {
+	else 
+	{
 		output << delta / 1'000;
 		output << " millisecondi\n\n";
 	}
@@ -1328,9 +1336,8 @@ static wstring CFSuperScript(wstring script)
 	}
 	return output;
 }
-static wstring ElabExponents(wstring str, int& Size)
+static void ElabExponents(wstring& str)
 {
-	Size = str.size();
 	int J{ 1 };
 	bool dobreak{ false };
 	for (int I = 0; I < str.size(); I++) {
@@ -1350,10 +1357,7 @@ static wstring ElabExponents(wstring str, int& Size)
 
 				// cambio caratteri e ridimensionamento stringa
 				str.replace(pointer, 1, replacer);
-				if (I < str.size() - 1 and J == 1) {
-					str.erase(I, 1);
-					Size--;
-				}
+				if (I < str.size() - 1 and J == 1) str.erase(I, 1);
 				J++;
 				pointer = I + J - 1 + (J == 1);
 				if (pointer >= str.size()) break;
@@ -1361,7 +1365,18 @@ static wstring ElabExponents(wstring str, int& Size)
 			J = 1;
 		}
 	}
-	return str;
+}
+static void DeduceFromExponents(wstring& str)
+{
+	for (int i = str.size() - 1; i >= 0; i--) {
+		auto script{ wstring(1, str.at(i)) };
+		auto unscript{ CFSuperScript(script) };
+		if (unscript != script) {
+			str.erase(i, 1);
+			str.insert(str.begin() + i, unscript.at(0));
+			str.insert(str.begin() + i, '^');
+		}
+	}
 }
 
 #pragma endregion
@@ -1373,16 +1388,16 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 	SetConsoleOutputCP(CP_UTF8);
 	wcout.imbue(locale(""));
 
+	int sizevel, diff{};
 	numerator = L"";
 	denominator = L"";
-	int i{}, j{}, k;
-	wstring vel, command{ L"rnd" };
-	bool cursor_at_start{ true };
+	wstring vel, command{ L"rnd" }, Num{}, Den{};
+	bool script{ true }, arrow{ false }, cursor_at_start{ true };
 
 	// aggiunta di spazio
 	GetConsoleScreenBufferInfo(hConsole, &csbi);
 	auto START{ csbi.dwCursorPosition };
-	for (int I = 0; I < 10; I++) cout << '\n';
+	cout << string(10, '\n');
 	GetConsoleScreenBufferInfo(hConsole, &csbi);
 	if (csbi.dwCursorPosition.Y >= START.Y)
 		START.Y -= 10 - csbi.dwCursorPosition.Y + START.Y;
@@ -1395,13 +1410,24 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 		char c = _getch();
 		GetConsoleScreenBufferInfo(hConsole, &csbi);
 		auto S{ wstring(csbi.dwSize.X, ' ') + L"\r" };
-		switch (c) {
+
+		bool cond{
+			c == '\b' or c == '\t' or c == '\r' or
+			c == 'K' or c == 'M' or c > 31 or c == -109
+		};
+		if (c == -32) arrow = 1;
+		auto testN{ Num };
+		auto testD{ Den };
+
+		if (cond) switch (c) {
 
 			// '.' termina il programma
 		case '.':
 			numerator = L".";
+			SetConsoleCursorInfo(hConsole, &cursorInfo);
 			SetConsoleCursorPosition(hConsole, start);
 			for (int a = 0; a < 4; a++) wcout << S << '\n';
+			SetConsoleCursorInfo(hConsole, &cursor);
 			return;
 
 			// '\r' termina l'input
@@ -1411,195 +1437,49 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 			if (denominator == L"") denominator = L"1";
 			return;
 
-			// backspace cancella
-		case '\b':
-			vel = cursor_at_start ? numerator : denominator;
-			k = cursor_at_start ? i : j;
-			if (k > 1) {
-				vel.erase(k - 1);
-				k--;
-			}
-			else {
-				vel = L"";
-				k = 0;
-				wcout << '\r' << wstring(csbi.dwSize.X, ' ');
-			}
-			if (cursor_at_start) {
-				numerator = vel;
-				i = k;
-			}
-			else {
-				denominator = vel;
-				j = k;
-			}
-			break;
-
-			// tab per scegliere i suggerimenti
-		case '\t':
-			numerator = command;
-			i = command.size();
-			break;
-
-			// ctrl + '\b' cancella tutto
-		case 127:
-			if (cursor_at_start) {
-				numerator = L"";
-				i = 0;
-			}
-			else {
-				denominator = L"";
-				j = 0;
-			}
-			wcout << '\r' << wstring(csbi.dwSize.X, ' ');
-			break;
-
-			// altrimenti la stringa aumenta dimensione
-		default:
-			if ((c < 65 or c > 90) and c > 31 and c != ' ') {
-				if (cursor_at_start) {
-					numerator += c;
-					i++;
-				}
-				else {
-					denominator += c;
-					j++;
-				}
-			}
-		}
-
-		// calcolo dimensione stringhe
-		int sizenum = numerator.size();
-		int sizeden = denominator.size();
-		auto Num{ numerator };
-		auto Den{ denominator };
-		if (BOOLALPHA) {
-			Num = ElabExponents(numerator, sizenum);
-			Den = ElabExponents(denominator, sizeden);
-		}
-		int spaces{ (sizenum - sizeden) / 2 };
-		spaces = fabs(spaces);
-
-
-		// ricerca suggerimento giusto
-		bool script{ true };
-		if (sizenum > 0) for (auto comma : commands) {
-			command = comma;
-			auto back{ command };
-			if (back.size() == sizenum) continue;
-			if (back.size() > sizenum) back.erase(sizenum);
-			if (back == Num) {
-				script = 0;
-				break;
-			}
-		}
-
-		// stampa frazione algebrica
-		SetConsoleCursorInfo(hConsole, &cursorInfo);
-		if (sizenum > sizeden) {
-			SetConsoleCursorPosition(hConsole, start);
-			if (!script) {
-				SetConsoleTextAttribute(hConsole, 6);
-				wcout << S << command << '\r';
-				SetConsoleTextAttribute(hConsole, 15);
-			}
-			else wcout << S;
-			wcout << Num << '\n';
-			wcout << S << wstring(sizenum, '-') << '\n';
-			wcout << S << wstring(spaces, ' ') << Den;
-		}
-		else {
-			SetConsoleCursorPosition(hConsole, start);
-			if (!script) {
-				SetConsoleTextAttribute(hConsole, 6);
-				wcout << S << wstring(spaces, ' ');
-				wcout << command << '\r';
-				SetConsoleTextAttribute(hConsole, 15);
-			}
-			else wcout << S;
-			wcout << wstring(spaces, ' ') << Num << '\n';
-			wcout << S << wstring(sizeden, '-') << '\n';
-			wcout << S << Den;
-		}
-
-		// reset riga
-		if (c == 'H') cursor_at_start = 1;
-		else if (c == 'P') cursor_at_start = 0;
-
-		// reset cursore
-		if (cursor_at_start) {
-			start.X += sizenum;
-			if (sizenum < sizeden) start.X += spaces;
-			SetConsoleCursorPosition(hConsole, start);
-			start.X -= sizenum;
-			if (sizenum < sizeden) start.X -= spaces;
-		}
-		else {
-			start.X += sizeden;
-			if (sizenum > sizeden) start.X += spaces;
-			start.Y += 2;
-			SetConsoleCursorPosition(hConsole, start);
-			if (sizenum > sizeden) start.X -= spaces;
-			start.X -= sizeden;
-			start.Y -= 2;
-		}
-		SetConsoleCursorInfo(hConsole, &cursor);
-	}
-}
-static wstring GetLine(bool ShowSuggestions, int sizemax)
-{
-	int diff{}, sizevel;
-	wstring command{ L"rnd" };
-	wstring vel;
-	bool script, arrow{ false };
-	while (true) if (_kbhit()) {
-		char c = _getch();
-		if (c == '\r') break;
-
-		// ignora alcuni caratteri
-		bool cond{
-			c == '\b' or c == '\t' or
-			c == 'K' or c == 'M' or
-			c > 31 or c == -109
-		};
-		if (c == -32) arrow = 1;
-
-		if (cond) switch (c) {
-
-			// '.' termina il programma
-		case '.': return L".";
-
-			// termine input
-		case '\r': break;
-
 			// '\b' cancella indietro
-		case '\b':
+		case '\b': vel = cursor_at_start ? Num : Den;
+
 			if (vel.size() > 1 and vel.size() - diff > 0)
 				vel.erase(vel.size() - 1 - diff, 1);
 			else if (vel.size() == 1 and diff == 0) vel = L"";
+
+			if (cursor_at_start) Num = vel;
+			else Den = vel;
 			break;
 
 			// tab per scegliere il suggerimento
-		case '\t':
-			if (ShowSuggestions) vel = command;
+		case '\t': numerator = command;
 			break;
 
 			// ctrl + '\b' cancella la prima parte della stringa
-		case 127: vel.erase(0, vel.size() - diff);
+		case 127: vel = cursor_at_start ? Num : Den;
+
+			vel.erase(0, vel.size() - diff);
+			if (cursor_at_start) Num = vel;
+			else Den = vel;
 			break;
 
-		default:
+		default: vel = cursor_at_start ? numerator : denominator;
+			
 			// aggiunta carattere
 			if (!arrow) {
 				auto first{ vel };
 				auto last{ vel };
+				if ((int)vel.size() - diff < 0) diff = vel.size();
 				first.erase(vel.size() - diff);
 				last.erase(0, vel.size() - diff);
 				first += c;
 				vel = first + last;
+
+				if (cursor_at_start) numerator = vel;
+				else denominator = vel;
 				break;
 			}
-
+			
 			// frecce
+			vel = cursor_at_start ? Num : Den;
+			sizevel = vel.size();
 			switch (c) {
 			case 'K': if (diff < sizevel) diff++;
 				break;
@@ -1626,14 +1506,194 @@ static wstring GetLine(bool ShowSuggestions, int sizemax)
 				break;
 			}
 			if (arrow) arrow = 0;
+			if (cursor_at_start) Num = vel;
+			else Den = vel;
+		}
+
+		// calcolo dimensione stringhe
+		if (BOOLALPHA) {
+			ElabExponents(Num);
+			ElabExponents(Den);
+
+			if (Num != testN) {
+				numerator = Num;
+				DeduceFromExponents(numerator);
+			}
+			else {
+				Num = numerator;
+				ElabExponents(Num);
+			}
+			
+			if (Den != testD) {
+				denominator = Den;
+				DeduceFromExponents(denominator);
+			}
+			else {
+				Den = denominator;
+				ElabExponents(Den);
+			}
+		}
+
+		// ricerca suggerimento giusto
+		int spaces = fabs(((int)Num.size() - (int)Den.size()) / 2);
+		script = 1;
+		if (Num.size() > 0) for (auto comma : commands) {
+			command = comma;
+			auto back{ command };
+			if (back.size() == Num.size()) continue;
+			if (back.size() > Num.size()) back.erase(Num.size());
+			if (back == Num) {
+				script = 0;
+				break;
+			}
+		}
+
+		// stampa frazione algebrica
+		SetConsoleCursorInfo(hConsole, &cursorInfo);
+		if (Num.size() > Den.size()) {
+			SetConsoleCursorPosition(hConsole, start);
+			wcout << S;
+			if (!script) {
+				SetConsoleTextAttribute(hConsole, 6);
+				wcout << command << '\r';
+				SetConsoleTextAttribute(hConsole, 15);
+			}
+			wcout << Num << '\n';
+			wcout << S << wstring(Num.size(), '-') << '\n';
+			wcout << S << wstring(spaces, ' ') << Den;
+		}
+		else {
+			SetConsoleCursorPosition(hConsole, start);
+			wcout << S;
+			if (!script) {
+				SetConsoleTextAttribute(hConsole, 6);
+				wcout << wstring(spaces, ' ');
+				wcout << command << '\r';
+				SetConsoleTextAttribute(hConsole, 15);
+			}
+			wcout << wstring(spaces, ' ') << Num << '\n';
+			wcout << S << wstring(Den.size(), '-') << '\n';
+			wcout << S << Den;
+		}
+
+		// reset riga
+		if (c == 'H') cursor_at_start = 1;
+		else if (c == 'P') cursor_at_start = 0;
+
+		// reset cursore
+		COORD startPos{ start };
+		if (cursor_at_start) {
+			startPos.X += Num.size();
+			if (diff < Num.size()) startPos.X -= diff;
+			else startPos.X = 0;
+			if (Num.size() < Den.size()) startPos.X += spaces;
+		}
+		else {
+			startPos.X += Den.size();
+			if (diff < Den.size()) startPos.X -= diff;
+			else startPos.X = 0;
+			if (Num.size() > Den.size()) startPos.X += spaces;
+			startPos.Y += 2;
+		}
+		SetConsoleCursorPosition(hConsole, startPos);
+		SetConsoleCursorInfo(hConsole, &cursor);
+	}
+}
+static wstring GetLine(bool ShowSuggestions, int sizemax)
+{
+	int diff{};
+	wstring vel{}, E_Vel{}, command{ L"rnd" };
+	bool script{ true }, arrow{ false };
+	while (true) if (_kbhit()) {
+		char c = _getch();
+		if (c == '\r') break;
+		auto Test{ E_Vel };
+
+		// ignora alcuni caratteri
+		bool cond{
+			c == '\b' or c == '\t' or
+			c == 'K' or c == 'M' or
+			c > 31 or c == -109
+		};
+		if (c == -32) arrow = 1;
+
+		if (cond) switch (c) {
+
+			// '.' termina il programma
+		case '.': return L".";
+
+			// '\b' cancella indietro
+		case '\b':
+			if (E_Vel.size() > 1 and E_Vel.size() - diff > 0)
+				E_Vel.erase(E_Vel.size() - 1 - diff, 1);
+			else if (E_Vel.size() == 1 and diff == 0) E_Vel = L"";
+			break;
+
+			// tab per scegliere il suggerimento
+		case '\t':
+			if (ShowSuggestions) vel = command;
+			break;
+
+			// ctrl + '\b' cancella la prima parte della stringa
+		case 127: E_Vel.erase(0, E_Vel.size() - diff);
+			break;
+
+		default:
+
+			// aggiunta carattere
+			if (!arrow) {
+				auto first{ vel };
+				auto last{ vel };
+				first.erase(vel.size() - diff);
+				last.erase(0, vel.size() - diff);
+				first += c;
+				vel = first + last;
+				break;
+			}
+
+			// frecce
+			switch (c) {
+			case 'K': if (diff < E_Vel.size()) diff++;
+				break;
+			case 'M': if (diff > 0) diff--;
+				break;
+
+				// canc cancella in avanti
+			case 'S':
+				if (diff <= 0) break;
+				E_Vel.erase(E_Vel.size() - diff, 1);
+				diff--;
+				break;
+
+				// ctrl + canc cancella la
+				// seconda parte della stringa
+			case -109:
+				E_Vel.erase(E_Vel.size() - diff);
+				diff = 0;
+				break;
+
+			case 's': diff = E_Vel.size();
+				break;
+			case 't': diff = 0;
+				break;
+			}
+			if (arrow) arrow = 0;
 		}
 
 		// calcolo stringhe
-		auto E_Vel{ vel };
-		sizevel = vel.size();
-		if (BOOLALPHA) E_Vel = ElabExponents(vel, sizevel);
+		if (BOOLALPHA) {
+			if (E_Vel != Test) {
+				vel = E_Vel;
+				DeduceFromExponents(vel);
+			}
+			else {
+				E_Vel = vel;
+				ElabExponents(E_Vel);
+			}
+		}
 		auto Velpart{ E_Vel };
-		if (sizevel - diff >= 0) Velpart.erase(sizevel - diff);
+		if (Velpart.size() - diff >= 0)
+			Velpart.erase(Velpart.size() - diff);
 		else Velpart = L"";
 
 		// stampa dei caratteri immessi
@@ -1641,20 +1701,19 @@ static wstring GetLine(bool ShowSuggestions, int sizemax)
 			vel = L"";
 			E_Vel = L"";
 			Velpart = L"";
-			sizevel = 0;
 			diff = 0;
 			wcout << '\r' << wstring(sizemax, ' ');
 		}
 		script = 1;
 		SetConsoleCursorInfo(hConsole, &cursorInfo);
-		if (ShowSuggestions and sizevel > 0)
+		if (ShowSuggestions and vel.size() > 0)
 
 			// ricerca suggerimento giusto
 			for (auto comma : commands) {
 				command = comma;
 				auto back{ command };
-				if (back.size() == sizevel) continue;
-				if (back.size() > sizevel) back.erase(sizevel);
+				if (back.size() == vel.size()) continue;
+				if (back.size() > vel.size()) back.erase(vel.size());
 				if (back == E_Vel) {
 					SetConsoleTextAttribute(hConsole, 6);
 					wcout << '\r' << wstring(sizemax, ' ');
@@ -1729,7 +1788,7 @@ static void SetDebug(string message, switchcase& opt, bool& do_return,
 	ReassigneEnum(opt);
 	if (opt != NotAssigned) {
 		system("cls");
-		LPCWSTR title{ Input.c_str() };
+		auto title{ Input.c_str() };
 		SetConsoleTitle(title);
 		do_return = 1;
 		return;
@@ -1748,7 +1807,7 @@ static void SetDebug(string message, switchcase& opt, bool& do_return,
 	ReassigneEnum(opt);
 	if (opt != NotAssigned) {
 		system("cls");
-		LPCWSTR title{ Input.c_str() };
+		auto title{ Input.c_str() };
 		SetConsoleTitle(title);
 		do_return = 1;
 		return;
@@ -3147,8 +3206,7 @@ static wstring GetFactor(deque_t<MONOMIAL> inp)
 	if (output.at(0) == '+') output.erase(0, 1);
 	return output;
 }
-static wstring GetPolynomial
-(deque_t<deque_t<MONOMIAL>> inp, int& Size)
+static wstring GetPolynomial(deque_t<deque_t<MONOMIAL>> inp)
 {
 	wstring output{};
 	bool set_modifier{ false };
@@ -3179,13 +3237,9 @@ static wstring GetPolynomial
 	}
 
 	// caso nullo
-	if (output.empty()) {
-		Size = 1;
-		return L"0";
-	}
-
-	if (BOOLALPHA) output = ElabExponents(output, Size);
-	else Size = output.size();
+	if (output.empty()) return L"0";
+	
+	if (BOOLALPHA) ElabExponents(output);
 	return output;
 }
 
@@ -4097,7 +4151,7 @@ template<typename TN, typename TD> static void PrintFraction
 
 	// calcolo numeratore
 	double root{};
-	int I{ 1 }, Root, sizenum{}, sizeden;
+	int I{ 1 }, Root, sizenum{}, sizeden{};
 	bool is_minus{ false };
 	size_t Sizenum, Sizeden;
 	wstring den_, num_;
@@ -4146,7 +4200,7 @@ template<typename TN, typename TD> static void PrintFraction
 
 	// calcolo numeratore
 	else {
-		num_ = GetPolynomial(Numerator, sizenum);
+		num_ = GetPolynomial(Numerator);
 		if (size(numerator) == 1 and NC == 1) {
 			num_.erase(num_.size() - 1);
 			num_.erase(0, 1);
@@ -4162,7 +4216,7 @@ template<typename TN, typename TD> static void PrintFraction
 
 	// calcolo denominatore
 	den_ = L"";
-	auto tempden = GetPolynomial(denominator, sizeden);
+	auto tempden = GetPolynomial(denominator);
 	if (tempden != L"(1)") den_ = tempden;
 	else sizeden -= 3;
 	if (size(denominator) == 1 and DC == 1) {
@@ -4692,9 +4746,9 @@ static deque_t<deque_t<MONOMIAL>> DecompPolynomial
 		pdata = PolynomialSum(polydata);
 
 		// risultato della somma
-		int size;
-		polynomial = ElabExponents(GetFactor(pdata), size);
-		if (::size(polydata) != ::size(pdata) and input) {
+		polynomial = GetFactor(pdata);
+		ElabExponents(polynomial);
+		if (size(polydata) != size(pdata) and input) {
 			SetConsoleTextAttribute(hConsole, 2);
 			if (polynomial.empty()) polynomial = L"0";
 			wcout << "qualche calcolo dopo: " << polynomial << '\n';
@@ -4706,9 +4760,8 @@ static deque_t<deque_t<MONOMIAL>> DecompPolynomial
 		deque_t<deque_t<MONOMIAL>> BackT;
 		deque_t<deque_t<MONOMIAL>> Back_T;
 		HT = Total(polydata);
-		int sizep;
-		polynomial = GetPolynomial(HT, sizep);
-		if (::size(HT) != 1 and input) {
+		polynomial = GetPolynomial(HT);
+		if (size(HT) != 1 and input) {
 			SetConsoleTextAttribute(hConsole, 12);
 			wcout << "raccoglimento totale: " << polynomial << '\n';
 			empty = 0;
@@ -4716,11 +4769,11 @@ static deque_t<deque_t<MONOMIAL>> DecompPolynomial
 		do {
 
 			// raccoglimento parziale
-			polydata = HT[::size(HT) - 1];
+			polydata = HT[size(HT) - 1];
 			HT.pop_back();
 			BackT = Partial(polydata);
 			for (auto a : BackT) HT.push_back(a);
-			pol = GetPolynomial(HT, sizep);
+			pol = GetPolynomial(HT);
 			if (pol != polynomial and input) {
 				polynomial = pol;
 				SetConsoleTextAttribute(hConsole, 4);
@@ -4737,7 +4790,7 @@ static deque_t<deque_t<MONOMIAL>> DecompPolynomial
 				for (auto b : BackT) HT.push_back(b);
 			}
 			ClosePolynomial(HT);
-			pol = GetPolynomial(HT, sizep);
+			pol = GetPolynomial(HT);
 			if (pol != polynomial and !Xout and input) {
 				polynomial = pol;
 				SetConsoleTextAttribute(hConsole, 3);
@@ -4754,7 +4807,7 @@ static deque_t<deque_t<MONOMIAL>> DecompPolynomial
 				for (auto b : BackT) HT.push_back(b);
 			}
 			ClosePolynomial(HT);
-			pol = GetPolynomial(HT, sizep);
+			pol = GetPolynomial(HT);
 			if (pol != polynomial and !Xout and input) {
 				polynomial = pol;
 				SetConsoleTextAttribute(hConsole, 9);
@@ -4780,7 +4833,7 @@ static deque_t<deque_t<MONOMIAL>> DecompPolynomial
 				extend = 1;
 			}
 			ClosePolynomial(HT);
-			pol = GetPolynomial(HT, sizep);
+			pol = GetPolynomial(HT);
 
 			// somma per differenza
 			if (pol != polynomial and !Xout and input) {
@@ -4792,7 +4845,7 @@ static deque_t<deque_t<MONOMIAL>> DecompPolynomial
 			}
 
 			// scomposizione con ruffini
-			POL = GetPolynomial(HT, sizep);
+			POL = GetPolynomial(HT);
 			Back_T = HT;
 			HT = {};
 			extend = 1;
@@ -4802,7 +4855,7 @@ static deque_t<deque_t<MONOMIAL>> DecompPolynomial
 					continue;
 				}
 				BackT = Ruffini(a);
-				if (::size(a) > 0 and ::size(BackT) == 0) {
+				if (size(a) > 0 and size(BackT) == 0) {
 					Xout = 1;
 					break;
 				}
@@ -4814,7 +4867,7 @@ static deque_t<deque_t<MONOMIAL>> DecompPolynomial
 
 			// ruffini
 			ClosePolynomial(HT);
-			pol = GetPolynomial(HT, sizep);
+			pol = GetPolynomial(HT);
 			if (pol != polynomial and !Xout and input) {
 				polynomial = pol;
 				SetConsoleTextAttribute(hConsole, 6);
@@ -4832,7 +4885,7 @@ static deque_t<deque_t<MONOMIAL>> DecompPolynomial
 			for (auto b : BackT) HT.push_back(b);
 		}
 		ClosePolynomial(HT);
-		pol = GetPolynomial(HT, sizep);
+		pol = GetPolynomial(HT);
 		if (pol != polynomial and !Xout and input) {
 			polynomial = pol;
 			SetConsoleTextAttribute(hConsole, 79);
@@ -4850,7 +4903,7 @@ static deque_t<deque_t<MONOMIAL>> DecompPolynomial
 			for (auto b : BackT) HT.push_back(b);
 		}
 		ClosePolynomial(HT);
-		pol = GetPolynomial(HT, sizep);
+		pol = GetPolynomial(HT);
 		if (pol != polynomial and !Xout and input) {
 			polynomial = pol;
 			SetConsoleTextAttribute(hConsole, 79);
@@ -5200,8 +5253,7 @@ static void DecompAlgebraic(switchcase& argc)
 		else if (print) {
 
 			// caso di frazione semplificata ma non scomposta
-			int size{};
-			if (::size(DScomp) > 0) {
+			if (size(DScomp) > 0) {
 				GetConsoleScreenBufferInfo(hConsole, &csbi);
 				csbi.dwCursorPosition.Y--;
 				SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
@@ -5217,7 +5269,7 @@ static void DecompAlgebraic(switchcase& argc)
 			}
 
 			// caso di denominatore coefficiente
-			else if (DCOEFF != 1 and ::size(NScomp) != 0) {
+			else if (DCOEFF != 1 and size(NScomp) != 0) {
 				GetConsoleScreenBufferInfo(hConsole, &csbi);
 				csbi.dwCursorPosition.Y--;
 				SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
@@ -5233,7 +5285,7 @@ static void DecompAlgebraic(switchcase& argc)
 			}
 
 			// caso di frazione normale
-			else if (DCOEFF != 1 and ::size(NScomp) == 0) {
+			else if (DCOEFF != 1 and size(NScomp) == 0) {
 				GetConsoleScreenBufferInfo(hConsole, &csbi);
 				csbi.dwCursorPosition.Y--;
 				SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
@@ -5249,18 +5301,19 @@ static void DecompAlgebraic(switchcase& argc)
 			}
 
 			// caso costante
-			else if (::size(NScomp) == 0) cout << ' ' << NCOEFF;
+			else if (size(NScomp) == 0) cout << ' ' << NCOEFF;
 
 			// caso fattore
-			else if (::size(NScomp) == 1) {
-				auto output = ElabExponents(GetFactor(NScomp[0]), size);
+			else if (size(NScomp) == 1) {
+				auto output = GetFactor(NScomp[0]);
+				ElabExponents(output);
 				if (NCOEFF != 1)
 					output = to_wstring(NCOEFF) + L"(" + output + L")";
 				wcout << ' ' << output << "\n\n";
 			}
 
 			// caso polinomio
-			else wcout << ' ' << GetPolynomial(NScomp, size);
+			else wcout << ' ' << GetPolynomial(NScomp);
 		}
 
 		// caso non scomponibile
@@ -5283,8 +5336,7 @@ static void DecompAlgebraic(switchcase& argc)
 
 		// output polinomio di resto
 		if (!skip) for (auto a : Quotient) {
-			int size{};
-			auto pol{ GetPolynomial({ {a} }, size) };
+			auto pol{ GetPolynomial({ {a} }) };
 			pol.erase(pol.size() - 1);
 			pol.erase(0, 1);
 			bool is_minus{ false };
