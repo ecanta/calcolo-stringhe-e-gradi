@@ -39,31 +39,32 @@
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #define integer(x) (floor(x) == ceil(x))
+#define issign(x) (x == '+' or x == '-')
 
 // inclusioni
-#include <algorithm>
-#include <atomic>
-#include <chrono> // per le misurazioni di tempo
-#include <cmath> // per i calcoli
-#include <condition_variable> // per il multithreading
-#include <conio.h> // per l'input avanzato
-#include <deque>
-#include <iomanip>
-#include <iostream> // per l'output
-#include <io.h> // per unicode
-#include <list>
-#include <locale> // per unicode
-#include <new> // per nothrow
-#include <ppl.h> // per la parallelizzazione
-#include <queue>
-#include <random> // per i generatori casuali
-#include <regex> // per la convalidazione
-#include <sstream>
-#include <string>
-#include <thread> // per il multithreading
-#include <unordered_map> // per la conversione degli enum
-#include <vector>
-#include <Windows.h> // per hConsole
+#include<algorithm>
+#include<atomic>
+#include<chrono> // per le misurazioni di tempo
+#include<cmath> // per i calcoli
+#include<condition_variable> // per il multithreading
+#include<conio.h> // per l'input avanzato
+#include<deque>
+#include<iomanip>
+#include<iostream> // per l'output
+#include<io.h> // per unicode
+#include<list>
+#include<locale> // per unicode
+#include<new> // per nothrow
+#include<ppl.h> // per la parallelizzazione
+#include<queue>
+#include<random> // per i generatori casuali
+#include<regex> // per la convalidazione
+#include<sstream>
+#include<string>
+#include<thread> // per il multithreading
+#include<unordered_map> // per la conversione degli enum
+#include<vector>
+#include<Windows.h> // per hConsole
 
 // namespace globali
 using namespace std;
@@ -89,8 +90,6 @@ bool BOOLALPHA(true);
 bool PRINTN(true);
 
 // monomi
-struct MONOMIAL;
-struct REAL_MONOMIAL;
 struct MONOMIAL {
 	int degree;
 	int coefficient;
@@ -103,7 +102,7 @@ struct MONOMIAL {
 struct REAL_MONOMIAL {
 	long double degree;
 	long double coefficient;
-	bool operator == (const MONOMIAL& other) const
+	bool operator == (const REAL_MONOMIAL& other) const
 	{
 		return coefficient == other.coefficient and
 			degree == other.degree;
@@ -264,6 +263,7 @@ unordered_map<wstring, wstring> ConvertFromSuperScript{
 // classi
 class TestInputReader
 {
+private:
 	queue<char> buffer;
 public:
 	void enqueue(char c)
@@ -451,27 +451,396 @@ public:
 		}
 	}
 };
-template<typename Ty> class deque_t : public deque<Ty>
+string Variables{};
+template<typename T> class tensor
 {
-public:
-	deque_t() : deque<Ty>() {}
-	deque_t(initializer_list<Ty> init) : deque<Ty>(init) {}
+private:
+	T* data;
+	size_t capacity;
+	size_t count;
+	size_t front_index;
+	size_t back_index;
+	void resize(size_t new_capacity)
+	{
+		T* new_data = new T[new_capacity];
+		for (size_t i = 0; i < count; ++i)
+			new_data[i] = move(data[i]);
+		delete[] data;
+		data = new_data;
+		capacity = new_capacity;
+		front_index = 0;
+		back_index = count;
+	}
 
-	void SortDeq()
+public:
+	tensor() :
+		data(new T[10]),
+		capacity(10),
+		count(0),
+		front_index(0),
+		back_index(0)
+	{}
+	tensor(initializer_list<T> init) : tensor()
+	{
+		for (const T& value : init) push_back(value);
+	}
+	~tensor()
+	{
+		delete[] data;
+	}
+
+	size_t size() const
+	{
+		return count;
+	}
+	T& at(size_t index)
+	{
+		if (index >= count) throw out_of_range("Index out of range");
+		return data[(front_index + index) % capacity];
+	}
+	bool empty() const
+	{
+		return count == 0;
+	}
+
+	void erase()
+	{
+		count = 0;
+		front_index = 0;
+		back_index = 0;
+	}
+	void erase(size_t pos)
+	{
+		if (pos >= count) throw out_of_range("Index out of range");
+		size_t num_elements_to_remove = count - pos;
+		for (size_t i = pos; i < count - 1; i++)
+			data[(front_index + i) % capacity] = 
+				move(data[(front_index + i + 1) % capacity]);
+		count--;
+		back_index = (front_index + count) % capacity;
+	}
+	void erase(size_t pos, size_t n)
+	{
+		if (pos >= count) throw out_of_range("Index out of range");
+		if (pos + n > count) n = count - pos;
+		for (size_t i = pos; i < count - n; i++)
+			data[(front_index + i) % capacity] = 
+			move(data[(front_index + i + n) % capacity]);
+		count -= n;
+		back_index = (front_index + count) % capacity;
+	}
+
+	T& operator[](size_t index)
+	{
+		return at(index);
+	}
+	const T& operator[](size_t index) const
+	{
+		return at(index);
+	}
+
+	void push_back(const T& value)
+	{
+		if (count == capacity) resize(capacity * 2);
+		data[back_index] = value;
+		back_index = (back_index + 1) % capacity;
+		count++;
+	}
+	void pop_back()
+	{
+		if (count == 0) throw out_of_range("tensor is empty");
+		back_index = back_index == 0 ? capacity - 1 : back_index - 1;
+		count--;
+	}
+	void push_front(const T& value)
+	{
+		if (count == capacity) resize(capacity * 2);
+		front_index = front_index == 0 ? capacity - 1 : front_index - 1;
+		data[front_index] = value;
+		count++;
+	}
+	void pop_front()
+	{
+		if (count == 0) throw out_of_range("tensor is empty");
+		front_index = (front_index + 1) % capacity;
+		count--;
+	}
+
+	tensor& operator++() {
+		if (count == capacity) resize(capacity * 2);
+		data[back_index] = T();
+		back_index = (back_index + 1) % capacity;
+		count++;
+		return *this;
+	}
+	tensor operator++(int)
+	{
+		tensor temp = *this;
+		(*this)++;
+		return temp;
+	}
+	tensor& operator--()
+	{
+		pop_back();
+		return *this;
+	}
+	tensor operator--(int)
+	{
+		tensor temp = *this;
+		(*this)--;
+		return temp;
+	}
+
+	bool operator==(const tensor& other) const
+	{
+		return count == other.count;
+	}
+	bool operator!=(const tensor& other) const
+	{
+		return count != other.count;
+	}
+	tensor& operator+=(const T& value)
+	{
+		push_back(value);
+		return *this;
+	}
+	tensor operator+(const T& value) const
+	{
+		tensor result = *this;
+		result += value;
+		return result;
+	}
+	tensor& operator-=(size_t n)
+	{
+		if (n > count) count = 0;
+		else count -= n;
+		back_index = (front_index + count) % capacity;
+		return *this;
+	}
+
+	bool operator<(const tensor& other) const
+	{
+		return count < other.count;
+	}
+	bool operator<=(const tensor& other) const
+	{
+		return count <= other.count;
+	}
+	bool operator>(const tensor& other) const
+	{
+		return count > other.count;
+	}
+	bool operator>=(const tensor& other) const
+	{
+		return count >= other.count;
+	}
+	bool operator&&(const tensor& other) const
+	{
+		return !this->empty() and !other.empty();
+	}
+	bool operator||(const tensor& other) const
+	{
+		return !this->empty() or !other.empty();
+	}
+	bool operator%(const tensor& other) const
+	{
+		return this->empty() != other.empty();
+	}
+
+	class iterator
+	{
+	private:
+		T* data;
+		size_t capacity;
+		size_t front_index;
+
+	public:
+		size_t index;
+		iterator(
+			T* data, 
+			size_t index, 
+			size_t capacity, 
+			size_t front_index = 0
+		): 
+			data(data), 
+			index(index), 
+			capacity(capacity), 
+			front_index(front_index)
+		{}
+
+		iterator& operator++()
+		{
+			index = (index + 1) % capacity;
+			return *this;
+		}
+		iterator operator++(int)
+		{
+			iterator temp = *this;
+			(*this)++;
+			return temp;
+		}
+		iterator& operator--()
+		{
+			index = (index + capacity - 1) % capacity;
+			return *this;
+		}
+		iterator operator--(int)
+		{
+			iterator temp = *this;
+			(*this)--;
+			return temp;
+		}
+		iterator operator+(size_t n) const
+		{
+			return iterator(data, (index + n) % capacity, capacity);
+		}
+		iterator& operator+=(size_t n)
+		{
+			index = (index + n) % capacity;
+			return *this;
+		}
+		iterator operator-(size_t n) const
+		{
+			return iterator(data, (index + capacity - n) % capacity, capacity);
+		}
+		iterator& operator-=(size_t n)
+		{
+			index = (index + capacity - n) % capacity;
+			return *this;
+		}
+		
+		T& operator*()
+		{
+			return data[index];
+		}
+		bool operator!=(const iterator& other) const
+		{
+			return index != other.index or data != other.data;
+		}
+		bool operator==(const iterator& other) const
+		{
+			return index == other.index and data == other.data;
+		}
+		
+		bool operator<(const iterator& other) const
+		{
+			if (data != other.data) return data < other.data;
+			if (front_index == other.front_index) return index < other.index;
+			return index < other.index and index < front_index + count;
+		}
+		bool operator<=(const iterator& other) const
+		{
+			return *this < other or *this == other;
+		}
+		bool operator>(const iterator& other) const
+		{
+			return !(*this <= other);
+		}
+		bool operator>=(const iterator& other) const
+		{
+			return !(*this < other);
+		}
+	};
+
+	iterator begin()
+	{
+		return iterator(data, front_index, capacity);
+	}
+	iterator end()
+	{
+		return iterator(data, back_index, capacity);
+	}
+
+	void erase(iterator it) 
+	{
+		if (it == end()) throw out_of_range("Iterator out of range");
+		size_t pos = it.index;
+		for (size_t i = pos; i < count - 1; i++)
+			data[(front_index + i) % capacity] = 
+			move(data[(front_index + i + 1) % capacity]);
+		count--;
+		back_index = (front_index + count) % capacity;
+	}
+	void insert(iterator pos, const T& value) 
+	{
+		if (count == capacity) resize(capacity * 2);
+		size_t insert_index{ pos.index };
+		size_t end_index{ (back_index + capacity - 1) % capacity };
+
+		if (insert_index == end_index) data[insert_index] = value;
+		else {
+			for (size_t i = end_index; i >= insert_index; i--)
+				data[(i + 1) % capacity] = data[i];
+			data[insert_index] = value;
+		}
+
+		count++;
+		back_index = (back_index + 1) % capacity;
+	}
+	void erase(iterator first, iterator last)
+	{
+		if (first == end() or last == end() or first > last)
+			throw out_of_range("Invalid iterator range");
+
+		size_t pos1{ first.index };
+		size_t pos2{ last.index };
+		size_t num_elements_to_remove{
+			pos2 >= pos1 ?
+			(pos2 - pos1) : (capacity + pos2 - pos1);
+		}
+
+		for (size_t i = pos1; i < count - num_elements_to_remove; i++)
+			data[(front_index + i) % capacity] = 
+			move(data[(front_index + i + num_elements_to_remove) % capacity]);
+		
+		count -= num_elements_to_remove;
+		back_index = (front_index + count) % capacity;
+	}
+	void remove(const T& value)
+	{
+		iterator it = begin();
+		while (it != end()) {
+			if (*it == value) erase(it, it + 1);
+			it++;
+		}
+	}
+	
+	void SimpleSort()
 	{
 		for (int i = 0; i < this->size(); i++)
 			for (int j = i + 1; j < this->size(); j++)
 				if (this->at(i).degree < this->at(j).degree)
 					swap(this->at(i), this->at(j));
 	}
+	void SortByDegree()
+	{
+		for (int i = 0; i < this->size(); i++)
+			for (int j = i + 1; j < this->size(); j++)
+				if (this->at(i).degree() < this->at(j).degree())
+					swap(this->at(i), this->at(j));
+	}
+	void SortByExponents()
+	{
+		for (int i = 0; i < this->size(); i++)
+			for (int j = i + 1; j < this->size(); j++) {
+				bool swap{ false };
+				for (int k = 0; k < Variables.size(); k++) {
+					if (this->at(i).exp[k] > this->at(j).exp[k]) break;
+					if (this->at(i).exp[k] == this->at(j).exp[k]) continue;
+					swap = 1;
+				}
+				if (swap) ::swap(this->at(i), this->at(j));
+			}
+	}
 };
+
 #pragma endregion
 #pragma region Declarations
 
 static size_t Factorial(size_t n);
 static int Gcd(int A, int B);
-static int Gcd(deque_t<int> terms);
-static int Gcd(deque_t<MONOMIAL> terms);
+static int Gcd(tensor<int> terms);
+static int Gcd(tensor<MONOMIAL> terms);
 static long long intpow(long long base, int exp);
 static wstring ConvertEnumToWString(switchcase Enum);
 static switchcase ConvertWStringToEnum(wstring str);
@@ -528,46 +897,46 @@ static void CodeConverter
 (wstring ToEvaluate, wstring message, bool ShowErrors, bool NecBoundary);
 static void LongComputation
 (wstring ToEvaluate, wstring message, bool ShowErrors, bool NecBoundary);
-static deque_t<MONOMIAL> GetMonomials(wstring polynomial);
-static wstring GetFactor(deque_t<MONOMIAL> inp);
-static wstring GetPolynomial(deque_t<deque_t<MONOMIAL>> inp);
-static void OpenPolynomial(deque_t<deque_t<MONOMIAL>>& vect);
-static void ClosePolynomial(deque_t<deque_t<MONOMIAL>>& vect);
-static deque_t<MONOMIAL> FillPolynomial(deque_t<MONOMIAL> vect, int s);
-static deque_t<MONOMIAL> PolynomialSum(deque_t<MONOMIAL> inp);
-static deque_t<MONOMIAL> PolynomialMultiply
-(deque_t<deque_t<MONOMIAL>> Polynomial);
+static tensor<MONOMIAL> GetMonomials(wstring polynomial);
+static wstring GetFactor(tensor<MONOMIAL> inp);
+static wstring GetPolynomial(tensor<tensor<MONOMIAL>> inp);
+static void OpenPolynomial(tensor<tensor<MONOMIAL>>& vect);
+static void ClosePolynomial(tensor<tensor<MONOMIAL>>& vect);
+static tensor<MONOMIAL> FillPolynomial(tensor<MONOMIAL> vect, int s);
+static tensor<MONOMIAL> PolynomialSum(tensor<MONOMIAL> inp);
+static tensor<MONOMIAL> PolynomialMultiply
+(tensor<tensor<MONOMIAL>> Polynomial);
 static void PolynomialDivide
 (
-	deque_t<MONOMIAL> dividend,
-	deque_t<MONOMIAL> divisor,
-	deque_t<MONOMIAL>& quotient,
-	deque_t<MONOMIAL>& rest
+	tensor<MONOMIAL> dividend,
+	tensor<MONOMIAL> divisor,
+	tensor<MONOMIAL>& quotient,
+	tensor<MONOMIAL>& rest
 );
-static deque_t<deque_t<MONOMIAL>> Total(deque_t<MONOMIAL> inp);
-static deque_t<deque_t<MONOMIAL>> Partial(deque_t<MONOMIAL> inpt);
-static deque_t<deque_t<MONOMIAL>> Binomial(deque_t<MONOMIAL> InpT);
-static deque_t<deque_t<MONOMIAL>> Trinomial(deque_t<MONOMIAL> InpT);
-static deque_t<deque_t<MONOMIAL>> SquareDifference(deque_t<MONOMIAL> InpT);
-static deque_t<deque_t<MONOMIAL>> Ruffini(deque_t<MONOMIAL> vect);
-static deque_t<deque_t<MONOMIAL>> CompleteTheSquare(deque_t<MONOMIAL> vect);
-static deque_t<deque_t<MONOMIAL>> TrinomialSquare(deque_t<MONOMIAL> vect);
-static deque_t<MONOMIAL> Complementary
-(deque_t<deque_t <MONOMIAL>> Polynomial, deque_t<MONOMIAL> factor, int exp);
+static tensor<tensor<MONOMIAL>> Total(tensor<MONOMIAL> inp);
+static tensor<tensor<MONOMIAL>> Partial(tensor<MONOMIAL> inpt);
+static tensor<tensor<MONOMIAL>> Binomial(tensor<MONOMIAL> InpT);
+static tensor<tensor<MONOMIAL>> Trinomial(tensor<MONOMIAL> InpT);
+static tensor<tensor<MONOMIAL>> SquareDifference(tensor<MONOMIAL> InpT);
+static tensor<tensor<MONOMIAL>> Ruffini(tensor<MONOMIAL> vect);
+static tensor<tensor<MONOMIAL>> CompleteTheSquare(tensor<MONOMIAL> vect);
+static tensor<tensor<MONOMIAL>> TrinomialSquare(tensor<MONOMIAL> vect);
+static tensor<MONOMIAL> Complementary
+(tensor<tensor <MONOMIAL>> Polynomial, tensor<MONOMIAL> factor, int exp);
 static void Simplify(
-	deque_t<deque_t<MONOMIAL>>& num,
-	deque_t<deque_t<MONOMIAL>>& den,
+	tensor<tensor<MONOMIAL>>& num,
+	tensor<tensor<MONOMIAL>>& den,
 	int& ncoeff, int& dcoeff);
-static int Determinant(deque_t<deque_t<int>> mx);
+static int Determinant(tensor<tensor<int>> mx);
 static void Approximator
-(deque_t<REAL_MONOMIAL>& equation, long double& root);
+(tensor<REAL_MONOMIAL>& equation, long double& root);
 static vector<long double> ExistenceConditions
-(deque_t<REAL_MONOMIAL> equation);
+(tensor<REAL_MONOMIAL> equation);
 template<typename TN, typename TD> static void PrintFraction
 (
 	int NC, int DC, int& LINE, bool WritePlus,
-	deque_t<deque_t<TN>> numerator,
-	deque_t<deque_t<TD>> denominator
+	tensor<tensor<TN>> numerator,
+	tensor<tensor<TD>> denominator
 );
 static void CodeToNumber(switchcase& argc);
 static void Repeater(
@@ -581,7 +950,7 @@ static void Loop(
 	NumberData CPU(long long input),
 	bool select
 );
-static deque_t<deque_t<MONOMIAL>> DecompPolynomial
+static tensor<tensor<MONOMIAL>> DecompPolynomial
 (switchcase& argc, wstring polynomial);
 static void DecompAlgebraic(switchcase& argc);
 
@@ -895,7 +1264,7 @@ static int Gcd(int A, int B)
 	}
 	return A;
 }
-static int Gcd(deque_t<int> terms)
+static int Gcd(tensor<int> terms)
 {
 	if (size(terms) == 0) return 0;
 	if (size(terms) == 1) return terms[0];
@@ -906,7 +1275,7 @@ static int Gcd(deque_t<int> terms)
 	}
 	return GCD;
 }
-static int Gcd(deque_t<MONOMIAL> terms)
+static int Gcd(tensor<MONOMIAL> terms)
 {
 	if (size(terms) == 0) return 0;
 	if (size(terms) == 1) return terms[0].coefficient;
@@ -1646,12 +2015,21 @@ static wstring GetLine(bool ShowSuggestions, int sizemax)
 
 		default:
 
+			// calcolo differenza in più
+			auto copy{ vel };
+			copy.erase(0, vel.size() - diff - 1);
+			int cursor_position{ (int)vel.size() - diff };
+			for (int i = 0; i < (int)copy.size() - 1; i++)
+				if (copy.at(i) == '^' and isdigit(copy.at(i + 1)))
+					cursor_position--;
+
 			// aggiunta carattere
 			if (!arrow) {
+				if (cursor_position < 0) cursor_position = 0;
 				auto first{ vel };
 				auto last{ vel };
-				first.erase(vel.size() - diff);
-				last.erase(0, vel.size() - diff);
+				first.erase(cursor_position);
+				last.erase(0, cursor_position);
 				first += c;
 				vel = first + last;
 				break;
@@ -1688,6 +2066,7 @@ static wstring GetLine(bool ShowSuggestions, int sizemax)
 
 		// calcolo stringhe
 		if (BOOLALPHA) {
+			ElabExponents(E_Vel);
 			if (E_Vel != Test) {
 				vel = E_Vel;
 				DeduceFromExponents(vel);
@@ -3124,9 +3503,9 @@ static void LongComputation
 #pragma endregion
 #pragma region Traduce
 
-static deque_t<MONOMIAL> GetMonomials(wstring polynomial)
+static tensor<MONOMIAL> GetMonomials(wstring polynomial)
 {
-	deque_t<MONOMIAL> output;
+	tensor<MONOMIAL> output;
 	MONOMIAL output_element;
 
 	for (int i = polynomial.size() - 1; i >= 0; i--)
@@ -3185,7 +3564,7 @@ static deque_t<MONOMIAL> GetMonomials(wstring polynomial)
 
 	return output;
 }
-static wstring GetFactor(deque_t<MONOMIAL> inp)
+static wstring GetFactor(tensor<MONOMIAL> inp)
 {
 	wstring output{};
 	wstring xout;
@@ -3214,7 +3593,7 @@ static wstring GetFactor(deque_t<MONOMIAL> inp)
 	if (output.at(0) == '+') output.erase(0, 1);
 	return output;
 }
-static wstring GetPolynomial(deque_t<deque_t<MONOMIAL>> inp)
+static wstring GetPolynomial(tensor<tensor<MONOMIAL>> inp)
 {
 	wstring output{};
 	bool set_modifier{ false };
@@ -3254,20 +3633,20 @@ static wstring GetPolynomial(deque_t<deque_t<MONOMIAL>> inp)
 #pragma endregion
 #pragma region HandPolynomials
 
-static void OpenPolynomial(deque_t<deque_t<MONOMIAL>>& vect)
+static void OpenPolynomial(tensor<tensor<MONOMIAL>>& vect)
 {
 	for (int i = 0; i < size(vect); i++) {
 		if (vect[i][0].degree == -1) {
 			int repeat{ vect[i][0].coefficient };
 			vect.erase(vect.begin() + i);
-			deque_t<MONOMIAL> push{ vect[i] };
+			tensor<MONOMIAL> push{ vect[i] };
 			for (int j = 1; j < repeat; j++) vect.push_front(push);
 		}
 	}
 }
-static void ClosePolynomial(deque_t<deque_t<MONOMIAL>>& vect)
+static void ClosePolynomial(tensor<tensor<MONOMIAL>>& vect)
 {
-	deque_t<MONOMIAL> CommonFactor;
+	tensor<MONOMIAL> CommonFactor;
 	for (int i = 0; i < size(vect); i++)
 		for (int j = size(vect) - 1; j > i; j--)
 			if (vect[i] == vect[j] and vect[i][0].degree != -1) {
@@ -3305,7 +3684,7 @@ static void ClosePolynomial(deque_t<deque_t<MONOMIAL>>& vect)
 				}
 			}
 }
-static deque_t<MONOMIAL> FillPolynomial(deque_t<MONOMIAL> vect, int s)
+static tensor<MONOMIAL> FillPolynomial(tensor<MONOMIAL> vect, int s)
 {
 
 	// riempimento buchi
@@ -3333,7 +3712,7 @@ static deque_t<MONOMIAL> FillPolynomial(deque_t<MONOMIAL> vect, int s)
 	return vect;
 }
 
-static deque_t<MONOMIAL> PolynomialSum(deque_t<MONOMIAL> inp)
+static tensor<MONOMIAL> PolynomialSum(tensor<MONOMIAL> inp)
 {
 
 	// ricerca di monomi simili
@@ -3355,15 +3734,15 @@ static deque_t<MONOMIAL> PolynomialSum(deque_t<MONOMIAL> inp)
 
 	return inp;
 }
-static deque_t<MONOMIAL> PolynomialMultiply
-(deque_t<deque_t<MONOMIAL>> Polynomial)
+static tensor<MONOMIAL> PolynomialMultiply
+(tensor<tensor<MONOMIAL>> Polynomial)
 {
 	if (size(Polynomial) == 0) return { {0, 1} };
 	OpenPolynomial(Polynomial);
 	while (size(Polynomial) > 1) {
 
 		MONOMIAL temp;
-		deque_t<MONOMIAL> Temp;
+		tensor<MONOMIAL> Temp;
 		for (auto A : Polynomial[0])
 			for (auto B : Polynomial[1]) {
 				temp.coefficient = A.coefficient * B.coefficient;
@@ -3378,18 +3757,18 @@ static deque_t<MONOMIAL> PolynomialMultiply
 }
 static void PolynomialDivide
 (
-	deque_t<MONOMIAL> dividend,
-	deque_t<MONOMIAL> divisor,
-	deque_t<MONOMIAL>& quotient,
-	deque_t<MONOMIAL>& rest
+	tensor<MONOMIAL> dividend,
+	tensor<MONOMIAL> divisor,
+	tensor<MONOMIAL>& quotient,
+	tensor<MONOMIAL>& rest
 )
 {
 
 	// aggiustamento polinomi
 	dividend = FillPolynomial(dividend, dividend[0].degree);
 	divisor = FillPolynomial(divisor, divisor[0].degree);
-	dividend.SortDeq();
-	divisor.SortDeq();
+	dividend.SimpleSort();
+	divisor.SimpleSort();
 	quotient = {};
 
 	// divisione
@@ -3408,7 +3787,7 @@ static void PolynomialDivide
 			divide.insert(divide.begin() + i, dividend[i]);
 		dividend = PolynomialSum(divide);
 		dividend = FillPolynomial(dividend, deg);
-		dividend.SortDeq();
+		dividend.SimpleSort();
 		quotient.push_back({ deg - _deg, rest_element });
 	}
 	rest = dividend;
@@ -3417,9 +3796,9 @@ static void PolynomialDivide
 #pragma endregion
 #pragma region Techniques
 
-static deque_t<deque_t<MONOMIAL>> Total(deque_t<MONOMIAL> inp)
+static tensor<tensor<MONOMIAL>> Total(tensor<MONOMIAL> inp)
 {
-	deque_t<deque_t<MONOMIAL>> output;
+	tensor<tensor<MONOMIAL>> output;
 	output.push_back(inp);
 	int min;
 	if (size(inp) <= 1) return output;
@@ -3446,18 +3825,18 @@ static deque_t<deque_t<MONOMIAL>> Total(deque_t<MONOMIAL> inp)
 	}
 	return { inp };
 }
-static deque_t<deque_t<MONOMIAL>> Partial(deque_t<MONOMIAL> inpt)
+static tensor<tensor<MONOMIAL>> Partial(tensor<MONOMIAL> inpt)
 {
 
 	// filtro vettori a quattro termini
-	deque_t<deque_t<MONOMIAL>> outp;
+	tensor<tensor<MONOMIAL>> outp;
 	outp.push_back(inpt);
 	if (size(inpt) != 4) return outp;
-	inpt.SortDeq();
+	inpt.SimpleSort();
 
 	// riassegnazione e dichiarazioni
-	deque_t<MONOMIAL> part_1{ inpt[0], inpt[1] };
-	deque_t<MONOMIAL> part_2{ inpt[2], inpt[3] };
+	tensor<MONOMIAL> part_1{ inpt[0], inpt[1] };
+	tensor<MONOMIAL> part_2{ inpt[2], inpt[3] };
 	auto Part1{ Total(part_1) };
 	auto Part2{ Total(part_2) };
 	auto part_3{ Part1[size(Part1) - 1] };
@@ -3474,8 +3853,8 @@ static deque_t<deque_t<MONOMIAL>> Partial(deque_t<MONOMIAL> inpt)
 	outp = {};
 
 	// riordinamento del totale
-	deque_t<deque_t<MONOMIAL>> mon_1;
-	deque_t<deque_t<MONOMIAL>> mon_2;
+	tensor<tensor<MONOMIAL>> mon_1;
+	tensor<tensor<MONOMIAL>> mon_2;
 	if (size(Part1) == 1) mon_1.push_back({ MONOMIAL{ 0, 1 } });
 	else mon_1.push_back(Part1[0]);
 	if (size(Part2) == 1) mon_2.push_back({ MONOMIAL{ 0, 1 } });
@@ -3492,16 +3871,16 @@ static deque_t<deque_t<MONOMIAL>> Partial(deque_t<MONOMIAL> inpt)
 	outp.push_back(part_2);
 	return outp;
 }
-static deque_t<deque_t<MONOMIAL>> Binomial(deque_t<MONOMIAL> InpT)
+static tensor<tensor<MONOMIAL>> Binomial(tensor<MONOMIAL> InpT)
 {
 
 	// filtro per vettori con più di un termine
-	deque_t<deque_t<MONOMIAL>> outp;
+	tensor<tensor<MONOMIAL>> outp;
 	outp.push_back(InpT);
 	int exponent = size(InpT) - 1, sign{ 1 };
 	if (exponent <= 1) return outp;
 	bool reassigne{ false };
-	InpT.SortDeq();
+	InpT.SimpleSort();
 
 	auto A{ InpT[0] };
 	auto B{ InpT[size(InpT) - 1] };
@@ -3569,16 +3948,16 @@ static deque_t<deque_t<MONOMIAL>> Binomial(deque_t<MONOMIAL> InpT)
 
 	return outp;
 }
-static deque_t<deque_t<MONOMIAL>> Trinomial(deque_t<MONOMIAL> InpT)
+static tensor<tensor<MONOMIAL>> Trinomial(tensor<MONOMIAL> InpT)
 {
 
 	// filtro per vettori di tre termini
-	deque_t<deque_t<MONOMIAL>> outp;
+	tensor<tensor<MONOMIAL>> outp;
 	outp.push_back(InpT);
 	if (size(InpT) != 3) return outp;
 
 	// calcolo termini ed esponente
-	deque_t<MONOMIAL> terms;
+	tensor<MONOMIAL> terms;
 	int A, B, C;
 	for (int i = 0; i < size(InpT); i++) {
 		if (InpT[i].degree != 0) terms.push_back(InpT[i]);
@@ -3618,11 +3997,11 @@ static deque_t<deque_t<MONOMIAL>> Trinomial(deque_t<MONOMIAL> InpT)
 
 	return outp;
 }
-static deque_t<deque_t<MONOMIAL>> SquareDifference(deque_t<MONOMIAL> InpT)
+static tensor<tensor<MONOMIAL>> SquareDifference(tensor<MONOMIAL> InpT)
 {
 
 	// filtro per vettori di due termini
-	deque_t<deque_t<MONOMIAL>> outp;
+	tensor<tensor<MONOMIAL>> outp;
 	outp.push_back(InpT);
 	if (size(InpT) != 2) return outp;
 
@@ -3654,16 +4033,16 @@ static deque_t<deque_t<MONOMIAL>> SquareDifference(deque_t<MONOMIAL> InpT)
 
 	return outp;
 }
-static deque_t<deque_t<MONOMIAL>> Ruffini(deque_t<MONOMIAL> vect)
+static tensor<tensor<MONOMIAL>> Ruffini(tensor<MONOMIAL> vect)
 {
 
 	// filtro per vettori con più di un termine
-	deque_t<deque_t<MONOMIAL>> VECT;
+	tensor<tensor<MONOMIAL>> VECT;
 	VECT.push_back(vect);
 	if (size(vect) < 2) return VECT;
 	if (size(vect) == 2 and (vect[0].degree == 1 or vect[1].degree == 1))
 		return VECT;
-	vect.SortDeq();
+	vect.SimpleSort();
 
 	int DirectorTerm{ vect[0].coefficient };
 	int size{ vect[0].degree };
@@ -3681,7 +4060,7 @@ static deque_t<deque_t<MONOMIAL>> Ruffini(deque_t<MONOMIAL> vect)
 	int SetRoot{};
 	int Root;
 
-	deque_t<MONOMIAL> Try;
+	tensor<MONOMIAL> Try;
 	bool assigne{ true };
 	for (int n = 1; n < size; n++) {
 
@@ -3704,7 +4083,7 @@ static deque_t<deque_t<MONOMIAL>> Ruffini(deque_t<MONOMIAL> vect)
 				vect.insert(vect.begin() + i, { vect[i - 1].degree - j, 0 });
 
 		// regola di ruffini
-		deque_t<MONOMIAL> temp;
+		tensor<MONOMIAL> temp;
 		for (auto root : PossibleRoots) {
 			Root = root;
 			do {
@@ -3748,14 +4127,14 @@ static deque_t<deque_t<MONOMIAL>> Ruffini(deque_t<MONOMIAL> vect)
 
 	return VECT;
 }
-static deque_t<deque_t<MONOMIAL>> CompleteTheSquare(deque_t<MONOMIAL> vect)
+static tensor<tensor<MONOMIAL>> CompleteTheSquare(tensor<MONOMIAL> vect)
 {
 
 	// filtro per vettori con tre termini
-	deque_t<deque_t<MONOMIAL>> Vect;
+	tensor<tensor<MONOMIAL>> Vect;
 	Vect.push_back(vect);
 	if (size(vect) != 3) return Vect;
-	vect.SortDeq();
+	vect.SimpleSort();
 	auto A{ vect[0] };
 	auto B{ vect[2] };
 
@@ -3807,12 +4186,12 @@ static deque_t<deque_t<MONOMIAL>> CompleteTheSquare(deque_t<MONOMIAL> vect)
 
 	return Vect;
 }
-static deque_t<deque_t<MONOMIAL>> TrinomialSquare(deque_t<MONOMIAL> vect)
+static tensor<tensor<MONOMIAL>> TrinomialSquare(tensor<MONOMIAL> vect)
 {
 	// filtro per vettori con 5 o 6 termini
-	deque_t<deque_t<MONOMIAL>> output;
+	tensor<tensor<MONOMIAL>> output;
 	output.push_back(vect);
-	vect.SortDeq();
+	vect.SimpleSort();
 	if (size(vect) != 5 and size(vect) != 6) return output;
 
 	// calcolo coefficienti
@@ -3893,8 +4272,8 @@ static deque_t<deque_t<MONOMIAL>> TrinomialSquare(deque_t<MONOMIAL> vect)
 #pragma endregion
 #pragma region Algebraic
 
-static deque_t<MONOMIAL> Complementary
-(deque_t<deque_t<MONOMIAL>> Polynomial, deque_t<MONOMIAL> factor, int exp)
+static tensor<MONOMIAL> Complementary
+(tensor<tensor<MONOMIAL>> Polynomial, tensor<MONOMIAL> factor, int exp)
 {
 
 	// caso di eccezione
@@ -3924,14 +4303,14 @@ static deque_t<MONOMIAL> Complementary
 }
 
 static void Simplify(
-	deque_t<deque_t<MONOMIAL>>& num,
-	deque_t<deque_t<MONOMIAL>>& den,
+	tensor<tensor<MONOMIAL>>& num,
+	tensor<tensor<MONOMIAL>>& den,
 	int& ncoeff, int& dcoeff)
 {
 	OpenPolynomial(num);
 	OpenPolynomial(den);
-	for (int i = 0; i < size(num); i++) num[i].SortDeq();
-	for (int i = 0; i < size(den); i++) den[i].SortDeq();
+	for (int i = 0; i < size(num); i++) num[i].SimpleSort();
+	for (int i = 0; i < size(den); i++) den[i].SimpleSort();
 
 	// semplificazione fattori
 	int sign{ 1 };
@@ -4009,7 +4388,7 @@ static void Simplify(
 	ClosePolynomial(den);
 }
 
-static int Determinant(deque_t<deque_t<int>> mx)
+static int Determinant(tensor<tensor<int>> mx)
 {
 	int det{};
 	int s = size(mx);
@@ -4021,7 +4400,7 @@ static int Determinant(deque_t<deque_t<int>> mx)
 	// caso generico
 	for (int i = 0; i < s; i++) {
 
-		deque_t<deque_t<int>> MX;
+		tensor<tensor<int>> MX;
 		for (int a = 0; a < s - 1; a++) MX.push_back({});
 		for (int I = 0; I < s - 1; I++) {
 			for (int J = 0; J < s; J++) {
@@ -4036,7 +4415,7 @@ static int Determinant(deque_t<deque_t<int>> mx)
 }
 
 static void Approximator
-(deque_t<REAL_MONOMIAL>& equation, long double& root)
+(tensor<REAL_MONOMIAL>& equation, long double& root)
 {
 
 	// calcolo derivata
@@ -4083,7 +4462,7 @@ static void Approximator
 }
 
 static vector<long double> ExistenceConditions
-(deque_t<REAL_MONOMIAL> equation)
+(tensor<REAL_MONOMIAL> equation)
 {
 
 	// casi illegali
@@ -4096,7 +4475,7 @@ static vector<long double> ExistenceConditions
 	}
 
 	// completamento dei termini
-	equation.SortDeq();
+	equation.SimpleSort();
 	for (int i = size(equation) - 1; i > 0; i--) {
 		int limit = equation[i - 1].degree - equation[i].degree;
 		for (int j = 1; j < limit; j++)
@@ -4143,8 +4522,8 @@ static vector<long double> ExistenceConditions
 template<typename TN, typename TD> static void PrintFraction
 (
 	int NC, int DC, int& LINE, bool WritePlus,
-	deque_t<deque_t<TN>> numerator,
-	deque_t<deque_t<TD>> denominator
+	tensor<tensor<TN>> numerator,
+	tensor<tensor<TD>> denominator
 )
 {
 
@@ -4168,9 +4547,9 @@ template<typename TN, typename TD> static void PrintFraction
 			root = numerator[0][0].coefficient;
 
 	// traduzione numeratore
-	deque_t<deque_t<MONOMIAL>> Numerator{};
+	tensor<tensor<MONOMIAL>> Numerator{};
 	for (auto d : numerator) {
-		deque_t<MONOMIAL> TEMP;
+		tensor<MONOMIAL> TEMP;
 		for (auto t : d) {
 			MONOMIAL TEMP_;
 			TEMP_.coefficient = t.coefficient;
@@ -4655,7 +5034,7 @@ static void Loop(
 	return;
 }
 
-static deque_t<deque_t<MONOMIAL>> DecompPolynomial
+static tensor<tensor<MONOMIAL>> DecompPolynomial
 (switchcase& argc, wstring polynomial)
 {
 	setlocale(LC_ALL, "");
@@ -4664,11 +5043,11 @@ static deque_t<deque_t<MONOMIAL>> DecompPolynomial
 	SetConsoleTextAttribute(hConsole, 14);
 
 	// variabili
-	deque_t<MONOMIAL> polydata, pdata;
+	tensor<MONOMIAL> polydata, pdata;
 	wstring pol, POL;
 	bool empty{ true }, Xout{ false };
 	bool input = polynomial.empty();
-	deque_t<deque_t<MONOMIAL>> HT;
+	tensor<tensor<MONOMIAL>> HT;
 
 	// istruzioni
 	if (input)
@@ -4765,8 +5144,8 @@ static deque_t<deque_t<MONOMIAL>> DecompPolynomial
 
 		// raccoglimento totale
 		polydata = pdata;
-		deque_t<deque_t<MONOMIAL>> BackT;
-		deque_t<deque_t<MONOMIAL>> Back_T;
+		tensor<tensor<MONOMIAL>> BackT;
+		tensor<tensor<MONOMIAL>> Back_T;
 		HT = Total(polydata);
 		polynomial = GetPolynomial(HT);
 		if (size(HT) != 1 and input) {
@@ -5035,8 +5414,8 @@ static void DecompAlgebraic(switchcase& argc)
 		switchcase use;
 		auto NScomp{ DecompPolynomial(use, numerator) };
 		auto DScomp{ DecompPolynomial(use, denominator) };
-		for (int i = 0; i < size(DScomp); i++) DScomp[i].SortDeq();
-		for (int i = 0; i < size(NScomp); i++) NScomp[i].SortDeq();
+		for (int i = 0; i < size(DScomp); i++) DScomp[i].SimpleSort();
+		for (int i = 0; i < size(NScomp); i++) NScomp[i].SimpleSort();
 		auto DenBackup{ DScomp };
 		auto NumBackup{ NScomp };
 		ClosePolynomial(DScomp);
@@ -5050,8 +5429,8 @@ static void DecompAlgebraic(switchcase& argc)
 
 		// calcolo denominatori
 		bool is_modifier{ false };
-		deque_t<deque_t<deque_t<MONOMIAL>>> denominators;
-		deque_t<deque_t<MONOMIAL>> complementaries;
+		tensor<tensor<tensor<MONOMIAL>>> denominators;
+		tensor<tensor<MONOMIAL>> complementaries;
 		int index{};
 		if (!skip) for (int i = 0; i < size(DScomp); i++) {
 			if (DScomp[i][0].degree == -1) {
@@ -5107,7 +5486,7 @@ static void DecompAlgebraic(switchcase& argc)
 			(complementaries[i], size(complementaries));
 
 		// inizializzazione matrice
-		deque_t<deque_t<int>> Matrix;
+		tensor<tensor<int>> Matrix;
 		if (!skip) for (int i = 0; i < size(complementaries); i++)
 			Matrix.push_back({});
 		if (!skip) for (int i = 0; i < size(complementaries); i++)
@@ -5115,12 +5494,12 @@ static void DecompAlgebraic(switchcase& argc)
 				Matrix[i].push_back(complementaries[i][j].coefficient);
 
 		// calcolo determinanti
-		deque_t<MONOMIAL> Results;
-		deque_t<int> results;
-		deque_t<double> roots;
+		tensor<MONOMIAL> Results;
+		tensor<int> results;
+		tensor<double> roots;
 		int Det;
-		deque_t<MONOMIAL> Quotient;
-		deque_t<MONOMIAL> Rest;
+		tensor<MONOMIAL> Quotient;
+		tensor<MONOMIAL> Rest;
 		if (!skip) {
 
 			// divisione polinomi
@@ -5135,12 +5514,12 @@ static void DecompAlgebraic(switchcase& argc)
 				);
 			}
 			Results = FillPolynomial(Rest, size(complementaries));
-			Results.SortDeq();
+			Results.SimpleSort();
 			for (auto R : Results) results.push_back(R.coefficient);
 			Det = Determinant(Matrix);
 		}
 		if (!skip) for (int i = 0; i < size(results); i++) {
-			deque_t<deque_t<int>> MX{ Matrix };
+			tensor<tensor<int>> MX{ Matrix };
 			MX[i] = results;
 			roots.push_back((double)Determinant(MX) / Det);
 		}
@@ -5160,7 +5539,7 @@ static void DecompAlgebraic(switchcase& argc)
 		vector<long double> C_E_;
 		bool has_been_printed{ false };
 		int Idx{};
-		deque_t<deque_t<REAL_MONOMIAL>> DBCKP;
+		tensor<tensor<REAL_MONOMIAL>> DBCKP;
 		for (auto D : DenBackup) {
 			DBCKP.push_back({});
 			for (auto M : D) DBCKP[Idx].push_back
@@ -5373,30 +5752,96 @@ static void DecompAlgebraic(switchcase& argc)
 #include <cmath>
 #include <deque>
 #include <iostream>
+#include <string>
 #include <vector>
 using namespace std;
 
-class monomial{
+string Variables;
+class monomial {
 public:
-	int coefficient;
-	vector<int> degrees;
+	int coefficient{};
+	vector<int> exp;
+	bool operator == (const monomial& other) const
+	{
+		return coefficient == other.coefficient and
+			exp == other.exp;
+	}
+	int degree()
+	{
+		int sum{};
+		for (auto i : this->exp) sum += i;
+		return sum;
+	}
 };
-vector<char> Variables;
-
-static bool Syntax(wstring pol);
-static deque<monomial> GetMonomials(wstring pol);
-static wstring GetString(deque<monomial> pol);
-
-int main()
+template<typename Ty> class deque_t : public deque<Ty>
 {
+public:
+	deque_t() : deque<Ty>() {}
+	deque_t(initializer_list<Ty> init) : deque<Ty>(init) {}
 
-	return 0;
+	void SortByDegree()
+	{
+		for (int i = 0; i < this->size(); i++)
+			for (int j = i + 1; j < this->size(); j++)
+				if (this->at(i).degree() < this->at(j).degree())
+					swap(this->at(i), this->at(j));
+	}
+	void SortByExponents()
+	{
+		for (int i = 0; i < this->size(); i++)
+			for (int j = i + 1; j < this->size(); j++) {
+				bool swap{ false };
+				for (int k = 0; k < Variables.size(); k++) {
+					if (this->at(i).exp[k] > this->at(j).exp[k]) break;
+					if (this->at(i).exp[k] == this->at(j).exp[k]) continue;
+					swap = 1;
+				}
+				if (swap) ::swap(this->at(i), this->at(j));
+			}
+	}
+
+};
+
+static int Gcd(int A, int B)
+{
+	if (A < B) swap(A, B);
+	while (B != 0) {
+		int quotient = A / B;
+		int rest = A % B;
+		if (rest == 0) return B;
+		A = quotient;
+		B = rest;
+		if (A < B) swap(A, B);
+	}
+	return A;
+}
+static int Gcd(deque<int> terms)
+{
+	if (size(terms) == 0) return 0;
+	if (size(terms) == 1) return terms[0];
+	int GCD{ terms[0] };
+	for (int i = 1; i < size(terms); i++) {
+		GCD = Gcd(GCD, terms[i]);
+		if (GCD == 1) break;
+	}
+	return GCD;
+}
+static int Gcd(deque<monomial> terms)
+{
+	if (size(terms) == 0) return 0;
+	if (size(terms) == 1) return terms[0].coefficient;
+	int GCD{ terms[0].coefficient };
+	for (int i = 1; i < size(terms); i++) {
+		GCD = Gcd(GCD, terms[i].coefficient);
+		if (GCD == 1) break;
+	}
+	return GCD;
 }
 
 static bool Syntax(wstring pol)
 {
 	// controllo caratteri ammessi
-	for (char c : pol) if (!isalnum(c) and c != '^' and !issign(c)) return 1;
+	for (auto c : pol) if (!isalnum(c) and c != '^' and !issign(c)) return 1;
 
 	// controllo segni consecutivi
 	for (int i = 1; i < pol.size(); i++)
@@ -5412,7 +5857,7 @@ static bool Syntax(wstring pol)
 			parts.push_back(part);
 		}
 
-	for (wstring part : parts) {
+	for (auto part : parts) {
 
 		// cancellamento coefficiente
 		while (isdigit(part.at(0))) {
@@ -5449,14 +5894,255 @@ static bool Syntax(wstring pol)
 
 	return 0;
 }
-static deque<monomial> GetMonomials(wstring pol)
+static deque_t<monomial> GetMonomials(wstring pol)
 {
+	deque_t<monomial> deque;
+	if (pol.empty()) return {};
+	if (!issign(pol.at(0))) pol = L'+' + pol;
+	for (int i = pol.size() - 1; i >= 0; i--) if (issign(pol.at(i))) {
+		auto part{ pol };
+		pol.erase(i);
+		part.erase(0, i);
 
-	return {};
+		// calcolo segno
+		monomial mono;
+		mono.coefficient = 1;
+		if (part.at(0) == '-') mono.coefficient = -1;
+		part.erase(0, 1);
+
+		// calcolo coefficiente
+		wstring coeff;
+		while (isdigit(part.at(0))) {
+			coeff += part.at(0);
+			part.erase(0, 1);
+			if (part.empty()) break;
+		}
+		if (!coeff.empty()) mono.coefficient *= stoi(coeff);
+		if (part.empty()) {
+			deque.push_back(mono);
+			continue;
+		}
+
+		// calcolo gradi
+		for (int j = 0; j < Variables.size(); j++) mono.exp.push_back(0);
+		for (int j = 0; j < part.size(); j++) if (isalpha(part.at(j))) {
+
+			// calcolo posizione
+			int VariableIndex{ -1 };
+			for (int k = 0; k < Variables.size(); k++)
+				if (Variables.at(k) == part.at(j)) VariableIndex = k;
+
+			// calcolo grado
+			int degree{ 1 };
+			if (j < (int)part.size() - 2)
+				if (part.at(j + 1) == '^' and isdigit(part.at(j + 2))) {
+					degree = part.at(j + 2) - '0';
+					if (j < (int)part.size() - 3) if (isdigit(part.at(j + 3)))
+						degree += 10 * (part.at(j + 3) - '0');
+				}
+			if (VariableIndex >= 0) mono.exp[VariableIndex] = degree;
+			else {
+				Variables += part.at(j);
+				mono.exp.push_back(degree);
+			}
+		}
+		deque.push_back(mono);
+	}
+	for (int i = 0; i < size(deque); i++)
+		while (size(deque[i].exp) < Variables.size())
+			deque[i].exp.push_back(0);
+
+	return deque;
 }
-static wstring GetString(deque<monomial> pol)
+static wstring GetString(deque_t<monomial> Data)
+{
+	wstring polynomial{};
+	vector<int> null;
+	for (auto c : Variables) null.push_back(0);
+	for (auto data : Data) {
+
+		// aggiunta coefficiente
+		wstring monomial{};
+		monomial = data.coefficient > 0 ? '+' : '-';
+		if (fabs(data.coefficient) != 1 or data.exp == null)
+			monomial += to_wstring(abs(data.coefficient));
+
+		// aggiunta variabili ed esponenti
+		for (int i = 0; i < Variables.size(); i++) if (data.exp[i] != 0) {
+			monomial += Variables.at(i);
+			if (data.exp[i] > 1) {
+				monomial += L'^';
+				monomial += to_wstring(data.exp[i]);
+			}
+		}
+
+		polynomial += monomial;
+	}
+	if (polynomial.at(0) == '+') polynomial.erase(0, 1);
+
+	return polynomial;
+}
+static wstring GetWString(deque_t<deque_t<monomial>> inp)
+{
+	wstring output{}, exp;
+	bool set_modifier{ false };
+	for (auto T : inp) {
+
+		// caso di monomio modificatore
+		if (size(T[0].exp) != 0) if (T[0].exp[0] == -1) {
+			exp = to_wstring(T[0].coefficient);
+			set_modifier = 1;
+			continue;
+		}
+		auto xout{ GetString(T) };
+
+		// caso con elevamento a potenza
+		if (set_modifier) {
+			xout = L"(" + xout + L")^" + exp;
+			set_modifier = 0;
+		}
+
+		// caso comune
+		else if (size(T) > 1) xout = L"(" + xout + L")";
+
+		output += xout;
+	}
+
+	// caso nullo
+	if (output.empty()) return L"0";
+
+	//<->if (BOOLALPHA) ElabExponents(output);
+	return output;
+}
+
+static deque_t<monomial> PolynomialSum(deque_t<monomial> inp)
 {
 
-	return L"";
+	// ricerca di monomi simili
+	for (int i = size(inp) - 1; i >= 0; i--)
+		for (int j = i - 1; j >= 0; j--)
+			if (inp[i].exp[0] >= 0 and inp[j].exp[0] >= 0) {
+
+				bool similiar_monomials{ true };
+				for (int k = 0; k < Variables.size(); k++)
+					if (inp[i].exp[k] != inp[j].exp[k])
+						similiar_monomials = 0;
+
+				if (similiar_monomials) {
+					inp[i].coefficient += inp[j].coefficient;
+					inp[j].coefficient = 0;
+				}
+			}
+	// marcamento dei monomi simili
+	for (int i = size(inp) - 1; i >= 0; i--)
+		if (inp[i].coefficient == 0) inp[i].exp = {};
+
+	// rimozione
+	auto it = remove(inp.begin(), inp.end(), monomial{ 0, {} });
+	inp.erase(it, inp.end());
+
+	return inp;
+}
+
+static deque_t<deque_t<monomial>> Total(deque_t<monomial> inp)
+{
+	deque_t<deque_t<monomial>> output;
+	output.push_back(inp);
+	if (size(inp) <= 1) return output;
+
+	// calcolo grado minimo e riscrittura
+	bool positive_min{ false };
+	int GCD{ Gcd(inp) };
+	vector<int> exponents;
+	for (int i = 0; i < Variables.size(); i++) {
+		int min{ inp[0].exp[i] };
+		for (auto t : inp) if (t.exp[i] < min) min = t.exp[i];
+		exponents.push_back(min);
+		if (min > 0) positive_min = 1;
+	}
+	if (fabs(GCD) != 1 or positive_min) {
+		output = {};
+		output.push_back({ {GCD, exponents} });
+		for (int i = 0; i < size(inp); i++) {
+			inp[i].coefficient /= GCD;
+			for (int j = 0; j < Variables.size(); j++)
+				inp[i].exp[j] -= exponents[j];
+		}
+	}
+
+	// totale
+	if (fabs(GCD) != 1 or positive_min) {
+		output = {};
+		output.push_back({ {GCD, exponents} });
+		output.push_back(inp);
+		return output;
+	}
+	return { inp };
+}
+static deque_t<deque_t<monomial>> Partial(deque_t<monomial> inpt)
+{
+	vector <int> null;
+	for (auto c : Variables) null.push_back(0);
+
+	// filtro vettori a quattro termini
+	deque_t<deque_t<monomial>> outp;
+	outp.push_back(inpt);
+	if (size(inpt) != 4) return outp;
+
+	// riassegnazione e dichiarazioni
+	deque_t<monomial> part_1{ inpt[0], inpt[1] };
+	deque_t<monomial> part_2{ inpt[2], inpt[3] };
+	auto Part1{ Total(part_1) };
+	auto Part2{ Total(part_2) };
+	auto part_3{ Part1[size(Part1) - 1] };
+	for (auto a : Part2[size(Part2) - 1]) part_3.push_back(a);
+	if (size(PolynomialSum(part_3)) == 0) {
+		if (size(Part1) == 1) swap(Part1, Part2);
+		Part2.push_front({ { -1, null } });
+		for (int i = 0; i < size(Part2[1]); i++)
+			Part2[1][i].coefficient *= -1;
+	}
+	part_1 = Part1[size(Part1) - 1];
+	part_2 = Part2[size(Part2) - 1];
+	if (part_1 != part_2) return outp;
+	outp = {};
+
+	// riordinamento del totale
+	deque_t<deque_t<monomial>> mon_1;
+	deque_t<deque_t<monomial>> mon_2;
+	if (size(Part1) == 1) mon_1.push_back({ monomial{ 1, null } });
+	else mon_1.push_back(Part1[0]);
+	if (size(Part2) == 1) mon_2.push_back({ monomial{ 1, null } });
+	else mon_2.push_back(Part2[0]);
+	mon_1.push_back(part_1);
+	mon_2.push_back(part_2);
+
+	// riordinamento del parziale
+	outp.push_back(part_1);
+	part_2 = mon_1[0];
+	for (auto a : mon_2[0]) part_2.push_back(a);
+	part_2 = PolynomialSum(part_2);
+
+	outp.push_back(part_2);
+	return outp;
+}
+
+int main()
+{
+	wstring POLYNOMIAL;
+	while (true) {
+		cout << "inserisci un polinomio (. = fine input)\n";
+		wcin >> POLYNOMIAL;
+		cout << '\n';
+		if (!Syntax(POLYNOMIAL)) {
+			wcout << "il raccoglimento totale di " << POLYNOMIAL << " e':\n\n";
+			wcout << GetWString(Total(GetMonomials(POLYNOMIAL))) << "\n\n";
+			wcout << "il raccoglimento parziale di " << POLYNOMIAL << " e':\n\n";
+			wcout << GetWString(Partial(GetMonomials(POLYNOMIAL))) << "\n\n";
+		}
+		else if (POLYNOMIAL != L".") wcout << "quello non e' un polinomio\n\n";
+		else return 0;
+	}
+	return 0;
 }
 */
