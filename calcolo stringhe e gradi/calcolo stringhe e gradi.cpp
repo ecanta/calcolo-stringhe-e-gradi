@@ -42,29 +42,32 @@
 #define issign(x) (x == '+' or x == '-')
 
 // inclusioni
-#include<algorithm>
-#include<atomic>
-#include<chrono> // per le misurazioni di tempo
-#include<cmath> // per i calcoli
-#include<condition_variable> // per il multithreading
-#include<conio.h> // per l'input avanzato
-#include<deque>
-#include<iomanip>
-#include<iostream> // per l'output
-#include<io.h> // per unicode
-#include<list>
-#include<locale> // per unicode
-#include<new> // per nothrow
-#include<ppl.h> // per la parallelizzazione
-#include<queue>
-#include<random> // per i generatori casuali
-#include<regex> // per la convalidazione
-#include<sstream>
-#include<string>
-#include<thread> // per il multithreading
-#include<unordered_map> // per la conversione degli enum
-#include<vector>
-#include<Windows.h> // per hConsole
+#include <algorithm>
+#include <atomic>
+#include <chrono> // per le misurazioni di tempo
+#include <cmath> // per i calcoli
+#include <condition_variable> // per il multithreading
+#include <conio.h> // per l'input avanzato
+#include <deque>
+#include <iomanip>
+#include <iostream> // per l'output
+#include <io.h> // per unicode
+#include <initializer_list> // per le classi template
+#include <iterator>
+#include <locale> // per unicode
+#include <new> // per nothrow
+#include <ppl.h> // per la parallelizzazione
+#include <queue>
+#include <random> // per i generatori casuali
+#include <regex> // per la convalidazione
+#include <sstream>
+#include <stdexcept> // per le eccezioni
+#include <string> // per le stringhe e i metodi
+#include <thread> // per il multithreading
+#include <unordered_map> // per la conversione degli enum
+#include <vector> // per i vettori
+#include <utility>
+#include <Windows.h> // per hConsole
 
 // namespace globali
 using namespace std;
@@ -279,6 +282,7 @@ public:
 	}
 };
 TestInputReader ObjectGetCh;
+
 class NumberData
 {
 public:
@@ -451,8 +455,10 @@ public:
 		}
 	}
 };
+
 string Variables{};
-template<typename T> class tensor
+template<typename T>
+class tensor
 {
 private:
 	T* data;
@@ -460,11 +466,12 @@ private:
 	size_t count;
 	size_t front_index;
 	size_t back_index;
+
 	void resize(size_t new_capacity)
 	{
 		T* new_data = new T[new_capacity];
-		for (size_t i = 0; i < count; ++i)
-			new_data[i] = move(data[i]);
+		for (size_t i = 0; i < count; i++)
+			new_data[i] = std::move(data[(front_index + i) % capacity]);
 		delete[] data;
 		data = new_data;
 		capacity = new_capacity;
@@ -498,6 +505,11 @@ public:
 		if (index >= count) throw out_of_range("Index out of range");
 		return data[(front_index + index) % capacity];
 	}
+	const T& at(size_t index) const
+	{
+		if (index >= count) throw out_of_range("Index out of range");
+		return data[(front_index + index) % capacity];
+	}
 	bool empty() const
 	{
 		return count == 0;
@@ -512,10 +524,9 @@ public:
 	void erase(size_t pos)
 	{
 		if (pos >= count) throw out_of_range("Index out of range");
-		size_t num_elements_to_remove = count - pos;
 		for (size_t i = pos; i < count - 1; i++)
 			data[(front_index + i) % capacity] = 
-				move(data[(front_index + i + 1) % capacity]);
+			move(data[(front_index + i + 1) % capacity]);
 		count--;
 		back_index = (front_index + count) % capacity;
 	}
@@ -566,7 +577,8 @@ public:
 		count--;
 	}
 
-	tensor& operator++() {
+	tensor& operator++()
+	{
 		if (count == capacity) resize(capacity * 2);
 		data[back_index] = T();
 		back_index = (back_index + 1) % capacity;
@@ -593,12 +605,18 @@ public:
 
 	bool operator==(const tensor& other) const
 	{
-		return count == other.count;
+		if (count != other.count) return 0;
+		for (size_t i = 0; i < count; i++)
+			if (data[(front_index + i) % capacity] != 
+				other.data[(other.front_index + i) % other.capacity])
+				return 0;
+		return 1;
 	}
 	bool operator!=(const tensor& other) const
 	{
-		return count != other.count;
+		return !(*this == other);
 	}
+
 	tensor& operator+=(const T& value)
 	{
 		push_back(value);
@@ -634,6 +652,7 @@ public:
 	{
 		return count >= other.count;
 	}
+
 	bool operator&&(const tensor& other) const
 	{
 		return !this->empty() and !other.empty();
@@ -656,12 +675,18 @@ public:
 
 	public:
 		size_t index;
+		using iterator_category = forward_iterator_tag;
+		using value_type = T;
+		using difference_type = ptrdiff_t;
+		using pointer = T*;
+		using reference = T&;
+
 		iterator(
 			T* data, 
 			size_t index, 
 			size_t capacity, 
 			size_t front_index = 0
-		): 
+		):
 			data(data), 
 			index(index), 
 			capacity(capacity), 
@@ -690,9 +715,10 @@ public:
 			(*this)--;
 			return temp;
 		}
+
 		iterator operator+(size_t n) const
 		{
-			return iterator(data, (index + n) % capacity, capacity);
+			return iterator(data, (index + n) % capacity, capacity, front_index);
 		}
 		iterator& operator+=(size_t n)
 		{
@@ -701,71 +727,95 @@ public:
 		}
 		iterator operator-(size_t n) const
 		{
-			return iterator(data, (index + capacity - n) % capacity, capacity);
+			return iterator(
+				data, 
+				(index + capacity - n) % capacity, 
+				capacity, 
+				front_index
+			);
 		}
 		iterator& operator-=(size_t n)
 		{
 			index = (index + capacity - n) % capacity;
 			return *this;
 		}
-		
+
 		T& operator*()
 		{
-			return data[index];
+			return data[(front_index + index) % capacity];
+		}
+		const T& operator*() const
+		{
+			return data[(front_index + index) % capacity];
+		}
+		T* operator->()
+		{
+			return &data[(front_index + index) % capacity];
+		}
+		const T* operator->() const
+		{
+			return &data[(front_index + index) % capacity];
+		}
+
+		bool operator==(const iterator& other) const
+		{
+			return index == other.index;
 		}
 		bool operator!=(const iterator& other) const
 		{
-			return index != other.index or data != other.data;
+			return index != other.index;
 		}
-		bool operator==(const iterator& other) const
-		{
-			return index == other.index and data == other.data;
-		}
-		
+
 		bool operator<(const iterator& other) const
 		{
-			if (data != other.data) return data < other.data;
-			if (front_index == other.front_index) return index < other.index;
-			return index < other.index and index < front_index + count;
+			return index < other.index;
 		}
 		bool operator<=(const iterator& other) const
 		{
-			return *this < other or *this == other;
+			return index <= other.index;
 		}
 		bool operator>(const iterator& other) const
 		{
-			return !(*this <= other);
+			return index > other.index;
 		}
 		bool operator>=(const iterator& other) const
 		{
-			return !(*this < other);
+			return index >= other.index;
 		}
 	};
 
 	iterator begin()
 	{
-		return iterator(data, front_index, capacity);
+		return iterator(data, 0, capacity, front_index);
 	}
 	iterator end()
 	{
-		return iterator(data, back_index, capacity);
+		return iterator(data, count, capacity, front_index);
+	}
+	iterator rbegin()
+	{
+		return iterator(data, count - 1, capacity, front_index);
+	}
+	iterator rend()
+	{
+		return iterator(data, -1, capacity, front_index);
 	}
 
-	void erase(iterator it) 
+	void erase(iterator it)
 	{
 		if (it == end()) throw out_of_range("Iterator out of range");
 		size_t pos = it.index;
 		for (size_t i = pos; i < count - 1; i++)
-			data[(front_index + i) % capacity] = 
+			data[(front_index + i) % capacity] =
 			move(data[(front_index + i + 1) % capacity]);
 		count--;
 		back_index = (front_index + count) % capacity;
 	}
-	void insert(iterator pos, const T& value) 
+	void insert(iterator pos, const T& value)
 	{
 		if (count == capacity) resize(capacity * 2);
-		size_t insert_index{ pos.index };
-		size_t end_index{ (back_index + capacity - 1) % capacity };
+		auto insert_index{ pos.index };
+		size_t end_index = (back_index + capacity - 1) % capacity;
 
 		if (insert_index == end_index) data[insert_index] = value;
 		else {
@@ -782,17 +832,15 @@ public:
 		if (first == end() or last == end() or first > last)
 			throw out_of_range("Invalid iterator range");
 
-		size_t pos1{ first.index };
-		size_t pos2{ last.index };
-		size_t num_elements_to_remove{
-			pos2 >= pos1 ?
+		auto pos1{ first.index };
+		auto pos2{ last.index };
+		size_t num_elements_to_remove = pos2 >= pos1 ?
 			(pos2 - pos1) : (capacity + pos2 - pos1);
-		}
 
 		for (size_t i = pos1; i < count - num_elements_to_remove; i++)
-			data[(front_index + i) % capacity] = 
+			data[(front_index + i) % capacity] =
 			move(data[(front_index + i + num_elements_to_remove) % capacity]);
-		
+
 		count -= num_elements_to_remove;
 		back_index = (front_index + count) % capacity;
 	}
@@ -804,30 +852,32 @@ public:
 			it++;
 		}
 	}
-	
+
 	void SimpleSort()
 	{
-		for (int i = 0; i < this->size(); i++)
-			for (int j = i + 1; j < this->size(); j++)
+		for (size_t i = 0; i < this->size(); ++i)
+			for (size_t j = i + 1; j < this->size(); ++j)
 				if (this->at(i).degree < this->at(j).degree)
 					swap(this->at(i), this->at(j));
 	}
 	void SortByDegree()
 	{
-		for (int i = 0; i < this->size(); i++)
-			for (int j = i + 1; j < this->size(); j++)
+		for (size_t i = 0; i < this->size(); ++i)
+			for (size_t j = i + 1; j < this->size(); ++j)
 				if (this->at(i).degree() < this->at(j).degree())
 					swap(this->at(i), this->at(j));
 	}
 	void SortByExponents()
 	{
-		for (int i = 0; i < this->size(); i++)
-			for (int j = i + 1; j < this->size(); j++) {
-				bool swap{ false };
-				for (int k = 0; k < Variables.size(); k++) {
+		for (size_t i = 0; i < this->size(); i++)
+			for (size_t j = i + 1; j < this->size(); j++) {
+				bool swap = 0;
+				for (size_t k = 0; k < Variables.size(); k++)
+				{
 					if (this->at(i).exp[k] > this->at(j).exp[k]) break;
 					if (this->at(i).exp[k] == this->at(j).exp[k]) continue;
 					swap = 1;
+					break;
 				}
 				if (swap) ::swap(this->at(i), this->at(j));
 			}
@@ -5747,402 +5797,3 @@ static void DecompAlgebraic(switchcase& argc)
 
 #pragma endregion
 // program_END
-/*
-#define issign(x) (x == '+' or x == '-')
-#include <cmath>
-#include <deque>
-#include <iostream>
-#include <string>
-#include <vector>
-using namespace std;
-
-string Variables;
-class monomial {
-public:
-	int coefficient{};
-	vector<int> exp;
-	bool operator == (const monomial& other) const
-	{
-		return coefficient == other.coefficient and
-			exp == other.exp;
-	}
-	int degree()
-	{
-		int sum{};
-		for (auto i : this->exp) sum += i;
-		return sum;
-	}
-};
-template<typename Ty> class deque_t : public deque<Ty>
-{
-public:
-	deque_t() : deque<Ty>() {}
-	deque_t(initializer_list<Ty> init) : deque<Ty>(init) {}
-
-	void SortByDegree()
-	{
-		for (int i = 0; i < this->size(); i++)
-			for (int j = i + 1; j < this->size(); j++)
-				if (this->at(i).degree() < this->at(j).degree())
-					swap(this->at(i), this->at(j));
-	}
-	void SortByExponents()
-	{
-		for (int i = 0; i < this->size(); i++)
-			for (int j = i + 1; j < this->size(); j++) {
-				bool swap{ false };
-				for (int k = 0; k < Variables.size(); k++) {
-					if (this->at(i).exp[k] > this->at(j).exp[k]) break;
-					if (this->at(i).exp[k] == this->at(j).exp[k]) continue;
-					swap = 1;
-				}
-				if (swap) ::swap(this->at(i), this->at(j));
-			}
-	}
-
-};
-
-static int Gcd(int A, int B)
-{
-	if (A < B) swap(A, B);
-	while (B != 0) {
-		int quotient = A / B;
-		int rest = A % B;
-		if (rest == 0) return B;
-		A = quotient;
-		B = rest;
-		if (A < B) swap(A, B);
-	}
-	return A;
-}
-static int Gcd(deque<int> terms)
-{
-	if (size(terms) == 0) return 0;
-	if (size(terms) == 1) return terms[0];
-	int GCD{ terms[0] };
-	for (int i = 1; i < size(terms); i++) {
-		GCD = Gcd(GCD, terms[i]);
-		if (GCD == 1) break;
-	}
-	return GCD;
-}
-static int Gcd(deque<monomial> terms)
-{
-	if (size(terms) == 0) return 0;
-	if (size(terms) == 1) return terms[0].coefficient;
-	int GCD{ terms[0].coefficient };
-	for (int i = 1; i < size(terms); i++) {
-		GCD = Gcd(GCD, terms[i].coefficient);
-		if (GCD == 1) break;
-	}
-	return GCD;
-}
-
-static bool Syntax(wstring pol)
-{
-	// controllo caratteri ammessi
-	for (auto c : pol) if (!isalnum(c) and c != '^' and !issign(c)) return 1;
-
-	// controllo segni consecutivi
-	for (int i = 1; i < pol.size(); i++)
-		if (issign(pol.at(i)) and issign(pol.at(i - 1))) return 1;
-
-	// suddivisione in parti
-	vector <wstring> parts;
-	for (int i = pol.size() - 1; i >= 0; i--)
-		if (issign(pol.at(i))) {
-			auto part{ pol };
-			part.erase(0, i + 1);
-			pol.erase(i);
-			parts.push_back(part);
-		}
-
-	for (auto part : parts) {
-
-		// cancellamento coefficiente
-		while (isdigit(part.at(0))) {
-			part.erase(0, 1);
-			if (part.empty()) break;
-		}
-		if (part.empty()) continue;
-
-		// controllo estremi
-		if (part.at(0) == '^' or part.at(part.size() - 1) == '^') return 1;
-
-		// controllo variabili ripetute
-		for (int i = 0; i < part.size(); i++)
-			for (int j = i + 1; j < part.size(); j++)
-				if (isalpha(part.at(i)) and part.at(i) == part.at(j))
-					return 1;
-
-		// controllo limite esponenti
-		for (int i = 0; i < part.size() - 1; i++) if (isdigit(part.at(i)))
-			for (int j = i; j < part.size(); j++) {
-				if (j >= part.size()) break;
-				if (!isdigit(part.at(j))) break;
-				if (j - i >= 2) return 1;
-			}
-
-		// controllo esponenti corretti
-		for (int i = 1; i < part.size(); i++) if (
-			isdigit(part.at(i)) and
-			!isdigit(part.at(i - 1)) and
-			part.at(i - 1) != '^'
-			)
-			return 1;
-	}
-
-	return 0;
-}
-static deque_t<monomial> GetMonomials(wstring pol)
-{
-	deque_t<monomial> deque;
-	if (pol.empty()) return {};
-	if (!issign(pol.at(0))) pol = L'+' + pol;
-	for (int i = pol.size() - 1; i >= 0; i--) if (issign(pol.at(i))) {
-		auto part{ pol };
-		pol.erase(i);
-		part.erase(0, i);
-
-		// calcolo segno
-		monomial mono;
-		mono.coefficient = 1;
-		if (part.at(0) == '-') mono.coefficient = -1;
-		part.erase(0, 1);
-
-		// calcolo coefficiente
-		wstring coeff;
-		while (isdigit(part.at(0))) {
-			coeff += part.at(0);
-			part.erase(0, 1);
-			if (part.empty()) break;
-		}
-		if (!coeff.empty()) mono.coefficient *= stoi(coeff);
-		if (part.empty()) {
-			deque.push_back(mono);
-			continue;
-		}
-
-		// calcolo gradi
-		for (int j = 0; j < Variables.size(); j++) mono.exp.push_back(0);
-		for (int j = 0; j < part.size(); j++) if (isalpha(part.at(j))) {
-
-			// calcolo posizione
-			int VariableIndex{ -1 };
-			for (int k = 0; k < Variables.size(); k++)
-				if (Variables.at(k) == part.at(j)) VariableIndex = k;
-
-			// calcolo grado
-			int degree{ 1 };
-			if (j < (int)part.size() - 2)
-				if (part.at(j + 1) == '^' and isdigit(part.at(j + 2))) {
-					degree = part.at(j + 2) - '0';
-					if (j < (int)part.size() - 3) if (isdigit(part.at(j + 3)))
-						degree += 10 * (part.at(j + 3) - '0');
-				}
-			if (VariableIndex >= 0) mono.exp[VariableIndex] = degree;
-			else {
-				Variables += part.at(j);
-				mono.exp.push_back(degree);
-			}
-		}
-		deque.push_back(mono);
-	}
-	for (int i = 0; i < size(deque); i++)
-		while (size(deque[i].exp) < Variables.size())
-			deque[i].exp.push_back(0);
-
-	return deque;
-}
-static wstring GetString(deque_t<monomial> Data)
-{
-	wstring polynomial{};
-	vector<int> null;
-	for (auto c : Variables) null.push_back(0);
-	for (auto data : Data) {
-
-		// aggiunta coefficiente
-		wstring monomial{};
-		monomial = data.coefficient > 0 ? '+' : '-';
-		if (fabs(data.coefficient) != 1 or data.exp == null)
-			monomial += to_wstring(abs(data.coefficient));
-
-		// aggiunta variabili ed esponenti
-		for (int i = 0; i < Variables.size(); i++) if (data.exp[i] != 0) {
-			monomial += Variables.at(i);
-			if (data.exp[i] > 1) {
-				monomial += L'^';
-				monomial += to_wstring(data.exp[i]);
-			}
-		}
-
-		polynomial += monomial;
-	}
-	if (polynomial.at(0) == '+') polynomial.erase(0, 1);
-
-	return polynomial;
-}
-static wstring GetWString(deque_t<deque_t<monomial>> inp)
-{
-	wstring output{}, exp;
-	bool set_modifier{ false };
-	for (auto T : inp) {
-
-		// caso di monomio modificatore
-		if (size(T[0].exp) != 0) if (T[0].exp[0] == -1) {
-			exp = to_wstring(T[0].coefficient);
-			set_modifier = 1;
-			continue;
-		}
-		auto xout{ GetString(T) };
-
-		// caso con elevamento a potenza
-		if (set_modifier) {
-			xout = L"(" + xout + L")^" + exp;
-			set_modifier = 0;
-		}
-
-		// caso comune
-		else if (size(T) > 1) xout = L"(" + xout + L")";
-
-		output += xout;
-	}
-
-	// caso nullo
-	if (output.empty()) return L"0";
-
-	//<->if (BOOLALPHA) ElabExponents(output);
-	return output;
-}
-
-static deque_t<monomial> PolynomialSum(deque_t<monomial> inp)
-{
-
-	// ricerca di monomi simili
-	for (int i = size(inp) - 1; i >= 0; i--)
-		for (int j = i - 1; j >= 0; j--)
-			if (inp[i].exp[0] >= 0 and inp[j].exp[0] >= 0) {
-
-				bool similiar_monomials{ true };
-				for (int k = 0; k < Variables.size(); k++)
-					if (inp[i].exp[k] != inp[j].exp[k])
-						similiar_monomials = 0;
-
-				if (similiar_monomials) {
-					inp[i].coefficient += inp[j].coefficient;
-					inp[j].coefficient = 0;
-				}
-			}
-	// marcamento dei monomi simili
-	for (int i = size(inp) - 1; i >= 0; i--)
-		if (inp[i].coefficient == 0) inp[i].exp = {};
-
-	// rimozione
-	auto it = remove(inp.begin(), inp.end(), monomial{ 0, {} });
-	inp.erase(it, inp.end());
-
-	return inp;
-}
-
-static deque_t<deque_t<monomial>> Total(deque_t<monomial> inp)
-{
-	deque_t<deque_t<monomial>> output;
-	output.push_back(inp);
-	if (size(inp) <= 1) return output;
-
-	// calcolo grado minimo e riscrittura
-	bool positive_min{ false };
-	int GCD{ Gcd(inp) };
-	vector<int> exponents;
-	for (int i = 0; i < Variables.size(); i++) {
-		int min{ inp[0].exp[i] };
-		for (auto t : inp) if (t.exp[i] < min) min = t.exp[i];
-		exponents.push_back(min);
-		if (min > 0) positive_min = 1;
-	}
-	if (fabs(GCD) != 1 or positive_min) {
-		output = {};
-		output.push_back({ {GCD, exponents} });
-		for (int i = 0; i < size(inp); i++) {
-			inp[i].coefficient /= GCD;
-			for (int j = 0; j < Variables.size(); j++)
-				inp[i].exp[j] -= exponents[j];
-		}
-	}
-
-	// totale
-	if (fabs(GCD) != 1 or positive_min) {
-		output = {};
-		output.push_back({ {GCD, exponents} });
-		output.push_back(inp);
-		return output;
-	}
-	return { inp };
-}
-static deque_t<deque_t<monomial>> Partial(deque_t<monomial> inpt)
-{
-	vector <int> null;
-	for (auto c : Variables) null.push_back(0);
-
-	// filtro vettori a quattro termini
-	deque_t<deque_t<monomial>> outp;
-	outp.push_back(inpt);
-	if (size(inpt) != 4) return outp;
-
-	// riassegnazione e dichiarazioni
-	deque_t<monomial> part_1{ inpt[0], inpt[1] };
-	deque_t<monomial> part_2{ inpt[2], inpt[3] };
-	auto Part1{ Total(part_1) };
-	auto Part2{ Total(part_2) };
-	auto part_3{ Part1[size(Part1) - 1] };
-	for (auto a : Part2[size(Part2) - 1]) part_3.push_back(a);
-	if (size(PolynomialSum(part_3)) == 0) {
-		if (size(Part1) == 1) swap(Part1, Part2);
-		Part2.push_front({ { -1, null } });
-		for (int i = 0; i < size(Part2[1]); i++)
-			Part2[1][i].coefficient *= -1;
-	}
-	part_1 = Part1[size(Part1) - 1];
-	part_2 = Part2[size(Part2) - 1];
-	if (part_1 != part_2) return outp;
-	outp = {};
-
-	// riordinamento del totale
-	deque_t<deque_t<monomial>> mon_1;
-	deque_t<deque_t<monomial>> mon_2;
-	if (size(Part1) == 1) mon_1.push_back({ monomial{ 1, null } });
-	else mon_1.push_back(Part1[0]);
-	if (size(Part2) == 1) mon_2.push_back({ monomial{ 1, null } });
-	else mon_2.push_back(Part2[0]);
-	mon_1.push_back(part_1);
-	mon_2.push_back(part_2);
-
-	// riordinamento del parziale
-	outp.push_back(part_1);
-	part_2 = mon_1[0];
-	for (auto a : mon_2[0]) part_2.push_back(a);
-	part_2 = PolynomialSum(part_2);
-
-	outp.push_back(part_2);
-	return outp;
-}
-
-int main()
-{
-	wstring POLYNOMIAL;
-	while (true) {
-		cout << "inserisci un polinomio (. = fine input)\n";
-		wcin >> POLYNOMIAL;
-		cout << '\n';
-		if (!Syntax(POLYNOMIAL)) {
-			wcout << "il raccoglimento totale di " << POLYNOMIAL << " e':\n\n";
-			wcout << GetWString(Total(GetMonomials(POLYNOMIAL))) << "\n\n";
-			wcout << "il raccoglimento parziale di " << POLYNOMIAL << " e':\n\n";
-			wcout << GetWString(Partial(GetMonomials(POLYNOMIAL))) << "\n\n";
-		}
-		else if (POLYNOMIAL != L".") wcout << "quello non e' un polinomio\n\n";
-		else return 0;
-	}
-	return 0;
-}
-*/
