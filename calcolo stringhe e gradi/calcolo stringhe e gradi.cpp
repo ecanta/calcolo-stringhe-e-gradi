@@ -469,8 +469,8 @@ private:
 
 	void resize(size_t new_capacity)
 	{
-		if (new_capacity == 0) new_capacity = 1;
 		T* new_data = new(nothrow) T[new_capacity];
+		if (!new_data) throw bad_alloc();
 		for (size_t i = 0; i < count; i++)
 			new_data[i] = move(data[(front_index + i) % capacity]);
 		delete[] data;
@@ -489,15 +489,18 @@ public:
 		back_index(0)
 	{
 		if (capacity == 0) capacity = 1;
+		if (!data) throw bad_alloc();
 	}
 	tensor(const tensor& other) :
 		data(new(nothrow) T[other.capacity]),
 		capacity(other.capacity),
 		count(other.count),
-		front_index(other.front_index),
-		back_index(other.back_index)
+		front_index(0),
+		back_index(other.count)
 	{
-		copy(other.data, other.data + other.capacity, data);
+		if (!data) throw bad_alloc();
+		for (size_t i = 0; i < count; i++)
+			data[i] = other.data[(other.front_index + i) % other.capacity];
 	}
 	tensor(tensor&& other) noexcept :
 		data(other.data),
@@ -526,11 +529,13 @@ public:
 		if (this != &other) {
 			delete[] data;
 			data = new(nothrow) T[other.capacity];
+			if (!data) throw bad_alloc();
 			capacity = other.capacity;
 			count = other.count;
-			front_index = other.front_index;
-			back_index = other.back_index;
-			copy(other.data, other.data + other.capacity, data);
+			front_index = 0;
+			back_index = count;
+			for (size_t i = 0; i < count; i++)
+				data[i] = other.data[(other.front_index + i) % other.capacity];
 		}
 		return *this;
 	}
@@ -573,7 +578,7 @@ public:
 		return data[(front_index + index) % capacity];
 	}
 
-	void erase()
+	void clear()
 	{
 		count = 0;
 		front_index = 0;
@@ -624,8 +629,8 @@ public:
 	void push_front(const T& value)
 	{
 		if (count == capacity) resize(capacity * 2);
-		front_index = front_index == 0 ? capacity - 1 : front_index - 1;
-		data[front_index] = value;
+		for (size_t i = count; i > 0; i--) data[i] = move(data[i - 1]);
+		data[0] = value;
 		count++;
 	}
 	void pop_front()
@@ -875,15 +880,15 @@ public:
 		if (start >= count or end > count or start > end)
 			throw out_of_range("Intervallo di iteratori non valido");
 
-		size_t num_elements_to_remove{ end - start };
-		for (size_t i = start; i < count - num_elements_to_remove; i++)
+		size_t distance{ end - start };
+		for (size_t i = start; i < count - distance; i++)
 			data[(front_index + i) % capacity] = 
-			move(data[(front_index + i + num_elements_to_remove) % capacity]);
+			move(data[(front_index + i + distance) % capacity]);
 
-		for (size_t i = count - num_elements_to_remove; i < count; i++)
+		for (size_t i = count - distance; i < count; i++)
 			data[(front_index + i) % capacity] = T();
 
-		count -= num_elements_to_remove;
+		count -= distance;
 		back_index = (front_index + count) % capacity;
 	}	
 	void insert(iterator pos, const T& value)
@@ -938,8 +943,7 @@ public:
 		for (size_t i = 0; i < this->size(); i++)
 			for (size_t j = i + 1; j < this->size(); j++) {
 				bool swap = 0;
-				for (size_t k = 0; k < Variables.size(); k++)
-				{
+				for (size_t k = 0; k < Variables.size(); k++) {
 					if (this->at(i).exp[k] > this->at(j).exp[k]) break;
 					if (this->at(i).exp[k] == this->at(j).exp[k]) continue;
 					swap = 1;
@@ -951,12 +955,12 @@ public:
 
 	void open()
 	{
-		for (int i = 0; i < this->size(); i++) if ((*this)[i][0].degree == -1) 
+		for (int i = 0; i < this->size(); i++) if ((*this)[i][0].degree == -1)
 		{
 			int repeat{ (*this)[i][0].coefficient };
 			this->erase(this->begin() + i);
 			auto push{ (*this)[i] };
-			for (int j = 0; j < repeat; j++) this->push_front(push);
+			for (int j = 0; j < repeat - 1; j++) this->push_front(push);
 		}
 	}
 	void close()
@@ -968,13 +972,15 @@ public:
 				{
 					CommonFactor = (*this)[i];
 					if (i > 0) {
+
 						// caso con esponente
 						if ((*this)[i - 1].size() == 1 and 
-							(*this)[i - 1][0].degree == -1) 
+							(*this)[i - 1][0].degree == -1)
 						{
 							(*this)[i - 1][0].coefficient++;
 							this->erase(this->begin() + j);
 						}
+
 						// caso senza esponente
 						else {
 							int setK = 0;
@@ -985,14 +991,15 @@ public:
 									setK = k;
 									break;
 								}
-							if ((*this)[i + 1] != CommonFactor)
+							if ((*this)[i + 1] != CommonFactor) 
 								swap((*this)[i + 1], (*this)[setK]);
 						}
 					}
+
 					// caso di eccezione
 					else {
 						int setK = 0;
-						this->insert(this->begin(), { {-1, 2} });
+						this->push_front({ {-1, 2} });
 						this->erase(this->begin() + j);
 						for (int k = 0; k < this->size(); k++)
 							if ((*this)[k] == CommonFactor) {
@@ -1006,19 +1013,20 @@ public:
 	}
 	void fill(int s)
 	{
-
 		// riempimento buchi
 		for (int i = this->size() - 1; i > 0; i--)
 			for (int j = 1; j < (*this)[i - 1].degree - (*this)[i].degree; j++)
 				this->insert(this->begin() + i, { (*this)[i - 1].degree - j, 0 });
 
 		// riempimento buchi agli estremi
-		if (this->size() == 0) for (int i = 0; i < s; i++) this->push_back({ i, 0 });
-		if (this->size() < s) {
+		if (this->size() == 0)
+			for (int i = 0; i < s; i++) this->push_back({ i, 0 });
+		if (this->size() < s)
+		{
 			while ((*this)[0].degree < s - 1)
 				this->insert(this->begin(), { (*this)[0].degree + 1, 0 });
 			
-			while ((*this)[this->size() - 1].degree > 0) 
+			while ((*this)[this->size() - 1].degree > 0)
 				this->push_back({ (*this)[this->size() - 1].degree - 1, 0 });
 		}
 	}
@@ -2470,7 +2478,7 @@ static vector_t PrimeNCalculator(long long N, bool USE_pro_bar)
 		iter++;
 	}
 
-	// cancellamento barra di avanzamento
+	// rimozione barra di avanzamento
 	if (USE_pro_bar) {
 		SetConsoleCursorPosition(hConsole, { 0, 0 });
 		cout << string(BARWIDTH + 11, '\\') << "\n\nattendere\r";
@@ -4430,10 +4438,9 @@ static void Simplify(
 	for (int i = num.size() - 1; i >= 0; i--) {
 
 		// caso coefficiente
-		if (num[i].size() == 1 and num[i][0].degree == 0)
-			continue;
-		for (int j = den.size() - 1; j >= 0; j--) {
+		if (num[i].size() == 1 and num[i][0].degree == 0) continue;
 
+		for (int j = den.size() - 1; j >= 0; j--) {
 			if (i >= num.size() or j >= den.size()) continue;
 
 			// caso coefficiente
@@ -4447,16 +4454,14 @@ static void Simplify(
 			}
 
 			// caso con polinomi opposti
-			for (int k = 0; k < den[j].size(); k++)
-				den[j][k].coefficient = -den[j][k].coefficient;
+			for (int k = 0; k < den[j].size(); k++) den[j][k].coefficient *= -1;
 			if (num[i] == den[j]) {
 				num.erase(num.begin() + i);
 				den.erase(den.begin() + j);
-				sign = -sign;
+				sign *= -1;
 				continue;
 			}
-			else for (int k = 0; k < den[j].size(); k++)
-				den[j][k].coefficient = -den[j][k].coefficient;
+			else for (int k = 0; k < den[j].size(); k++) den[j][k].coefficient *= -1;
 
 			// caso di potenze
 			if (num[i].size() == 1 and den[j].size() == 1) {
