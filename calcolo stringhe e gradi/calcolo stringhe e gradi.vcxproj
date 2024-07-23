@@ -130,6 +130,9 @@
   <ItemGroup>
     <ClCompile Include="calcolo stringhe e gradi.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="..\tensor.natvis" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

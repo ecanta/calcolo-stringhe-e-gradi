@@ -55,6 +55,7 @@
 #include <initializer_list> // per le classi template
 #include <iterator>
 #include <locale> // per unicode
+#include <memory>
 #include <new> // per nothrow
 #include <ppl.h> // per la parallelizzazione
 #include <queue>
@@ -468,8 +469,7 @@ private:
 
 	void resize(size_t new_capacity)
 	{
-		if (new_capacity == 0)
-			throw logic_error("New capacity must be greater than zero");
+		if (new_capacity == 0) new_capacity = 1;
 		T* new_data = new(nothrow) T[new_capacity];
 		for (size_t i = 0; i < count; i++)
 			new_data[i] = move(data[(front_index + i) % capacity]);
@@ -487,7 +487,9 @@ public:
 		count(0),
 		front_index(0),
 		back_index(0)
-	{}
+	{
+		if (capacity == 0) capacity = 1;
+	}
 	tensor(const tensor& other) :
 		data(new(nothrow) T[other.capacity]),
 		capacity(other.capacity),
@@ -554,6 +556,10 @@ public:
 	{
 		return count;
 	}
+	bool empty() const
+	{
+		return count == 0;
+	}
 	_NODISCARD T& at(size_t index)
 	{
 		if (index >= count) throw out_of_range("Index out of range");
@@ -565,10 +571,6 @@ public:
 		if (index >= count) throw out_of_range("Index out of range");
 		if (capacity == 0) throw logic_error("Capacity is zero");
 		return data[(front_index + index) % capacity];
-	}
-	bool empty() const
-	{
-		return count == 0;
 	}
 
 	void erase()
@@ -949,13 +951,12 @@ public:
 
 	void open()
 	{
-		for (int i = 0; i < this->.size(); i++) {
-			if (this->[i][0].degree == -1) {
-				int repeat{ this->[i][0].coefficient };
-				this->erase(this->begin() + i);
-				tensor<MONOMIAL> push{ this->[i] };
-				for (int j = 1; j < repeat; j++) this->push_front(push);
-			}
+		for (int i = 0; i < this->size(); i++) if ((*this)[i][0].degree == -1) 
+		{
+			int repeat{ (*this)[i][0].coefficient };
+			this->erase(this->begin() + i);
+			auto push{ (*this)[i] };
+			for (int j = 0; j < repeat; j++) this->push_front(push);
 		}
 	}
 	void close()
@@ -963,38 +964,43 @@ public:
 		tensor<MONOMIAL> CommonFactor;
 		for (int i = 0; i < this->size(); i++)
 			for (int j = this->size() - 1; j > i; j--)
-				if (this->[i] == this->[j] and this->[i][0].degree != -1) {
-					CommonFactor = this->[i];
+				if ((*this)[i] == (*this)[j] and (*this)[i][0].degree != -1)
+				{
+					CommonFactor = (*this)[i];
 					if (i > 0) {
-
 						// caso con esponente
-						if (this->[i - 1].size() == 1 and
-							this->[i - 1][0].degree == -1) {
-							this->[i - 1][0].coefficient++;
-							this->erase(this->begin() + i + 1);
+						if ((*this)[i - 1].size() == 1 and 
+							(*this)[i - 1][0].degree == -1) 
+						{
+							(*this)[i - 1][0].coefficient++;
+							this->erase(this->begin() + j);
 						}
-
 						// caso senza esponente
 						else {
-							int setK{};
+							int setK = 0;
 							this->insert(this->begin(), { {-1, 2} });
-							this->erase(this->begin() + i + 1);
+							this->erase(this->begin() + j);
 							for (int k = 0; k < this->size(); k++)
-								if (this->[k] == CommonFactor) setK = k;
-							if (this->[i + 1] != CommonFactor)
-								swap(this->[i + 1], this->[setK]);
+								if ((*this)[k] == CommonFactor) {
+									setK = k;
+									break;
+								}
+							if ((*this)[i + 1] != CommonFactor)
+								swap((*this)[i + 1], (*this)[setK]);
 						}
 					}
-
 					// caso di eccezione
 					else {
-						int setK{};
+						int setK = 0;
 						this->insert(this->begin(), { {-1, 2} });
-						this->erase(this->begin() + i + 1);
+						this->erase(this->begin() + j);
 						for (int k = 0; k < this->size(); k++)
-							if (this->[k] == CommonFactor) setK = k;
-						if (this->[i + 1] != CommonFactor)
-							swap(this->[i + 1], this->[setK]);
+							if ((*this)[k] == CommonFactor) {
+								setK = k;
+								break;
+							}
+						if ((*this)[i + 1] != CommonFactor)
+							swap((*this)[i + 1], (*this)[setK]);
 					}
 				}
 	}
@@ -1002,29 +1008,20 @@ public:
 	{
 
 		// riempimento buchi
-
-
-
 		for (int i = this->size() - 1; i > 0; i--)
-			for (int j = 1;
-				j < this->[i - 1].degree - this->[i].degree; j++)
-				this->insert
-				(this->begin() + i,
-					{ this->[i - 1].degree - j, 0 }
-		);
+			for (int j = 1; j < (*this)[i - 1].degree - (*this)[i].degree; j++)
+				this->insert(this->begin() + i, { (*this)[i - 1].degree - j, 0 });
 
 		// riempimento buchi agli estremi
-		if (this->size() == 0)
-			for (int i = 0; i < s; i++) this->push_back({ i, 0 });
+		if (this->size() == 0) for (int i = 0; i < s; i++) this->push_back({ i, 0 });
 		if (this->size() < s) {
-			while (this->[0].degree < s - 1)
-				this->push_front({ this->[0].degree + 1, 0 });
-			while (this->[this->size() - 1].degree > 0)
-				this->push_back(
-					{ this->[this->size() - 1].degree - 1, 0 });
+			while ((*this)[0].degree < s - 1)
+				this->insert(this->begin(), { (*this)[0].degree + 1, 0 });
+			
+			while ((*this)[this->size() - 1].degree > 0) 
+				this->push_back({ (*this)[this->size() - 1].degree - 1, 0 });
 		}
 	}
-
 };
 
 #pragma endregion
@@ -1093,9 +1090,6 @@ static void LongComputation
 static tensor<MONOMIAL> GetMonomials(wstring polynomial);
 static wstring GetFactor(tensor<MONOMIAL> inp);
 static wstring GetPolynomial(tensor<tensor<MONOMIAL>> inp);
-static void OpenPolynomial(tensor<tensor<MONOMIAL>>& vect);
-static void ClosePolynomial(tensor<tensor<MONOMIAL>>& vect);
-static tensor<MONOMIAL> FillPolynomial(tensor<MONOMIAL> vect, int s);
 static tensor<MONOMIAL> PolynomialSum(tensor<MONOMIAL> inp);
 static tensor<MONOMIAL> PolynomialMultiply
 (tensor<tensor<MONOMIAL>> Polynomial);
@@ -3826,85 +3820,6 @@ static wstring GetPolynomial(tensor<tensor<MONOMIAL>> inp)
 #pragma endregion
 #pragma region HandPolynomials
 
-static void OpenPolynomial(tensor<tensor<MONOMIAL>>& vect)
-{
-	for (int i = 0; i < vect.size(); i++) {
-		if (vect[i][0].degree == -1) {
-			int repeat{ vect[i][0].coefficient };
-			vect.erase(vect.begin() + i);
-			tensor<MONOMIAL> push{ vect[i] };
-			for (int j = 1; j < repeat; j++) vect.push_front(push);
-		}
-	}
-}
-static void ClosePolynomial(tensor<tensor<MONOMIAL>>& vect)
-{
-	tensor<MONOMIAL> CommonFactor;
-	for (int i = 0; i < vect.size(); i++)
-		for (int j = vect.size() - 1; j > i; j--)
-			if (vect[i] == vect[j] and vect[i][0].degree != -1) {
-				CommonFactor = vect[i];
-				if (i > 0) {
-
-					// caso con esponente
-					if (vect[i - 1].size() == 1 and
-						vect[i - 1][0].degree == -1) {
-						vect[i - 1][0].coefficient++;
-						vect.erase(vect.begin() + i + 1);
-					}
-
-					// caso senza esponente
-					else {
-						int setK{};
-						vect.insert(vect.begin(), { {-1, 2} });
-						vect.erase(vect.begin() + i + 1);
-						for (int k = 0; k < vect.size(); k++)
-							if (vect[k] == CommonFactor) setK = k;
-						if (vect[i + 1] != CommonFactor)
-							swap(vect[i + 1], vect[setK]);
-					}
-				}
-
-				// caso di eccezione
-				else {
-					int setK{};
-					vect.insert(vect.begin(), { {-1, 2} });
-					vect.erase(vect.begin() + i + 1);
-					for (int k = 0; k < vect.size(); k++)
-						if (vect[k] == CommonFactor) setK = k;
-					if (vect[i + 1] != CommonFactor)
-						swap(vect[i + 1], vect[setK]);
-				}
-			}
-}
-static tensor<MONOMIAL> FillPolynomial(tensor<MONOMIAL> vect, int s)
-{
-
-	// riempimento buchi
-	for (int i = vect.size() - 1; i > 0; i--)
-		for (int j = 1;
-			j < vect[i - 1].degree - vect[i].degree; j++)
-			vect.insert
-			(vect.begin() + i,
-				{ vect[i - 1].degree - j, 0 }
-			);
-
-	// riempimento buchi agli estremi
-	if (vect.size() == 0) {
-		for (int i = 0; i < s; i++) vect.push_back({ i, 0 });
-		return vect;
-	}
-	if (vect.size() < s) {
-		while (vect[0].degree < s - 1)
-			vect.push_front({ vect[0].degree + 1, 0 });
-		while (vect[vect.size() - 1].degree > 0)
-			vect.push_back(
-				{ vect[vect.size() - 1].degree - 1, 0 });
-	}
-
-	return vect;
-}
-
 static tensor<MONOMIAL> PolynomialSum(tensor<MONOMIAL> inp)
 {
 	// ricerca di monomi simili
@@ -3936,7 +3851,7 @@ static tensor<MONOMIAL> PolynomialMultiply
 (tensor<tensor<MONOMIAL>> Polynomial)
 {
 	if (Polynomial.size() == 0) return { {0, 1} };
-	OpenPolynomial(Polynomial);
+	Polynomial.open();
 	while (Polynomial.size() > 1) {
 
 		MONOMIAL temp;
@@ -3963,8 +3878,8 @@ static void PolynomialDivide
 {
 
 	// aggiustamento polinomi
-	dividend = FillPolynomial(dividend, dividend[0].degree);
-	divisor = FillPolynomial(divisor, divisor[0].degree);
+	dividend.fill(dividend[0].degree);
+	divisor.fill(divisor[0].degree);
 	dividend.sort();
 	divisor.sort();
 	quotient = {};
@@ -3984,7 +3899,7 @@ static void PolynomialDivide
 		for (int i = 0; i < dividend.size(); i++)
 			divide.insert(divide.begin() + i, dividend[i]);
 		dividend = PolynomialSum(divide);
-		dividend = FillPolynomial(dividend, deg);
+		dividend.fill(deg);
 		dividend.sort();
 		quotient.push_back({ deg - _deg, rest_element });
 	}
@@ -4505,8 +4420,8 @@ static void Simplify(
 	tensor<tensor<MONOMIAL>>& den,
 	int& ncoeff, int& dcoeff)
 {
-	OpenPolynomial(num);
-	OpenPolynomial(den);
+	num.open();
+	den.open();
 	for (int i = 0; i < num.size(); i++) num[i].sort();
 	for (int i = 0; i < den.size(); i++) den[i].sort();
 
@@ -4582,8 +4497,8 @@ static void Simplify(
 	if (FindD > 0) den[FindD][0].coefficient = 1;
 
 	// compressione polinomi
-	ClosePolynomial(num);
-	ClosePolynomial(den);
+	num.close();
+	den.close();
 }
 
 static int Determinant(tensor<tensor<int>> mx)
@@ -5352,14 +5267,14 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 			}
 
 			// potenza di binomio
-			ClosePolynomial(HT);
+			HT.close();
 			Back_T = HT;
 			HT = {};
 			for (auto a : Back_T) {
 				BackT = Binomial(a);
 				for (auto b : BackT) HT.push_back(b);
 			}
-			ClosePolynomial(HT);
+			HT.close();
 			pol = GetPolynomial(HT);
 			if (pol != polynomial and !Xout and input) {
 				polynomial = pol;
@@ -5376,7 +5291,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 				BackT = Trinomial(a);
 				for (auto b : BackT) HT.push_back(b);
 			}
-			ClosePolynomial(HT);
+			HT.close();
 			pol = GetPolynomial(HT);
 			if (pol != polynomial and !Xout and input) {
 				polynomial = pol;
@@ -5402,7 +5317,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 				}
 				extend = 1;
 			}
-			ClosePolynomial(HT);
+			HT.close();
 			pol = GetPolynomial(HT);
 
 			// somma per differenza
@@ -5436,7 +5351,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 			}
 
 			// ruffini
-			ClosePolynomial(HT);
+			HT.close();
 			pol = GetPolynomial(HT);
 			if (pol != polynomial and !Xout and input) {
 				polynomial = pol;
@@ -5454,7 +5369,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 			BackT = CompleteTheSquare(a);
 			for (auto b : BackT) HT.push_back(b);
 		}
-		ClosePolynomial(HT);
+		HT.close();
 		pol = GetPolynomial(HT);
 		if (pol != polynomial and !Xout and input) {
 			polynomial = pol;
@@ -5472,7 +5387,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 			BackT = TrinomialSquare(a);
 			for (auto b : BackT) HT.push_back(b);
 		}
-		ClosePolynomial(HT);
+		HT.close();
 		pol = GetPolynomial(HT);
 		if (pol != polynomial and !Xout and input) {
 			polynomial = pol;
@@ -5600,8 +5515,8 @@ static void DecompAlgebraic(switchcase& argc)
 		for (int i = 0; i < NScomp.size(); i++) NScomp[i].sort();
 		auto DenBackup{ DScomp };
 		auto NumBackup{ NScomp };
-		ClosePolynomial(DScomp);
-		ClosePolynomial(NScomp);
+		DScomp.close();
+		NScomp.close();
 		int NCOEFF{ 1 }, DCOEFF{ 1 };
 		Simplify(NScomp, DScomp, NCOEFF, DCOEFF);
 		if (DScomp.size() <= 1) skip = 1;
@@ -5625,8 +5540,7 @@ static void DecompAlgebraic(switchcase& argc)
 				for (int j = DScomp[i - 1][0].coefficient; j > 0; j--)
 				{
 					denominators.push_back({});
-					if (j > 1)
-						denominators[index].push_back({ {-1, j} });
+					if (j > 1) denominators[index].push_back({ {-1, j} });
 					denominators[index].push_back(DScomp[i]);
 					index++;
 					complementaries.push_back(
@@ -5664,8 +5578,7 @@ static void DecompAlgebraic(switchcase& argc)
 			is_modifier = 0;
 		}
 		if (!skip) for (int i = 0; i < complementaries.size(); i++)
-			complementaries[i] = FillPolynomial
-			(complementaries[i], complementaries.size());
+			complementaries[i].fill(complementaries.size());
 
 		// inizializzazione matrice
 		tensor<tensor<int>> Matrix;
@@ -5687,7 +5600,7 @@ static void DecompAlgebraic(switchcase& argc)
 			// divisione polinomi
 			if (results.size() != complementaries.size()) {
 				Results = PolynomialMultiply(NScomp);
-				Results = FillPolynomial(Results, complementaries.size());
+				Results.fill(complementaries.size());
 				PolynomialDivide(
 					Results,
 					PolynomialMultiply(DScomp),
@@ -5695,7 +5608,7 @@ static void DecompAlgebraic(switchcase& argc)
 					Rest
 				);
 			}
-			Results = FillPolynomial(Rest, complementaries.size());
+			Results.fill(complementaries.size());
 			Results.sort();
 			for (auto R : Results) results.push_back(R.coefficient);
 			Det = Determinant(Matrix);
