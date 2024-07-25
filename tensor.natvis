@@ -7,7 +7,7 @@
 		<Expand>
 			<ArrayItems>
 				<Size>count</Size>
-				<ValuePointer>data + front_index</ValuePointer>
+				<ValuePointer>data</ValuePointer>
 			</ArrayItems>
 		</Expand>
 	</Type>

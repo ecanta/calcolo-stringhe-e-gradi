@@ -1,4 +1,4 @@
-﻿// program_START
+﻿// inizio del codice
 #pragma region Files
 
 // pragma
@@ -65,6 +65,7 @@
 #include <stdexcept> // per le eccezioni
 #include <string> // per le stringhe e i metodi
 #include <thread> // per il multithreading
+#include <type_traits>
 #include <unordered_map> // per la conversione degli enum
 #include <vector> // per i vettori
 #include <utility>
@@ -264,26 +265,9 @@ unordered_map<wstring, wstring> ConvertFromSuperScript{
 #pragma endregion
 #pragma region Classes
 
-// classi
-class TestInputReader
-{
-private:
-	queue<char> buffer;
-public:
-	void enqueue(char c)
-	{
-		buffer.push(c);
-	}
-	char read()
-	{
-		if (buffer.size() == 0) buffer.push(_getch());
-		char front{ buffer.front() };
-		buffer.pop();
-		return front;
-	}
-};
-TestInputReader ObjectGetCh;
+static void ElabExponents(wstring& str);
 
+// classi
 class NumberData
 {
 public:
@@ -420,19 +404,28 @@ public:
 		SetConsoleTextAttribute(hConsole, 15);
 	}
 };
+class TestInputReader
+{
+private: queue<char> buffer;
+public:
+	void enqueue(char c)
+	{
+		buffer.push(c);
+	}
+	char read()
+	{
+		if (buffer.size() == 0) buffer.push(_getch());
+		auto front{ buffer.front() };
+		buffer.pop();
+		return front;
+	}
+};
+TestInputReader ObjectGetCh;
+
 class NumberDataVector : public vector<NumberData>
 {
-public:
-	NumberDataVector() : vector<NumberData>() {}
-	NumberDataVector(initializer_list<NumberData> init) :
-		vector<NumberData>(init)
-	{}
-
-	void printf()
-	{
-		for (auto& data : *this) data.printf();
-	}
-	void Heapify(int n, int i)
+private:
+	void heapify(int n, int i)
 	{
 		int largest{ i };
 		int left{ 2 * i + 1 };
@@ -443,16 +436,26 @@ public:
 			largest = right;
 		if (largest != i) {
 			iter_swap(this->begin() + i, this->begin() + largest);
-			Heapify(n, largest);
+			heapify(n, largest);
 		}
+	}
+public:
+	NumberDataVector() : vector<NumberData>() {}
+	NumberDataVector(initializer_list<NumberData> init) :
+		vector<NumberData>(init)
+	{}
+
+	void printf()
+	{
+		for (auto& data : *this) data.printf();
 	}
 	void HeapSort()
 	{
 		int n = this->size();
-		for (int i = n / 2 - 1; i >= 0; i--) Heapify(n, i);
+		for (int i = n / 2 - 1; i >= 0; i--) heapify(n, i);
 		for (int i = n - 1; i > 0; i--) {
 			iter_swap(this->begin(), this->begin() + i);
-			Heapify(i, 0);
+			heapify(i, 0);
 		}
 	}
 };
@@ -464,29 +467,36 @@ private:
 	T* data;
 	size_t capacity;
 	size_t count;
-	size_t front_index;
-	size_t back_index;
 
 	void resize(size_t new_capacity)
 	{
 		T* new_data = new(nothrow) T[new_capacity];
 		if (!new_data) throw bad_alloc();
-		for (size_t i = 0; i < count; i++)
-			new_data[i] = move(data[(front_index + i) % capacity]);
+		for (size_t i = 0; i < count; i++) new_data[i] = move(data[i]);
 		delete[] data;
 		data = new_data;
 		capacity = new_capacity;
-		front_index = 0;
-		back_index = count;
+	}
+	void heapify(int n, int i)
+	{
+		int largest{ i };
+		int left{ 2 * i + 1 };
+		int right{ 2 * i + 2 };
+		if (left < n and (*this)[(left).number] > (*this)[(largest).number])
+			largest = left;
+		if (right < n and (*this)[(right).number] > (*this)[(largest).number])
+			largest = right;
+		if (largest != i) {
+			iter_swap(this->begin() + i, this->begin() + largest);
+			heapify(n, largest);
+		}
 	}
 
 public:
 	tensor() :
 		data(new(nothrow) T[10]),
 		capacity(10),
-		count(0),
-		front_index(0),
-		back_index(0)
+		count(0)
 	{
 		if (capacity == 0) capacity = 1;
 		if (!data) throw bad_alloc();
@@ -494,26 +504,19 @@ public:
 	tensor(const tensor& other) :
 		data(new(nothrow) T[other.capacity]),
 		capacity(other.capacity),
-		count(other.count),
-		front_index(0),
-		back_index(other.count)
+		count(other.count)
 	{
 		if (!data) throw bad_alloc();
-		for (size_t i = 0; i < count; i++)
-			data[i] = other.data[(other.front_index + i) % other.capacity];
+		for (size_t i = 0; i < count; i++) data[i] = other.data[i];
 	}
 	tensor(tensor&& other) noexcept :
 		data(other.data),
 		capacity(other.capacity),
-		count(other.count),
-		front_index(other.front_index),
-		back_index(other.back_index)
+		count(other.count)
 	{
 		other.data = nullptr;
 		other.capacity = 0;
 		other.count = 0;
-		other.front_index = 0;
-		other.back_index = 0;
 	}
 	tensor(initializer_list<T> init) : tensor()
 	{
@@ -532,10 +535,7 @@ public:
 			if (!data) throw bad_alloc();
 			capacity = other.capacity;
 			count = other.count;
-			front_index = 0;
-			back_index = count;
-			for (size_t i = 0; i < count; i++)
-				data[i] = other.data[(other.front_index + i) % other.capacity];
+			for (size_t i = 0; i < count; i++) data[i] = other.data[i];
 		}
 		return *this;
 	}
@@ -546,13 +546,9 @@ public:
 			data = other.data;
 			capacity = other.capacity;
 			count = other.count;
-			front_index = other.front_index;
-			back_index = other.back_index;
 			other.data = nullptr;
 			other.capacity = 0;
 			other.count = 0;
-			other.front_index = 0;
-			other.back_index = 0;
 		}
 		return *this;
 	}
@@ -565,50 +561,41 @@ public:
 	{
 		return count == 0;
 	}
-	_NODISCARD T& at(size_t index)
+
+	T& at(size_t index)
 	{
 		if (index >= count) throw out_of_range("Index out of range");
-		if (capacity == 0) throw logic_error("Capacity is zero");
-		return data[(front_index + index) % capacity];
+		return data[index];
 	}
-	_NODISCARD const T& at(size_t index) const
+	const T& at(size_t index) const
 	{
 		if (index >= count) throw out_of_range("Index out of range");
-		if (capacity == 0) throw logic_error("Capacity is zero");
-		return data[(front_index + index) % capacity];
+		return data[index];
 	}
 
 	void clear()
 	{
 		count = 0;
-		front_index = 0;
-		back_index = 0;
 	}
 	void erase(size_t pos)
 	{
 		if (pos >= count) throw out_of_range("Index out of range");
-		for (size_t i = pos; i < count - 1; i++)
-			data[(front_index + i) % capacity] = 
-			move(data[(front_index + i + 1) % capacity]);
+		for (size_t i = pos; i < count - 1; i++) data[i] = move(data[i + 1]);
 		count--;
-		back_index = (front_index + count) % capacity;
 	}
 	void erase(size_t pos, size_t n)
 	{
 		if (pos >= count) throw out_of_range("Index out of range");
 		if (pos + n > count) n = count - pos;
-		for (size_t i = pos; i < count - n; i++)
-			data[(front_index + i) % capacity] = 
-			move(data[(front_index + i + n) % capacity]);
+		for (size_t i = pos; i < count - n; i++) data[i] = move(data[i + n]);
 		count -= n;
-		back_index = (front_index + count) % capacity;
 	}
 
-	_NODISCARD _CONSTEXPR20 T& operator[](size_t index)
+	T& operator[](size_t index)
 	{
 		return at(index);
 	}
-	_NODISCARD _CONSTEXPR20 const T& operator[](size_t index) const
+	const T& operator[](size_t index) const
 	{
 		return at(index);
 	}
@@ -616,14 +603,11 @@ public:
 	void push_back(const T& value)
 	{
 		if (count == capacity) resize(capacity * 2);
-		data[back_index] = value;
-		back_index = (back_index + 1) % capacity;
-		count++;
+		data[count++] = value;
 	}
 	void pop_back()
 	{
 		if (count == 0) throw out_of_range("tensor is empty");
-		back_index = back_index == 0 ? capacity - 1 : back_index - 1;
 		count--;
 	}
 	void push_front(const T& value)
@@ -636,7 +620,7 @@ public:
 	void pop_front()
 	{
 		if (count == 0) throw out_of_range("tensor is empty");
-		front_index = (front_index + 1) % capacity;
+		for (size_t i = 0; i < count - 1; i++) data[i] = move(data[i + 1]);
 		count--;
 	}
 
@@ -665,12 +649,11 @@ public:
 
 	_NODISCARD bool operator==(const tensor& other) const
 	{
-		if (count != other.count) return 0;
+		if (count != other.count) return false;
 		for (size_t i = 0; i < count; i++)
-			if (data[(front_index + i) % capacity] != 
-				other.data[(other.front_index + i) % other.capacity])
-				return 0;
-		return 1;
+			if (data[i] != other.data[i])
+				return false;
+		return true;
 	}
 	_NODISCARD bool operator!=(const tensor& other) const
 	{
@@ -692,7 +675,6 @@ public:
 	{
 		if (n > count) count = 0;
 		else count -= n;
-		back_index = (front_index + count) % capacity;
 		return *this;
 	}
 
@@ -728,93 +710,85 @@ public:
 
 	class iterator
 	{
-	private:
-		T* data;
-		size_t capacity;
-		size_t front_index;
+	private: T* data;
 
-	public:
-		size_t index;
+	public: size_t index;
 		using iterator_category = forward_iterator_tag;
 		using value_type = T;
 		using difference_type = ptrdiff_t;
 		using pointer = T*;
 		using reference = T&;
 
-		iterator(
-			T* data, 
-			size_t index, 
-			size_t capacity, 
-			size_t front_index = 0
-		):
-			data(data), 
-			index(index), 
-			capacity(capacity), 
-			front_index(front_index)
-		{}
+		iterator(T* data, size_t index) : data(data), index(index) {}
 
 		iterator& operator++()
 		{
-			index = (index + 1) % capacity;
-			return *this;
+			index++; 
+			return *this; 
 		}
 		iterator operator++(int)
-		{
+		{ 
 			iterator temp = *this;
-			(*this)++;
-			return temp;
+			index++; 
+			return temp; 
 		}
 		iterator& operator--()
 		{
-			index = (index + capacity - 1) % capacity;
+			index--;
 			return *this;
 		}
 		iterator operator--(int)
 		{
 			iterator temp = *this;
-			(*this)--;
+			index--;
 			return temp;
 		}
 
 		iterator operator+(size_t n) const
 		{
-			return iterator(data, (index + n) % capacity, capacity, front_index);
+			return iterator(data, index + n);
 		}
 		iterator& operator+=(size_t n)
 		{
-			index = (index + n) % capacity;
+			index += n;
 			return *this;
 		}
 		iterator operator-(size_t n) const
 		{
-			return iterator(
-				data, 
-				(index + capacity - n) % capacity, 
-				capacity, 
-				front_index
-			);
+			return iterator(data, index - n);
 		}
 		iterator& operator-=(size_t n)
 		{
-			index = (index + capacity - n) % capacity;
+			index -= n;
 			return *this;
+		}
+
+		size_t operator+(iterator value) const
+		{
+			return index + value.index;
+		}
+		size_t operator-(iterator value) const
+		{
+			if (index == value.index) return 0;
+			if (index < value.index) throw out_of_range("Index out of range");
+			return index - value.index;
 		}
 
 		T& operator*()
 		{
-			return data[(front_index + index) % capacity];
+			return data[index];
 		}
 		const T& operator*() const
 		{
-			return data[(front_index + index) % capacity];
+			return data[index];
 		}
 		T* operator->()
 		{
-			return &data[(front_index + index) % capacity];
+			return &data[index];
 		}
 		const T* operator->() const
 		{
-			return &data[(front_index + index) % capacity];
+			return &data[index];
 		}
 
 		bool operator==(const iterator& other) const
@@ -825,7 +799,6 @@ public:
 		{
 			return index != other.index;
 		}
-
 		bool operator<(const iterator& other) const
 		{
 			return index < other.index;
@@ -846,82 +819,55 @@ public:
 
 	iterator begin()
 	{
-		return iterator(data, 0, capacity, front_index);
+		return iterator(data, 0);
 	}
 	iterator end()
 	{
-		return iterator(data, count, capacity, front_index);
-	}
-	iterator rbegin()
-	{
-		return iterator(data, count - 1, capacity, front_index);
-	}
-	iterator rend()
-	{
-		return iterator(data, -1, capacity, front_index);
+		return iterator(data, count);
 	}
 
 	void erase(iterator it)
 	{
 		if (it == end()) throw out_of_range("Iterator out of range");
-		size_t pos = it.index;
-		for (size_t i = pos; i < count - 1; i++)
-			data[(front_index + i) % capacity] =
-			move(data[(front_index + i + 1) % capacity]);
+		size_t pos{ it - begin() };
+		for (size_t i = pos; i < count - 1; i++) data[i] = move(data[i + 1]);
 		count--;
-		back_index = (front_index + count) % capacity;
 	}
 	void erase(iterator first, iterator last)
 	{
 		if (first == last) return;
-		size_t start{ first.index };
-		size_t end{ last.index };
+		size_t start{ first - begin() };
+		size_t end{ last - begin() };
 
 		if (start >= count or end > count or start > end)
-			throw out_of_range("Intervallo di iteratori non valido");
+			throw out_of_range("Invalid iterator range");
 
-		size_t distance{ end - start };
+		size_t distance = end - start;
 		for (size_t i = start; i < count - distance; i++)
-			data[(front_index + i) % capacity] = 
-			move(data[(front_index + i + distance) % capacity]);
-
-		for (size_t i = count - distance; i < count; i++)
-			data[(front_index + i) % capacity] = T();
+			data[i] = move(data[i + distance]);
 
 		count -= distance;
-		back_index = (front_index + count) % capacity;
-	}	
+	}
 	void insert(iterator pos, const T& value)
 	{
+		size_t index = pos - begin();
 		if (count == capacity) resize(capacity * 2);
-		auto insert_index{ (front_index + pos.index) % capacity };
 
-		if (count > 0 and insert_index <= back_index)
-			for (
-				size_t i = back_index; 
-				i > insert_index; 
-				i = (i + capacity - 1) % capacity
-				)
-				data[i] = data[(i + capacity - 1) % capacity];
-		else
-			for (
-				size_t i = back_index; 
-				i != insert_index; 
-				i = (i + capacity - 1) % capacity
-				)
-				data[i] = data[(i + capacity - 1) % capacity];
+		for (size_t i = count; i > index; i--) data[i] = move(data[i - 1]);
 
-		data[insert_index] = value;
-		back_index = (back_index + 1) % capacity;
+		data[index] = value;
 		count++;
 	}
 	void remove(const T& value)
 	{
-		iterator it{ begin() };
-		while (it != end()) {
-			if (*it == value) erase(it, it + 1);
-			it++;
+		size_t write{};
+		for (size_t read = 0; read < count; read++) {
+			if (data[read] != value) {
+				if (write != read) data[write] = move(data[read]);
+				write++;
+			}
 		}
+		count = write;
 	}
 
 	void sort()
@@ -930,6 +876,15 @@ public:
 			for (size_t j = i + 1; j < this->size(); j++)
 				if (this->at(i).degree < this->at(j).degree)
 					swap(this->at(i), this->at(j));
+	}
+	void HeapSort()
+	{
+		int n = this->size();
+		for (int i = n / 2 - 1; i >= 0; i--) heapify(n, i);
+		for (int i = n - 1; i > 0; i--) {
+			iter_swap(this->begin(), this->begin() + i);
+			heapify(i, 0);
+		}
 	}
 	void SortByDegree()
 	{
@@ -1030,6 +985,110 @@ public:
 				this->push_back({ (*this)[this->size() - 1].degree - 1, 0 });
 		}
 	}
+
+	_NODISCARD wstring str()
+	{
+		wostringstream result{};
+		wstring outp{};
+
+		// bool
+		if constexpr (is_same_v<T, bool>)
+			for (const auto& element : *this) 
+				result << element ? L"1" : L"0" << L", ";
+			
+		// carattere
+		else if constexpr (is_same_v<T, char>) {
+			for (const auto& element : *this) result << element;
+			result << L", ";
+		}
+
+		// dato integrale
+		else if constexpr (is_integral_v<T>)
+			for (const auto& element : *this)
+				result << to_wstring(element) << L", ";
+
+		// stringhe
+		else if constexpr (is_same_v<T, wstring>)
+			for (const auto& element : *this) result << element << L", ";
+
+		// fattore di un polinomio
+		else if constexpr (is_same_v<T, MONOMIAL> or is_same_v<T, REAL_MONOMIAL>)
+		{
+			wstring xout;
+			for (const auto& element : *this) {
+				xout = L"";
+
+				// caso con coefficiente sottinteso
+				if (element.coefficient != 1 and element.coefficient != -1)
+					xout = to_wstring(element.coefficient);
+
+				// caso con grado non nullo
+				if (element.degree != 0) {
+					xout.append(wstring(1, charVariable));
+					if (element.degree != 1)
+						xout += L'^' + to_wstring(element.degree);
+				}
+				else xout = to_wstring(element.coefficient);
+
+				// aggiunta del segno
+				if (element.coefficient < 0 and xout.at(0) != '-')
+					xout = L'-' + xout;
+				else if (element.coefficient > 0) xout = L'+' + xout;
+
+				// aggiunta
+				result << xout;
+			}
+			outp = result.str();
+			if (outp.at(0) == '+') outp.erase(0, 1);
+			return outp;
+		}
+
+		// polinomio scomposto
+		else if constexpr (is_same_v<T, tensor<MONOMIAL>>)
+		{
+			bool set_modifier{ false };
+			wstring exp;
+			for (auto T : *this) {
+
+				// caso di monomio modificatore
+				if (T[0].degree == -1) {
+					exp = to_wstring(T[0].coefficient);
+					set_modifier = 1;
+					continue;
+				}
+				wstring xout = T.str();
+
+				// caso con elevamento a potenza
+				if (set_modifier) {
+					xout = L'(' + xout + L")^" + exp;
+					set_modifier = 0;
+				}
+
+				// caso di parentesi necessarie
+				else if (T.size() > 1) xout = L'(' + xout + L')';
+				result << xout;
+			}
+			outp = result.str();
+
+			// caso nullo
+			if (outp.empty()) return L"0";
+
+			// fine
+			if (BOOLALPHA) ElabExponents(outp);
+			return outp;
+		}
+
+		// niente
+		else return L"";
+
+		// fine
+		outp = result.str();
+		if (outp.size() >= 2) {
+			outp.pop_back();
+			outp.pop_back();
+		}
+		return L'{' + outp + L'}';
+	}
 };
 
 #pragma endregion
@@ -1055,7 +1114,6 @@ static void ProgressBar(double ratio, double barWidth);
 static long double WaitingScreen(auto begin, auto end);
 static wstring CTSuperScript(char input);
 static wstring CFSuperScript(wstring script);
-static void ElabExponents(wstring& str);
 static void DeduceFromExponents(wstring& str);
 static void GetFraction(wstring& numerator, wstring& denominator);
 static wstring GetLine(bool ShowSuggestions, int sizemax);
@@ -1096,8 +1154,6 @@ static void CodeConverter
 static void LongComputation
 (wstring ToEvaluate, wstring message, bool ShowErrors, bool NecBoundary);
 static tensor<MONOMIAL> GetMonomials(wstring polynomial);
-static wstring GetFactor(tensor<MONOMIAL> inp);
-static wstring GetPolynomial(tensor<tensor<MONOMIAL>> inp);
 static tensor<MONOMIAL> PolynomialSum(tensor<MONOMIAL> inp);
 static tensor<MONOMIAL> PolynomialMultiply
 (tensor<tensor<MONOMIAL>> Polynomial);
@@ -1147,7 +1203,7 @@ static void Loop(
 );
 static tensor<tensor<MONOMIAL>> DecompPolynomial
 (switchcase& argc, wstring polynomial);
-static void DecompAlgebraic(switchcase& argc);
+static void DecompFraction(switchcase& argc);
 
 #pragma endregion
 
@@ -1419,7 +1475,7 @@ int main()
 				DecompPolynomial(option, L"");
 				break;
 			case FactorFraction:
-				DecompAlgebraic(option);
+				DecompFraction(option);
 				break;
 			}
 			if (option == Random) goto End;
@@ -1973,7 +2029,7 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 
 		char c = _getch();
 		GetConsoleScreenBufferInfo(hConsole, &csbi);
-		auto S{ wstring(csbi.dwSize.X, ' ') + L"\r" };
+		auto S{ wstring(csbi.dwSize.X, ' ') + L'\r' };
 
 		bool cond{
 			c == '\b' or c == '\t' or c == '\r' or
@@ -2732,7 +2788,7 @@ static wstring Cript(long long input)
 					the_string.erase(the_string.size() - 1);
 					break;
 				case 2:
-					exp_string = L"." + wstring(1, the_string.at(the_string.size() - 2))
+					exp_string = L'.' + wstring(1, the_string.at(the_string.size() - 2))
 						+ wstring(1, the_string.at(the_string.size() - 1));
 					the_string.erase(the_string.size() - 3);
 					break;
@@ -2745,7 +2801,7 @@ static wstring Cript(long long input)
 					prime_exp = stoi(prime_exp_string);
 					prime_exp++;
 					prime_exp_string = to_wstring(prime_exp);
-					if (prime_exp > 10) prime_exp_string = L"." + prime_exp_string;
+					if (prime_exp > 10) prime_exp_string = L'.' + prime_exp_string;
 					the_string.append(prime_exp_string);
 				}
 
@@ -2814,7 +2870,7 @@ static wstring FactNumber(long long input)
 	for (int i = 0; i < expfactors.size(); i++) {
 		if (expfactors[i].exp != 1) {
 			output += to_wstring(expfactors[i].factors);
-			output += L"^" + to_wstring(expfactors[i].exp);
+			output += L'^' + to_wstring(expfactors[i].exp);
 			output += L" * ";
 		}
 		else output += to_wstring(expfactors[i].factors) + L" * ";
@@ -3618,7 +3674,7 @@ static void CodeConverter
 	if (number > 0) {
 		auto text{ L"il numero corrispondente e' " };
 		ConsoleText.push_back({ text , 15 });
-		ConsoleText.push_back({ to_wstring(number) + L"\n" , 4 });
+		ConsoleText.push_back({ to_wstring(number) + L'\n' , 4 });
 	}
 }
 static void LongComputation
@@ -3696,7 +3752,7 @@ static void LongComputation
 }
 
 #pragma endregion
-#pragma region Traduce
+#pragma region HandPolynomials
 
 static tensor<MONOMIAL> GetMonomials(wstring polynomial)
 {
@@ -3759,75 +3815,6 @@ static tensor<MONOMIAL> GetMonomials(wstring polynomial)
 
 	return output;
 }
-static wstring GetFactor(tensor<MONOMIAL> inp)
-{
-	wstring output{};
-	wstring xout;
-	for (auto x : inp) {
-		xout = L"";
-
-		// caso con coefficiente sottinteso
-		if (x.coefficient != 1 and x.coefficient != -1)
-			xout = to_wstring(x.coefficient);
-
-		// caso con grado non nullo
-		if (x.degree != 0) {
-			xout.append(wstring(1, charVariable));
-			if (x.degree != 1) xout += L"^" + to_wstring(x.degree);
-		}
-		else xout = to_wstring(x.coefficient);
-
-		// aggiunta del segno
-		if (x.coefficient < 0 and xout.at(0) != '-')
-			xout = L"-" + xout;
-		else if (x.coefficient > 0) xout = L"+" + xout;
-
-		// aggiunta
-		output += xout;
-	}
-	if (output.at(0) == '+') output.erase(0, 1);
-	return output;
-}
-static wstring GetPolynomial(tensor<tensor<MONOMIAL>> inp)
-{
-	wstring output{};
-	bool set_modifier{ false };
-	wstring exp;
-	for (auto T : inp) {
-
-		// caso di monomio modificatore
-		if (T[0].degree == -1) {
-			exp = to_wstring(T[0].coefficient);
-			set_modifier = 1;
-			continue;
-		}
-		auto xout{ GetFactor(T) };
-
-		// caso con elevamento a potenza
-		if (set_modifier) {
-			xout = L"(" + xout + L")^" + exp;
-			set_modifier = 0;
-		}
-
-		// caso comune
-		else xout = L"(" + xout + L")";
-
-		// caso di x
-		if (xout == L"(x)") xout = L"x";
-
-		output += xout;
-	}
-
-	// caso nullo
-	if (output.empty()) return L"0";
-	
-	if (BOOLALPHA) ElabExponents(output);
-	return output;
-}
-
-#pragma endregion
-#pragma region HandPolynomials
-
 static tensor<MONOMIAL> PolynomialSum(tensor<MONOMIAL> inp)
 {
 	// ricerca di monomi simili
@@ -3886,10 +3873,12 @@ static void PolynomialDivide
 {
 
 	// aggiustamento polinomi
-	dividend.fill(dividend[0].degree);
-	divisor.fill(divisor[0].degree);
 	dividend.sort();
-	divisor.sort();
+	divisor. sort();
+	dividend.fill(dividend[0].degree);
+	divisor. fill(divisor[0].degree);
+	dividend.sort();
+	divisor. sort();
 	quotient = {};
 
 	// divisione
@@ -4481,16 +4470,24 @@ static void Simplify(
 	// ricerca coefficenti
 	int FindN{ -1 }, FindD{ -1 };
 	for (int i = 0; i < num.size(); i++)
-		if (num[i].size() == 1 and num[i][0].degree == 0) {
+		if (num[i].size() == 1) {
 			ncoeff = num[i][0].coefficient * sign;
-			FindN = i;
-			num.erase(num.begin() + i);
+			if (num[i][0].degree == 0 and
+				den.size() != 1 and
+				den[0].size() != 1)
+				num.erase(num.begin() + i);
+			else FindN = i;
+			break;
 		}
 	for (int i = 0; i < den.size(); i++)
-		if (den[i].size() == 1 and den[i][0].degree == 0) {
+		if (den[i].size() == 1) {
 			dcoeff = den[i][0].coefficient;
-			FindD = i;
-			den.erase(den.begin() + i);
+			if (den[i][0].degree == 0 and 
+				den.size() != 1 and 
+				den[0].size() != 1)
+				den.erase(den.begin() + i);
+			else FindD = i;
+			break;
 		}
 
 	// semplificazione coefficienti
@@ -4498,8 +4495,8 @@ static void Simplify(
 	ncoeff /= GCD;
 	dcoeff /= GCD;
 	dcoeff *= sign;
-	if (FindN > 0) num[FindN][0].coefficient = 1;
-	if (FindD > 0) den[FindD][0].coefficient = 1;
+	if (FindN >= 0) num[FindN][0].coefficient = 1;
+	if (FindD >= 0) den[FindD][0].coefficient = 1;
 
 	// compressione polinomi
 	num.close();
@@ -4515,7 +4512,7 @@ static int Determinant(tensor<tensor<int>> mx)
 	if (s == 1) return mx[0][0];
 	if (s == 2) return mx[0][0] * mx[1][1] - mx[0][1] * mx[1][0];
 
-	// caso generico
+	// caso generale
 	for (int i = 0; i < s; i++) {
 
 		tensor<tensor<int>> MX;
@@ -4702,7 +4699,7 @@ template<typename TN, typename TD> static void PrintFraction
 
 	// calcolo numeratore
 	else {
-		num_ = GetPolynomial(Numerator);
+		num_ = Numerator.str();
 		if (numerator.size() == 1 and NC == 1) {
 			num_.erase(num_.size() - 1);
 			num_.erase(0, 1);
@@ -4714,8 +4711,8 @@ template<typename TN, typename TD> static void PrintFraction
 
 	// calcolo denominatore
 	den_ = L"";
-	auto tempden = GetPolynomial(denominator);
-	if (tempden != L"(1)") den_ = tempden;
+	auto tempden{ denominator.str() };
+	if (tempden != L"1") den_ = tempden;
 	if (denominator.size() == 1 and DC == 1) {
 		den_.erase(den_.size() - 1);
 		den_.erase(0, 1);
@@ -5059,34 +5056,36 @@ static void Loop(
 		int iter{};
 		atomic<long double> Progress{};
 		auto begin{ steady_clock::now() };
-		parallel_for(long long(lower_bound), upper_bound, [&](long long set) {
+		parallel_for(long long(lower_bound), upper_bound, 
+			[&](long long set) {
 
-			NumberData data_element{ CPU(set) };
-			mtx.lock();
-			data.push_back(data_element);
-			if (iter % 200 == 0) {
+				auto data_element{ CPU(set) };
+				mtx.lock();
+				data.push_back(data_element);
+				if (iter % 200 == 0) {
 
-				// stampa della barra di avanzamento
-				auto stop{ steady_clock::now() };
-				SetConsoleTextAttribute(hConsole, 112);
-				Progress = (long double)data.size() / datalenght;
-				ProgressBar(Progress, Barwidth);
+					// stampa della barra di avanzamento
+					auto stop{ steady_clock::now() };
+					SetConsoleTextAttribute(hConsole, 112);
+					Progress = (long double)data.size() / datalenght;
+					ProgressBar(Progress, Barwidth);
 
-				// calcolo del tempo rimanente
-				int time = duration_cast <milliseconds> (stop - begin).count();
-				SetConsoleTextAttribute(hConsole, 15);
-				long double time_rem{ (time / Progress) * (1 - Progress) };
-				long double time_seconds{ (long double)time_rem / 1000 };
+					// calcolo del tempo rimanente
+					int time = duration_cast <milliseconds> (stop - begin).count();
+					SetConsoleTextAttribute(hConsole, 15);
+					long double time_rem{ (time / Progress) * (1 - Progress) };
+					long double time_seconds{ (long double)time_rem / 1000 };
 
-				// calcolo cifre decimali
-				stringstream stream;
-				stream << fixed << setprecision(1) << time_seconds;
-				cout << "\ntempo rimanente: " << stream.str() << " [secondi] ";
+					// calcolo cifre decimali
+					stringstream stream;
+					stream << fixed << setprecision(1) << time_seconds;
+					cout << "\ntempo rimanente: " << stream.str() << " [secondi] ";
+				}
+				iter++;
+				mtx.unlock();
+
 			}
-			iter++;
-			mtx.unlock();
-
-			});
+		);
 		SetConsoleCursorPosition(hConsole, { 0, 0 });
 		cout << string(Barwidth + 11, '\\') << '\n';
 
@@ -5105,7 +5104,7 @@ static void Loop(
 		// stampa risultati
 		SetConsoleCursorInfo(hConsole, &cursor);
 		data.printf();
-		steady_clock::time_point end{ steady_clock::now() };
+		auto end{ steady_clock::now() };
 		cout << "\ntempo di calcolo = ";
 		cout << duration_cast <milliseconds> (end - begin).count();
 		cout << "[ms]\n\n";
@@ -5236,8 +5235,8 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 		pdata = PolynomialSum(polydata);
 
 		// risultato della somma
-		polynomial = GetFactor(pdata);
-		ElabExponents(polynomial);
+		polynomial = pdata.str();
+		if (BOOLALPHA) ElabExponents(polynomial);
 		if (polydata.size() != pdata.size() and input) {
 			SetConsoleTextAttribute(hConsole, 2);
 			if (polynomial.empty()) polynomial = L"0";
@@ -5250,7 +5249,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 		tensor<tensor<MONOMIAL>> BackT;
 		tensor<tensor<MONOMIAL>> Back_T;
 		HT = Total(polydata);
-		polynomial = GetPolynomial(HT);
+		polynomial = HT.str();
 		if (HT.size() != 1 and input) {
 			SetConsoleTextAttribute(hConsole, 12);
 			wcout << "raccoglimento totale: " << polynomial << '\n';
@@ -5263,7 +5262,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 			HT.pop_back();
 			BackT = Partial(polydata);
 			for (auto a : BackT) HT.push_back(a);
-			pol = GetPolynomial(HT);
+			pol = HT.str();
 			if (pol != polynomial and input) {
 				polynomial = pol;
 				SetConsoleTextAttribute(hConsole, 4);
@@ -5280,7 +5279,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 				for (auto b : BackT) HT.push_back(b);
 			}
 			HT.close();
-			pol = GetPolynomial(HT);
+			pol = HT.str();
 			if (pol != polynomial and !Xout and input) {
 				polynomial = pol;
 				SetConsoleTextAttribute(hConsole, 3);
@@ -5297,7 +5296,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 				for (auto b : BackT) HT.push_back(b);
 			}
 			HT.close();
-			pol = GetPolynomial(HT);
+			pol = HT.str();
 			if (pol != polynomial and !Xout and input) {
 				polynomial = pol;
 				SetConsoleTextAttribute(hConsole, 9);
@@ -5323,7 +5322,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 				extend = 1;
 			}
 			HT.close();
-			pol = GetPolynomial(HT);
+			pol = HT.str();
 
 			// somma per differenza
 			if (pol != polynomial and !Xout and input) {
@@ -5335,7 +5334,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 			}
 
 			// scomposizione con ruffini
-			POL = GetPolynomial(HT);
+			POL = HT.str();
 			Back_T = HT;
 			HT = {};
 			extend = 1;
@@ -5357,7 +5356,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 
 			// ruffini
 			HT.close();
-			pol = GetPolynomial(HT);
+			pol = HT.str();
 			if (pol != polynomial and !Xout and input) {
 				polynomial = pol;
 				SetConsoleTextAttribute(hConsole, 6);
@@ -5375,7 +5374,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 			for (auto b : BackT) HT.push_back(b);
 		}
 		HT.close();
-		pol = GetPolynomial(HT);
+		pol = HT.str();
 		if (pol != polynomial and !Xout and input) {
 			polynomial = pol;
 			SetConsoleTextAttribute(hConsole, 79);
@@ -5393,7 +5392,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 			for (auto b : BackT) HT.push_back(b);
 		}
 		HT.close();
-		pol = GetPolynomial(HT);
+		pol = HT.str();
 		if (pol != polynomial and !Xout and input) {
 			polynomial = pol;
 			SetConsoleTextAttribute(hConsole, 79);
@@ -5422,7 +5421,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 	argc = NotAssigned;
 	return HT;
 }
-static void DecompAlgebraic(switchcase& argc)
+static void DecompFraction(switchcase& argc)
 {
 	setlocale(LC_ALL, "");
 	SetConsoleOutputCP(CP_UTF8);
@@ -5492,7 +5491,7 @@ static void DecompAlgebraic(switchcase& argc)
 			No2 = !Syntax(denominator) or denominator == L"0";
 			No3 = denominator.at(0) == '+' or denominator.at(0) == '-' ?
 				!Syntax(numerator + denominator) :
-				!Syntax(numerator + L"+" + denominator);
+				!Syntax(numerator + L'+' + denominator);
 
 			if (numerator == L"0") break;
 			if ((No1 or No2 or No3) and wrong) {
@@ -5525,8 +5524,7 @@ static void DecompAlgebraic(switchcase& argc)
 		int NCOEFF{ 1 }, DCOEFF{ 1 };
 		Simplify(NScomp, DScomp, NCOEFF, DCOEFF);
 		if (DScomp.size() <= 1) skip = 1;
-		if (!skip) for (auto a : DScomp)
-			for (auto b : a)
+		if (!skip) for (auto a : DScomp) for (auto b : a)
 				if (a.size() != 1 and b.degree > 1) skip = 1;
 
 		// calcolo denominatori
@@ -5594,7 +5592,6 @@ static void DecompAlgebraic(switchcase& argc)
 				Matrix[i].push_back(complementaries[i][j].coefficient);
 
 		// calcolo determinanti
-		tensor<MONOMIAL> Results;
 		tensor<int> results;
 		tensor<double> roots;
 		int Det;
@@ -5603,19 +5600,16 @@ static void DecompAlgebraic(switchcase& argc)
 		if (!skip) {
 
 			// divisione polinomi
-			if (results.size() != complementaries.size()) {
-				Results = PolynomialMultiply(NScomp);
-				Results.fill(complementaries.size());
-				PolynomialDivide(
-					Results,
-					PolynomialMultiply(DScomp),
-					Quotient,
-					Rest
-				);
-			}
-			Results.fill(complementaries.size());
-			Results.sort();
-			for (auto R : Results) results.push_back(R.coefficient);
+			PolynomialDivide(
+				PolynomialMultiply(NScomp),
+				PolynomialMultiply(DScomp),
+				Quotient,
+				Rest
+			);
+			Rest.fill(complementaries.size() - 1);
+			Rest.sort();
+
+			for (auto R : Rest) results.push_back(R.coefficient);
 			Det = Determinant(Matrix);
 		}
 		if (!skip) for (int i = 0; i < results.size(); i++) {
@@ -5720,6 +5714,8 @@ static void DecompAlgebraic(switchcase& argc)
 		}
 		bool ShowPlus{ false };
 		int lines{};
+
+		// caso generale, frazione scomposta
 		if (!skip) {
 			cout << "\n\n";
 			for (int i = 0; i < denominators.size(); i++) {
@@ -5739,7 +5735,9 @@ static void DecompAlgebraic(switchcase& argc)
 		else if (print) {
 
 			// caso di frazione semplificata ma non scomposta
-			if (DScomp.size() > 0) {
+			if (DScomp.size() > 1 or DScomp[0].size() > 1 or 
+				DScomp[0][0].degree > 0)
+			{
 				GetConsoleScreenBufferInfo(hConsole, &csbi);
 				csbi.dwCursorPosition.Y--;
 				SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
@@ -5789,17 +5787,21 @@ static void DecompAlgebraic(switchcase& argc)
 			// caso costante
 			else if (NScomp.size() == 0) cout << ' ' << NCOEFF;
 
+			// caso potenza
+			// continuare le modifiche qui ...
+			// fine commit
+
 			// caso fattore
 			else if (NScomp.size() == 1) {
-				auto output = GetFactor(NScomp[0]);
-				ElabExponents(output);
+				auto output = NScomp[0].str();
+				if (BOOLALPHA) ElabExponents(output);
 				if (NCOEFF != 1)
-					output = to_wstring(NCOEFF) + L"(" + output + L")";
+					output = to_wstring(NCOEFF) + L'(' + output + L')';
 				wcout << ' ' << output << "\n\n";
 			}
 
 			// caso polinomio
-			else wcout << ' ' << GetPolynomial(NScomp);
+			else wcout << ' ' << NScomp.str();
 		}
 
 		// caso non scomponibile
@@ -5822,9 +5824,12 @@ static void DecompAlgebraic(switchcase& argc)
 
 		// output polinomio di resto
 		if (!skip) for (auto a : Quotient) {
-			auto pol{ GetPolynomial({ {a} }) };
-			pol.erase(pol.size() - 1);
-			pol.erase(0, 1);
+			tensor T = { {a} };
+			auto pol{ T.str() };
+			if (pol.size() >= 2) {
+				pol.erase(pol.size() - 1);
+				pol.erase(0, 1);
+			}
 			bool is_minus{ false };
 			if (pol.at(0) == '-') {
 				pol.erase(0, 1);
@@ -5845,4 +5850,4 @@ static void DecompAlgebraic(switchcase& argc)
 #pragma endregion
 
 #pragma endregion
-// program_END
+// fine del codice
