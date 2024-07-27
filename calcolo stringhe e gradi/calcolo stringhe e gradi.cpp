@@ -28,7 +28,7 @@
 
 // Descrizione programma ::
 	/*                                                          |
-	*  Strings ZP[5.3].cpp: il programma calcola singola e\o    |
+	*  Strings ZP[5.9].cpp: il programma calcola singola e\o    |
 	*  doppia scomposizione di alcuni interi in una stringa o   |
 	*  il contrario, i numeri primi, cifre e divisori, scompone |
 	*  anche i polinomi e le frazioni algebriche                |
@@ -68,9 +68,8 @@
 #include <thread> // per il multithreading
 #include <type_traits>
 #include <unordered_map> // per la conversione degli enum
-#include <vector> // per i vettori
 #include <utility>
-#include <Windows.h> // per hConsole
+#include <Windows.h> // per hConsole e la posizione del cursore
 
 // namespace globali
 using namespace std;
@@ -113,21 +112,6 @@ struct REAL_MONOMIAL {
 		return coefficient == other.coefficient and
 			degree == other.degree;
 	}
-};
-
-// strutture globali e template
-struct Console {
-	wstring Text;
-	int Attribute;
-};
-vector<Console> ConsoleText;
-typedef struct {
-	vector<bool> is_prime;
-	vector<int> list_primes;
-} vector_t;
-vector_t PrimeNumbers{
-	{},
-	{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31}
 };
 
 // variabili globali e atomiche
@@ -182,28 +166,6 @@ enum switchcase
 	FactorFraction,
 	Random,
 	NotAssigned
-};
-vector<wstring> commands{
-	L"cc" ,
-	L"ccc",
-	L"cf" ,
-	L"cff",
-	L"ccf",
-	L"ct" ,
-	L"dc" ,
-	L"dcc",
-	L"df" ,
-	L"dff",
-	L"dcf",
-	L"dt" ,
-	L"dr",
-	L"drc",
-	L"drf",
-	L"drt",
-	L"ctn",
-	L"pol",
-	L"alg",
-	L"rnd"
 };
 unordered_map<wstring, switchcase> stringToEnumMap{
 {L"cc" , switchcase::DoSimpleCode        },
@@ -265,202 +227,9 @@ unordered_map<wstring, wstring> ConvertFromSuperScript{
 #pragma endregion
 #pragma region Classes
 
-static void ElabExponents(wstring& str);
-
-// classi
-class NumberData
-{
-public:
-	int number{};
-	wstring code{};
-	int degree{};
-	wstring expression{};
-	vector<int> sequence{};
-	divisor div;
-	digitRatio digit;
-
-	NumberData() = default;
-	NumberData(
-		int num,
-		const wstring& c,
-		int deg,
-		const wstring& expr,
-		const vector<int>& seq,
-		const divisor& d,
-		const digitRatio& dr
-	) :
-		number(num),
-		code(c),
-		degree(deg),
-		expression(expr),
-		sequence(seq),
-		div(d),
-		digit(dr)
-	{}
-
-	void printf()
-	{
-		setlocale(LC_ALL, "");
-		SetConsoleOutputCP(CP_UTF8);
-		wcout.imbue(locale(""));
-
-		// stampa numero
-		if (PRINTN) {
-			cout << "numero " << number << ":\n";
-			SetConsoleTextAttribute(hConsole, 2);
-			cout << "in esadecimale è " << hex << uppercase;
-			cout << number << "\n" << dec << nouppercase;
-		}
-
-		// stampa dati cifre
-		else if (number >= 10) {
-
-			// stampa numero
-			if (
-				digit.digitSumRatioNum == 0 and
-				digit.digitProductRatioNum == 0
-				) return;
-			cout << "numero " << number << ":\n";
-			SetConsoleTextAttribute(hConsole, 2);
-			cout << "in esadecimale è " << hex << uppercase;
-			cout << number << "\n" << dec << nouppercase;
-			SetConsoleTextAttribute(hConsole, 13);
-
-			// stampa somma cifre
-			if (digit.digitSumRatioNum != 0) {
-				wcout << L"la somma delle cifre è ";
-				cout << '(' << digit.digitSumRatioNum;
-				cout << '/' << digit.digitSumRatioDen;
-				cout << ")x\n";
-			}
-
-			// stampa prodotto cifre
-			if (digit.digitProductRatioNum != 0) {
-				wcout << L"il prodotto delle cifre è ";
-				if (digit.digitProductRatioDen != 1)
-					cout << '(';
-				cout << digit.digitProductRatioNum;
-				if (digit.digitProductRatioDen != 1) {
-					cout << '/';
-					cout << digit.digitProductRatioDen;
-					cout << ')';
-				}
-				cout << "x\n";
-			}
-		}
-
-		// stampa stringa
-		if (!code.empty()) {
-			SetConsoleTextAttribute(hConsole, 12);
-			wcout << L"il codice è <" << code << ">\n";
-		}
-
-		// stampa grado e sequenza
-		if (degree != 0) {
-			SetConsoleTextAttribute(hConsole, 4);
-			wcout << L"il grado è " << degree << '\n';
-			SetConsoleTextAttribute(hConsole, 3);
-			wcout << L"la sequenza del grado è :\n(";
-			for (int i = 0; i < sequence.size() - 1; ++i)
-				cout << sequence[i] << ", ";
-			cout << sequence[sequence.size() - 1] << ")\n";
-		}
-
-		if (!expression.empty()) {
-
-			// se il numero è primo
-			if (PrimeNumbers.is_prime[number]) {
-				SetConsoleTextAttribute(hConsole, 240);
-				wcout << L"il numero è primo";
-				SetConsoleTextAttribute(hConsole, 15);
-				cout << '\n';
-			}
-
-			// altrimenti stampa scomposizione
-			else {
-				SetConsoleTextAttribute(hConsole, 11);
-				wcout << L"la fattorizzazione è ";
-				wcout << expression << '\n';
-				if (div.DivNumber != 1) {
-					SetConsoleTextAttribute(hConsole, 8);
-
-					// stampa numero divisori
-					wcout << L"il numero dei divisori è ";
-					cout << div.DivNumber << '\n';
-
-					// stampa somma divisori
-					wcout << L"la somma dei divisori è ";
-					cout << div.DivSum << '\n';
-
-					// stampa prodotto divisori
-					wcout << "il prodotto dei divisori è ";
-					if (div.DivProduct != 1)
-						cout << div.DivProduct << '\n';
-					else cout << div.Div_pr << '\n';
-				}
-			}
-
-		}
-		SetConsoleTextAttribute(hConsole, 15);
-	}
-};
-class TestInputReader
-{
-private: queue<char> buffer;
-public:
-	void enqueue(char c)
-	{
-		buffer.push(c);
-	}
-	char read()
-	{
-		if (buffer.size() == 0) buffer.push(_getch());
-		auto front{ buffer.front() };
-		buffer.pop();
-		return front;
-	}
-};
-TestInputReader ObjectGetCh;
-
-class NumberDataVector : public vector<NumberData>
-{
-private:
-	void heapify(int n, int i)
-	{
-		int largest{ i };
-		int left{ 2 * i + 1 };
-		int right{ 2 * i + 2 };
-		if (left < n and this->at(left).number > this->at(largest).number)
-			largest = left;
-		if (right < n and this->at(right).number > this->at(largest).number)
-			largest = right;
-		if (largest != i) {
-			iter_swap(this->begin() + i, this->begin() + largest);
-			heapify(n, largest);
-		}
-	}
-public:
-	NumberDataVector() : vector<NumberData>() {}
-	NumberDataVector(initializer_list<NumberData> init) :
-		vector<NumberData>(init)
-	{}
-
-	void printf()
-	{
-		for (auto& data : *this) data.printf();
-	}
-	void HeapSort()
-	{
-		int n = this->size();
-		for (int i = n / 2 - 1; i >= 0; --i) heapify(n, i);
-		for (int i = n - 1; i > 0; --i) {
-			iter_swap(this->begin(), this->begin() + i);
-			heapify(i, 0);
-		}
-	}
-};
-
+// per tensor
 string Variables{};
+static void ElabExponents(wstring& str);
 template<typename T> class tensor
 {
 private:
@@ -521,6 +290,11 @@ public:
 	tensor(initializer_list<T> init) : tensor()
 	{
 		for (const T& value : init) push_back(value);
+	}
+	tensor(size_t size, const T& initial_value)
+		: count(size), data(new T[size])
+	{
+		std::fill(data, data + count, initial_value);
 	}
 	~tensor()
 	{
@@ -1089,6 +863,237 @@ public:
 	}
 };
 
+// estensioni di tensor
+typedef struct {
+	tensor<bool> is_prime;
+	tensor<int> list_primes;
+} tensor_t;
+tensor_t PrimeNumbers{
+	{},
+	{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31}
+};
+
+// classi
+class NumberData
+{
+public:
+	int number{};
+	wstring code{};
+	int degree{};
+	wstring expression{};
+	tensor<int> sequence{};
+	divisor div;
+	digitRatio digit;
+
+	NumberData() = default;
+	NumberData(
+		int num,
+		const wstring& c,
+		int deg,
+		const wstring& expr,
+		const tensor<int>& seq,
+		const divisor& d,
+		const digitRatio& dr
+	) :
+		number(num),
+		code(c),
+		degree(deg),
+		expression(expr),
+		sequence(seq),
+		div(d),
+		digit(dr)
+	{}
+
+	void printf()
+	{
+		setlocale(LC_ALL, "");
+		SetConsoleOutputCP(CP_UTF8);
+		wcout.imbue(locale(""));
+
+		// stampa numero
+		if (PRINTN) {
+			cout << "numero " << number << ":\n";
+			SetConsoleTextAttribute(hConsole, 2);
+			cout << "in esadecimale è " << hex << uppercase;
+			cout << number << "\n" << dec << nouppercase;
+		}
+
+		// stampa dati cifre
+		else if (number >= 10) {
+
+			// stampa numero
+			if (
+				digit.digitSumRatioNum == 0 and
+				digit.digitProductRatioNum == 0
+				) return;
+			cout << "numero " << number << ":\n";
+			SetConsoleTextAttribute(hConsole, 2);
+			cout << "in esadecimale è " << hex << uppercase;
+			cout << number << "\n" << dec << nouppercase;
+			SetConsoleTextAttribute(hConsole, 13);
+
+			// stampa somma cifre
+			if (digit.digitSumRatioNum != 0) {
+				wcout << L"la somma delle cifre è ";
+				cout << '(' << digit.digitSumRatioNum;
+				cout << '/' << digit.digitSumRatioDen;
+				cout << ")x\n";
+			}
+
+			// stampa prodotto cifre
+			if (digit.digitProductRatioNum != 0) {
+				wcout << L"il prodotto delle cifre è ";
+				if (digit.digitProductRatioDen != 1)
+					cout << '(';
+				cout << digit.digitProductRatioNum;
+				if (digit.digitProductRatioDen != 1) {
+					cout << '/';
+					cout << digit.digitProductRatioDen;
+					cout << ')';
+				}
+				cout << "x\n";
+			}
+		}
+
+		// stampa stringa
+		if (!code.empty()) {
+			SetConsoleTextAttribute(hConsole, 12);
+			wcout << L"il codice è <" << code << ">\n";
+		}
+
+		// stampa grado e sequenza
+		if (degree != 0) {
+			SetConsoleTextAttribute(hConsole, 4);
+			wcout << L"il grado è " << degree << '\n';
+			SetConsoleTextAttribute(hConsole, 3);
+			wcout << L"la sequenza del grado è :\n(";
+			for (int i = 0; i < sequence.size() - 1; ++i)
+				cout << sequence[i] << ", ";
+			cout << sequence[sequence.size() - 1] << ")\n";
+		}
+
+		if (!expression.empty()) {
+
+			// se il numero è primo
+			if (PrimeNumbers.is_prime[number]) {
+				SetConsoleTextAttribute(hConsole, 240);
+				wcout << L"il numero è primo";
+				SetConsoleTextAttribute(hConsole, 15);
+				cout << '\n';
+			}
+
+			// altrimenti stampa scomposizione
+			else {
+				SetConsoleTextAttribute(hConsole, 11);
+				wcout << L"la fattorizzazione è ";
+				wcout << expression << '\n';
+				if (div.DivNumber != 1) {
+					SetConsoleTextAttribute(hConsole, 8);
+
+					// stampa numero divisori
+					wcout << L"il numero dei divisori è ";
+					cout << div.DivNumber << '\n';
+
+					// stampa somma divisori
+					wcout << L"la somma dei divisori è ";
+					cout << div.DivSum << '\n';
+
+					// stampa prodotto divisori
+					wcout << "il prodotto dei divisori è ";
+					if (div.DivProduct != 1)
+						cout << div.DivProduct << '\n';
+					else cout << div.Div_pr << '\n';
+				}
+			}
+
+		}
+		SetConsoleTextAttribute(hConsole, 15);
+	}
+};
+class NumberDataTensor : public tensor<NumberData>
+{
+private:
+	void heapify(int n, int i)
+	{
+		int largest{ i };
+		int left{ 2 * i + 1 };
+		int right{ 2 * i + 2 };
+		if (left < n and this->at(left).number > this->at(largest).number)
+			largest = left;
+		if (right < n and this->at(right).number > this->at(largest).number)
+			largest = right;
+		if (largest != i) {
+			iter_swap(this->begin() + i, this->begin() + largest);
+			heapify(n, largest);
+		}
+	}
+public:
+	NumberDataTensor() : tensor<NumberData>() {}
+	NumberDataTensor(initializer_list<NumberData> init) :
+		tensor<NumberData>(init)
+	{}
+
+	void printf()
+	{
+		for (auto& data : *this) data.printf();
+	}
+	void HeapSort()
+	{
+		int n = this->size();
+		for (int i = n / 2 - 1; i >= 0; --i) heapify(n, i);
+		for (int i = n - 1; i > 0; --i) {
+			iter_swap(this->begin(), this->begin() + i);
+			heapify(i, 0);
+		}
+	}
+};
+class TestInputReader
+{
+private: queue<char> buffer;
+public:
+	void enqueue(char c)
+	{
+		buffer.push(c);
+	}
+	char read()
+	{
+		if (buffer.size() == 0) buffer.push(_getch());
+		auto front{ buffer.front() };
+		buffer.pop();
+		return front;
+	}
+};
+TestInputReader ObjectGetCh;
+
+// oggetti
+struct Console {
+	wstring Text;
+	int Attribute;
+};
+tensor<Console> ConsoleText;
+tensor<wstring> commands{
+	L"cc" ,
+	L"ccc",
+	L"cf" ,
+	L"cff",
+	L"ccf",
+	L"ct" ,
+	L"dc" ,
+	L"dcc",
+	L"df" ,
+	L"dff",
+	L"dcf",
+	L"dt" ,
+	L"dr",
+	L"drc",
+	L"drf",
+	L"drt",
+	L"ctn",
+	L"pol",
+	L"alg",
+	L"rnd"
+};
+
 #pragma endregion
 #pragma region Declarations
 
@@ -1122,16 +1127,16 @@ static void SetDebug(string message, switchcase& opt, bool& do_return,
 );
 static bool Prime(long long number);
 static void UserInputThread();
-static vector_t PrimeNCalculator(long long N, bool USE_pro_bar);
-static vector<compost> DecomposeNumber(long long input);
-static vector<wstring> Fractioner(wstring polinomial);
-static vector<int> DecomposeStrings(wstring Terminal);
+static tensor_t PrimeNCalculator(long long N, bool USE_pro_bar);
+static tensor<compost> DecomposeNumber(long long input);
+static tensor<wstring> Fractioner(wstring polinomial);
+static tensor<int> DecomposeStrings(wstring Terminal);
 static wstring Cript(long long input);
 static wstring FactNumber(long long input);
 static int ExeStrings(wstring input);
 static divisor DivisorCalculator(wstring factor);
 static digitRatio DigitRationalizer(long long inpt);
-static vector<int> DivisorCounter(int num);
+static tensor<int> DivisorCounter(int num);
 static NumberData ExecuteSimpledeg(long long input);
 static NumberData ExecuteDegree(long long input);
 static NumberData ExecuteSimpleFact(long long input);
@@ -1179,7 +1184,7 @@ static void Simplify(
 static int Determinant(tensor<tensor<int>> mx);
 static void Approximator
 (tensor<REAL_MONOMIAL>& equation, long double& root);
-static vector<long double> ExistenceConditions
+static tensor<long double> ExistenceConditions
 (tensor<REAL_MONOMIAL> equation);
 template<typename TN, typename TD> static void PrintFraction
 (
@@ -1645,7 +1650,7 @@ int CircleCenterX, CircleCenterY, CircleRotDegreeAngle{};
 bool DecreaseAngle{ true }, DecreaseWidth{ true };
 double DWidth{ 1.9 };
 
-const vector<int> spectrum{ 9, 9, 9, 11, 11, 3, 3, 12, 4 };
+const tensor<int> spectrum{ 9, 9, 9, 11, 11, 3, 3, 12, 4 };
 
 static void ClearArea(COORD win_center)
 {
@@ -2488,15 +2493,15 @@ static void UserInputThread()
 		sleep_for(milliseconds(100));
 	}
 }
-static vector_t PrimeNCalculator(long long N, bool USE_pro_bar)
+static tensor_t PrimeNCalculator(long long N, bool USE_pro_bar)
 {
 	GetConsoleScreenBufferInfo(hConsole, &csbi);
 	const int BARWIDTH{ csbi.dwSize.X - 11 };
 	if (N < 100'000) USE_pro_bar = 0;
 
-	vector<bool> is_prime(N + 1, true);
-	vector<int> primes;
-	vector<int> counter;
+	tensor<bool> is_prime(N + 1, true);
+	tensor<int> primes;
+	tensor<int> counter;
 	int SPEED{ 50 };
 	const double COEFF{ 0.3 };
 	const int SQUARE{ (int)sqrt(N) + 2 };
@@ -2562,7 +2567,7 @@ static vector_t PrimeNCalculator(long long N, bool USE_pro_bar)
 #pragma endregion
 #pragma region Operators
 
-static vector<compost> DecomposeNumber(long long input)
+static tensor<compost> DecomposeNumber(long long input)
 {
 
 	// correzione intervallo di PrimeNumbers
@@ -2586,7 +2591,7 @@ static vector<compost> DecomposeNumber(long long input)
 		product *= PrimeNumbers.list_primes[size];
 		size++;
 	} while (product < GlobalMax);
-	vector<compost> output;
+	tensor<compost> output;
 	compost output_element{ 0, 1 };
 	for (int i = 0; i < size; ++i) output.push_back(output_element);
 	int index{};
@@ -2617,9 +2622,9 @@ static vector<compost> DecomposeNumber(long long input)
 
 	return output;
 }
-static vector<wstring> Fractioner(wstring polinomial)
+static tensor<wstring> Fractioner(wstring polinomial)
 {
-	vector<wstring> monomials;
+	tensor<wstring> monomials;
 	auto backup{ polinomial };
 	wstring temp;
 	int parenthesis_balance{};
@@ -2654,11 +2659,11 @@ static vector<wstring> Fractioner(wstring polinomial)
 
 	return monomials;
 }
-static vector<int> DecomposeStrings(wstring Terminal)
+static tensor<int> DecomposeStrings(wstring Terminal)
 {
 	int pass{};
 	int ciphres_element;
-	vector<int> ciphres;
+	tensor<int> ciphres;
 	for (int i = 0; i < Terminal.size(); ++i) {
 
 		// salta se pass è vero
@@ -2720,7 +2725,7 @@ static wstring Cript(long long input)
 		size++;
 	} while (product < GlobalMax);
 
-	vector<compost> expfactors{ DecomposeNumber(input) };
+	tensor<compost> expfactors{ DecomposeNumber(input) };
 	while (expfactors[expfactors.size() - 1].factors == 0)
 		expfactors.pop_back();
 	wstring the_string, exp_verify, exp_string, prime_exp_string;
@@ -2861,7 +2866,7 @@ static wstring Cript(long long input)
 }
 static wstring FactNumber(long long input)
 {
-	vector<compost> expfactors{ DecomposeNumber(input) };
+	tensor<compost> expfactors{ DecomposeNumber(input) };
 	while (expfactors[expfactors.size() - 1].factors == 0)
 		expfactors.pop_back();
 
@@ -2898,7 +2903,7 @@ static int ExeStrings(wstring input)
 	int* values{ new(nothrow) int[size] };
 	for (int i = 0; i < input.size(); ++i)
 		if (input.at(i) == '.') input.erase(i, 1);
-	vector<wstring> monomials{ Fractioner(input) };
+	tensor<wstring> monomials{ Fractioner(input) };
 
 	for (int i = 0; i < monomials.size(); ++i)
 	{
@@ -2935,9 +2940,9 @@ static int ExeStrings(wstring input)
 static divisor DivisorCalculator(wstring factor)
 {
 	divisor output{ 1, 1, 1, "" };
-	vector<wstring> monomials;
-	vector<long long> values;
-	vector<int> exponents;
+	tensor<wstring> monomials;
+	tensor<long long> values;
+	tensor<int> exponents;
 	bool pow_presence{ false };
 
 	// scompozizione in monomi
@@ -3067,15 +3072,15 @@ static digitRatio DigitRationalizer(long long inpt)
 	}
 	return output;
 }
-static vector<int> DivisorCounter(int num)
+static tensor<int> DivisorCounter(int num)
 {
 
 	// creazione dei vettori con i principali fattori
-	vector<int> vec;
-	vector<compost> expfact{ DecomposeNumber(num) };
+	tensor<int> vec;
+	tensor<compost> expfact{ DecomposeNumber(num) };
 	while (expfact[expfact.size() - 1].factors == 0) expfact.pop_back();
 
-	vector<vector<int>> MainDiv;
+	tensor<tensor<int>> MainDiv;
 	for (int i = 0; i < expfact.size(); ++i) {
 		MainDiv.push_back({});
 		int EFelement{ 1 };
@@ -3086,7 +3091,7 @@ static vector<int> DivisorCounter(int num)
 	}
 
 	// prodotto cartesiano
-	vector<int> temp;
+	tensor<int> temp;
 	for (int i = MainDiv.size() - 1; i > 0; --i) {
 		for (auto a : MainDiv[i]) for (auto b : MainDiv[i - 1])
 			temp.push_back(a * b);
@@ -3285,7 +3290,7 @@ static wstring UpdateString(wstring& ToEvaluate)
 	}
 
 	// suddivisione della stringa in pezzi
-	vector<wstring> pieces{};
+	tensor<wstring> pieces{};
 	bool start{ true };
 	for (int i = ToEvaluate.size() - 1; i >= 0; --i) {
 
@@ -3340,7 +3345,7 @@ static wstring UpdateString(wstring& ToEvaluate)
 static wstring SyntaxValidator(wstring ToEvaluate)
 {
 	if (ToEvaluate == L"f") return L"";
-	vector<wstring> mono;
+	tensor<wstring> mono;
 	string charsAllowed{ "0123456789+(_)." };
 	bool local_error{ true };
 	int stable{};
@@ -3397,8 +3402,8 @@ static wstring SyntaxValidator(wstring ToEvaluate)
 		int stackfinder{ -1 }, stickfinder{ -1 }, finder{ -1 };
 		bool stop{ false }, pass{ false };
 		int res{};
-		vector<int> min_ciphres, max_ciphres;
-		vector<int> ciphr_min, ciphr_max;
+		tensor<int> min_ciphres, max_ciphres;
+		tensor<int> ciphr_min, ciphr_max;
 		wstring min, max;
 		auto stack{ mono[monomial] };
 
@@ -3535,7 +3540,7 @@ static size_t NumberConverter(size_t root, wstring M)
 	bool UselessExponent{ false }, pass{ false };
 	bool XSubscriptOutOfRange{ false };
 	int sizeP = PrimeNumbers.list_primes.size(), nums;
-	vector<int> ciphres{ DecomposeStrings(M) };
+	tensor<int> ciphres{ DecomposeStrings(M) };
 
 	// per ogni cifra
 	for (int iter = 0; iter < ciphres.size(); ++iter) {
@@ -3572,7 +3577,7 @@ static size_t StringConverter(wstring ToEvaluate)
 {
 	size_t integer{ 1 };
 	wstring backup, back;
-	vector<wstring> mono{ Fractioner(ToEvaluate) };
+	tensor<wstring> mono{ Fractioner(ToEvaluate) };
 	int sizeP = PrimeNumbers.list_primes.size();
 	int finder{ -1 };
 
@@ -3671,7 +3676,7 @@ static void LongComputation
 	// conta dei caratteri '_' e archivio della posizione
 	auto backup{ ToEvaluate };
 	int counter{};
-	vector<int> pos;
+	tensor<int> pos;
 	for (int i = 0; i < ToEvaluate.size(); ++i)
 		if (ToEvaluate.at(i) == '_') {
 			pos.push_back(i);
@@ -4145,9 +4150,9 @@ static tensor<tensor<MONOMIAL>> Ruffini(tensor<MONOMIAL> vect)
 		return {};
 
 	// calcolo divisori
-	vector<int> P{ DivisorCounter(fabs(KnownTerm)) };
-	vector<int> Q{ DivisorCounter(fabs(DirectorTerm)) };
-	vector<int> PossibleRoots;
+	tensor<int> P{ DivisorCounter(fabs(KnownTerm)) };
+	tensor<int> Q{ DivisorCounter(fabs(DirectorTerm)) };
+	tensor<int> PossibleRoots;
 
 	// teorema delle radici razionali
 	for (auto p : P) for (auto q : Q) PossibleRoots.push_back(p / q);
@@ -4430,7 +4435,7 @@ static void Simplify(
 			if (num[i] == den[j]) {
 				num.erase(num.begin() + i);
 				den.erase(den.begin() + j);
-				sign *= -1;
+				sign = -1;
 				continue;
 			}
 			else for (int k = 0; k < den[j].size(); ++k) den[j][k].coefficient *= -1;
@@ -4477,9 +4482,13 @@ static void Simplify(
 	int GCD{ Gcd(fabs(ncoeff), fabs(dcoeff)) };
 	ncoeff /= GCD;
 	dcoeff /= GCD;
-	dcoeff *= sign;
 	if (FindN >= 0) num[FindN][0].coefficient = 1;
 	if (FindD >= 0) den[FindD][0].coefficient = 1;
+	if (num.size() > 0) for (int i = 0; i < num[0].size(); ++i)
+		num[0][i].coefficient *= sign;
+	else if (den.size() > 0) for (int i = 0; i < den[0].size(); ++i)
+		den[0][i].coefficient *= sign;
+	else ncoeff *= sign;
 
 	// compressione polinomi
 	num.close();
@@ -4558,7 +4567,7 @@ static void Approximator
 	equation.pop_back();
 }
 
-static vector<long double> ExistenceConditions
+static tensor<long double> ExistenceConditions
 (tensor<REAL_MONOMIAL> equation)
 {
 
@@ -4580,7 +4589,7 @@ static vector<long double> ExistenceConditions
 			(equation.begin() + i, { equation[i - 1].degree - j, 0 });
 	}
 
-	vector<long double> answer;
+	tensor<long double> answer;
 	long double A, B, C;
 	long double delta;
 	while (true) switch (equation.size()) {
@@ -4931,7 +4940,7 @@ static void Loop(
 	SetConsoleOutputCP(CP_UTF8);
 	wcout.imbue(locale(""));
 	wstring n_{ to_wstring(GlobalMax) }, Input, txt;
-	NumberDataVector data;
+	NumberDataTensor data;
 	long long input, lower_bound, upper_bound, datalenght;
 	bool do_return;
 
@@ -5510,7 +5519,7 @@ static void DecompFraction(switchcase& argc)
 		Simplify(NScomp, DScomp, NCOEFF, DCOEFF);
 		if (DScomp.size() <= 1) skip = 1;
 		if (!skip) for (auto a : DScomp) for (auto b : a)
-				if (a.size() != 1 and b.degree > 1) skip = 1;
+			if (a.size() != 1 and b.degree > 1) skip = 1;
 
 		// calcolo denominatori
 		bool is_modifier{ false };
@@ -5615,7 +5624,7 @@ static void DecompFraction(switchcase& argc)
 		SetConsoleTextAttribute(hConsole, 11);
 		wcout << L"C.E.: ";
 		SetConsoleTextAttribute(hConsole, 10);
-		vector<long double> C_E_;
+		tensor<long double> C_E_;
 		bool has_been_printed{ false };
 		int Idx{};
 		tensor<tensor<REAL_MONOMIAL>> DBCKP;
@@ -5665,8 +5674,12 @@ static void DecompFraction(switchcase& argc)
 		// calcolo casi
 		bool print{
 			(
+				// il denominatore è cambiato e
 				DenBackup != DScomp
-				and (
+				and
+
+				// non è un coefficiente oppure è 0 o 1
+				(
 					DenBackup.size() > 1
 					or
 					DenBackup[0].size() > 1
@@ -5678,10 +5691,15 @@ static void DecompFraction(switchcase& argc)
 					DenBackup[0][0].coefficient == 1
 				)
 			)
+			// oppure
 			or
 			(
+				// il numeratore è cambiato ma
 				NumBackup != NScomp
-				and (
+				and
+
+				// non è un coefficiente
+				(
 					NumBackup.size() > 1
 					or
 					NumBackup[0].size() > 1
@@ -5689,8 +5707,37 @@ static void DecompFraction(switchcase& argc)
 					NumBackup[0][0].degree > 0
 				)
 			)
+			or
+			(
+				// frazione semplificata
+
+				NScomp == tensor<tensor<MONOMIAL>>({
+					tensor<MONOMIAL>({
+						MONOMIAL(0, 1)
+					})
+				})
+				and
+				NScomp == DScomp
+				and
+				NCOEFF != NumBackup[0][0].coefficient
+				and
+				DCOEFF != DenBackup[0][0].coefficient
+			)
+			or
+			(
+				// denominatore assente
+
+				DScomp == tensor<tensor<MONOMIAL>>({
+					tensor<MONOMIAL>({
+						MONOMIAL(0, 1)
+					})
+				})
+				and
+				DenBackup == DScomp
+				and
+				DCOEFF == 1
+			)
 		};
-		bool reset_height{ false };
 		
 		// output frazioni
 		if (!skip or print) {
@@ -5776,7 +5823,7 @@ static void DecompFraction(switchcase& argc)
 			}
 
 			// caso di unità
-			else if (NScomp.size() == 0) cout << " 1";
+			else if (NScomp.size() == 0) cout << ' ' << NCOEFF;
 
 			// caso costante o fattore
 			else if (NScomp.size() == 1 and new_print) {
@@ -5818,11 +5865,15 @@ static void DecompFraction(switchcase& argc)
 		if (!skip) for (auto a : Quotient) {
 			tensor T = { {a} };
 			auto pol{ T.str() };
+			bool is_minus{ false };
+			if (pol.at(0) == '-') {
+				pol.erase(0, 1);
+				is_minus = 1;
+			}
 			if (pol.size() >= 2) {
 				pol.erase(pol.size() - 1);
 				pol.erase(0, 1);
 			}
-			bool is_minus{ false };
 			if (pol.at(0) == '-') {
 				pol.erase(0, 1);
 				is_minus = 1;
