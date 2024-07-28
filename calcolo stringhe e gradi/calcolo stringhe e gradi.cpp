@@ -234,11 +234,12 @@ template<typename T> class tensor
 {
 private:
 	T* data;
-	size_t capacity;
-	size_t count;
+	size_t capacity{ 20 };
+	size_t count{ 10 };
 
 	void resize(size_t new_capacity)
 	{
+		if (new_capacity == 0) new_capacity = 20;
 		T* new_data = new(nothrow) T[new_capacity];
 		if (!new_data) throw bad_alloc();
 		for (size_t i = 0; i < count; ++i) new_data[i] = move(data[i]);
@@ -267,7 +268,7 @@ public:
 		capacity(10),
 		count(0)
 	{
-		if (capacity == 0) capacity = 1;
+		if (capacity == 0) capacity = 20;
 		if (!data) throw bad_alloc();
 	}
 	tensor(const tensor& other) :
@@ -423,10 +424,10 @@ public:
 
 	_NODISCARD bool operator==(const tensor& other) const
 	{
-		if (count != other.count) return 0;
+		if (count != other.count) return false;
 		for (size_t i = 0; i < count; ++i) if (data[i] != other.data[i])
-			return 0;
-		return 1;
+			return false;
+		return true;
 	}
 	_NODISCARD bool operator!=(const tensor& other) const
 	{
@@ -669,11 +670,11 @@ public:
 	{
 		for (size_t i = 0; i < this->size(); ++i)
 			for (size_t j = i + 1; j < this->size(); ++j) {
-				bool swap = 0;
+				bool swap{ false };
 				for (size_t k = 0; k < Variables.size(); ++k) {
 					if (this->at(i).exp[k] > this->at(j).exp[k]) break;
 					if (this->at(i).exp[k] == this->at(j).exp[k]) continue;
-					swap = 1;
+					swap = true;
 					break;
 				}
 				if (swap) ::swap(this->at(i), this->at(j));
@@ -825,7 +826,7 @@ public:
 				// caso di monomio modificatore
 				if (T[0].degree == -1) {
 					exp = to_wstring(T[0].coefficient);
-					set_modifier = 1;
+					set_modifier = true;
 					continue;
 				}
 				wstring xout = T.str();
@@ -833,7 +834,7 @@ public:
 				// caso con elevamento a potenza
 				if (set_modifier) {
 					xout = L'(' + xout + L")^" + exp;
-					set_modifier = 0;
+					set_modifier = false;
 				}
 
 				// caso di parentesi necessarie
@@ -1254,7 +1255,7 @@ int main()
 
 		if (!lock_prime_input) {
 			do {
-				redo = 0;
+				redo = false;
 				system("cls");
 				SetConsoleTitle(TEXT("START"));
 
@@ -1281,18 +1282,18 @@ int main()
 				// input controllato
 				text = L"ESEMPIO: " + Timer_t + L" = ~1 minuto di attesa\n";
 				wstring G{ GetUserNum(text, 0, GLOBAL_CAP, 0) };
-				if (ConvertWStringToEnum(G) != NotAssigned) redo = 1;
-				else if (G.empty()) redo = 1;
+				if (ConvertWStringToEnum(G) != NotAssigned) redo = true;
+				else if (G.empty()) redo = true;
 
 				// termine programma
 				else if (G == L".") goto End;
 
 				// casi 0 e 1
 				else global = stoi(G);
-				if (global == 1) redo = 1;
+				if (global == 1) redo = true;
 				if (global == 0) {
-					lock_prime_input = 1;
-					if (start) redo = 1;
+					lock_prime_input = true;
+					if (start) redo = true;
 				}
 			} while (redo);
 			SetConsoleTextAttribute(hConsole, 15);
@@ -1308,7 +1309,7 @@ int main()
 				ComputationTime = WaitingScreen(begin, end);
 				SetConsoleTextAttribute(hConsole, 15);
 				SetConsoleCursorInfo(hConsole, &cursor);
-				start = 0;
+				start = false;
 			}
 			if (GlobalMax > 9'000 && global > 1) {
 				ComputationTime /= 1'000'000;
@@ -1363,18 +1364,18 @@ int main()
 		do {
 
 			// gestione input numeri primi
-			lock = 0;
+			lock = false;
 			if (vel.size() == 1) {
-				skip = 0;
+				skip = false;
 				switch (vel.at(0)) {
 				case '0':
-					lock = 1;
-					lock_prime_input = 1;
+					lock = false;
+					lock_prime_input = true;
 					cout << "\ninput numeri primi bloccato\n";
 					break;
 				case '1':
-					lock = 1;
-					lock_prime_input = 0;
+					lock = true;
+					lock_prime_input = false;
 					cout << "\ninput numeri primi sbloccato\n";
 					break;
 				case '.': goto End;
@@ -1385,10 +1386,8 @@ int main()
 
 			// caso input non assegnato correttamente
 			if (option == NotAssigned) do {
-				skip = 0;
-				if (vel.size() == 1)
-					stop = vel.at(0) != '0' and
-					vel.at(0) != '1';
+				skip = false;
+				if (vel.size() == 1) stop = vel.at(0) != '0' and vel.at(0) != '1';
 				else {
 					option = ConvertWStringToEnum(vel);
 					stop = option == NotAssigned;
@@ -1406,7 +1405,7 @@ int main()
 			if (stop or lock) {
 				cout << "\nscegli opzioni:: (...)\n";
 				vel = GetLine(1, 10);
-				stop = 0;
+				stop = false;
 			}
 		} while (!skip);
 		cout << "\n\n";
@@ -1787,7 +1786,7 @@ static void DrawCircleSquare(COORD circle_center)
 			(hConsole, cursor);
 			return;
 		}
-		Skip_skipping = 0;
+		Skip_skipping = false;
 
 		// variazione centro del cerchio principale
 		// secondo lo spostamento su un secondo cerchio
@@ -1887,25 +1886,25 @@ static long double WaitingScreen(auto begin, auto end)
 	output << fixed << setprecision(1) << "tempo di calcolo numeri primi = ";
 
 	// calcolo output
-	if (delta <= 10'000) 
+	if (delta <= 10'000)
 	{
 		output << exception_delta / 1'000;
 		output << " microsecondi\n\n";
 	}
-	else if (delta > 10'000'000 and delta <= 600'000'000) 
+	else if (delta <= 10'000'000)
+	{
+		output << delta / 1'000;
+		output << " millisecondi\n\n";
+	}
+	else if (delta <= 600'000'000)
 	{
 		output << delta / 1'000'000;
 		output << " secondi\n\n";
 	}
-	else if (delta > 600'000'000) 
+	else
 	{
 		output << delta / 60'000'000;
 		output << " minuti\n\n";
-	}
-	else 
-	{
-		output << delta / 1'000;
-		output << " millisecondi\n\n";
 	}
 	GetConsoleScreenBufferInfo(hConsole, &csbi);
 	SetConsoleTextAttribute(hConsole, 6);
@@ -1972,11 +1971,11 @@ static void ElabExponents(wstring& str)
 			while (isdigit(str.at(pointer)))
 			{
 				// scelta carattere
-				dobreak = 0;
+				dobreak = false;
 				wstring replacer;
 				if (str.at(pointer) == '0') {
 					if (J > 1) replacer = L"⁰";
-					else dobreak = 1;
+					else dobreak = true;
 				}
 				else replacer = CTSuperScript(str.at(pointer));
 				if (dobreak) break;
@@ -2041,7 +2040,7 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 			c == '\b' or c == '\t' or c == '\r' or
 			c == 'K' or c == 'M' or c > 31 or c == -109
 		};
-		if (c == -32) arrow = 1;
+		if (c == -32) arrow = true;
 		auto testN{ Num };
 		auto testD{ Den };
 
@@ -2131,7 +2130,7 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 			case 't': diff = 0;
 				break;
 			}
-			if (arrow) arrow = 0;
+			if (arrow) arrow = false;
 			if (cursor_at_start) Num = vel;
 			else Den = vel;
 		}
@@ -2168,14 +2167,14 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 
 		// ricerca suggerimento giusto
 		int spaces = fabs(((int)Num.size() - (int)Den.size()) / 2);
-		script = 1;
+		script = true;
 		if (Num.size() > 0) for (auto comma : commands) {
 			command = comma;
 			auto back{ command };
 			if (back.size() == Num.size()) continue;
 			if (back.size() > Num.size()) back.erase(Num.size());
 			if (back == Num) {
-				script = 0;
+				script = false;
 				break;
 			}
 		}
@@ -2209,8 +2208,8 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 		}
 
 		// reset riga
-		if (c == 'H') cursor_at_start = 1;
-		else if (c == 'P') cursor_at_start = 0;
+		if (c == 'H') cursor_at_start = true;
+		else if (c == 'P') cursor_at_start = false;
 
 		// reset cursore
 		COORD startPos{ start };
@@ -2247,7 +2246,7 @@ static wstring GetLine(bool ShowSuggestions, int sizemax)
 			c == 'K' or c == 'M' or
 			c > 31 or c == -109
 		};
-		if (c == -32) arrow = 1;
+		if (c == -32) arrow = true;
 
 		if (cond) switch (c) {
 
@@ -2318,7 +2317,7 @@ static wstring GetLine(bool ShowSuggestions, int sizemax)
 			case 't': diff = 0;
 				break;
 			}
-			if (arrow) arrow = 0;
+			if (arrow) arrow = false;
 		}
 
 		// calcolo stringhe
@@ -2348,7 +2347,7 @@ static wstring GetLine(bool ShowSuggestions, int sizemax)
 			diff = 0;
 			wcout << '\r' << wstring(sizemax, ' ');
 		}
-		script = 1;
+		script = true;
 		SetConsoleCursorInfo(hConsole, &cursorInfo);
 		if (ShowSuggestions and vel.size() > 0)
 
@@ -2365,7 +2364,7 @@ static wstring GetLine(bool ShowSuggestions, int sizemax)
 					SetConsoleTextAttribute(hConsole, 15);
 
 					wcout << '\r' << E_Vel << '\r' << Velpart;
-					script = 0;
+					script = false;
 					break;
 				}
 			}
@@ -2414,7 +2413,7 @@ static void SetDebug(string message, switchcase& opt, bool& do_return,
 )
 {
 	wstring n_{ to_wstring(GlobalMax) }, Input, txt;
-	do_return = 0;
+	do_return = false;
 	wcout << "gli estremi dell'intervallo devono essere compresi";
 	wcout << " tra 1 e " << n_ << "\n\n";
 
@@ -2425,7 +2424,7 @@ static void SetDebug(string message, switchcase& opt, bool& do_return,
 	while (Input.empty());
 	if (Input == L".") {
 		opt = Random;
-		do_return = 1;
+		do_return = true;
 		return;
 	}
 	opt = ConvertWStringToEnum(Input);
@@ -2434,7 +2433,7 @@ static void SetDebug(string message, switchcase& opt, bool& do_return,
 		system("cls");
 		auto title{ Input.c_str() };
 		SetConsoleTitle(title);
-		do_return = 1;
+		do_return = true;
 		return;
 	}
 	lower_bound = stoull(Input) + 1;
@@ -2445,7 +2444,7 @@ static void SetDebug(string message, switchcase& opt, bool& do_return,
 	while (Input.empty());
 	if (Input == L".") {
 		opt = Random;
-		do_return = 1;
+		do_return = true;
 	}
 	opt = ConvertWStringToEnum(Input);
 	ReassigneEnum(opt);
@@ -2453,7 +2452,7 @@ static void SetDebug(string message, switchcase& opt, bool& do_return,
 		system("cls");
 		auto title{ Input.c_str() };
 		SetConsoleTitle(title);
-		do_return = 1;
+		do_return = true;
 		return;
 	}
 	upper_bound = stoull(Input) + 1;
@@ -2468,14 +2467,13 @@ static void SetDebug(string message, switchcase& opt, bool& do_return,
 static bool Prime(long long number)
 {
 	bool is_prime{ true };
-	if (number <= 1) return 0;
-	if (number <= 3) return 1;
+	if (number <= 1) return false;
+	if (number <= 3) return true;
 	if (number < GlobalMax) return PrimeNumbers.is_prime[number];
-	if (number % 2 == 0 or number % 3 == 0) return 0;
+	if (number % 2 == 0 or number % 3 == 0) return false;
 	for (int i = 5; i * i <= number; i += 6)
-		if (number % i == 0 or number % (i + 2) == 0)
-			return 0;
-	return 1;
+		if (number % i == 0 or number % (i + 2) == 0) return true;
+	return true;
 }
 static void UserInputThread()
 {
@@ -2484,8 +2482,8 @@ static void UserInputThread()
 		// controllo
 		char choice{ ObjectGetCh.read() };
 		if (choice == 'S' or choice == 's') {
-			GlobalInterr = 1;
-			interrupted = 1;
+			GlobalInterr = true;
+			interrupted = true;
 			return;
 		}
 
@@ -2497,11 +2495,10 @@ static tensor_t PrimeNCalculator(long long N, bool USE_pro_bar)
 {
 	GetConsoleScreenBufferInfo(hConsole, &csbi);
 	const int BARWIDTH{ csbi.dwSize.X - 11 };
-	if (N < 100'000) USE_pro_bar = 0;
+	if (N < 100'000) USE_pro_bar = false;
 
 	tensor<bool> is_prime(N + 1, true);
 	tensor<int> primes;
-	tensor<int> counter;
 	int SPEED{ 50 };
 	const double COEFF{ 0.3 };
 	const int SQUARE{ (int)sqrt(N) + 2 };
@@ -2547,13 +2544,14 @@ static tensor_t PrimeNCalculator(long long N, bool USE_pro_bar)
 
 	// multithreading
 	if (USE_pro_bar) {
-		thread t1([&primes, &is_prime, &N]() {
+		thread t1([&]() {
 			for (long long p = 2; p < N + 1; ++p)
 				if (is_prime[p]) primes.push_back(p);
 			lock_guard <mutex> lock(mtx);
-			is_done = 1;
+			is_done = true;
 			cv.notify_one();
-			});
+			}
+		);
 		thread t2(CS_CenterPrinter);
 		t1.join();
 		t2.join();
@@ -2738,10 +2736,10 @@ static wstring Cript(long long input)
 	for (
 		int what_factor = 0;
 		what_factor < expfactors.size();
-		what_factor++
+		++what_factor
 		)
 	{
-		repeat = 0;
+		repeat = false;
 		presence = 0;
 
 		// esponente
@@ -2813,7 +2811,7 @@ static wstring Cript(long long input)
 				// riaggiunta dell'esponente normale
 				else the_string.append(L"1");
 				if (presence > 0) the_string.append(exp_string);
-				repeat = 1;
+				repeat = true;
 			}
 			// caso con argomento composto
 			if (analyse != 1 and !Prime(analyse)) {
@@ -2913,7 +2911,7 @@ static int ExeStrings(wstring input)
 			// acquisizione dati
 			for (int j = monomials[i].size() - 1; j >= 0; --j)
 				if ((presence) and (monomials[i].at(j) == ')')) {
-					presence = 0;
+					presence = false;
 					location = j;
 				}
 
@@ -2927,7 +2925,7 @@ static int ExeStrings(wstring input)
 
 		// caso senza parentesi
 		else values[i] = stoi(monomials[i]);
-		presence = 1;
+		presence = true;
 	}
 
 	// somma dei monomi
@@ -2964,7 +2962,7 @@ static divisor DivisorCalculator(wstring factor)
 	for (int i = 0; i < monomials.size(); ++i) {
 		long long value{ -1 };
 		int exp{ -1 };
-		pow_presence = 0;
+		pow_presence = false;
 		for (int j = 1; j < monomials[i].size(); ++j)
 			if (monomials[i].at(j) == '^') {
 				auto first{ monomials[i] };
@@ -2973,7 +2971,7 @@ static divisor DivisorCalculator(wstring factor)
 				second.erase(0, j + 1);
 				value = stoi(first);
 				exp = stoi(second);
-				pow_presence = 1;
+				pow_presence = true;
 			}
 		if (value == -1 and !pow_presence) value = monomials[i].size();
 		if (exp == -1 and !pow_presence) exp = 1;
@@ -3212,22 +3210,22 @@ static NumberData ExecuteAll(long long input)
 
 static bool Syntax(wstring polynomial)
 {
-	if (polynomial.empty()) return 0;
-	if (polynomial == L"0") return 1;
+	if (polynomial.empty()) return false;
+	if (polynomial == L"0") return true;
 	bool error;
 	bool assigne{ false };
 	string charsAllowed{ "0123456789+-^" };
 
 	// controllo caratteri
 	for (auto a : polynomial) {
-		error = 1;
-		for (auto b : charsAllowed) if (a == b) error = 0;
+		error = true;
+		for (auto b : charsAllowed) if (a == b) error = false;
 		if (error) {
-			if (assigne) return 0;
+			if (assigne) return false;
 			charVariable = a;
 			charsAllowed += charVariable;
-			assigne = 1;
-			if (charVariable < 97 or charVariable > 122) return 0;
+			assigne = true;
+			if (charVariable < 97 or charVariable > 122) return false;
 		}
 	}
 
@@ -3237,9 +3235,9 @@ static bool Syntax(wstring polynomial)
 	bool is_an_exponent{ false };
 	int i{};
 	for (auto a : polynomial) {
-		error = 1;
-		for (auto b : sequence) if (a == b) error = 0;
-		if (error) return 0;
+		error = true;
+		for (auto b : sequence) if (a == b) error = false;
+		if (error) return false;
 
 		// riassegnazione dei caratteri ammessi
 		if (a == charVariable) sequence = "+-^";
@@ -3247,32 +3245,32 @@ static bool Syntax(wstring polynomial)
 		case '+':
 			sequence = "123456789";
 			sequence += charVariable;
-			if (is_an_exponent) is_an_exponent = 0;
+			if (is_an_exponent) is_an_exponent = false;
 			i = 0;
 			break;
 		case '-':
 			sequence = "123456789";
 			sequence += charVariable;
-			if (is_an_exponent) is_an_exponent = 0;
+			if (is_an_exponent) is_an_exponent = false;
 			i = 0;
 			break;
 		case '^':
 			sequence = "123456789";
-			is_an_exponent = 1;
+			is_an_exponent = true;
 			break;
 		default:
 			sequence = "0123456789+-";
 			if (is_an_exponent) i++;
 			else sequence += charVariable;
-			if (i > 2) return 0;
+			if (i > 2) return false;
 		}
 	}
 
 	// controllo al termine
 	char end = polynomial.at(polynomial.size() - 1);
-	if (end == '+' or end == '-' or end == '^') return 0;
+	if (end == '+' or end == '-' or end == '^') return false;
 
-	return 1;
+	return true;
 }
 static wstring UpdateString(wstring& ToEvaluate)
 {
@@ -3298,7 +3296,7 @@ static wstring UpdateString(wstring& ToEvaluate)
 		if (ToEvaluate.at(i) == '>') {
 			piece.erase(0, i + 1);
 			if (i + 1 < ToEvaluate.size()) ToEvaluate.erase(i + 1);
-			if (start) start = 0;
+			if (start) start = false;
 		}
 		else if (ToEvaluate.at(i) == '<' and !start) {
 			piece.erase(0, i);
@@ -3443,7 +3441,7 @@ static wstring SyntaxValidator(wstring ToEvaluate)
 						finder = stackfinder;
 						for (int l = 0; l <= finder + 1; ++l)
 							if (l < min.size())
-								if (stick.at(l) != stack.at(l)) stop = 1;
+								if (stick.at(l) != stack.at(l)) stop = true;
 						auto min_backup{ min };
 						auto max_backup{ max };
 						min_backup.erase(0, finder + 2);
@@ -3461,9 +3459,9 @@ static wstring SyntaxValidator(wstring ToEvaluate)
 						for (int l = 0; l < ciphr_min.size(); ++l) {
 							if (!stop and ciphr_min[l] == ciphr_max[l]) {
 								res++;
-								if (ciphr_min[l] != ciphr_max[l]) stop = 1;
+								if (ciphr_min[l] != ciphr_max[l]) stop = true;
 							}
-							else stop = 1;
+							else stop = true;
 						}
 					}
 				}
@@ -3487,9 +3485,9 @@ static wstring SyntaxValidator(wstring ToEvaluate)
 					for (int l = 0; l < ciphr_min.size(); ++l) {
 						if (!stop and ciphr_min[l] == ciphr_max[l]) {
 							res++;
-							if (ciphr_min[l] != ciphr_max[l]) stop = 1;
+							if (ciphr_min[l] != ciphr_max[l]) stop = true;
 						}
-						else stop = 1;
+						else stop = true;
 					}
 				}
 
@@ -3508,11 +3506,11 @@ static wstring SyntaxValidator(wstring ToEvaluate)
 		if (stack.at(stack.size() - 1) == ')') return L"MISSING_OBJECT";
 		if (stack.at(stack.size() - 1) == '(') return L"INVERTED_BRACKETS";
 		if (stack.at(0) == '(') {
-			local_error = 1;
+			local_error = true;
 
 			// controllo sulla necessità delle parentesi
 			for (int checkplus = 1; checkplus < finder; ++checkplus)
-				if (stack.at(checkplus) == '+') local_error = 0;
+				if (stack.at(checkplus) == '+') local_error = false;
 			if (local_error) return L"USELESS_BRACKETS";
 
 			stack.erase(0, 1);
@@ -3558,10 +3556,10 @@ static size_t NumberConverter(size_t root, wstring M)
 		else do {
 			if (!XOutOfRange and root < sizeP) {
 				if (root > 0) root = PrimeNumbers.list_primes[root - 1];
-				else XSubscriptOutOfRange = 1;
+				else XSubscriptOutOfRange = true;
 				nums--;
 			}
-			else XOutOfRange = 1;
+			else XOutOfRange = true;
 		} while (!XSubscriptOutOfRange and !XOutOfRange and nums != 0);
 		
 	}
@@ -3670,8 +3668,8 @@ static void CodeConverter
 static void LongComputation
 (wstring ToEvaluate, wstring message, bool ShowErrors, bool NecBoundary)
 {
-	computing = 1;
-	interrupted = 0;
+	computing = true;
+	interrupted = false;
 
 	// conta dei caratteri '_' e archivio della posizione
 	auto backup{ ToEvaluate };
@@ -3723,7 +3721,7 @@ static void LongComputation
 			else CodeConverter(backup, message, ShowErrors, 0);
 			if (interrupted) return;
 
-			is_done = 1;
+			is_done = true;
 			cv.notify_one();
 			});
 		thread t2(CS_CornerPrinter);
@@ -3737,7 +3735,7 @@ static void LongComputation
 		}
 		ConsoleText = {};
 	}
-	computing = 0;
+	computing = false;
 	Cv.notify_one();
 }
 
@@ -4013,10 +4011,11 @@ static tensor<tensor<MONOMIAL>> Binomial(tensor<MONOMIAL> InpT)
 		// caso con la sottrazione
 		if (InpT[i].coefficient ==
 			-coeff * (int)pow(Sq_A, exponent - i) * (int)pow(Sq_B, i)
-			) {
+			)
+		{
 			if (!reassigne) {
 				sign = -1;
-				reassigne = 1;
+				reassigne = true;
 			}
 			else if (sign == 1) return outp;
 		}
@@ -4028,7 +4027,7 @@ static tensor<tensor<MONOMIAL>> Binomial(tensor<MONOMIAL> InpT)
 		{
 			if (!reassigne) {
 				sign = 1;
-				reassigne = 1;
+				reassigne = true;
 			}
 			else if (sign == -1) return outp;
 		}
@@ -4165,11 +4164,11 @@ static tensor<tensor<MONOMIAL>> Ruffini(tensor<MONOMIAL> vect)
 
 		// riduzione del polinomio
 		Try = vect;
-		assigne = 1;
+		assigne = true;
 		for (int m = 0; m < Try.size(); ++m) {
 			long double a{ (double)Try[m].degree / n };
 			if (!integer(a)) {
-				assigne = 0;
+				assigne = false;
 				break;
 			}
 			Try[m].degree = a;
@@ -4313,12 +4312,12 @@ static tensor<tensor<MONOMIAL>> TrinomialSquare(tensor<MONOMIAL> vect)
 		if (vect[1].degree != middle_deg + director_deg) return output;
 		if (vect[2].degree == 2 * middle_deg and
 			vect[3].degree == director_deg)
-			direct_double_middle = 0;
+			direct_double_middle = false;
 		else if (
 			vect[3].degree == 2 * middle_deg and
 			vect[2].degree == director_deg
 			)
-			direct_double_middle = 1;
+			direct_double_middle = true;
 		else return output;
 
 		// verifica coefficienti centrali
@@ -4678,11 +4677,11 @@ template<typename TN, typename TD> static void PrintFraction
 		}
 		else if (NC * Root < 0) {
 			NC = -NC;
-			is_minus = 1;
+			is_minus = true;
 		}
 		else if (DC < 0) {
 			DC = -DC;
-			is_minus = 1;
+			is_minus = true;
 		}
 
 		num_ = to_wstring(NC * Root);
@@ -4836,9 +4835,9 @@ static void CodeToNumber(switchcase& argc)
 			if (ToEvaluate.at(space) == ' ' or ToEvaluate.at(space) == '\t')
 				ToEvaluate.erase(space, 1);
 
-		GlobalInterr = 0;
-		computing = 1;
-		interrupted = 0;
+		GlobalInterr = false;
+		computing = true;
+		interrupted = false;
 
 		ObjectGetCh.enqueue(' ');
 		SetConsoleCursorInfo(hConsole, &cursorInfo);
@@ -4853,7 +4852,7 @@ static void CodeToNumber(switchcase& argc)
 		Cv.wait(lock, [] { return !computing; });
 
 		if (ComputationThread.joinable()) ComputationThread.join();
-		interrupted = 1;
+		interrupted = true;
 		if (InputThread.joinable()) InputThread.join();
 
 		// se il calcolo viene interrotto
@@ -4955,7 +4954,7 @@ static void Loop(
 	// input instruzioni
 	wstring instr;
 	if (select) {
-		PRINTN = 0;
+		PRINTN = false;
 		items = { 0, 0, 0, 0 };
 		SetConsoleTextAttribute(hConsole, 9);
 		wcout << L"inserisci la stringa di istruzioni, il tipo è $_/_ #_/_\n";
@@ -5014,12 +5013,12 @@ static void Loop(
 				dp = prod_instr;
 				np.erase(pos_p);
 				dp.erase(0, pos_p + 1);
-				for (char c : np) if (!isdigit(c)) do_continue = 1;
-				for (char c : dp) if (!isdigit(c)) do_continue = 1;
+				for (char c : np) if (!isdigit(c)) do_continue = true;
+				for (char c : dp) if (!isdigit(c)) do_continue = true;
 				if (do_continue) continue;
 				items.digitProductRatioNum = stoi(np);
 				items.digitProductRatioDen = stoi(dp);
-				exit = 1;
+				exit = true;
 			}
 
 			if (!sum_instr.empty()) {
@@ -5027,12 +5026,12 @@ static void Loop(
 				ds = sum_instr;
 				ns.erase(pos_s);
 				ds.erase(0, pos_s + 1);
-				for (char c : ns) if (!isdigit(c)) do_continue = 1;
-				for (char c : ds) if (!isdigit(c)) do_continue = 1;
+				for (char c : ns) if (!isdigit(c)) do_continue = true;
+				for (char c : ds) if (!isdigit(c)) do_continue = true;
 				if (do_continue) continue;
 				items.digitSumRatioNum = stoi(ns);
 				items.digitSumRatioDen = stoi(ds);
-				exit = 1;
+				exit = true;
 			}
 			// //
 
@@ -5086,9 +5085,10 @@ static void Loop(
 		thread t1([&data]() {
 			data.HeapSort();
 			lock_guard<mutex> lock(mtx);
-			is_done = 1;
+			is_done = true;
 			cv.notify_one();
-			});
+			}
+		);
 		thread t2(CS_CenterPrinter);
 		t2.join();
 		t1.join();
@@ -5118,7 +5118,7 @@ static void Loop(
 
 	// termine
 	char null;
-	PRINTN = 1;
+	PRINTN = true;
 	Beep(750, 100);
 	Beep(650, 75);
 	Beep(550, 50);
@@ -5158,8 +5158,8 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 	do {
 		if (input)
 		{
-			empty = 1;
-			Xout = 0;
+			empty = true;
+			Xout = false;
 			bool No{ false };
 			do {
 				GetConsoleScreenBufferInfo(hConsole, &csbi);
@@ -5193,8 +5193,8 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 					polynomial == L"$%%alfa"
 					)
 				{
-					BOOLALPHA = 1;
-					wrong = 0;
+					BOOLALPHA = true;
+					wrong = false;
 				}
 				if (
 					polynomial == L"$boolalpha" or
@@ -5202,8 +5202,8 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 					polynomial == L"$b_alfa"
 					)
 				{
-					BOOLALPHA = 0;
-					wrong = 0;
+					BOOLALPHA = false;
+					wrong = false;
 				}
 				if (!wrong) wcout << polynomial << '\n';
 
@@ -5234,7 +5234,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 			SetConsoleTextAttribute(hConsole, 2);
 			if (polynomial.empty()) polynomial = L"0";
 			wcout << "qualche calcolo dopo: " << polynomial << '\n';
-			empty = 0;
+			empty = false;
 		}
 
 		// raccoglimento totale
@@ -5246,7 +5246,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 		if (HT.size() != 1 and input) {
 			SetConsoleTextAttribute(hConsole, 12);
 			wcout << "raccoglimento totale: " << polynomial << '\n';
-			empty = 0;
+			empty = false;
 		}
 		do {
 
@@ -5260,7 +5260,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 				polynomial = pol;
 				SetConsoleTextAttribute(hConsole, 4);
 				wcout << "raccoglimento parziale: " << polynomial << '\n';
-				empty = 0;
+				empty = false;
 			}
 
 			// potenza di binomio
@@ -5278,7 +5278,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 				SetConsoleTextAttribute(hConsole, 3);
 				wcout << "potenza di binomio scomposta: ";
 				wcout << polynomial << '\n';
-				empty = 0;
+				empty = false;
 			}
 
 			// trinomio speciale
@@ -5295,7 +5295,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 				SetConsoleTextAttribute(hConsole, 9);
 				wcout << "trinomio speciale scomposto: ";
 				wcout << polynomial << '\n';
-				empty = 0;
+				empty = false;
 			}
 
 			// differenza di quadrati
@@ -5323,7 +5323,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 				SetConsoleTextAttribute(hConsole, 5);
 				wcout << "differenza di quadrati scomposta: ";
 				wcout << polynomial << '\n';
-				empty = 0;
+				empty = false;
 			}
 
 			// scomposizione con ruffini
@@ -5338,7 +5338,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 				}
 				BackT = Ruffini(a);
 				if (a.size() > 0 and BackT.size() == 0) {
-					Xout = 1;
+					Xout = true;
 					break;
 				}
 				for (auto b : BackT) {
@@ -5355,7 +5355,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 				SetConsoleTextAttribute(hConsole, 6);
 				wcout << "applicazione della regola di ruffini: ";
 				wcout << polynomial << '\n';
-				empty = 0;
+				empty = false;
 			}
 		} while (pol != POL);
 
@@ -5374,7 +5374,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 			wcout << "completamento del quadrato: " << polynomial;
 			SetConsoleTextAttribute(hConsole, 15);
 			cout << '\n';
-			empty = 0;
+			empty = false;
 		}
 
 		// quadrato del trinomio
@@ -5392,7 +5392,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 			wcout << "quadrato di trinomio scomposto: " << polynomial;
 			SetConsoleTextAttribute(hConsole, 15);
 			cout << '\n';
-			empty = 0;
+			empty = false;
 		}
 
 		// caso vuoto
@@ -5466,8 +5466,8 @@ static void DecompFraction(switchcase& argc)
 				numerator == L"$%%alfa"
 				)
 			{
-				BOOLALPHA = 1;
-				wrong = 0;
+				BOOLALPHA = true;
+				wrong = false;
 			}
 			if (
 				numerator == L"$boolalpha" or
@@ -5475,8 +5475,8 @@ static void DecompFraction(switchcase& argc)
 				numerator == L"$b_alfa"
 				)
 			{
-				BOOLALPHA = 0;
-				wrong = 0;
+				BOOLALPHA = false;
+				wrong = false;
 			}
 			if (!wrong) wcout << numerator << '\n';
 
@@ -5497,7 +5497,7 @@ static void DecompFraction(switchcase& argc)
 			if (!No1 and !No2 and !No3)
 				if (PolynomialSum(GetMonomials(denominator)).size() == 0)
 				{
-					No2 = 1;
+					No2 = true;
 					SetConsoleTextAttribute(hConsole, 4);
 					wcout << "il denominatore non può essere nullo\n\a";
 					SetConsoleTextAttribute(hConsole, 15);
@@ -5517,9 +5517,9 @@ static void DecompFraction(switchcase& argc)
 		NScomp.close();
 		int NCOEFF{ 1 }, DCOEFF{ 1 };
 		Simplify(NScomp, DScomp, NCOEFF, DCOEFF);
-		if (DScomp.size() <= 1) skip = 1;
+		if (DScomp.size() <= 1) skip = true;
 		if (!skip) for (auto a : DScomp) for (auto b : a)
-			if (a.size() != 1 and b.degree > 1) skip = 1;
+			if (a.size() != 1 and b.degree > 1) skip = true;
 
 		// calcolo denominatori
 		bool is_modifier{ false };
@@ -5528,7 +5528,7 @@ static void DecompFraction(switchcase& argc)
 		int index{};
 		if (!skip) for (int i = 0; i < DScomp.size(); ++i) {
 			if (DScomp[i][0].degree == -1) {
-				is_modifier = 1;
+				is_modifier = true;
 				continue;
 			}
 
@@ -5572,7 +5572,7 @@ static void DecompFraction(switchcase& argc)
 					Complementary(DScomp, DScomp[i], 1)
 				);
 			}
-			is_modifier = 0;
+			is_modifier = false;
 		}
 		if (!skip) for (int i = 0; i < complementaries.size(); ++i)
 			complementaries[i].fill(complementaries.size());
@@ -5618,7 +5618,7 @@ static void DecompFraction(switchcase& argc)
 				denominators.erase(denominators.begin() + i);
 				roots.erase(roots.begin() + i);
 			}
-		if (roots.size() == 0) skip = 1;
+		if (roots.size() == 0) skip = true;
 
 		// calcolo condizioni di esistenza
 		SetConsoleTextAttribute(hConsole, 11);
@@ -5659,7 +5659,7 @@ static void DecompFraction(switchcase& argc)
 				) I.erase(I.size() - 1);
 
 			cout << I << "; ";
-			has_been_printed = 1;
+			has_been_printed = true;
 		}
 		if (!has_been_printed) wcout << "\r      \r";
 		GetConsoleScreenBufferInfo(hConsole, &csbi);
@@ -5760,7 +5760,7 @@ static void DecompFraction(switchcase& argc)
 					{ { { 0, roots[i] } } },
 					denominators[i]
 				);
-				ShowPlus = 1;
+				ShowPlus = true;
 			}
 			cout << "\n\n";
 		}
@@ -5786,9 +5786,9 @@ static void DecompFraction(switchcase& argc)
 					);
 					cout << "\n\n";
 				}
-				else new_print = 1;
+				else new_print = true;
 			}
-			else new_print = 1;
+			else new_print = true;
 
 			// caso di denominatore coefficiente
 			if (DCOEFF != 1 and NScomp.size() != 0 and new_print) {
@@ -5868,7 +5868,7 @@ static void DecompFraction(switchcase& argc)
 			bool is_minus{ false };
 			if (pol.at(0) == '-') {
 				pol.erase(0, 1);
-				is_minus = 1;
+				is_minus = true;
 			}
 			if (pol.size() >= 2) {
 				pol.erase(pol.size() - 1);
@@ -5876,7 +5876,7 @@ static void DecompFraction(switchcase& argc)
 			}
 			if (pol.at(0) == '-') {
 				pol.erase(0, 1);
-				is_minus = 1;
+				is_minus = true;
 			}
 			else if (pol.at(0) == '+') pol.erase(0, 1);
 			is_minus ? cout << "- " : cout << "+ ";
