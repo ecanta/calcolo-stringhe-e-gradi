@@ -38,7 +38,7 @@
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #define _USE_MATH_DEFINES
-#define __CONSTEXPR _CONSTEXPR20
+#define NO_DISCARD_CONST_EXPR _NODISCARD _CONSTEXPR20
 #define integer(x) (floor(x) == ceil(x))
 #define issign(x) (x == '+' or x == '-')
 
@@ -230,20 +230,22 @@ unordered_map<wstring, wstring> ConvertFromSuperScript{
 // per tensor
 string Variables{};
 static void ElabExponents(wstring& str);
-template<typename T> class tensor
+template<class T> class tensor
 {
 private:
 	T* data;
-	size_t capacity{ 20 };
+	size_t capacity{ 10 };
 	size_t count{ 10 };
 
 	void resize(size_t new_capacity)
 	{
-		if (new_capacity == 0) new_capacity = 20;
+		if (new_capacity == 0 or new_capacity < capacity) return;
 		T* new_data = new(nothrow) T[new_capacity];
 		if (!new_data) throw bad_alloc();
-		for (size_t i = 0; i < count; ++i) new_data[i] = move(data[i]);
-		delete[] data;
+		if (data != nullptr) {
+			for (size_t i = 0; i < count; ++i) new_data[i] = move(data[i]);
+			delete[] data;
+		}
 		data = new_data;
 		capacity = new_capacity;
 	}
@@ -263,23 +265,19 @@ private:
 	}
 
 public:
-	tensor() :
-		data(new(nothrow) T[10]),
-		capacity(10),
-		count(0)
+	tensor()
+		: data(nullptr), capacity(0), count(0)
 	{
-		if (capacity == 0) capacity = 20;
-		if (!data) throw bad_alloc();
+		resize(10);
 	}
-	tensor(const tensor& other) :
-		data(new(nothrow) T[other.capacity]),
-		capacity(other.capacity),
-		count(other.count)
+	tensor(const tensor& other)
+		: data(nullptr), capacity(0), count(0)
 	{
-		if (!data) throw bad_alloc();
+		resize(other.count);
+		count = other.count;
 		for (size_t i = 0; i < count; ++i) data[i] = other.data[i];
 	}
-	tensor(tensor&& other) noexcept :
+	tensor(tensor&& other) noexcept:
 		data(other.data),
 		capacity(other.capacity),
 		count(other.count)
@@ -293,9 +291,11 @@ public:
 		for (const T& value : init) push_back(value);
 	}
 	tensor(size_t size, const T& initial_value)
-		: count(size), data(new T[size])
+		: data(nullptr), capacity(0), count(0)
 	{
-		std::fill(data, data + count, initial_value);
+		resize(size);
+		_STD fill(data, data + count, initial_value);
+		count = size;
 	}
 	~tensor()
 	{
@@ -305,12 +305,10 @@ public:
 	tensor& operator=(const tensor& other)
 	{
 		if (this != &other) {
-			delete[] data;
-			data = new(nothrow) T[other.capacity];
-			if (!data) throw bad_alloc();
-			capacity = other.capacity;
+			resize(other.count);
+			for (size_t i = 0; i < other.count; ++i)
+				data[i] = other.data[i];
 			count = other.count;
-			for (size_t i = 0; i < count; ++i) data[i] = other.data[i];
 		}
 		return *this;
 	}
@@ -331,6 +329,10 @@ public:
 	size_t size() const
 	{
 		return count;
+	}
+	size_t get_capacity() const
+	{
+		return capacity;
 	}
 	bool empty() const
 	{
@@ -361,23 +363,23 @@ public:
 	void erase(size_t pos, size_t n)
 	{
 		if (pos >= count) throw out_of_range("Index out of range");
-		if (pos + n > count) n = count - pos;
+		n = min(n, count - pos);
 		for (size_t i = pos; i < count - n; ++i) data[i] = move(data[i + n]);
 		count -= n;
 	}
 
-	__CONSTEXPR T& operator[](size_t index)
+	NO_DISCARD_CONST_EXPR T& operator[](size_t index)
 	{
 		return at(index);
 	}
-	__CONSTEXPR const T& operator[](size_t index) const
+	NO_DISCARD_CONST_EXPR const T& operator[](size_t index) const
 	{
 		return at(index);
 	}
 
 	void push_back(const T& value)
 	{
-		if (count == capacity) resize(capacity * 2);
+		if (count == capacity) resize(capacity == 0 ? 1 : capacity * 2);
 		data[count++] = value;
 	}
 	void pop_back()
@@ -447,8 +449,7 @@ public:
 	}
 	tensor& operator-=(size_t n)
 	{
-		if (n > count) count = 0;
-		else count -= n;
+		count = (n > count) ? 0 : count - n;
 		return *this;
 	}
 
@@ -865,10 +866,36 @@ public:
 };
 
 // estensioni di tensor
-typedef struct {
+class tensor_t
+{
+public:
 	tensor<bool> is_prime;
 	tensor<int> list_primes;
-} tensor_t;
+
+	tensor_t(
+		tensor<bool> is_prime_param, 
+		tensor<int> list_primes_param
+	): 
+		is_prime(move(is_prime_param)), 
+		list_primes(move(list_primes_param))
+	{}
+	tensor_t(const tensor_t& other)
+		: is_prime(other.is_prime), list_primes(other.list_primes)
+	{}
+	tensor_t(tensor_t&& other) noexcept
+		: is_prime(move(other.is_prime)),
+		list_primes(move(other.list_primes))
+	{}
+
+	tensor_t& operator=(const tensor_t& other)
+	{
+		if (this != &other) {
+			is_prime = other.is_prime;
+			list_primes = other.list_primes;
+		}
+		return *this;
+	}
+};
 tensor_t PrimeNumbers{
 	{},
 	{2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31}
@@ -1050,7 +1077,7 @@ public:
 };
 class TestInputReader
 {
-private: queue<char> buffer;
+private: _STD queue<char> buffer;
 public:
 	void enqueue(char c)
 	{
@@ -1281,7 +1308,7 @@ int main()
 
 				// input controllato
 				text = L"ESEMPIO: " + Timer_t + L" = ~1 minuto di attesa\n";
-				wstring G{ GetUserNum(text, 0, GLOBAL_CAP, 0) };
+				wstring G{ GetUserNum(text, 0, GLOBAL_CAP, false) };
 				if (ConvertWStringToEnum(G) != NotAssigned) redo = true;
 				else if (G.empty()) redo = true;
 
@@ -1303,7 +1330,7 @@ int main()
 				steady_clock::time_point begin{ steady_clock::now() };
 				GlobalMax = global;
 				SetConsoleCursorInfo(hConsole, &cursorInfo);
-				PrimeNumbers = PrimeNCalculator(GlobalMax + 1'000, 1);
+				PrimeNumbers = PrimeNCalculator(GlobalMax + 1'000, true);
 
 				steady_clock::time_point end{ steady_clock::now() };
 				ComputationTime = WaitingScreen(begin, end);
@@ -1358,7 +1385,7 @@ int main()
 		SetConsoleTextAttribute(hConsole, 15);
 		cout << "selezionando più operazioni, il tempo di calcolo aumenta\n";
 
-		vel = GetLine(1, 10);
+		vel = GetLine(true, 10);
 		option = ConvertWStringToEnum(vel);
 		bool lock{ false };
 		do {
@@ -1399,12 +1426,12 @@ int main()
 					cout << "NON CORRETTO !!\a";
 					SetConsoleTextAttribute(hConsole, 15);
 					cout << "\nscegli opzioni:: (...)\n";
-					vel = GetLine(1, 10);
+					vel = GetLine(true, 10);
 				}
 			} while (stop);
 			if (stop or lock) {
 				cout << "\nscegli opzioni:: (...)\n";
-				vel = GetLine(1, 10);
+				vel = GetLine(true, 10);
 				stop = false;
 			}
 		} while (!skip);
@@ -1441,34 +1468,34 @@ int main()
 				Repeater(option, AllMessage, ExecuteDegFactor);
 				break;
 			case DebugSimpleCode:
-				Loop(option, desimpledeg, ExecuteSimpledeg, 0);
+				Loop(option, desimpledeg, ExecuteSimpledeg, false);
 				break;
 			case DebugComplexCode:
-				Loop(option, deg_message, ExecuteDegree, 0);
+				Loop(option, deg_message, ExecuteDegree, false);
 				break;
 			case DebugSimpleFactor:
-				Loop(option, desimplefact, ExecuteSimpleFact, 0);
+				Loop(option, desimplefact, ExecuteSimpleFact, false);
 				break;
 			case DebugComplexFactor:
-				Loop(option, defact_message, ExecuteFactor, 0);
+				Loop(option, defact_message, ExecuteFactor, false);
 				break;
 			case DebugCodeFactor:
-				Loop(option, def_sct, ExecuteSimpleDF, 0);
+				Loop(option, def_sct, ExecuteSimpleDF, false);
 				break;
 			case DebugAll:
-				Loop(option, AllMessage, ExecuteDegFactor, 0);
+				Loop(option, AllMessage, ExecuteDegFactor, false);
 				break;
 			case DebugDigits:
-				Loop(option, de_digit, ExecuteDigit, 1);
+				Loop(option, de_digit, ExecuteDigit, true);
 				break;
 			case DebugDigitsAndCode:
-				Loop(option, deg_digit, ExecuteDegDigit, 1);
+				Loop(option, deg_digit, ExecuteDegDigit, true);
 				break;
 			case DebugDigitsAndFactor:
-				Loop(option, fact_digit, ExecuteFactDigit, 1);
+				Loop(option, fact_digit, ExecuteFactDigit, true);
 				break;
 			case DebugComplete:
-				Loop(option, defact_digit, ExecuteAll, 1);
+				Loop(option, defact_digit, ExecuteAll, true);
 				break;
 			case ConvertCodeInverse:
 				CodeToNumber(option);
@@ -2420,7 +2447,7 @@ static void SetDebug(string message, switchcase& opt, bool& do_return,
 	// input e controllo valore iniziale
 	SetConsoleTextAttribute(hConsole, 15);
 	txt = L"inserisci il valore di inizio della ricerca\n";
-	do Input = GetUserNum(txt, 1, GlobalMax, 1);
+	do Input = GetUserNum(txt, 1, GlobalMax, true);
 	while (Input.empty());
 	if (Input == L".") {
 		opt = Random;
@@ -2440,7 +2467,7 @@ static void SetDebug(string message, switchcase& opt, bool& do_return,
 
 	// input e controllo valore finale
 	txt = L"inserisci il valore finale della ricerca\n";
-	do Input = GetUserNum(txt, 1, GlobalMax, 1);
+	do Input = GetUserNum(txt, 1, GlobalMax, true);
 	while (Input.empty());
 	if (Input == L".") {
 		opt = Random;
@@ -2559,7 +2586,7 @@ static tensor_t PrimeNCalculator(long long N, bool USE_pro_bar)
 
 	else for (long long p = 2; p < N + 1; ++p)
 		if (is_prime[p]) primes.push_back(p);
-	return { is_prime, primes };
+	return tensor_t{ move(is_prime), move(primes) };
 }
 
 #pragma endregion
@@ -2571,7 +2598,7 @@ static tensor<compost> DecomposeNumber(long long input)
 	// correzione intervallo di PrimeNumbers
 	if (input > PrimeNumbers.list_primes[PrimeNumbers.list_primes.size() - 1])
 	{
-		auto PrimeN{ PrimeNCalculator(input, 0) };
+		auto PrimeN{ PrimeNCalculator(input, false) };
 
 		// riassegnazione
 		for (int i = PrimeNumbers.list_primes.size();
@@ -2989,7 +3016,7 @@ static divisor DivisorCalculator(wstring factor)
 	for (int i = 0; i < monomials.size(); ++i) {
 		long long num = -1 + intpow(values[i], exponents[i] + 1);
 		long long den{ values[i] - 1 };
-		output.DivSum *= (num / den);
+		if (den != 0) output.DivSum *= (num / den);
 		x *= intpow(values[i], exponents[i]);
 	}
 
@@ -3718,7 +3745,7 @@ static void LongComputation
 				text = L"ERR[404]: " + message + L"\n";
 				ConsoleText.push_back({ text , 4 });
 			}
-			else CodeConverter(backup, message, ShowErrors, 0);
+			else CodeConverter(backup, message, ShowErrors, false);
 			if (interrupted) return;
 
 			is_done = true;
@@ -4892,7 +4919,7 @@ static void Repeater(
 			n_ + L" (1 = fine input)\n"
 		};
 		SetConsoleTextAttribute(hConsole, 15);
-		Input = GetUserNum(txt, 1, GlobalMax, 1);
+		Input = GetUserNum(txt, 1, GlobalMax, true);
 		if (!Input.empty()) {
 			if (Input == L".") {
 				argc = Random;
@@ -4965,7 +4992,7 @@ static void Loop(
 		bool exit{ false };
 		do {
 			cout << "\ninserire la stringa\n";
-			instr = GetLine(1, 20);
+			instr = GetLine(true, 20);
 			if (instr == L".") {
 				argc = Random;
 				return;
@@ -5170,7 +5197,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 				cout << "inserisci un polinomio in una variabile";
 				cout << " (0 = fine input)\n";
 				do {
-					polynomial = GetLine(1, csbi.dwSize.X);
+					polynomial = GetLine(true, csbi.dwSize.X);
 					cout << '\n';
 				} while (polynomial.empty());
 				if (polynomial == L".") {
@@ -5780,7 +5807,7 @@ static void DecompFraction(switchcase& argc)
 						NCOEFF,
 						DCOEFF,
 						lines,
-						0,
+						false,
 						NScomp,
 						DScomp
 					);
@@ -5799,7 +5826,7 @@ static void DecompFraction(switchcase& argc)
 					NCOEFF,
 					DCOEFF,
 					lines,
-					0,
+					false,
 					NScomp,
 					{ { MONOMIAL{ 0, 1 } } }
 				);
@@ -5815,7 +5842,7 @@ static void DecompFraction(switchcase& argc)
 					NCOEFF,
 					DCOEFF,
 					lines,
-					0,
+					false,
 					{ { MONOMIAL{ 0, 1 } } },
 					{ { MONOMIAL{ 0, 1 } } }
 				);
@@ -5893,4 +5920,18 @@ static void DecompFraction(switchcase& argc)
 #pragma endregion
 
 #pragma endregion
+/*
+impegni:
+
+	cambiare le dichiarazioni delle funzioni aggiungendo alcuni valori di default
+	utilizzare i nuovi operatori
+	fare il debug
+	cambiare i puntatori in array[11] (non in tensor)
+	scrivere le ultime funzioni (sono 3)
+	aggiungere le nuove funzioni per i polinomi a due variabili
+	aggiungere un paio di costruttori a tensor e utilizzarli
+	altro debug
+
+fine impegni (circa)
+*/
 // fine del codice
