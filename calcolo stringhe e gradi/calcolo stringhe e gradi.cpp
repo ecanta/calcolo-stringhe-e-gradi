@@ -294,8 +294,8 @@ public:
 		: data(nullptr), capacity(0), count(0)
 	{
 		resize(size);
-		_STD fill(data, data + count, initial_value);
 		count = size;
+		_STD fill(data, data + count, initial_value);
 	}
 	~tensor()
 	{
@@ -468,6 +468,37 @@ public:
 	_NODISCARD bool operator>=(const tensor& other) const
 	{
 		return count >= other.count;
+	}
+
+	template<typename IntegralType, typename = enable_if_t<is_integral_v<IntegralType>>>
+	bool operator==(IntegralType n) const
+	{
+		return count == static_cast<size_t>(n);
+	}
+	template<typename IntegralType, typename = enable_if_t<is_integral_v<IntegralType>>>
+	bool operator!=(IntegralType n) const
+	{
+		return count != static_cast<size_t>(n);
+	}
+	template<typename IntegralType, typename = enable_if_t<is_integral_v<IntegralType>>>
+	bool operator<(IntegralType n) const
+	{
+		return count < static_cast<size_t>(n);
+	}
+	template<typename IntegralType, typename = enable_if_t<is_integral_v<IntegralType>>>
+	bool operator<=(IntegralType n) const
+	{
+		return count <= static_cast<size_t>(n);
+	}
+	template<typename IntegralType, typename = enable_if_t<is_integral_v<IntegralType>>>
+	bool operator>(IntegralType n) const
+	{
+		return count > static_cast<size_t>(n);
+	}
+	template<typename IntegralType, typename = enable_if_t<is_integral_v<IntegralType>>>
+	bool operator>=(IntegralType n) const
+	{
+		return count >= static_cast<size_t>(n);
 	}
 
 	_NODISCARD bool operator&&(const tensor& other) const
@@ -748,8 +779,7 @@ public:
 				this->insert(this->begin() + i, { (*this)[i - 1].degree - j, 0 });
 
 		// riempimento buchi agli estremi
-		if (this->size() == 0)
-			for (int i = 0; i < s; ++i) this->push_back({ i, 0 });
+		if (this->empty()) for (int i = 0; i < s; ++i) this->push_back({ i, 0 });
 		if (this->size() < s)
 		{
 			while ((*this)[0].degree < s - 1)
@@ -2892,8 +2922,7 @@ static wstring Cript(long long input)
 static wstring FactNumber(long long input)
 {
 	tensor<compost> expfactors{ DecomposeNumber(input) };
-	while (expfactors[expfactors.size() - 1].factors == 0)
-		expfactors.pop_back();
+	while (expfactors[expfactors.size() - 1].factors == 0) expfactors--;
 
 	// unione dei monomi
 	wstring output{};
@@ -3103,7 +3132,7 @@ static tensor<int> DivisorCounter(int num)
 	// creazione dei vettori con i principali fattori
 	tensor<int> vec;
 	tensor<compost> expfact{ DecomposeNumber(num) };
-	while (expfact[expfact.size() - 1].factors == 0) expfact.pop_back();
+	while (expfact[expfact.size() - 1].factors == 0) expfact--;
 
 	tensor<tensor<int>> MainDiv;
 	for (int i = 0; i < expfact.size(); ++i) {
@@ -3121,7 +3150,7 @@ static tensor<int> DivisorCounter(int num)
 		for (auto a : MainDiv[i]) for (auto b : MainDiv[i - 1])
 			temp.push_back(a * b);
 		MainDiv[i - 1] = temp;
-		MainDiv.pop_back();
+		MainDiv--;
 	}
 
 	return MainDiv[0];
@@ -3871,8 +3900,7 @@ static tensor<MONOMIAL> PolynomialMultiply
 				temp.degree = A.degree + B.degree;
 				Temp.push_back(temp);
 			}
-		Polynomial.pop_front();
-		Polynomial.pop_front();
+		--(--Polynomial);
 		Polynomial.push_front(Temp);
 	}
 	return PolynomialSum(Polynomial[0]);
@@ -4224,7 +4252,7 @@ static tensor<tensor<MONOMIAL>> Ruffini(tensor<MONOMIAL> vect)
 				// caso con resto nullo
 				if (temp[temp.size() - 1].coefficient == 0) {
 					temp[0].degree--;
-					temp.pop_back();
+					temp--;
 					SetRoot = Root;
 					vect = temp;
 					break;
@@ -4401,7 +4429,7 @@ static tensor<MONOMIAL> Complementary
 {
 
 	// caso di eccezione
-	if (Polynomial[0] == factor) Polynomial.pop_front();
+	if (Polynomial[0] == factor) --Polynomial;
 
 	else for (int i = Polynomial.size() - 1; i > 0; --i)
 		if (Polynomial[i] == factor) {
@@ -4556,7 +4584,7 @@ static void Approximator
 		derivative[j].coefficient *= derivative[j].degree;
 		derivative[j].degree--;
 	}
-	derivative.pop_back();
+	derivative--;
 
 	// calcolo radice
 	int size = equation.size();
@@ -4590,7 +4618,7 @@ static void Approximator
 		equation[i].degree--;
 	}
 	equation[0].degree--;
-	equation.pop_back();
+	equation--;
 }
 
 static tensor<long double> ExistenceConditions
@@ -5279,7 +5307,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 
 			// raccoglimento parziale
 			polydata = HT[HT.size() - 1];
-			HT.pop_back();
+			HT--;
 			BackT = Partial(polydata);
 			for (auto a : BackT) HT.push_back(a);
 			pol = HT.str();
@@ -5923,7 +5951,6 @@ static void DecompFraction(switchcase& argc)
 /*
 impegni:
 
-	cambiare le dichiarazioni delle funzioni aggiungendo alcuni valori di default
 	utilizzare i nuovi operatori
 	fare il debug
 	cambiare i puntatori in array[11] (non in tensor)
