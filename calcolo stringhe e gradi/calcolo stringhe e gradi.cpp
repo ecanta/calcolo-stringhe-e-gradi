@@ -96,30 +96,6 @@ bool PRINTN(true);
 
 // monomi
 string Variables;
-class monomial
-{
-public:
-	int coefficient{};
-	tensor<int> exp;
-	bool operator == (const monomial& other) const
-	{
-		return coefficient == other.coefficient and
-			exp == other.exp;
-	}
-	int degree()
-	{
-		int sum{};
-		for (auto i : this->exp) sum += i;
-		return sum;
-	}
-	bool IsSquare()
-	{
-		if (!integer(sqrt(fabs(this->coefficient)))) return false;
-		for (int i = 0; i < Variables.size(); ++i) if (this->exp[i] % 2 == 1)
-			return false;
-		return true;
-	}
-};
 struct MONOMIAL {
 	int degree;
 	int coefficient;
@@ -253,9 +229,8 @@ unordered_map<wstring, wstring> ConvertFromSuperScript{
 #pragma region Classes
 
 // per tensor
-string Variables{};
 static void ElabExponents(wstring& str);
-template<class T> class tensor
+template<class T>class tensor
 {
 private:
 	T* data;
@@ -970,6 +945,30 @@ public:
 };
 
 // estensioni di tensor
+class monomial
+{
+public:
+	int coefficient{};
+	tensor<int> exp;
+	bool operator == (const monomial& other) const
+	{
+		return coefficient == other.coefficient and
+			exp == other.exp;
+	}
+	int degree()
+	{
+		int sum{};
+		for (size_t i = 0; i < exp.size(); ++i) sum += exp[i];
+		return sum;
+	}
+	bool IsSquare()
+	{
+		if (!integer(sqrt(fabs(this->coefficient)))) return false;
+		for (int i = 0; i < Variables.size(); ++i) if (this->exp[i] % 2 == 1)
+			return false;
+		return true;
+	}
+};
 class tensor_t
 {
 public:
@@ -1229,8 +1228,7 @@ tensor<wstring> commands{
 
 static size_t Factorial(size_t n);
 static int Gcd(int A, int B);
-static int Gcd(tensor<int> terms);
-static int Gcd(tensor<MONOMIAL> terms);
+template<typename T> static int Gcd(tensor<T> terms);
 static long long intpow(long long base, int exp);
 static wstring ConvertEnumToWString(switchcase Enum);
 static switchcase ConvertWStringToEnum(wstring str);
@@ -1337,6 +1335,487 @@ static void Loop(
 static tensor<tensor<MONOMIAL>> DecompPolynomial
 (switchcase& argc, wstring polynomial);
 static void DecompFraction(switchcase& argc);
+
+#pragma endregion
+
+#pragma region NEWFUNCT
+//#define DEBUG
+
+static bool NewSyntax(wstring pol)
+{
+	// controllo caratteri ammessi
+	for (auto c : pol) if (!isalnum(c) and c != '^' and !issign(c)) return true;
+
+	// controllo segni consecutivi
+	for (int i = 1; i < pol.size(); ++i)
+		if (issign(pol.at(i)) and issign(pol.at(i - 1))) return true;
+
+	// suddivisione in parti
+	tensor <wstring> parts;
+	for (int i = pol.size() - 1; i >= 0; i--)
+		if (issign(pol.at(i))) {
+			auto part{ pol };
+			part.erase(0, i + 1);
+			pol.erase(i);
+			parts.push_back(part);
+		}
+
+	for (auto part : parts) {
+
+		// cancellamento coefficiente
+		while (isdigit(part.at(0))) {
+			part.erase(0, 1);
+			if (part.empty()) break;
+		}
+		if (part.empty()) continue;
+
+		// controllo estremi
+		if (part.at(0) == '^' or part.at(part.size() - 1) == '^') return true;
+
+		// controllo variabili ripetute
+		for (int i = 0; i < part.size(); ++i)
+			for (int j = i + 1; j < part.size(); ++j)
+				if (isalpha(part.at(i)) and part.at(i) == part.at(j))
+					return true;
+
+		// controllo limite esponenti
+		for (int i = 0; i < part.size() - 1; ++i) if (isdigit(part.at(i)))
+			for (int j = i; j < part.size(); ++j) {
+				if (j >= part.size()) break;
+				if (!isdigit(part.at(j))) break;
+				if (j - i >= 2) return true;
+			}
+
+		// controllo esponenti corretti
+		for (int i = 1; i < part.size(); ++i) if (
+			isdigit(part.at(i)) and
+			!isdigit(part.at(i - 1)) and
+			part.at(i - 1) != '^'
+			)
+			return true;
+	}
+
+	return false;
+}
+static tensor<monomial> NewGetMonomials(wstring pol)
+{
+	tensor<monomial> vect;
+	if (pol.empty()) return {};
+	if (!issign(pol.at(0))) pol = L'+' + pol;
+	for (int i = pol.size() - 1; i >= 0; --i) if (issign(pol.at(i))) {
+		auto part{ pol };
+		pol.erase(i);
+		part.erase(0, i);
+
+		// calcolo segno
+		monomial mono;
+		mono.coefficient = 1;
+		if (part.at(0) == '-') mono.coefficient = -1;
+		part.erase(0, 1);
+
+		// calcolo coefficiente
+		wstring coeff;
+		while (isdigit(part.at(0))) {
+			coeff += part.at(0);
+			part.erase(0, 1);
+			if (part.empty()) break;
+		}
+		if (!coeff.empty()) mono.coefficient *= stoi(coeff);
+		if (part.empty()) {
+			vect.push_back(mono);
+			continue;
+		}
+
+		// calcolo gradi
+		for (int j = 0; j < Variables.size(); ++j) mono.exp.push_back(0);
+		for (int j = 0; j < part.size(); ++j) if (isalpha(part.at(j))) {
+
+			// calcolo posizione
+			int VariableIndex{ -1 };
+			for (int k = 0; k < Variables.size(); ++k)
+				if (Variables.at(k) == part.at(j)) VariableIndex = k;
+
+			// calcolo grado
+			int degree{ 1 };
+			if (j < (int)part.size() - 2)
+				if (part.at(j + 1) == '^' and isdigit(part.at(j + 2))) {
+					degree = part.at(j + 2) - '0';
+					if (j < (int)part.size() - 3) if (isdigit(part.at(j + 3)))
+						degree += 10 * (part.at(j + 3) - '0');
+				}
+			if (VariableIndex >= 0) mono.exp[VariableIndex] = degree;
+			else {
+				Variables += part.at(j);
+				mono.exp.push_back(degree);
+			}
+		}
+		vect.push_back(mono);
+	}
+	for (int i = 0; i < vect.size(); ++i)
+		while (vect[i].exp.size() < Variables.size()) vect[i].exp.push_back(0);
+
+	return vect;
+}
+
+static wstring NewGetString(tensor<monomial> vect)
+{
+	wstring polynomial{};
+	tensor<int> null;
+	for (auto c : Variables) null.push_back(0);
+	for (auto data : vect) {
+
+		// aggiunta coefficiente
+		wstring monomial{};
+		monomial = data.coefficient > 0 ? '+' : '-';
+		if (fabs(data.coefficient) != 1 or data.exp == null)
+			monomial += to_wstring(abs(data.coefficient));
+
+		// aggiunta variabili ed esponenti
+		for (int i = 0; i < Variables.size(); ++i) if (data.exp[i] != 0) {
+			monomial += Variables.at(i);
+			if (data.exp[i] > 1) {
+				monomial += L'^';
+				monomial += to_wstring(data.exp[i]);
+			}
+		}
+
+		polynomial += monomial;
+	}
+	if (polynomial.at(0) == '+') polynomial.erase(0, 1);
+
+	return polynomial;
+}
+static wstring NewGetWString(tensor<tensor<monomial>> vect)
+{
+	wstring output{}, exp;
+	bool set_modifier{ false };
+	for (auto T : vect) {
+
+		// caso di monomio modificatore
+		if (T[0].exp.size() != 0) if (T[0].exp[0] == -1) {
+			exp = to_wstring(T[0].coefficient);
+			set_modifier = true;
+			continue;
+		}
+		auto xout{ NewGetString(T) };
+
+		// caso con elevamento a potenza
+		if (set_modifier) {
+			xout = L"(" + xout + L")^" + exp;
+			set_modifier = false;
+		}
+
+		// caso comune
+		else if (T.size() > 1) xout = L"(" + xout + L")";
+
+		output += xout;
+	}
+
+	// caso nullo
+	if (output.empty()) return L"0";
+
+	if (BOOLALPHA) ElabExponents(output);
+	return output;
+}
+static tensor<monomial> NewPolynomialSum(tensor<monomial> vect)
+{
+
+	// ricerca di monomi simili
+	for (int i = vect.size() - 1; i >= 0; --i)
+		for (int j = i - 1; j >= 0; --j)
+			if (vect[i].exp[0] >= 0 and vect[j].exp[0] >= 0) {
+
+				bool similiar_monomials{ true };
+				for (int k = 0; k < Variables.size(); k++)
+					if (vect[i].exp[k] != vect[j].exp[k])
+						similiar_monomials = 0;
+
+				if (similiar_monomials) {
+					vect[i].coefficient += vect[j].coefficient;
+					vect[j].coefficient = 0;
+				}
+			}
+	// marcamento dei monomi simili
+	for (int i = vect.size() - 1; i >= 0; --i)
+		if (vect[i].coefficient == 0) vect[i].exp = {};
+
+	// rimozione
+	auto it = remove(vect.begin(), vect.end(), monomial{ 0, {} });
+	vect.erase(it, vect.end());
+
+	return vect;
+}
+
+static tensor<tensor<monomial>> NewTotal(tensor<monomial> vect)
+{
+	tensor<tensor<monomial>> output;
+	output.push_back(vect);
+	if (vect.size() <= 1) return output;
+
+	// calcolo grado minimo e riscrittura
+	bool positive_min{ false };
+	int GCD{ Gcd(vect) };
+	tensor<int> exponents;
+	for (int i = 0; i < Variables.size(); i++) {
+		int min{ vect[0].exp[i] };
+		for (auto t : vect) if (t.exp[i] < min) min = t.exp[i];
+		exponents.push_back(min);
+		if (min > 0) positive_min = 1;
+	}
+	if (fabs(GCD) != 1 or positive_min) {
+		output = {};
+		output.push_back({ {GCD, exponents} });
+		for (int i = 0; i < vect.size(); i++) {
+			vect[i].coefficient /= GCD;
+			for (int j = 0; j < Variables.size(); j++) vect[i].exp[j] -= exponents[j];
+		}
+	}
+
+	// totale
+	if (fabs(GCD) != 1 or positive_min) {
+		output = {};
+		output.push_back({ {GCD, exponents} });
+		output.push_back(vect);
+		return output;
+	}
+	return { vect };
+}
+static tensor<tensor<monomial>> NewPartial(tensor<monomial> vect)
+{
+	tensor<int> null;
+	for (auto c : Variables) null.push_back(0);
+
+	// filtro vettori a quattro termini
+	tensor<tensor<monomial>> outp;
+	outp.push_back(vect);
+	if (vect.size() != 4) return outp;
+
+	// riassegnazione e dichiarazioni
+	tensor<monomial> part_1{ vect[0], vect[1] };
+	tensor<monomial> part_2{ vect[2], vect[3] };
+	auto Part1{ NewTotal(part_1) };
+	auto Part2{ NewTotal(part_2) };
+	auto part_3{ Part1[Part1.size() - 1] };
+	for (auto a : Part2[Part2.size() - 1]) part_3.push_back(a);
+	if (NewPolynomialSum(part_3).size() == 0) {
+		if (Part1.size() == 1) swap(Part1, Part2);
+		Part2.push_front({ { -1, null } });
+		for (int i = 0; i < Part2[1].size(); i++) Part2[1][i].coefficient *= -1;
+	}
+	part_1 = Part1[Part1.size() - 1];
+	part_2 = Part2[Part2.size() - 1];
+	if (part_1 != part_2) return outp;
+	outp = {};
+
+	// riordinamento del totale
+	tensor<tensor<monomial>> mon_1;
+	tensor<tensor<monomial>> mon_2;
+	if (Part1.size() == 1) mon_1.push_back({ monomial{1, null} });
+	else mon_1.push_back(Part1[0]);
+	if (Part2.size() == 1) mon_2.push_back({ monomial{1, null} });
+	else mon_2.push_back(Part2[0]);
+	mon_1.push_back(part_1);
+	mon_2.push_back(part_2);
+
+	// riordinamento del parziale
+	outp.push_back(part_1);
+	part_2 = mon_1[0];
+	for (auto a : mon_2[0]) part_2.push_back(a);
+	part_2 = NewPolynomialSum(part_2);
+
+	outp.push_back(part_2);
+	return outp;
+}
+
+static tensor<tensor<monomial>> NewBinomial(tensor<monomial> vect)
+{
+
+	// filtro per vettori con più di un termine
+	tensor<tensor<monomial>> outp;
+	outp.push_back(vect);
+	int exponent = vect.size() - 1, sign{ 1 };
+	if (exponent <= 1) return outp;
+	bool reassigne{ false };
+	vect.SortByDegree();
+
+	// calcolo del monomio modificatore dell'esponente
+	tensor<int> modifier;
+	for (auto c : Variables) modifier.push_back(0);
+	modifier[0] = -1;
+
+	auto A{ vect[0] };
+	auto B{ vect[vect.size() - 1] };
+
+	// controllo per evitare radici impossibili da eseguire nei reali
+	if (exponent % 2 == 0 and (A.coefficient < 0 or B.coefficient < 0)) return outp;
+
+	// calcolo delle radici
+	double Sq_A, Sq_B;
+	if (A.coefficient > 0) Sq_A = pow(A.coefficient, 1.0 / exponent);
+	else Sq_A = -pow(-A.coefficient, 1.0 / exponent);
+	if (B.coefficient > 0) Sq_B = pow(B.coefficient, 1.0 / exponent);
+	else Sq_B = -pow(-B.coefficient, 1.0 / exponent);
+
+	// controllo sulle potenze
+	if (!integer(Sq_A)) return outp;
+	if (!integer(Sq_B)) return outp;
+	for (int i = 0; i < Variables.size(); ++i) if (A.exp[i] % exponent != 0) return outp;
+	for (int i = 0; i < Variables.size(); ++i) if (B.exp[i] % exponent != 0) return outp;
+	auto Aexps{ A.exp };
+	auto Bexps{ B.exp };
+	for (int i = 0; i < Variables.size(); ++i) {
+		Aexps[i] /= exponent;
+		Bexps[i] /= exponent;
+	}
+
+	for (int i = 1; i < exponent; ++i) {
+
+		// calcolo coefficiente
+		for (int j = 0; j < Variables.size(); ++j)
+			if (vect[i].exp[j] != Aexps[j] * (exponent - i) + Bexps[j] * i) return outp;
+		int coeff = Factorial(exponent) / (Factorial(i) * Factorial(exponent - i));
+
+		// caso con la sottrazione
+		if (vect[i].coefficient ==
+			-coeff * (int)pow(Sq_A, exponent - i) * (int)pow(Sq_B, i)
+			) {
+			if (!reassigne) {
+				sign = -1;
+				reassigne = 1;
+			}
+			else if (sign == 1) return outp;
+		}
+
+		// caso con l'addizione
+		else if (vect[i].coefficient ==
+			coeff * (int)pow(Sq_A, exponent - i) * (int)pow(Sq_B, i)
+			)
+		{
+			if (!reassigne) {
+				sign = 1;
+				reassigne = 1;
+			}
+			else if (sign == -1) return outp;
+		}
+
+		// caso non accettato
+		else return outp;
+	}
+
+	// composizione della potenza di binomio
+	outp = {};
+	outp.push_back({ {exponent, modifier} });
+	outp.push_back(vect);
+	outp[1] = {};
+	outp[1].push_back({ (int)Sq_A, Aexps });
+	outp[1].push_back({ sign * (int)Sq_B, Bexps });
+
+	return outp;
+}
+static tensor<tensor<monomial>> NewTrinomial(tensor<monomial> vect)
+{
+
+	// filtro per vettori di tre termini
+	tensor<tensor<monomial>> outp;
+	outp.push_back(vect);
+	if (vect.size() != 3) return outp;
+	vect.SortByDegree();
+
+	// calcolo termini ed esponenti
+	int A, B, C;
+	for (int i = 0; i < Variables.size(); ++i)
+		if (vect[0].exp[i] % 2 == 1 or vect[2].exp[i] % 2 == 1)
+			return outp;
+	auto Aexps{ vect[0].exp };
+	auto Cexps{ vect[2].exp };
+	for (int i = 0; i < Variables.size(); ++i) {
+		if (2 * vect[1].exp[i] != vect[0].exp[i] + vect[2].exp[i])
+			return outp;
+		Aexps[i] /= 2;
+		Cexps[i] /= 2;
+	}
+	A = vect[0].coefficient;
+	B = vect[1].coefficient;
+	C = vect[2].coefficient;
+
+	// calcolo delle radici
+	double firstX, secondX, delta;
+	delta = B * B - 4 * A * C;
+	if (delta <= 0) return outp;
+	if (!integer(sqrt(delta))) return outp;
+	firstX = (-B - sqrt(delta)) / (2 * A);
+	secondX = (-B + sqrt(delta)) / (2 * A);
+	if (!integer(A * firstX * secondX)) return outp;
+	outp = {};
+
+	// calcolo dei coefficienti
+	int I, J;
+	for (I = 1; I <= fabs(A); ++I) if (integer(firstX * I)) break;
+	if (I == fabs(A) + 1) I--;
+	if (A < 0) I *= -1;
+	for (J = 1; J <= fabs(A); ++J) if (integer(secondX * J)) break;
+	if (J == fabs(A) + 1) J--;
+
+	// composizione del trinomio scomposto
+	outp = { {}, {} };
+	outp[0].push_back(monomial{ (int)(-I * firstX), Cexps });
+	outp[0].push_back(monomial{ I, Aexps });
+	outp[1].push_back(monomial{ (int)(-J * secondX), Cexps });
+	outp[1].push_back(monomial{ J, Aexps });
+
+	return outp;
+}
+static tensor<tensor<monomial>> NewSquareDifference(tensor<monomial> vect)
+{
+
+	// filtro per vettori di due termini
+	tensor<tensor<monomial>> outp;
+	outp.push_back(vect);
+	if (vect.size() != 2) return outp;
+
+	// controllo sui quadrati perfetti
+	if (!vect[0].IsSquare()) return outp;
+	if (!vect[1].IsSquare()) return outp;
+
+	// riassegnazione se i segni non vanno bene
+	bool Sign_A{ vect[0].coefficient > 0 };
+	bool Sign_B{ vect[1].coefficient > 0 };
+	if (Sign_A == Sign_B) return outp;
+
+	// calcolo esponenti
+	auto Aexps{ vect[0].exp };
+	auto Bexps{ vect[1].exp };
+	for (int i = 0; i < Variables.size(); ++i) {
+		Aexps[i] /= 2;
+		Bexps[i] /= 2;
+	}
+
+	// composizione di somma e differenza
+	outp = { {}, {} };
+	outp[0].push_back(monomial{ +(int)sqrt(fabs(vect[1].coefficient)), Bexps });
+	outp[0].push_back(monomial{ +(int)sqrt(fabs(vect[0].coefficient)), Aexps });
+	outp[1].push_back(monomial{ +(int)sqrt(fabs(vect[1].coefficient)), Bexps });
+	outp[1].push_back(monomial{ -(int)sqrt(fabs(vect[0].coefficient)), Aexps });
+	if (Sign_A) {
+		outp[1][0].coefficient *= -1;
+		outp[1][1].coefficient *= -1;
+	}
+
+	return outp;
+}
+
+static tensor<tensor<monomial>> NewRuffini(tensor<monomial> vect)
+{
+	return { vect };
+}
+static tensor<tensor<monomial>> NewCompleteTheSquare(tensor<monomial> vect)
+{
+	return { vect };
+}
+static tensor<tensor<monomial>> NewTrinomialSquare(tensor<monomial> vect)
+{
+	return { vect };
+}
 
 #pragma endregion
 
@@ -1449,6 +1928,13 @@ int main()
 		system("cls");
 		SetConsoleTitle(TEXT("switchcase scegli le opzioni"));
 		Beep(750, 300);
+
+#ifdef DEBUG
+		wstring PolynomialTest{ L"x^3+4x^2+x-6" };
+		wcout << NewGetWString(NewRuffini(NewGetMonomials(PolynomialTest)));
+		_getch();
+		wcout << '\r';
+#endif // DEBUG
 
 		// scelta
 		cout << "scegliere la modalità di calcolo::\n";
@@ -1622,473 +2108,6 @@ End:
 	return 0;
 }
 
-#pragma region NEWFUNCT
-
-static bool NewSyntax(wstring pol)
-{
-	// controllo caratteri ammessi
-	for (auto c : pol) if (!isalnum(c) and c != '^' and !issign(c)) return true;
-
-	// controllo segni consecutivi
-	for (int i = 1; i < pol.size(); ++i)
-		if (issign(pol.at(i)) and issign(pol.at(i - 1))) return true;
-
-	// suddivisione in parti
-	tensor <wstring> parts;
-	for (int i = pol.size() - 1; i >= 0; i--)
-		if (issign(pol.at(i))) {
-			auto part{ pol };
-			part.erase(0, i + 1);
-			pol.erase(i);
-			parts.push_back(part);
-		}
-
-	for (auto part : parts) {
-
-		// cancellamento coefficiente
-		while (isdigit(part.at(0))) {
-			part.erase(0, 1);
-			if (part.empty()) break;
-		}
-		if (part.empty()) continue;
-
-		// controllo estremi
-		if (part.at(0) == '^' or part.at(part.size() - 1) == '^') return true;
-
-		// controllo variabili ripetute
-		for (int i = 0; i < part.size(); ++i)
-			for (int j = i + 1; j < part.size(); ++j)
-				if (isalpha(part.at(i)) and part.at(i) == part.at(j))
-					return true;
-
-		// controllo limite esponenti
-		for (int i = 0; i < part.size() - 1; ++i) if (isdigit(part.at(i)))
-			for (int j = i; j < part.size(); ++j) {
-				if (j >= part.size()) break;
-				if (!isdigit(part.at(j))) break;
-				if (j - i >= 2) return true;
-			}
-
-		// controllo esponenti corretti
-		for (int i = 1; i < part.size(); ++i) if (
-			isdigit(part.at(i)) and
-			!isdigit(part.at(i - 1)) and
-			part.at(i - 1) != '^'
-			)
-			return true;
-	}
-
-	return false;
-}
-static tensor<monomial> NewGetMonomials(wstring pol)
-{
-	tensor<monomial> vect;
-	if (pol.empty()) return {};
-	if (!issign(pol.at(0))) pol = L'+' + pol;
-	for (int i = pol.size() - 1; i >= 0; --i) if (issign(pol.at(i))) {
-		auto part{ pol };
-		pol.erase(i);
-		part.erase(0, i);
-
-		// calcolo segno
-		monomial mono;
-		mono.coefficient = 1;
-		if (part.at(0) == '-') mono.coefficient = -1;
-		part.erase(0, 1);
-
-		// calcolo coefficiente
-		wstring coeff;
-		while (isdigit(part.at(0))) {
-			coeff += part.at(0);
-			part.erase(0, 1);
-			if (part.empty()) break;
-		}
-		if (!coeff.empty()) mono.coefficient *= stoi(coeff);
-		if (part.empty()) {
-			vect.push_back(mono);
-			continue;
-		}
-
-		// calcolo gradi
-		for (int j = 0; j < Variables.size(); ++j) mono.exp.push_back(0);
-		for (int j = 0; j < part.size(); ++j) if (isalpha(part.at(j))) {
-
-			// calcolo posizione
-			int VariableIndex{ -1 };
-			for (int k = 0; k < Variables.size(); ++k)
-				if (Variables.at(k) == part.at(j)) VariableIndex = k;
-
-			// calcolo grado
-			int degree{ 1 };
-			if (j < (int)part.size() - 2)
-				if (part.at(j + 1) == '^' and isdigit(part.at(j + 2))) {
-					degree = part.at(j + 2) - '0';
-					if (j < (int)part.size() - 3) if (isdigit(part.at(j + 3)))
-						degree += 10 * (part.at(j + 3) - '0');
-				}
-			if (VariableIndex >= 0) mono.exp[VariableIndex] = degree;
-			else {
-				Variables += part.at(j);
-				mono.exp.push_back(degree);
-			}
-		}
-		vect.push_back(mono);
-	}
-	for (int i = 0; i < vect.size(); ++i)
-		while (vect[i].exp.size() < Variables.size()) vect[i].exp.push_back(0);
-
-	return vect;
-}
-static wstring NewGetString(tensor<monomial> Data)
-{
-	wstring polynomial{};
-	tensor<int> null;
-	for (auto c : Variables) null.push_back(0);
-	for (auto data : Data) {
-
-		// aggiunta coefficiente
-		wstring monomial{};
-		monomial = data.coefficient > 0 ? '+' : '-';
-		if (fabs(data.coefficient) != 1 or data.exp == null)
-			monomial += to_wstring(abs(data.coefficient));
-
-		// aggiunta variabili ed esponenti
-		for (int i = 0; i < Variables.size(); ++i) if (data.exp[i] != 0) {
-			monomial += Variables.at(i);
-			if (data.exp[i] > 1) {
-				monomial += L'^';
-				monomial += to_wstring(data.exp[i]);
-			}
-		}
-
-		polynomial += monomial;
-	}
-	if (polynomial.at(0) == '+') polynomial.erase(0, 1);
-
-	return polynomial;
-}
-static wstring NewGetWString(tensor<tensor<monomial>> inp)
-{
-	wstring output{}, exp;
-	bool set_modifier{ false };
-	for (auto T : inp) {
-
-		// caso di monomio modificatore
-		if (T[0].exp.size() != 0) if (T[0].exp[0] == -1) {
-			exp = to_wstring(T[0].coefficient);
-			set_modifier = true;
-			continue;
-		}
-		auto xout{ NewGetString(T) };
-
-		// caso con elevamento a potenza
-		if (set_modifier) {
-			xout = L"(" + xout + L")^" + exp;
-			set_modifier = false;
-		}
-
-		// caso comune
-		else if (T.size() > 1) xout = L"(" + xout + L")";
-
-		output += xout;
-	}
-
-	// caso nullo
-	if (output.empty()) return L"0";
-
-	//<->if (BOOLALPHA) ElabExponents(output);
-	return output;
-}
-
-static tensor<monomial> NewPolynomialSum(tensor<monomial> inp)
-{
-
-	// ricerca di monomi simili
-	for (int i = inp.size() - 1; i >= 0; --i)
-		for (int j = i - 1; j >= 0; --j)
-			if (inp[i].exp[0] >= 0 and inp[j].exp[0] >= 0) {
-
-				bool similiar_monomials{ true };
-				for (int k = 0; k < Variables.size(); k++)
-					if (inp[i].exp[k] != inp[j].exp[k])
-						similiar_monomials = 0;
-
-				if (similiar_monomials) {
-					inp[i].coefficient += inp[j].coefficient;
-					inp[j].coefficient = 0;
-				}
-			}
-	// marcamento dei monomi simili
-	for (int i = inp.size() - 1; i >= 0; --i)
-		if (inp[i].coefficient == 0) inp[i].exp = {};
-
-	// rimozione
-	auto it = remove(inp.begin(), inp.end(), monomial{ 0, {} });
-	inp.erase(it, inp.end());
-
-	return inp;
-}
-
-static tensor<tensor<monomial>> NewTotal(tensor<monomial> inp)
-{
-	tensor<tensor<monomial>> output;
-	output.push_back(inp);
-	if (inp.size() <= 1) return output;
-
-	// calcolo grado minimo e riscrittura
-	bool positive_min{ false };
-	int GCD{ Gcd(inp) };
-	tensor<int> exponents;
-	for (int i = 0; i < Variables.size(); i++) {
-		int min{ inp[0].exp[i] };
-		for (auto t : inp) if (t.exp[i] < min) min = t.exp[i];
-		exponents.push_back(min);
-		if (min > 0) positive_min = 1;
-	}
-	if (fabs(GCD) != 1 or positive_min) {
-		output = {};
-		output.push_back({ {GCD, exponents} });
-		for (int i = 0; i < inp.size(); i++) {
-			inp[i].coefficient /= GCD;
-			for (int j = 0; j < Variables.size(); j++) inp[i].exp[j] -= exponents[j];
-		}
-	}
-
-	// totale
-	if (fabs(GCD) != 1 or positive_min) {
-		output = {};
-		output.push_back({ {GCD, exponents} });
-		output.push_back(inp);
-		return output;
-	}
-	return { inp };
-}
-static tensor<tensor<monomial>> NewPartial(tensor<monomial> inpt)
-{
-	tensor<int> null;
-	for (auto c : Variables) null.push_back(0);
-
-	// filtro vettori a quattro termini
-	tensor<tensor<monomial>> outp;
-	outp.push_back(inpt);
-	if (inpt.size() != 4) return outp;
-
-	// riassegnazione e dichiarazioni
-	tensor<monomial> part_1{ inpt[0], inpt[1] };
-	tensor<monomial> part_2{ inpt[2], inpt[3] };
-	auto Part1{ NewTotal(part_1) };
-	auto Part2{ NewTotal(part_2) };
-	auto part_3{ Part1[Part1.size() - 1] };
-	for (auto a : Part2[Part2.size() - 1]) part_3.push_back(a);
-	if (NewPolynomialSum(part_3).size() == 0) {
-		if (Part1.size() == 1) swap(Part1, Part2);
-		Part2.push_front({ { -1, null } });
-		for (int i = 0; i < Part2[1].size(); i++) Part2[1][i].coefficient *= -1;
-	}
-	part_1 = Part1[Part1.size() - 1];
-	part_2 = Part2[Part2.size() - 1];
-	if (part_1 != part_2) return outp;
-	outp = {};
-
-	// riordinamento del totale
-	tensor<tensor<monomial>> mon_1;
-	tensor<tensor<monomial>> mon_2;
-	if (Part1.size() == 1) mon_1.push_back({ monomial{1, null} });
-	else mon_1.push_back(Part1[0]);
-	if (Part2.size() == 1) mon_2.push_back({ monomial{1, null} });
-	else mon_2.push_back(Part2[0]);
-	mon_1.push_back(part_1);
-	mon_2.push_back(part_2);
-
-	// riordinamento del parziale
-	outp.push_back(part_1);
-	part_2 = mon_1[0];
-	for (auto a : mon_2[0]) part_2.push_back(a);
-	part_2 = NewPolynomialSum(part_2);
-
-	outp.push_back(part_2);
-	return outp;
-}
-
-static tensor<tensor<monomial>> NewBinomial(tensor<monomial> InpT)
-{
-
-	// filtro per vettori con più di un termine
-	tensor<tensor<monomial>> outp;
-	outp.push_back(InpT);
-	int exponent = InpT.size() - 1, sign{ 1 };
-	if (exponent <= 1) return outp;
-	bool reassigne{ false };
-	InpT.SortByDegree();
-
-	// calcolo del monomio modificatore dell'esponente
-	tensor<int> modifier;
-	for (auto c : Variables) modifier.push_back(0);
-	modifier[0] = -1;
-
-	auto A{ InpT[0] };
-	auto B{ InpT[InpT.size() - 1] };
-
-	// controllo per evitare radici impossibili da eseguire nei reali
-	if (exponent % 2 == 0 and (A.coefficient < 0 or B.coefficient < 0)) return outp;
-
-	// calcolo delle radici
-	double Sq_A, Sq_B;
-	if (A.coefficient > 0) Sq_A = pow(A.coefficient, 1.0 / exponent);
-	else Sq_A = -pow(-A.coefficient, 1.0 / exponent);
-	if (B.coefficient > 0) Sq_B = pow(B.coefficient, 1.0 / exponent);
-	else Sq_B = -pow(-B.coefficient, 1.0 / exponent);
-
-	// controllo sulle potenze
-	if (!integer(Sq_A)) return outp;
-	if (!integer(Sq_B)) return outp;
-	for (int i = 0; i < Variables.size(); ++i) if (A.exp[i] % exponent != 0) return outp;
-	for (int i = 0; i < Variables.size(); ++i) if (B.exp[i] % exponent != 0) return outp;
-	auto Aexps{ A.exp };
-	auto Bexps{ B.exp };
-	for (int i = 0; i < Variables.size(); ++i) {
-		Aexps[i] /= exponent;
-		Bexps[i] /= exponent;
-	}
-
-	for (int i = 1; i < exponent; ++i) {
-
-		// calcolo coefficiente
-		for (int j = 0; j < Variables.size(); ++j)
-			if (InpT[i].exp[j] != Aexps[j] * (exponent - i) + Bexps[j] * i) return outp;
-		int coeff = Factorial(exponent) / (Factorial(i) * Factorial(exponent - i));
-
-		// caso con la sottrazione
-		if (InpT[i].coefficient ==
-			-coeff * (int)pow(Sq_A, exponent - i) * (int)pow(Sq_B, i)
-			) {
-			if (!reassigne) {
-				sign = -1;
-				reassigne = 1;
-			}
-			else if (sign == 1) return outp;
-		}
-
-		// caso con l'addizione
-		else if (InpT[i].coefficient ==
-			coeff * (int)pow(Sq_A, exponent - i) * (int)pow(Sq_B, i)
-			)
-		{
-			if (!reassigne) {
-				sign = 1;
-				reassigne = 1;
-			}
-			else if (sign == -1) return outp;
-		}
-
-		// caso non accettato
-		else return outp;
-	}
-
-	// composizione della potenza di binomio
-	outp = {};
-	outp.push_back({ {exponent, modifier} });
-	outp.push_back(InpT);
-	outp[1] = {};
-	outp[1].push_back({ (int)Sq_A, Aexps });
-	outp[1].push_back({ sign * (int)Sq_B, Bexps });
-
-	return outp;
-}
-static tensor<tensor<monomial>> NewTrinomial(tensor<monomial> InpT)
-{
-
-	// filtro per vettori di tre termini
-	tensor<tensor<monomial>> outp;
-	outp.push_back(InpT);
-	if (InpT.size() != 3) return outp;
-	InpT.SortByDegree();
-
-	// calcolo termini ed esponenti
-	int A, B, C;
-	for (int i = 0; i < Variables.size(); ++i)
-		if (InpT[0].exp[i] % 2 == 1 or InpT[2].exp[i] % 2 == 1)
-			return outp;
-	auto Aexps{ InpT[0].exp };
-	auto Cexps{ InpT[2].exp };
-	for (int i = 0; i < Variables.size(); ++i) {
-		if (2 * InpT[1].exp[i] != InpT[0].exp[i] + InpT[2].exp[i])
-			return outp;
-		Aexps[i] /= 2;
-		Cexps[i] /= 2;
-	}
-	A = InpT[0].coefficient;
-	B = InpT[1].coefficient;
-	C = InpT[2].coefficient;
-
-	// calcolo delle radici
-	double firstX, secondX, delta;
-	delta = B * B - 4 * A * C;
-	if (delta <= 0) return outp;
-	if (!integer(sqrt(delta))) return outp;
-	firstX = (-B - sqrt(delta)) / (2 * A);
-	secondX = (-B + sqrt(delta)) / (2 * A);
-	if (!integer(A * firstX * secondX)) return outp;
-	outp = {};
-
-	// calcolo dei coefficienti
-	int I, J;
-	for (I = 1; I <= fabs(A); ++I) if (integer(firstX * I)) break;
-	if (I == fabs(A) + 1) I--;
-	if (A < 0) I *= -1;
-	for (J = 1; J <= fabs(A); ++J) if (integer(secondX * J)) break;
-	if (J == fabs(A) + 1) J--;
-
-	// composizione del trinomio scomposto
-	outp = { {}, {} };
-	outp[0].push_back(monomial{ (int)(-I * firstX), Cexps });
-	outp[0].push_back(monomial{ I, Aexps });
-	outp[1].push_back(monomial{ (int)(-J * secondX), Cexps });
-	outp[1].push_back(monomial{ J, Aexps });
-
-	return outp;
-}
-static tensor<tensor<monomial>> NewSquareDifference(tensor<monomial> InpT)
-{
-
-	// filtro per vettori di due termini
-	tensor<tensor<monomial>> outp;
-	outp.push_back(InpT);
-	if (InpT.size() != 2) return outp;
-
-	// controllo sui quadrati perfetti
-	if (!InpT[0].IsSquare()) return outp;
-	if (!InpT[1].IsSquare()) return outp;
-
-	// riassegnazione se i segni non vanno bene
-	bool Sign_A{ InpT[0].coefficient > 0 };
-	bool Sign_B{ InpT[1].coefficient > 0 };
-	if (Sign_A == Sign_B) return outp;
-
-	// calcolo esponenti
-	auto Aexps{ InpT[0].exp };
-	auto Bexps{ InpT[1].exp };
-	for (int i = 0; i < Variables.size(); ++i) {
-		Aexps[i] /= 2;
-		Bexps[i] /= 2;
-	}
-
-	// composizione di somma e differenza
-	outp = { {}, {} };
-	outp[0].push_back(monomial{ +(int)sqrt(fabs(InpT[1].coefficient)), Bexps });
-	outp[0].push_back(monomial{ +(int)sqrt(fabs(InpT[0].coefficient)), Aexps });
-	outp[1].push_back(monomial{ +(int)sqrt(fabs(InpT[1].coefficient)), Bexps });
-	outp[1].push_back(monomial{ -(int)sqrt(fabs(InpT[0].coefficient)), Aexps });
-	if (Sign_A) {
-		outp[1][0].coefficient *= -1;
-		outp[1][1].coefficient *= -1;
-	}
-
-	return outp;
-}
-
-#pragma endregion
-
 #pragma region Functions
 
 #pragma region Math
@@ -2111,38 +2130,28 @@ static int Gcd(int A, int B)
 	}
 	return A;
 }
-static int Gcd(tensor<int> terms)
+template<typename T> static int Gcd(tensor<T> terms)
 {
+	int gcd;
 	if (terms == 0) return 0;
-	if (terms == 1) return terms[0];
-	int GCD{ terms[0] };
-	for (int i = 1; i < terms; ++i) {
-		GCD = Gcd(GCD, terms[i]);
-		if (GCD == 1) break;
+	if constexpr (is_same_v<T, int>) {
+		if (terms == 1) return terms[0];
+		gcd = terms[0];
+		for (int i = 1; i < terms; ++i) {
+			gcd = Gcd(gcd, terms[i]);
+			if (gcd == 1) break;
+		}
 	}
-	return GCD;
-}
-static int Gcd(tensor<MONOMIAL> terms)
-{
-	if (terms == 0) return 0;
-	if (terms == 1) return terms[0].coefficient;
-	int GCD{ terms[0].coefficient };
-	for (int i = 1; i < terms; ++i) {
-		GCD = Gcd(GCD, terms[i].coefficient);
-		if (GCD == 1) break;
+	else if constexpr (is_same_v<T, MONOMIAL> or is_same_v<T, monomial>)
+	{
+		if (terms == 1) return terms[0].coefficient;
+		gcd = terms[0].coefficient;
+		for (int i = 1; i < terms; ++i) {
+			gcd = Gcd(gcd, terms[i].coefficient);
+			if (gcd == 1) break;
+		}
 	}
-	return GCD;
-}
-static int Gcd(tensor<monomial> terms)
-{
-	if (terms.size() == 0) return 0;
-	if (terms.size() == 1) return terms[0].coefficient;
-	int GCD{ terms[0].coefficient };
-	for (int i = 1; i < terms.size(); ++i) {
-		GCD = Gcd(GCD, terms[i].coefficient);
-		if (GCD == 1) break;
-	}
-	return GCD;
+	return gcd;
 }
 static long long intpow(long long base, int exp)
 {
@@ -6413,15 +6422,4 @@ static void DecompFraction(switchcase& argc)
 #pragma endregion
 
 #pragma endregion
-/*
-impegni:
-
-	aggiungere le nuove funzioni per i polinomi a due variabili
-	scrivere le ultime funzioni (sono 3)
-	altro debug
-	crivello di atkin
-	nvidia cuda
-
-fine impegni (circa)
-*/
 // fine del codice
