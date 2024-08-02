@@ -229,6 +229,7 @@ unordered_map<wstring, wstring> ConvertFromSuperScript{
 
 // per tensor
 static void ElabExponents(wstring& str);
+class monomial;
 template<class T>class tensor
 {
 private:
@@ -773,51 +774,52 @@ public:
 	}
 	void close()
 	{
-		tensor<MONOMIAL> CommonFactor;
-		for (int i = 0; i < this->size(); ++i)
-			for (int j = this->size() - 1; j > i; --j)
-				if ((*this)[i] == (*this)[j] and (*this)[i][0].degree != -1)
-				{
-					CommonFactor = (*this)[i];
-					if (i > 0) {
+		tensor<monomial> CommonFactor;
+		if constexpr (is_same_v<T, tensor<monomial>>)
+			for (int i = 0; i < this->size(); ++i)
+				for (int j = this->size() - 1; j > i; --j)
+					if ((*this)[i] == (*this)[j] and (*this)[i][0].exp[0] != -1)
+					{
+						CommonFactor = (*this)[i];
+						if (i > 0) {
 
-						// caso con esponente
-						if ((*this)[i - 1].size() == 1 and 
-							(*this)[i - 1][0].degree == -1)
-						{
-							(*this)[i - 1][0].coefficient++;
-							this->erase(this->begin() + j);
+							// caso con esponente
+							if ((*this)[i - 1].size() == 1 and 
+								(*this)[i - 1][0].exp[0] == -1)
+							{
+								(*this)[i - 1][0].coefficient++;
+								this->erase(this->begin() + j);
+							}
+
+							// caso senza esponente
+							else {
+								int setK = 0;
+								this->insert(this->begin(), { {-1, 2} });
+								this->erase(this->begin() + j);
+								for (int k = 0; k < this->size(); ++k)
+									if ((*this)[k] == CommonFactor) {
+										setK = k;
+										break;
+									}
+								if ((*this)[i + 1] != CommonFactor) 
+									swap((*this)[i + 1], (*this)[setK]);
+							}
 						}
 
-						// caso senza esponente
+						// caso di eccezione
 						else {
 							int setK = 0;
-							this->insert(this->begin(), { {-1, 2} });
+							this->push_front({ {-1, 2} });
 							this->erase(this->begin() + j);
 							for (int k = 0; k < this->size(); ++k)
 								if ((*this)[k] == CommonFactor) {
 									setK = k;
 									break;
 								}
-							if ((*this)[i + 1] != CommonFactor) 
+							if ((*this)[i + 1] != CommonFactor)
 								swap((*this)[i + 1], (*this)[setK]);
 						}
 					}
-
-					// caso di eccezione
-					else {
-						int setK = 0;
-						this->push_front({ {-1, 2} });
-						this->erase(this->begin() + j);
-						for (int k = 0; k < this->size(); ++k)
-							if ((*this)[k] == CommonFactor) {
-								setK = k;
-								break;
-							}
-						if ((*this)[i + 1] != CommonFactor)
-							swap((*this)[i + 1], (*this)[setK]);
-					}
-				}
 	}
 	void fill(int s)
 	{
@@ -1284,7 +1286,7 @@ static NumberData ExecuteDegFactor(long long input);
 static NumberData ExecuteDegDigit(long long input);
 static NumberData ExecuteFactDigit(long long input);
 static NumberData ExecuteAll(long long input);
-static bool Syntax(wstring polynomial);
+static bool OLDSyntax(wstring polynomial);
 static wstring UpdateString(wstring& ToEvaluate);
 static wstring SyntaxValidator(wstring ToEvaluate);
 static size_t NumberConverter(size_t root, wstring M);
@@ -1293,8 +1295,8 @@ static void CodeConverter
 (wstring ToEvaluate, wstring message, bool ShowErrors, bool NecBoundary);
 static void LongComputation
 (wstring ToEvaluate, wstring message, bool ShowErrors, bool NecBoundary);
-static tensor<MONOMIAL> GetMonomials(wstring polynomial);
-static tensor<MONOMIAL> PolynomialSum(tensor<MONOMIAL> inp);
+static tensor<MONOMIAL> OLDGetMonomials(wstring polynomial);
+static tensor<MONOMIAL> OLDPolynomialSum(tensor<MONOMIAL> inp);
 static tensor<MONOMIAL> PolynomialMultiply
 (tensor<tensor<MONOMIAL>> Polynomial);
 static void PolynomialDivide
@@ -1304,14 +1306,14 @@ static void PolynomialDivide
 	tensor<MONOMIAL>& quotient,
 	tensor<MONOMIAL>& rest
 );
-static tensor<tensor<MONOMIAL>> Total(tensor<MONOMIAL> inp);
-static tensor<tensor<MONOMIAL>> Partial(tensor<MONOMIAL> inpt);
-static tensor<tensor<MONOMIAL>> Binomial(tensor<MONOMIAL> InpT);
-static tensor<tensor<MONOMIAL>> Trinomial(tensor<MONOMIAL> InpT);
-static tensor<tensor<MONOMIAL>> SquareDifference(tensor<MONOMIAL> InpT);
-static tensor<tensor<MONOMIAL>> Ruffini(tensor<MONOMIAL> vect);
-static tensor<tensor<MONOMIAL>> CompleteTheSquare(tensor<MONOMIAL> vect);
-static tensor<tensor<MONOMIAL>> TrinomialSquare(tensor<MONOMIAL> vect);
+static tensor<tensor<MONOMIAL>> OLDTotal(tensor<MONOMIAL> inp);
+static tensor<tensor<MONOMIAL>> OLDPartial(tensor<MONOMIAL> inpt);
+static tensor<tensor<MONOMIAL>> OLDBinomial(tensor<MONOMIAL> InpT);
+static tensor<tensor<MONOMIAL>> OLDTrinomial(tensor<MONOMIAL> InpT);
+static tensor<tensor<MONOMIAL>> OLDSquareDifference(tensor<MONOMIAL> InpT);
+static tensor<tensor<MONOMIAL>> OLDRuffini(tensor<MONOMIAL> vect);
+static tensor<tensor<MONOMIAL>> OLDCompleteTheSquare(tensor<MONOMIAL> vect);
+static tensor<tensor<MONOMIAL>> OLDTrinomialSquare(tensor<MONOMIAL> vect);
 static tensor<MONOMIAL> Complementary
 (tensor<tensor <MONOMIAL>> Polynomial, tensor<MONOMIAL> factor, int exp);
 static void Simplify(
@@ -1341,16 +1343,23 @@ static void Loop(
 	NumberData CPU(long long input),
 	bool select
 );
-static tensor<tensor<MONOMIAL>> DecompPolynomial
+static tensor<tensor<monomial>> DecompPolynomial
 (switchcase& argc, wstring polynomial);
-static void DecompFraction(switchcase& argc);
+
+static void DecompFraction(switchcase& argc)
+{
+	argc = NotAssigned;
+}
 
 #pragma endregion
 
 #pragma region NEWFUNCT
 
-static bool NewSyntax(wstring pol)
+static bool Syntax(wstring pol)
 {
+
+	// caso vuoto
+	if (pol.empty()) return true;
 
 	// controllo caratteri ammessi
 	for (auto c : pol) if (!isalnum(c) and c != '^' and !issign(c)) return true;
@@ -1358,6 +1367,7 @@ static bool NewSyntax(wstring pol)
 	// controllo segni
 	for (int i = 1; i < pol.size(); ++i)
 		if (issign(pol.at(i)) and issign(pol.at(i - 1))) return true;
+	if (!issign(pol.at(0))) pol = L'+' + pol;
 	if (issign(pol.at(pol.size() - 1))) return true;
 
 	// suddivisione in parti
@@ -1407,7 +1417,7 @@ static bool NewSyntax(wstring pol)
 
 	return false;
 }
-static tensor<monomial> NewGetMonomials(wstring pol)
+static tensor<monomial> GetMonomials(wstring pol)
 {
 	tensor<monomial> vect;
 	if (pol.empty()) return {};
@@ -1467,7 +1477,7 @@ static tensor<monomial> NewGetMonomials(wstring pol)
 	return vect;
 }
 
-static wstring NewGetString(tensor<monomial> vect)
+static wstring GetString(tensor<monomial> vect)
 {
 	wstring polynomial{};
 	tensor<int> null(Variables.size(), 0);
@@ -1494,7 +1504,7 @@ static wstring NewGetString(tensor<monomial> vect)
 
 	return polynomial;
 }
-static wstring NewGetWString(tensor<tensor<monomial>> vect)
+static wstring GetWString(tensor<tensor<monomial>> vect)
 {
 	wstring output{}, exp;
 	bool set_modifier{ false };
@@ -1506,7 +1516,7 @@ static wstring NewGetWString(tensor<tensor<monomial>> vect)
 			set_modifier = true;
 			continue;
 		}
-		auto xout{ NewGetString(T) };
+		auto xout{ GetString(T) };
 
 		// caso con elevamento a potenza
 		if (set_modifier) {
@@ -1526,7 +1536,7 @@ static wstring NewGetWString(tensor<tensor<monomial>> vect)
 	if (BOOLALPHA) ElabExponents(output);
 	return output;
 }
-static tensor<monomial> NewPolynomialSum(tensor<monomial> vect)
+static tensor<monomial> PolynomialSum(tensor<monomial> vect)
 {
 
 	// ricerca di monomi simili
@@ -1555,7 +1565,7 @@ static tensor<monomial> NewPolynomialSum(tensor<monomial> vect)
 	return vect;
 }
 
-static tensor<tensor<monomial>> NewTotal(tensor<monomial> vect)
+static tensor<tensor<monomial>> Total(tensor<monomial> vect)
 {
 	
 	// filtro per tensori con più di un termine
@@ -1592,7 +1602,7 @@ static tensor<tensor<monomial>> NewTotal(tensor<monomial> vect)
 	}
 	return { vect };
 }
-static tensor<tensor<monomial>> NewPartial(tensor<monomial> vect)
+static tensor<tensor<monomial>> Partial(tensor<monomial> vect)
 {
 
 	// filtro tensori a quattro termini
@@ -1604,9 +1614,9 @@ static tensor<tensor<monomial>> NewPartial(tensor<monomial> vect)
 	// riassegnazione e dichiarazioni
 	tensor<monomial> part_1{ vect[0], vect[1] };
 	tensor<monomial> part_2{ vect[2], vect[3] };
-	auto Part1{ NewTotal(part_1) };
-	auto Part2{ NewTotal(part_2) };
-	if (NewPolynomialSum(Part1.last() + Part2.last()).empty()) {
+	auto Part1{ Total(part_1) };
+	auto Part2{ Total(part_2) };
+	if (PolynomialSum(Part1.last() + Part2.last()).empty()) {
 		if (Part1.size() == 1) swap(Part1, Part2);
 		Part2.push_front({ { -1, null } });
 		for (int i = 0; i < Part2[1].size(); i++) Part2[1][i].coefficient *= -1;
@@ -1628,13 +1638,13 @@ static tensor<tensor<monomial>> NewPartial(tensor<monomial> vect)
 
 	// riordinamento del parziale
 	outp.push_back(part_1);
-	part_2 = NewPolynomialSum(mon_1[0] + mon_2[0]);
+	part_2 = PolynomialSum(mon_1[0] + mon_2[0]);
 	outp.push_back(part_2);
 
 	return outp;
 }
 
-static tensor<tensor<monomial>> NewBinomial(tensor<monomial> vect)
+static tensor<tensor<monomial>> Binomial(tensor<monomial> vect)
 {
 
 	// filtro per tensori con più di un termine
@@ -1719,7 +1729,7 @@ static tensor<tensor<monomial>> NewBinomial(tensor<monomial> vect)
 
 	return outp;
 }
-static tensor<tensor<monomial>> NewTrinomial(tensor<monomial> vect)
+static tensor<tensor<monomial>> Trinomial(tensor<monomial> vect)
 {
 
 	// filtro per tensori di tre termini
@@ -1772,7 +1782,7 @@ static tensor<tensor<monomial>> NewTrinomial(tensor<monomial> vect)
 
 	return outp;
 }
-static tensor<tensor<monomial>> NewSquareDifference(tensor<monomial> vect)
+static tensor<tensor<monomial>> SquareDifference(tensor<monomial> vect)
 {
 
 	// filtro per tensori di due termini
@@ -1811,7 +1821,7 @@ static tensor<tensor<monomial>> NewSquareDifference(tensor<monomial> vect)
 	return outp;
 }
 
-static tensor<tensor<monomial>> NewRuffini(tensor<monomial> vect)
+static tensor<tensor<monomial>> Ruffini(tensor<monomial> vect)
 {
 
 	// filtro per tensori con più di un termine
@@ -1969,7 +1979,7 @@ static tensor<tensor<monomial>> NewRuffini(tensor<monomial> vect)
 
 	return output;
 }
-static tensor<tensor<monomial>> NewCompleteTheSquare(tensor<monomial> vect)
+static tensor<tensor<monomial>> CompleteTheSquare(tensor<monomial> vect)
 {
 
 	// filtro per tensori con tre termini
@@ -2036,7 +2046,7 @@ static tensor<tensor<monomial>> NewCompleteTheSquare(tensor<monomial> vect)
 
 	return output;
 }
-static tensor<tensor<monomial>> NewTrinomialSquare(tensor<monomial> vect)
+static tensor<tensor<monomial>> TrinomialSquare(tensor<monomial> vect)
 {
 
 	// filtro per tensori con 5 o 6 termini
@@ -4137,7 +4147,7 @@ static NumberData ExecuteAll(long long input)
 #pragma endregion
 #pragma region Convalid
 
-static bool Syntax(wstring polynomial)
+static bool OLDSyntax(wstring polynomial)
 {
 	if (polynomial.empty()) return false;
 	if (polynomial == L"0") return true;
@@ -4669,7 +4679,7 @@ static void LongComputation
 #pragma endregion
 #pragma region HandPolynomials
 
-static tensor<MONOMIAL> GetMonomials(wstring polynomial)
+static tensor<MONOMIAL> OLDGetMonomials(wstring polynomial)
 {
 	tensor<MONOMIAL> output;
 	MONOMIAL output_element;
@@ -4729,7 +4739,7 @@ static tensor<MONOMIAL> GetMonomials(wstring polynomial)
 
 	return output;
 }
-static tensor<MONOMIAL> PolynomialSum(tensor<MONOMIAL> inp)
+static tensor<MONOMIAL> OLDPolynomialSum(tensor<MONOMIAL> inp)
 {
 	// ricerca di monomi simili
 	for (int i = inp.size() - 1; i >= 0; --i)
@@ -4774,7 +4784,7 @@ static tensor<MONOMIAL> PolynomialMultiply
 		--(--Polynomial);
 		Polynomial.push_front(Temp);
 	}
-	return PolynomialSum(Polynomial[0]);
+	return OLDPolynomialSum(Polynomial[0]);
 }
 static void PolynomialDivide
 (
@@ -4808,7 +4818,7 @@ static void PolynomialDivide
 		}
 		for (int i = 0; i < dividend; ++i)
 			divide.insert(divide.begin() + i, dividend[i]);
-		dividend = PolynomialSum(divide);
+		dividend = OLDPolynomialSum(divide);
 		dividend.fill(deg);
 		dividend.sort();
 		quotient.push_back({ deg - _deg, rest_element });
@@ -4819,7 +4829,7 @@ static void PolynomialDivide
 #pragma endregion
 #pragma region Techniques
 
-static tensor<tensor<MONOMIAL>> Total(tensor<MONOMIAL> inp)
+static tensor<tensor<MONOMIAL>> OLDTotal(tensor<MONOMIAL> inp)
 {
 	tensor<tensor<MONOMIAL>> output;
 	output.push_back(inp);
@@ -4848,7 +4858,7 @@ static tensor<tensor<MONOMIAL>> Total(tensor<MONOMIAL> inp)
 	}
 	return { inp };
 }
-static tensor<tensor<MONOMIAL>> Partial(tensor<MONOMIAL> inpt)
+static tensor<tensor<MONOMIAL>> OLDPartial(tensor<MONOMIAL> inpt)
 {
 
 	// filtro tensori a quattro termini
@@ -4860,11 +4870,11 @@ static tensor<tensor<MONOMIAL>> Partial(tensor<MONOMIAL> inpt)
 	// riassegnazione e dichiarazioni
 	tensor<MONOMIAL> part_1{ inpt[0], inpt[1] };
 	tensor<MONOMIAL> part_2{ inpt[2], inpt[3] };
-	auto Part1{ Total(part_1) };
-	auto Part2{ Total(part_2) };
+	auto Part1{ OLDTotal(part_1) };
+	auto Part2{ OLDTotal(part_2) };
 	auto part_3{ Part1.last() };
 	part_3 += Part2.last();
-	if (PolynomialSum(part_3).empty()) {
+	if (OLDPolynomialSum(part_3).empty()) {
 		if (Part1 == 1) swap(Part1, Part2);
 		Part2.push_front({ { 0, -1 } });
 		for (int i = 0; i < Part2[1]; ++i) Part2[1][i].coefficient *= -1;
@@ -4886,12 +4896,12 @@ static tensor<tensor<MONOMIAL>> Partial(tensor<MONOMIAL> inpt)
 
 	// riordinamento del parziale
 	outp.push_back(part_1);
-	part_2 = PolynomialSum(mon_1[0] + mon_2[0]);
+	part_2 = OLDPolynomialSum(mon_1[0] + mon_2[0]);
 	outp.push_back(part_2);
 
 	return outp;
 }
-static tensor<tensor<MONOMIAL>> Binomial(tensor<MONOMIAL> InpT)
+static tensor<tensor<MONOMIAL>> OLDBinomial(tensor<MONOMIAL> InpT)
 {
 
 	// filtro per tensori con più di un termine
@@ -4969,7 +4979,7 @@ static tensor<tensor<MONOMIAL>> Binomial(tensor<MONOMIAL> InpT)
 
 	return outp;
 }
-static tensor<tensor<MONOMIAL>> Trinomial(tensor<MONOMIAL> InpT)
+static tensor<tensor<MONOMIAL>> OLDTrinomial(tensor<MONOMIAL> InpT)
 {
 
 	// filtro per tensori di tre termini
@@ -5018,7 +5028,7 @@ static tensor<tensor<MONOMIAL>> Trinomial(tensor<MONOMIAL> InpT)
 
 	return outp;
 }
-static tensor<tensor<MONOMIAL>> SquareDifference(tensor<MONOMIAL> InpT)
+static tensor<tensor<MONOMIAL>> OLDSquareDifference(tensor<MONOMIAL> InpT)
 {
 
 	// filtro per tensori di due termini
@@ -5054,7 +5064,7 @@ static tensor<tensor<MONOMIAL>> SquareDifference(tensor<MONOMIAL> InpT)
 
 	return outp;
 }
-static tensor<tensor<MONOMIAL>> Ruffini(tensor<MONOMIAL> vect)
+static tensor<tensor<MONOMIAL>> OLDRuffini(tensor<MONOMIAL> vect)
 {
 
 	// filtro per tensori con più di un termine
@@ -5130,7 +5140,7 @@ static tensor<tensor<MONOMIAL>> Ruffini(tensor<MONOMIAL> vect)
 			} while (Root != root);
 			if (SetRoot != 0) break;
 		}
-		vect = PolynomialSum(vect);
+		vect = OLDPolynomialSum(vect);
 
 		// caso di polinomio scomposto
 		if (SetRoot != 0) {
@@ -5147,7 +5157,7 @@ static tensor<tensor<MONOMIAL>> Ruffini(tensor<MONOMIAL> vect)
 
 	return VECT;
 }
-static tensor<tensor<MONOMIAL>> CompleteTheSquare(tensor<MONOMIAL> vect)
+static tensor<tensor<MONOMIAL>> OLDCompleteTheSquare(tensor<MONOMIAL> vect)
 {
 
 	// filtro per tensori con tre termini
@@ -5206,7 +5216,7 @@ static tensor<tensor<MONOMIAL>> CompleteTheSquare(tensor<MONOMIAL> vect)
 
 	return Vect;
 }
-static tensor<tensor<MONOMIAL>> TrinomialSquare(tensor<MONOMIAL> vect)
+static tensor<tensor<MONOMIAL>> OLDTrinomialSquare(tensor<MONOMIAL> vect)
 {
 	// filtro per tensori con 5 o 6 termini
 	tensor<tensor<MONOMIAL>> output;
@@ -6040,7 +6050,7 @@ static void Loop(
 	return;
 }
 
-static tensor<tensor<MONOMIAL>> DecompPolynomial
+static tensor<tensor<monomial>> DecompPolynomial
 (switchcase& argc, wstring polynomial)
 {
 	setlocale(LC_ALL, "");
@@ -6049,11 +6059,11 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 	SetConsoleTextAttribute(hConsole, 14);
 
 	// variabili
-	tensor<MONOMIAL> polydata, pdata;
+	tensor<monomial> polydata, pdata;
 	wstring pol, POL;
 	bool empty{ true }, Xout{ false };
 	bool input = polynomial.empty();
-	tensor<tensor<MONOMIAL>> HT;
+	tensor<tensor<monomial>> HT;
 
 	// istruzioni
 	if (input)
@@ -6078,7 +6088,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 
 				// input
 				SetConsoleTextAttribute(hConsole, 15);
-				cout << "inserisci un polinomio in una variabile";
+				cout << "inserisci un polinomio in una o più variabili";
 				cout << " (0 = fine input)\n";
 				do {
 					polynomial = GetLine(true, csbi.dwSize.X);
@@ -6123,10 +6133,10 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 						polynomial.erase(i, 1);
 
 				// controllo
-				No = !Syntax(polynomial);
+				No = Syntax(polynomial);
 				if (No and wrong) {
 					SetConsoleTextAttribute(hConsole, 15);
-					wcout << "quello non è un polinomio in una variabile\n\a";
+					wcout << "quello non è un polinomio\n\a";
 				}
 
 			} while (No);
@@ -6136,9 +6146,11 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 		// somma
 		polydata = GetMonomials(polynomial);
 		pdata = PolynomialSum(polydata);
-
+		tensor<int> null(Variables.size());
+		null[0] = -1;
+		
 		// risultato della somma
-		polynomial = pdata.str();
+		polynomial = GetString(pdata);
 		if (BOOLALPHA) ElabExponents(polynomial);
 		if (polydata.size() != pdata.size() and input) {
 			SetConsoleTextAttribute(hConsole, 2);
@@ -6149,10 +6161,10 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 
 		// raccoglimento totale
 		polydata = pdata;
-		tensor<tensor<MONOMIAL>> BackT;
-		tensor<tensor<MONOMIAL>> Back_T;
+		tensor<tensor<monomial>> BackT;
+		tensor<tensor<monomial>> Back_T;
 		HT = Total(polydata);
-		polynomial = HT.str();
+		polynomial = GetWString(HT);
 		if (HT != 1 and input) {
 			SetConsoleTextAttribute(hConsole, 12);
 			wcout << "raccoglimento totale: " << polynomial << '\n';
@@ -6164,7 +6176,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 			polydata = HT.last();
 			HT--;
 			HT += Partial(polydata);
-			pol = HT.str();
+			pol = GetWString(HT);
 			if (pol != polynomial and input) {
 				polynomial = pol;
 				SetConsoleTextAttribute(hConsole, 4);
@@ -6178,7 +6190,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 			HT.clear();
 			for (auto a : Back_T) HT += Binomial(a);
 			HT.close();
-			pol = HT.str();
+			pol = GetWString(HT);
 			if (pol != polynomial and !Xout and input) {
 				polynomial = pol;
 				SetConsoleTextAttribute(hConsole, 3);
@@ -6192,7 +6204,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 			HT.clear();
 			for (auto a : Back_T) HT += Trinomial(a);
 			HT.close();
-			pol = HT.str();
+			pol = GetWString(HT);
 			if (pol != polynomial and !Xout and input) {
 				polynomial = pol;
 				SetConsoleTextAttribute(hConsole, 9);
@@ -6206,19 +6218,19 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 			HT.clear();
 			int extend{ 1 };
 			for (auto a : Back_T) {
-				if (a[0].degree == -1) {
+				if (a[0].exp[0] == -1) {
 					extend = a[0].coefficient;
 					continue;
 				}
 				BackT = SquareDifference(a);
 				for (auto b : BackT) {
-					if (extend > 1) HT.push_back({ {-1, extend} });
+					if (extend > 1) HT.push_back({ {extend, null} });
 					HT.push_back(b);
 				}
 				extend = 1;
 			}
 			HT.close();
-			pol = HT.str();
+			pol = GetWString(HT);
 
 			// somma per differenza
 			if (pol != polynomial and !Xout and input) {
@@ -6230,12 +6242,12 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 			}
 
 			// scomposizione con ruffini
-			POL = HT.str();
+			POL = GetWString(HT);
 			Back_T = HT;
 			HT.clear();
 			extend = 1;
 			for (auto a : Back_T) {
-				if (a[0].degree == -1) {
+				if (a[0].exp[0] == -1) {
 					extend = a[0].coefficient;
 					continue;
 				}
@@ -6245,14 +6257,14 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 					break;
 				}
 				for (auto b : BackT) {
-					if (extend > 1) HT.push_back({ {-1, extend} });
+					if (extend > 1) HT.push_back({ {extend, null} });
 					HT.push_back(b);
 				}
 			}
 
 			// ruffini
 			HT.close();
-			pol = HT.str();
+			pol = GetWString(HT);
 			if (pol != polynomial and !Xout and input) {
 				polynomial = pol;
 				SetConsoleTextAttribute(hConsole, 6);
@@ -6267,7 +6279,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 		HT.clear();
 		for (auto a : Back_T) HT += CompleteTheSquare(a);
 		HT.close();
-		pol = HT.str();
+		pol = GetWString(HT);
 		if (pol != polynomial and !Xout and input) {
 			polynomial = pol;
 			SetConsoleTextAttribute(hConsole, 79);
@@ -6283,7 +6295,7 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 		for (auto a : Back_T) HT += TrinomialSquare(a);
 		
 		HT.close();
-		pol = HT.str();
+		pol = GetWString(HT);
 		if (pol != polynomial and !Xout and input) {
 			polynomial = pol;
 			SetConsoleTextAttribute(hConsole, 79);
@@ -6312,6 +6324,8 @@ static tensor<tensor<MONOMIAL>> DecompPolynomial
 	argc = NotAssigned;
 	return HT;
 }
+
+#ifdef FRACT
 static void DecompFraction(switchcase& argc)
 {
 	setlocale(LC_ALL, "");
@@ -6378,11 +6392,11 @@ static void DecompFraction(switchcase& argc)
 			if (!wrong) wcout << numerator << '\n';
 
 			// controllo
-			No1 = !Syntax(numerator);
-			No2 = !Syntax(denominator) or denominator == L"0";
+			No1 = !OLDSyntax(numerator);
+			No2 = !OLDSyntax(denominator) or denominator == L"0";
 			No3 = denominator.at(0) == '+' or denominator.at(0) == '-' ?
-				!Syntax(numerator + denominator) :
-				!Syntax(numerator + L'+' + denominator);
+				!OLDSyntax(numerator + denominator) :
+				!OLDSyntax(numerator + L'+' + denominator);
 
 			if (numerator == L"0") break;
 			if ((No1 or No2 or No3) and wrong) {
@@ -6392,7 +6406,7 @@ static void DecompFraction(switchcase& argc)
 			}
 
 			if (!No1 and !No2 and !No3)
-				if (PolynomialSum(GetMonomials(denominator)).empty())
+				if (OLDPolynomialSum(OLDGetMonomials(denominator)).empty())
 				{
 					No2 = true;
 					SetConsoleTextAttribute(hConsole, 4);
@@ -6783,6 +6797,7 @@ static void DecompFraction(switchcase& argc)
 	argc = NotAssigned;
 	return;
 }
+#endif
 
 #pragma endregion
 
