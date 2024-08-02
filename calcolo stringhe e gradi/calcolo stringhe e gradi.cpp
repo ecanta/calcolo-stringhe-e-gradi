@@ -49,7 +49,6 @@
 #include <cmath> // per i calcoli
 #include <condition_variable> // per il multithreading
 #include <conio.h> // per l'input avanzato
-#include <deque>
 #include <iomanip>
 #include <iostream> // per l'output
 #include <io.h> // per unicode
@@ -119,7 +118,7 @@ struct REAL_MONOMIAL {
 atomic<bool> GlobalInterr(false);
 atomic<bool> interrupted(false);
 atomic<bool> computing(false);
-atomic<bool> is_done(false);
+atomic<bool> IsDone(false);
 condition_variable cv, Cv;
 mutex CoutMutex, mtx;
 COORD Min{ 25, 15 };
@@ -1339,16 +1338,18 @@ static void DecompFraction(switchcase& argc);
 #pragma endregion
 
 #pragma region NEWFUNCT
-//#define DEBUG
+#define DEBUG
 
 static bool NewSyntax(wstring pol)
 {
+
 	// controllo caratteri ammessi
 	for (auto c : pol) if (!isalnum(c) and c != '^' and !issign(c)) return true;
 
-	// controllo segni consecutivi
+	// controllo segni
 	for (int i = 1; i < pol.size(); ++i)
 		if (issign(pol.at(i)) and issign(pol.at(i - 1))) return true;
+	if (issign(pol.at(pol.size() - 1))) return true;
 
 	// suddivisione in parti
 	tensor <wstring> parts;
@@ -1547,6 +1548,8 @@ static tensor<monomial> NewPolynomialSum(tensor<monomial> vect)
 
 static tensor<tensor<monomial>> NewTotal(tensor<monomial> vect)
 {
+	
+	// filtro per tensori con più di un termine
 	tensor<tensor<monomial>> output;
 	output.push_back(vect);
 	if (vect.size() <= 1) return output;
@@ -1584,7 +1587,7 @@ static tensor<tensor<monomial>> NewPartial(tensor<monomial> vect)
 {
 	tensor<int> null(Variables.size(), 0);
 
-	// filtro vettori a quattro termini
+	// filtro tensori a quattro termini
 	tensor<tensor<monomial>> outp;
 	outp.push_back(vect);
 	if (vect.size() != 4) return outp;
@@ -1625,7 +1628,7 @@ static tensor<tensor<monomial>> NewPartial(tensor<monomial> vect)
 static tensor<tensor<monomial>> NewBinomial(tensor<monomial> vect)
 {
 
-	// filtro per vettori con più di un termine
+	// filtro per tensori con più di un termine
 	tensor<tensor<monomial>> outp;
 	outp.push_back(vect);
 	int exponent = vect.size() - 1, sign{ 1 };
@@ -1711,7 +1714,7 @@ static tensor<tensor<monomial>> NewBinomial(tensor<monomial> vect)
 static tensor<tensor<monomial>> NewTrinomial(tensor<monomial> vect)
 {
 
-	// filtro per vettori di tre termini
+	// filtro per tensori di tre termini
 	tensor<tensor<monomial>> outp;
 	outp.push_back(vect);
 	if (vect.size() != 3) return outp;
@@ -1764,7 +1767,7 @@ static tensor<tensor<monomial>> NewTrinomial(tensor<monomial> vect)
 static tensor<tensor<monomial>> NewSquareDifference(tensor<monomial> vect)
 {
 
-	// filtro per vettori di due termini
+	// filtro per tensori di due termini
 	tensor<tensor<monomial>> outp;
 	outp.push_back(vect);
 	if (vect.size() != 2) return outp;
@@ -1804,7 +1807,7 @@ static tensor<tensor<monomial>> NewRuffini(tensor<monomial> vect)
 {
 	tensor<int> null(Variables.size(), 0);
 
-	// filtro per vettori con più di un termine
+	// filtro per tensori con più di un termine
 	tensor<tensor<monomial>> output;
 	output.push_back(vect);
 	if (vect < 2) return output;
@@ -1958,12 +1961,10 @@ static tensor<tensor<monomial>> NewRuffini(tensor<monomial> vect)
 
 	return output;
 }
-
-// aggiustare: x^4-x^2+1 non è (x^2+1+x)(x^2+1-x)
 static tensor<tensor<monomial>> NewCompleteTheSquare(tensor<monomial> vect)
 {
 
-	// filtro per vettori con tre termini
+	// filtro per tensori con tre termini
 	tensor<tensor<monomial>> output;
 	output.push_back(vect);
 	if (vect != 3) return output;
@@ -1994,14 +1995,13 @@ static tensor<tensor<monomial>> NewCompleteTheSquare(tensor<monomial> vect)
 	int CasePlus{ middleterm - vect[1].coefficient };
 	int CaseMinus{ -middleterm - vect[1].coefficient };
 
-	// calcolo quadrato di differenza
-	if (CasePlus < 0) return output;
-	if (integer(sqrt(CasePlus))) {
+	// calcolo del quadrato di differenza
+	if (CasePlus > 0 and integer(sqrt(CasePlus))) {
 		DiffSquare.coefficient = sqrt(CasePlus);
 		sign = 1;
 	}
-	else if (integer(sqrt(-CaseMinus))) {
-		DiffSquare.coefficient = sqrt(-CaseMinus);
+	else if (CaseMinus > 0 and integer(sqrt(CaseMinus))) {
+		DiffSquare.coefficient = sqrt(CaseMinus);
 		sign = -1;
 	}
 	else return output;
@@ -2029,90 +2029,59 @@ static tensor<tensor<monomial>> NewCompleteTheSquare(tensor<monomial> vect)
 	return output;
 }
 
-// in dev
-static tensor<tensor<monomial>> TrinomialSquare(tensor<monomial> vect)
+// in development
+static tensor<tensor<monomial>> NewTrinomialSquare(tensor<monomial> vect)
 {
-	// aggiungere ricerca delle combinazioni qui
-	// C(6, 3) = 20 ; C(5, 2) = 10
-
-	// filtro per vettori con 5 o 6 termini
+	// filtro per tensori con 5 o 6 termini
 	tensor<tensor<monomial>> output;
 	output.push_back(vect);
-	vect.sort();
 	if (vect != 5 and vect != 6) return output;
 
-	// calcolo coefficienti
-	double A{ sqrt(vect[0].coefficient) };
-	if (!integer(A)) return output;
-	double C{ sqrt(vect.last().coefficient) };
-	if (!integer(C)) return output;
-	double B{ (double)vect[vect.size() - 2].coefficient / (2 * C) };
-	if (!integer(B)) return output;
-	if (fabs(B) != (double)vect[1].coefficient / (2 * A)) return output;
-	double middle_deg = vect[vect.size() - 2].degree, director_deg;
+	// ricerca dei quadrati attraverso le combinazioni
+	tensor<int> _pos(vect.size() - 3);
+	for (int i = 0; i < _pos; ++i) _pos[i] = i + 1;
+	int IndexAccesser{ vect.size() - 3 };
+	while (IndexAccesser >= 0) {
 
-	// caso generico
-	bool AB2, AC2, BC2;
-	if (vect == 6) {
+		auto backup{ _pos };
+		for (int i = IndexAccesser; i < backup; ++i) backup[i]++;
 
-		// controllo gradi
-		bool direct_double_middle;
-		director_deg = (double)vect[0].degree / 2;
-		if (!integer(director_deg)) return output;
-		if (vect[1].degree != middle_deg + director_deg) return output;
-		if (vect[2].degree == 2 * middle_deg and
-			vect[3].degree == director_deg)
-			direct_double_middle = false;
-		else if (
-			vect[3].degree == 2 * middle_deg and
-			vect[2].degree == director_deg
-			)
-			direct_double_middle = true;
-		else return output;
-
-		// verifica coefficienti centrali
-		if (direct_double_middle) {
-			if (fabs(vect[2].coefficient) != fabs(2 * A * C)) return output;
-			if (vect[3].coefficient != B * B) return output;
+		if (backup.last() + 1 > vect) {
+			IndexAccesser--;
+			continue;
 		}
-		else {
-			if (fabs(vect[3].coefficient) != fabs(2 * A * C)) return output;
-			if (vect[2].coefficient != B * B) return output;
-		}
-		AC2 = vect[3 - direct_double_middle].coefficient >= 0;
+
+		IndexAccesser = _pos.size() - 1;
+		_pos = backup;
+
+		// controllo quadrati
+		tensor<monomial> squares(_pos.size());
+		for (int i = 0; i < squares; ++i) squares[i] = vect[_pos[i]];
+		for (auto square : squares) if (!square.IsSquare()) continue;
+
+
+		// ulteriori controlli ...
+		//
+		//
+		// ...
+
+
+		break;
 	}
 
-	// caso specifico
-	else if (vect == 5) {
 
-		// verifica
-		for (int i = 0; i <= 2; ++i)
-			if (vect[i].degree != (4 - i) * vect[3].degree) return output;
-		if (fabs(vect[2].coefficient) == fabs(2 * A * C + B * B))
-			AC2 = vect[2].coefficient - B * B >= 0;
-		else if (fabs(vect[2].coefficient) == fabs(2 * A * C - B * B))
-			AC2 = vect[2].coefficient + B * B >= 0;
-		else return output;
-		director_deg = 2 * middle_deg;
-	}
-	AB2 = vect[1].coefficient >= 0;
-	BC2 = vect[vect.size() - 2].coefficient >= 0;
-	int sign_number = AB2 + AC2 + BC2;
+	// controllo dei termini centrali
+	//
+	//
+	// ...
 
-	if (sign_number % 2 == 1) return output;
-	A = A >= 0 ? A : -A;
-	B = B >= 0 ? B : -B;
-	C = C >= 0 ? C : -C;
-	if (AB2) C = -C;
-	else if (AC2) B = -B;
-	else if (BC2) C = -C;
 
-	// composizione del quadrato di trinomio
-	output = { {}, {} };
-	output[0].push_back({ -1, 2 });
-	output[1].push_back({ (int)director_deg, (int)A });
-	output[1].push_back({ (int)middle_deg, (int)B });
-	output[1].push_back({ 0, (int)C });
+	// calcolo del risultato
+	//
+	//
+	// ...
+
+
 	return output;
 }
 
@@ -2234,7 +2203,7 @@ int main()
 			wcin >> PolynomialTest;
 			if (!NewSyntax(PolynomialTest))
 				wcout << NewGetWString(
-					NewCompleteTheSquare(NewGetMonomials(PolynomialTest))
+					NewTrinomialSquare(NewGetMonomials(PolynomialTest))
 				);
 			else cout << "NOOOOOOOOO!!!!!\n";
 			_getch();
@@ -2701,7 +2670,7 @@ static void DrawCircleSquare(COORD circle_center)
 		CircleRotDegreeAngle += 7)
 	{
 		// termine funzione
-		if (is_done.load() and !Skip_skipping) {
+		if (IsDone.load() and !Skip_skipping) {
 			ClearArea(circle_center);
 			SetConsoleCursorPosition
 			(hConsole, cursor);
@@ -3479,7 +3448,7 @@ static void PrimeNCalculator(long long max, long long min)
 			for (long long p = 2; p < max + 1; ++p) if (is_prime[p])
 				primes.push_back(p);
 			lock_guard<mutex> lock(mtx);
-			is_done = true;
+			IsDone = true;
 			cv.notify_one();
 			}
 		);
@@ -3944,7 +3913,7 @@ static digitRatio DigitRationalizer(long long inpt)
 static tensor<int> DivisorCounter(int num)
 {
 
-	// creazione dei vettori con i principali fattori
+	// creazione dei tensori con i principali fattori
 	tensor<int> vec;
 	tensor<compost> expfact{ DecomposeNumber(num) };
 	while (expfact.last().factors == 0) expfact--;
@@ -4589,7 +4558,7 @@ static void LongComputation
 			else CodeConverter(backup, message, ShowErrors, false);
 			if (interrupted) return;
 
-			is_done = true;
+			IsDone = true;
 			cv.notify_one();
 			});
 		thread t2(CS_CornerPrinter);
@@ -4792,7 +4761,7 @@ static tensor<tensor<MONOMIAL>> Total(tensor<MONOMIAL> inp)
 static tensor<tensor<MONOMIAL>> Partial(tensor<MONOMIAL> inpt)
 {
 
-	// filtro vettori a quattro termini
+	// filtro tensori a quattro termini
 	tensor<tensor<MONOMIAL>> outp;
 	outp.push_back(inpt);
 	if (inpt != 4) return outp;
@@ -4835,7 +4804,7 @@ static tensor<tensor<MONOMIAL>> Partial(tensor<MONOMIAL> inpt)
 static tensor<tensor<MONOMIAL>> Binomial(tensor<MONOMIAL> InpT)
 {
 
-	// filtro per vettori con più di un termine
+	// filtro per tensori con più di un termine
 	tensor<tensor<MONOMIAL>> outp;
 	outp.push_back(InpT);
 	int exponent = InpT.size() - 1, sign{ 1 };
@@ -4913,7 +4882,7 @@ static tensor<tensor<MONOMIAL>> Binomial(tensor<MONOMIAL> InpT)
 static tensor<tensor<MONOMIAL>> Trinomial(tensor<MONOMIAL> InpT)
 {
 
-	// filtro per vettori di tre termini
+	// filtro per tensori di tre termini
 	tensor<tensor<MONOMIAL>> outp;
 	outp.push_back(InpT);
 	if (InpT != 3) return outp;
@@ -4962,7 +4931,7 @@ static tensor<tensor<MONOMIAL>> Trinomial(tensor<MONOMIAL> InpT)
 static tensor<tensor<MONOMIAL>> SquareDifference(tensor<MONOMIAL> InpT)
 {
 
-	// filtro per vettori di due termini
+	// filtro per tensori di due termini
 	tensor<tensor<MONOMIAL>> outp;
 	outp.push_back(InpT);
 	if (InpT != 2) return outp;
@@ -4998,7 +4967,7 @@ static tensor<tensor<MONOMIAL>> SquareDifference(tensor<MONOMIAL> InpT)
 static tensor<tensor<MONOMIAL>> Ruffini(tensor<MONOMIAL> vect)
 {
 
-	// filtro per vettori con più di un termine
+	// filtro per tensori con più di un termine
 	tensor<tensor<MONOMIAL>> VECT;
 	VECT.push_back(vect);
 	if (vect < 2) return VECT;
@@ -5091,7 +5060,7 @@ static tensor<tensor<MONOMIAL>> Ruffini(tensor<MONOMIAL> vect)
 static tensor<tensor<MONOMIAL>> CompleteTheSquare(tensor<MONOMIAL> vect)
 {
 
-	// filtro per vettori con tre termini
+	// filtro per tensori con tre termini
 	tensor<tensor<MONOMIAL>> Vect;
 	Vect.push_back(vect);
 	if (vect != 3) return Vect;
@@ -5149,7 +5118,7 @@ static tensor<tensor<MONOMIAL>> CompleteTheSquare(tensor<MONOMIAL> vect)
 }
 static tensor<tensor<MONOMIAL>> TrinomialSquare(tensor<MONOMIAL> vect)
 {
-	// filtro per vettori con 5 o 6 termini
+	// filtro per tensori con 5 o 6 termini
 	tensor<tensor<MONOMIAL>> output;
 	output.push_back(vect);
 	vect.sort();
@@ -5937,7 +5906,7 @@ static void Loop(
 		thread t1([&data]() {
 			data.HeapSort();
 			lock_guard<mutex> lock(mtx);
-			is_done = true;
+			IsDone = true;
 			cv.notify_one();
 			}
 		);
