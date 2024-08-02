@@ -967,6 +967,16 @@ public:
 			return false;
 		return true;
 	}
+	monomial Root(int deg)
+	{
+		monomial result;
+
+		result.coefficient = pow(this->coefficient, 1.0 / deg);
+		for (int i = 0; i < Variables.size(); ++i)
+			result.exp.push_back(this->exp[i] / deg);
+		
+		return result;
+	}
 };
 class tensor_t
 {
@@ -1338,7 +1348,6 @@ static void DecompFraction(switchcase& argc);
 #pragma endregion
 
 #pragma region NEWFUNCT
-#define DEBUG
 
 static bool NewSyntax(wstring pol)
 {
@@ -1585,12 +1594,12 @@ static tensor<tensor<monomial>> NewTotal(tensor<monomial> vect)
 }
 static tensor<tensor<monomial>> NewPartial(tensor<monomial> vect)
 {
-	tensor<int> null(Variables.size(), 0);
 
 	// filtro tensori a quattro termini
 	tensor<tensor<monomial>> outp;
 	outp.push_back(vect);
 	if (vect.size() != 4) return outp;
+	tensor<int> null(Variables.size(), 0);
 
 	// riassegnazione e dichiarazioni
 	tensor<monomial> part_1{ vect[0], vect[1] };
@@ -1704,8 +1713,7 @@ static tensor<tensor<monomial>> NewBinomial(tensor<monomial> vect)
 	// composizione della potenza di binomio
 	outp.clear();
 	outp.push_back({ {exponent, modifier} });
-	outp.push_back(vect);
-	outp[1].clear();
+	outp++;
 	outp[1].push_back({ (int)Sq_A, Aexps });
 	outp[1].push_back({ sign * (int)Sq_B, Bexps });
 
@@ -1805,7 +1813,6 @@ static tensor<tensor<monomial>> NewSquareDifference(tensor<monomial> vect)
 
 static tensor<tensor<monomial>> NewRuffini(tensor<monomial> vect)
 {
-	tensor<int> null(Variables.size(), 0);
 
 	// filtro per tensori con più di un termine
 	tensor<tensor<monomial>> output;
@@ -1813,6 +1820,7 @@ static tensor<tensor<monomial>> NewRuffini(tensor<monomial> vect)
 	if (vect < 2) return output;
 	if (vect == 2) return output;
 	vect.SortByExponents();
+	tensor<int> null(Variables.size(), 0);
 
 	// calcolo possibili dimensioni
 	auto DirectorDegSequence{ vect[0].exp };
@@ -2028,59 +2036,155 @@ static tensor<tensor<monomial>> NewCompleteTheSquare(tensor<monomial> vect)
 
 	return output;
 }
-
-// in development
 static tensor<tensor<monomial>> NewTrinomialSquare(tensor<monomial> vect)
 {
+
 	// filtro per tensori con 5 o 6 termini
 	tensor<tensor<monomial>> output;
 	output.push_back(vect);
 	if (vect != 5 and vect != 6) return output;
 
-	// ricerca dei quadrati attraverso le combinazioni
-	tensor<int> _pos(vect.size() - 3);
-	for (int i = 0; i < _pos; ++i) _pos[i] = i + 1;
-	int IndexAccesser{ vect.size() - 3 };
-	while (IndexAccesser >= 0) {
+	// push del monomio modificatore dell'esponente
+	tensor<int> modifier(Variables.size(), 0);
+	modifier[0] = -1;
 
-		auto backup{ _pos };
-		for (int i = IndexAccesser; i < backup; ++i) backup[i]++;
+	if (vect == 5) {
+		vect.SortByDegree();
 
-		if (backup.last() + 1 > vect) {
-			IndexAccesser--;
-			continue;
+		// controllo coefficienti
+		bool AB2, AC2, BC2;
+		double A{ sqrt(vect[0].coefficient) };
+		if (!integer(A)) return output;
+		double C{ sqrt(vect[4].coefficient)};
+		if (!integer(C)) return output;
+		double B{ (double)vect[3].coefficient / (2 * C) };
+		if (!integer(B)) return output;
+		if (fabs(B) != fabs((double)vect[1].coefficient / (2 * A))) return output;
+
+		// controllo esponenti
+		for (int i = 0; i < Variables.size(); ++i) for (int j = 0; j < 5; ++j)
+			if (vect[4 - j].exp[i] != j * vect[3].exp[i]) return output;
+
+		// calcolo segni
+		AB2 = vect[1].coefficient < 0;
+		BC2 = vect[3].coefficient < 0;
+		if (fabs(vect[2].coefficient) == fabs(2 * A * C + B * B))
+			AC2 = vect[2].coefficient - B * B < 0;
+		else if (fabs(vect[2].coefficient) == fabs(2 * A * C - B * B))
+			AC2 = vect[2].coefficient + B * B < 0;
+		else return output;
+		if (AB2 + AC2 + BC2 > 1) {
+			AB2 = !AB2;
+			AC2 = !AC2;
+			BC2 = !BC2;
 		}
 
-		IndexAccesser = _pos.size() - 1;
-		_pos = backup;
+		// riassegnazione variabili
+		A = A >= 0 ? A : -A;
+		B = B >= 0 ? B : -B;
+		C = C >= 0 ? C : -C;
+		if (AB2) C = -C;
+		if (AC2) B = -B;
+		if (BC2) A = -A;
 
-		// controllo quadrati
-		tensor<monomial> squares(_pos.size());
-		for (int i = 0; i < squares; ++i) squares[i] = vect[_pos[i]];
-		for (auto square : squares) if (!square.IsSquare()) continue;
-
-
-		// ulteriori controlli ...
-		//
-		//
-		// ...
-
-
-		break;
+		// composizione del quadrato di trinomio
+		output.clear();
+		output.push_back({ { 2, modifier } });
+		output++;
+		output[1].push_back({ (int)A, vect[2].exp });
+		output[1].push_back({ (int)B, vect[3].exp });
+		output[1].push_back({ (int)C, vect[4].exp });
 	}
+	else if (vect == 6) {
 
+		// ricerca dei quadrati
+		tensor<monomial> squares;
+		for (int i = 0; i < 6; ++i) if (vect[i].IsSquare()) squares.push_back(vect[i]);
+		if (squares < 3) return output;
+		tensor<int> _pos{1, 2, 2};
+		int IndexAccesser{ 2 };
 
-	// controllo dei termini centrali
-	//
-	//
-	// ...
+		// ricerca dei quadrati corretti
+		monomial A, B, C;
+		bool AB2, AC2, BC2;
+		bool start{ true };
+		while (IndexAccesser >= 0) {
+			A = {};
+			B = {};
+			C = {};
 
+			auto backup{ _pos };
+			for (int i = IndexAccesser; i < 3; ++i) backup[i]++;
 
-	// calcolo del risultato
-	//
-	//
-	// ...
+			if (backup.last() > squares) {
+				IndexAccesser--;
+				continue;
+			}
 
+			IndexAccesser = 2;
+			_pos = backup;
+
+			// // controllo quadrati
+			tensor<monomial> NewSquares(3);
+			for (int i = 0; i < 3; ++i) NewSquares[i] = squares[_pos[i] - 1];
+
+			A = NewSquares[0].Root(2);
+			B = NewSquares[1].Root(2);
+			C = NewSquares[2].Root(2);
+
+			monomial AB, AC, BC;
+			AB.coefficient = 2 * A.coefficient * B.coefficient;
+			AC.coefficient = 2 * A.coefficient * C.coefficient;
+			BC.coefficient = 2 * B.coefficient * C.coefficient;
+
+			for (int i = 0; i < Variables.size(); ++i) {
+				AB.exp.push_back(A.exp[i] + B.exp[i]);
+				AC.exp.push_back(A.exp[i] + C.exp[i]);
+				BC.exp.push_back(B.exp[i] + C.exp[i]);
+			}
+
+			monomial ABterm, ACterm, BCterm;
+			for (auto v : vect) {
+
+				if (v == AB) ABterm = v;
+				if (v == AC) ACterm = v;
+				if (v == BC) BCterm = v;
+
+				auto v2{ v };
+				v2.coefficient *= -1;
+
+				if (v2 == AB) ABterm = v;
+				if (v2 == AC) ACterm = v;
+				if (v2 == BC) BCterm = v;
+			}
+			if (ABterm == monomial{} or ACterm == monomial{} or BCterm == monomial{})
+				continue;
+			// //
+
+			// calcolo segni
+			AB2 = ABterm.coefficient >= 0;
+			AC2 = ACterm.coefficient >= 0;
+			BC2 = BCterm.coefficient >= 0;
+			if (AB2 + AC2 + BC2 > 1) {
+				AB2 = !AB2;
+				AC2 = !AC2;
+				BC2 = !BC2;
+			}
+
+			break;
+		}
+
+		// composizione del quadrato di trinomio
+		if (BC2) A.coefficient *= -1;
+		if (AC2) B.coefficient *= -1;
+		if (AB2) C.coefficient *= -1;
+		output.clear();
+		output.push_back({ { 2, modifier } });
+		output++;
+		output[1].push_back(A);
+		output[1].push_back(B);
+		output[1].push_back(C);
+	}
 
 	return output;
 }
@@ -2196,20 +2300,6 @@ int main()
 		system("cls");
 		SetConsoleTitle(TEXT("switchcase scegli le opzioni"));
 		Beep(750, 300);
-
-#ifdef DEBUG
-		while (true) {
-			wstring PolynomialTest;
-			wcin >> PolynomialTest;
-			if (!NewSyntax(PolynomialTest))
-				wcout << NewGetWString(
-					NewTrinomialSquare(NewGetMonomials(PolynomialTest))
-				);
-			else cout << "NOOOOOOOOO!!!!!\n";
-			_getch();
-			system("cls");
-		}
-#endif // DEBUG
 
 		// scelta
 		cout << "scegliere la modalità di calcolo::\n";
