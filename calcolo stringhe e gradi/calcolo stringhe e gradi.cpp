@@ -230,43 +230,6 @@ unordered_map<wstring, wstring> ConvertFromSuperScript{
 #pragma region Classes
 
 // per tensor
-template<class T>class tensor;
-class monomial
-{
-public:
-	int coefficient{};
-	vector<int> exp;
-
-	bool operator==(const monomial& other) const
-	{
-		return coefficient == other.coefficient and exp == other.exp;
-	}
-	int degree()
-	{
-		int sum{};
-		for (size_t i = 0; i < exp.size(); ++i) sum += exp[i];
-		return sum;
-	}
-	bool IsSquare()
-	{
-		if (!integer(sqrt(abs(this->coefficient)))) return false;
-		for (size_t i = 0; i < exp.size(); ++i)
-			if (exp[i] % 2 == 1) return false;
-		return true;
-	}
-	monomial Root(int order)
-	{
-		monomial result;
-
-		result.coefficient = pow(this->coefficient, 1.0 / order);
-		for (size_t i = 0; i < exp.size(); ++i)
-			result.exp.push_back(exp[i] / order);
-
-		return result;
-	}
-};
-
-static void ElabExponents(wstring& str);
 template<class T>class tensor
 {
 protected:
@@ -762,6 +725,79 @@ public:
 		}
 		count = write;
 	}
+
+	virtual _NODISCARD wstring str()
+	{
+		wostringstream result{};
+		wstring outp{};
+
+		// bool
+		if constexpr (is_same_v<T, bool>)
+			for (const auto& element : *this) {
+				result << element ? L"1" : L"0";
+				result << L", ";
+			}
+
+		// carattere
+		else if constexpr (is_same_v<T, char>) {
+			for (const auto& element : *this) result << element;
+			result << L", ";
+		}
+
+		// dato integrale
+		else if constexpr (is_integral_v<T>)
+			for (const auto& element : *this)
+				result << to_wstring(element) << L", ";
+
+		// stringhe
+		else if constexpr (is_same_v<T, wstring>)
+			for (const auto& element : *this) result << element << L", ";
+
+		// niente
+		else return L"";
+
+		// fine
+		outp = result.str();
+		if (outp.size() >= 2) {
+			outp.pop_back();
+			outp.pop_back();
+		}
+		return L'{' + outp + L'}';
+	}
+};
+class monomial
+{
+public:
+	int coefficient{};
+	tensor<int> exp;
+
+	bool operator==(const monomial& other) const
+	{
+		return coefficient == other.coefficient and exp == other.exp;
+	}
+	int degree()
+	{
+		int sum{};
+		for (size_t i = 0; i < exp.size(); ++i) sum += exp[i];
+		return sum;
+	}
+	bool IsSquare()
+	{
+		if (!integer(sqrt(abs(this->coefficient)))) return false;
+		for (size_t i = 0; i < exp.size(); ++i)
+			if (exp[i] % 2 == 1) return false;
+		return true;
+	}
+	monomial Root(int order)
+	{
+		monomial result;
+
+		result.coefficient = pow(this->coefficient, 1.0 / order);
+		for (size_t i = 0; i < exp.size(); ++i)
+			result.exp.push_back(exp[i] / order);
+
+		return result;
+	}
 };
 
 // fattori di polinomi
@@ -808,6 +844,34 @@ public:
 				}
 				if (swap) ::swap(this->at(i), this->at(j));
 			}
+	}
+
+	_NODISCARD wstring str() override
+	{
+		wstring polynomial{};
+		tensor<int> null(Variables.size(), 0);
+		for (auto data : *this) {
+
+			// aggiunta coefficiente
+			wstring monomial{};
+			monomial = data.coefficient > 0 ? '+' : '-';
+			if (abs(data.coefficient) != 1 or data.exp == null)
+				monomial += to_wstring(abs(data.coefficient));
+
+			// aggiunta variabili ed esponenti
+			for (int i = 0; i < Variables.size(); ++i) if (data.exp[i] != 0) {
+				monomial += Variables.at(i);
+				if (data.exp[i] > 1) {
+					monomial += L'^';
+					monomial += to_wstring(data.exp[i]);
+				}
+			}
+
+			polynomial += monomial;
+		}
+		if (polynomial.at(0) == '+') polynomial.erase(0, 1);
+
+		return polynomial;
 	}
 };
 class FACTOR : public tensor<MONOMIAL>
@@ -858,6 +922,19 @@ public:
 				this->push_back({ (*this)[this->size() - 1].degree - 1, 0 });
 		}
 	}
+
+	_NODISCARD wstring str() override
+	{
+		factor traduction;
+		Variables = string(1, charVariable);
+		for (auto Monomial : *this) {
+			monomial element;
+			element.coefficient = Monomial.coefficient;
+			element.exp.push_back(Monomial.degree);
+			traduction.push_back(element);
+		}
+		return traduction.str();
+	}
 };
 static factor ToXV(FACTOR vect)
 {
@@ -899,6 +976,7 @@ public:
 };
 
 // polinomi completi
+static void ElabExponents(wstring& str);
 class polynomial : public tensor<factor>
 {
 public:
@@ -934,7 +1012,7 @@ public:
 	}
 	void close()
 	{
-		vector<int> modifier(Variables.size());
+		tensor<int> modifier(Variables.size());
 		modifier[0] = -1;
 		factor CommonFactor;
 		if (!this->empty()) for (int i = 0; i < this->size(); ++i)
@@ -982,6 +1060,39 @@ public:
 					}
 				}
 	}
+
+	_NODISCARD wstring str() override
+	{
+		wstring output{}, exp;
+		bool set_modifier{ false };
+		for (auto T : *this) {
+
+			// caso di monomio modificatore
+			if (!T[0].exp.empty()) if (T[0].exp[0] < 0) {
+				exp = to_wstring(T[0].coefficient);
+				set_modifier = true;
+				continue;
+			}
+			auto xout{ T.str() };
+
+			// caso con elevamento a potenza
+			if (set_modifier) {
+				xout = L"(" + xout + L")^" + exp;
+				set_modifier = false;
+			}
+
+			// caso comune
+			else if (T > 1) xout = L"(" + xout + L")";
+
+			output += xout;
+		}
+
+		// caso nullo
+		if (output.empty()) return L"0";
+
+		if (BOOLALPHA) ElabExponents(output);
+		return output;
+	}
 };
 class POLYNOMIAL : public tensor<FACTOR>
 {
@@ -1021,6 +1132,13 @@ public:
 		NewClass.close();
 		this->clear();
 		for (int i = 0; i < NewClass.size(); ++i) this->push_back(To1V(NewClass[i]));
+	}
+
+	_NODISCARD wstring str() override
+	{
+		polynomial traduction;
+		for (auto vector : *this) traduction.push_back(ToXV(vector));
+		return traduction.str();
 	}
 };
 static polynomial ToXV(POLYNOMIAL vect)
@@ -1304,7 +1422,6 @@ tensor<wstring> commands{
 
 static size_t Factorial(size_t n);
 static int Gcd(int A, int B);
-template<typename T> static int Gcd(vector<T> terms);
 template<typename T> static int Gcd(tensor<T> terms);
 static long long intpow(long long base, int exp);
 static wstring ConvertEnumToWString(switchcase Enum);
@@ -1362,18 +1479,14 @@ static void CodeConverter
 static void LongComputation
 (wstring ToEvaluate, wstring message, bool ShowErrors, bool NecBoundary);
 static factor GetMonomials(wstring pol);
-static wstring GetString(factor vect);
-static wstring GetWString(polynomial vect);
 static factor ToXV(FACTOR vect);
 static FACTOR To1V(factor vect);
 static factor PolynomialSum(factor vect);
 static FACTOR PolynomialMultiply(POLYNOMIAL Polynomial);
 static void PolynomialDivide
 (
-	FACTOR dividend,
-	FACTOR divisor,
-	FACTOR& quotient,
-	FACTOR& rest
+	FACTOR dividend, FACTOR divisor,
+	FACTOR& quotient, FACTOR& rest
 );
 static polynomial Total(factor vect);
 static polynomial Partial(factor vect);
@@ -1717,29 +1830,6 @@ static int Gcd(int A, int B)
 		if (A < B) swap(A, B);
 	}
 	return A;
-}
-template<typename T> static int Gcd(vector<T> terms)
-{
-	int gcd{};
-	if (terms.empty()) return 0;
-	if constexpr (is_same_v<T, int>) {
-		if (terms.size() == 1) return terms[0];
-		gcd = terms[0];
-		for (int i = 1; i < terms.size(); ++i) {
-			gcd = Gcd(gcd, terms[i]);
-			if (gcd == 1) break;
-		}
-	}
-	else if constexpr (is_same_v<T, MONOMIAL> or is_same_v<T, monomial>)
-	{
-		if (terms.size() == 1) return terms[0].coefficient;
-		gcd = terms[0].coefficient;
-		for (int i = 1; i < terms.size(); ++i) {
-			gcd = Gcd(gcd, terms[i].coefficient);
-			if (gcd == 1) break;
-		}
-	}
-	return gcd;
 }
 template<typename T> static int Gcd(tensor<T> terms)
 {
@@ -3947,13 +4037,17 @@ static factor GetMonomials(wstring pol)
 		}
 
 		// calcolo gradi
-		for (int j = 0; j < Variables.size(); ++j) mono.exp.push_back(0);
+		for (int j = 0; j < Variables.size(); ++j) mono.exp++;
 		for (int j = 0; j < part.size(); ++j) if (isalpha(part.at(j))) {
 
 			// calcolo posizione
 			int VariableIndex{ -1 };
 			for (int k = 0; k < Variables.size(); ++k)
-				if (Variables.at(k) == part.at(j)) VariableIndex = k;
+				if (Variables.at(k) == part.at(j)) {
+					if (!IsTheVariableSet) IsTheVariableSet = true;
+					VariableIndex = k;
+					break;
+				}
 
 			// calcolo grado
 			int degree{ 1 };
@@ -3978,68 +4072,9 @@ static factor GetMonomials(wstring pol)
 		vect.push_back(mono);
 	}
 	for (int i = 0; i < vect; ++i)
-		while (vect[i].exp.size() < Variables.size()) vect[i].exp.push_back(0);
+		while (vect[i].exp.size() < Variables.size()) vect[i].exp++;
 
 	return vect;
-}
-static wstring GetString(factor vect)
-{
-	wstring polynomial{};
-	vector<int> null(Variables.size(), 0);
-	for (auto data : vect) {
-
-		// aggiunta coefficiente
-		wstring monomial{};
-		monomial = data.coefficient > 0 ? '+' : '-';
-		if (abs(data.coefficient) != 1 or data.exp == null)
-			monomial += to_wstring(abs(data.coefficient));
-
-		// aggiunta variabili ed esponenti
-		for (int i = 0; i < Variables.size(); ++i) if (data.exp[i] != 0) {
-			monomial += Variables.at(i);
-			if (data.exp[i] > 1) {
-				monomial += L'^';
-				monomial += to_wstring(data.exp[i]);
-			}
-		}
-
-		polynomial += monomial;
-	}
-	if (polynomial.at(0) == '+') polynomial.erase(0, 1);
-
-	return polynomial;
-}
-static wstring GetWString(polynomial vect)
-{
-	wstring output{}, exp;
-	bool set_modifier{ false };
-	for (auto T : vect) {
-
-		// caso di monomio modificatore
-		if (!T[0].exp.empty()) if (T[0].exp[0] < 0) {
-			exp = to_wstring(T[0].coefficient);
-			set_modifier = true;
-			continue;
-		}
-		auto xout{ GetString(T) };
-
-		// caso con elevamento a potenza
-		if (set_modifier) {
-			xout = L"(" + xout + L")^" + exp;
-			set_modifier = false;
-		}
-
-		// caso comune
-		else if (T > 1) xout = L"(" + xout + L")";
-
-		output += xout;
-	}
-
-	// caso nullo
-	if (output.empty()) return L"0";
-
-	if (BOOLALPHA) ElabExponents(output);
-	return output;
 }
 
 static factor PolynomialSum(factor vect)
@@ -4051,7 +4086,7 @@ static factor PolynomialSum(factor vect)
 			if (vect[i].exp[0] >= 0 and vect[j].exp[0] >= 0) {
 
 				bool similiar_monomials{ true };
-				for (int k = 0; k < Variables.size(); k++)
+				for (int k = 0; k < Variables.size(); ++k)
 					if (vect[i].exp[k] != vect[j].exp[k])
 						similiar_monomials = 0;
 
@@ -4091,10 +4126,8 @@ static FACTOR PolynomialMultiply(POLYNOMIAL Polynomial)
 }
 static void PolynomialDivide
 (
-	FACTOR dividend,
-	FACTOR divisor,
-	FACTOR& quotient,
-	FACTOR& rest
+	FACTOR dividend, FACTOR divisor,
+	FACTOR& quotient, FACTOR& rest
 )
 {
 	
@@ -4143,8 +4176,8 @@ static polynomial Total(factor vect)
 	// calcolo grado minimo e riscrittura
 	bool positive_min{ false };
 	int GCD{ Gcd(vect) };
-	vector<int> exponents;
-	for (int i = 0; i < Variables.size(); i++) {
+	tensor<int> exponents;
+	for (int i = 0; i < Variables.size(); ++i) {
 		int min{ vect[0].exp[i] };
 		for (auto t : vect) if (t.exp[i] < min) min = t.exp[i];
 		exponents.push_back(min);
@@ -4153,9 +4186,9 @@ static polynomial Total(factor vect)
 	if (abs(GCD) != 1 or positive_min) {
 		output.clear();
 		output.push_back({ {GCD, exponents} });
-		for (int i = 0; i < vect; i++) {
+		for (int i = 0; i < vect; ++i) {
 			vect[i].coefficient /= GCD;
-			for (int j = 0; j < Variables.size(); j++)
+			for (int j = 0; j < Variables.size(); ++j)
 				vect[i].exp[j] -= exponents[j];
 		}
 	}
@@ -4176,7 +4209,7 @@ static polynomial Partial(factor vect)
 	polynomial outp;
 	outp.push_back(vect);
 	if (vect.size() != 4) return outp;
-	vector<int> null(Variables.size(), 0);
+	tensor<int> null(Variables.size(), 0);
 
 	// riassegnazione e dichiarazioni
 	factor part_1{ vect[0], vect[1] };
@@ -4186,7 +4219,7 @@ static polynomial Partial(factor vect)
 	if (PolynomialSum(Part1.last() + Part2.last()).empty()) {
 		if (Part1.size() == 1) swap(Part1, Part2);
 		Part2.push_front({ { -1, null } });
-		for (int i = 0; i < Part2[1].size(); i++) Part2[1][i].coefficient *= -1;
+		for (int i = 0; i < Part2[1].size(); ++i) Part2[1][i].coefficient *= -1;
 	}
 	part_1 = Part1.last();
 	part_2 = Part2.last();
@@ -4224,7 +4257,7 @@ static polynomial Binomial(factor vect)
 	vect.SortByDegree();
 
 	// calcolo del monomio modificatore dell'esponente
-	vector<int> modifier(Variables.size(), 0);
+	tensor<int> modifier(Variables.size(), 0);
 	modifier[0] = -1;
 
 	auto A{ vect[0] };
@@ -4398,14 +4431,18 @@ static polynomial Ruffini(factor vect)
 	output.push_back(vect);
 	if (vect < 2) return output;
 	vect.SortByExponents();
-	vector<int> null(Variables.size(), 0);
+	tensor<int> null(Variables.size(), 0);
 
 	// calcolo possibili dimensioni
 	auto DirectorDegSequence{ vect[0].exp };
 	auto KnownDegSequence{ vect.last().exp};
+	int StartIndex{};
 	for (int i = 0; i < Variables.size(); ++i)
 		if (DirectorDegSequence[i] > 0 and KnownDegSequence[i] > 0) return output;
-	int Size{ Gcd(Gcd(vect[0].exp), Gcd(vect.last().exp)) };
+	for (int i = Variables.size() - 1; i >= 0; --i)
+		if (DirectorDegSequence[i] > 0 or KnownDegSequence[i] > 0) StartIndex = i;
+
+	int Size{ Gcd(vect[0].exp + vect.last().exp) };
 	auto listSizes{ DivisorCounter(Size) };
 
 	// controllo degli esponenti
@@ -4465,7 +4502,7 @@ static polynomial Ruffini(factor vect)
 		// ridimensionamento esponenti
 		auto DirectorSeq{ DirectorDegSequence };
 		auto KnownSeq{ KnownDegSequence };
-		for (int i = 0; i < Variables.size(); ++i) {
+		for (int i = StartIndex; i < Variables.size(); ++i) {
 			DirectorSeq[i] /= CorrectSize;
 			KnownSeq[i] /= CorrectSize;
 		}
@@ -4479,7 +4516,7 @@ static polynomial Ruffini(factor vect)
 		// assegnazione di una posizione ai coefficienti
 		int KnVarPos{ -1 };
 		tensor<int> position(CorrectSize + 1, 0);
-		for (int i = 0; i < Variables.size(); ++i)
+		for (int i = StartIndex; i < Variables.size(); ++i)
 			if (KnownSeq[i] > 0) {
 				KnVarPos = i;
 				break;
@@ -4488,7 +4525,7 @@ static polynomial Ruffini(factor vect)
 		for (int i = 0; i < vect; ++i) {
 			int index;
 			if (KnVarPos >= 0) index = vect[i].exp[KnVarPos] / KnownSeq[KnVarPos];
-			else index = CorrectSize - vect[i].exp[0] / DirectorSeq[0];
+			else index = CorrectSize - vect[i].exp[StartIndex] / DirectorSeq[StartIndex];
 			if (index < 0) {
 				skip = true;
 				break;
@@ -4544,10 +4581,10 @@ static polynomial Ruffini(factor vect)
 				output++;
 				for (int i = 0; i < CorrectSize; ++i) {
 					if (position[i] == 0) continue;
-					vector<int> VariableExp(Variables.size(), 0);
+					tensor<int> VariableExp(Variables.size(), 0);
 					int index = Variables.size();
-					if (DirectorSeq[0] == 0) swap(DirectorSeq, KnownSeq);
-					for (int j = 0; j < Variables.size(); ++j) {
+					if (DirectorSeq[StartIndex] == 0) swap(DirectorSeq, KnownSeq);
+					for (int j = StartIndex; j < Variables.size(); ++j) {
 						if (DirectorSeq[j] == 0) {
 							index = j;
 							break;
@@ -4643,7 +4680,7 @@ static polynomial TrinomialSquare(factor vect)
 	if (vect != 5 and vect != 6) return output;
 
 	// push del monomio modificatore dell'esponente
-	vector<int> modifier(Variables.size(), 0);
+	tensor<int> modifier(Variables.size(), 0);
 	modifier[0] = -1;
 
 	if (vect == 5) {
@@ -5103,7 +5140,7 @@ template<typename TN> static void PrintFraction
 
 	// calcolo numeratore
 	else {
-		num_ = GetWString(ToXV(Numerator));
+		num_ = Numerator.str();
 		if (numerator == 1 and NC == 1 and num_.size() >= 2)
 			if (num_.at(0) == '(' and num_.at(num_.size() - 1) == ')')
 			{
@@ -5117,7 +5154,7 @@ template<typename TN> static void PrintFraction
 
 	// calcolo denominatore
 	den_ = L"";
-	auto tempden{ GetWString(ToXV(denominator)) };
+	auto tempden{ denominator.str() };
 	if (tempden != L"1") den_ = tempden;
 	if (denominator == 1 and DC == 1 and den_.size() >= 2)
 		if (den_.at(0) == '(' and den_.at(num_.size() - 1) == ')')
@@ -5637,11 +5674,11 @@ static polynomial DecompPolynomial(switchcase& argc, wstring Polynomial)
 		// somma
 		polydata = GetMonomials(Polynomial);
 		pdata = PolynomialSum(polydata);
-		vector<int> null(Variables.size());
+		tensor<int> null(Variables.size());
 		null[0] = -1;
 		
 		// risultato della somma
-		Polynomial = GetString(pdata);
+		Polynomial = pdata.str();
 		if (BOOLALPHA) ElabExponents(Polynomial);
 		if (polydata.size() != pdata.size() and input) {
 			SetConsoleTextAttribute(hConsole, 2);
@@ -5655,7 +5692,7 @@ static polynomial DecompPolynomial(switchcase& argc, wstring Polynomial)
 		polynomial BackT;
 		polynomial Back_T;
 		HT = Total(polydata);
-		Polynomial = GetWString(HT);
+		Polynomial = HT.str();
 		if (HT != 1 and input) {
 			SetConsoleTextAttribute(hConsole, 12);
 			wcout << "raccoglimento totale: " << Polynomial << '\n';
@@ -5667,7 +5704,7 @@ static polynomial DecompPolynomial(switchcase& argc, wstring Polynomial)
 			polydata = HT.last();
 			HT--;
 			HT += Partial(polydata);
-			pol = GetWString(HT);
+			pol = HT.str();
 			if (pol != Polynomial and input) {
 				Polynomial = pol;
 				SetConsoleTextAttribute(hConsole, 4);
@@ -5681,7 +5718,7 @@ static polynomial DecompPolynomial(switchcase& argc, wstring Polynomial)
 			HT.clear();
 			for (auto a : Back_T) HT += Binomial(a);
 			HT.close();
-			pol = GetWString(HT);
+			pol = HT.str();
 			if (pol != Polynomial and !Xout and input) {
 				Polynomial = pol;
 				SetConsoleTextAttribute(hConsole, 3);
@@ -5695,7 +5732,7 @@ static polynomial DecompPolynomial(switchcase& argc, wstring Polynomial)
 			HT.clear();
 			for (auto a : Back_T) HT += Trinomial(a);
 			HT.close();
-			pol = GetWString(HT);
+			pol = HT.str();
 			if (pol != Polynomial and !Xout and input) {
 				Polynomial = pol;
 				SetConsoleTextAttribute(hConsole, 9);
@@ -5721,7 +5758,7 @@ static polynomial DecompPolynomial(switchcase& argc, wstring Polynomial)
 				extend = 1;
 			}
 			HT.close();
-			pol = GetWString(HT);
+			pol = HT.str();
 
 			// somma per differenza
 			if (pol != Polynomial and !Xout and input) {
@@ -5733,7 +5770,7 @@ static polynomial DecompPolynomial(switchcase& argc, wstring Polynomial)
 			}
 
 			// scomposizione con ruffini
-			POL = GetWString(HT);
+			POL = HT.str();
 			Back_T = HT;
 			HT.clear();
 			extend = 1;
@@ -5755,7 +5792,7 @@ static polynomial DecompPolynomial(switchcase& argc, wstring Polynomial)
 
 			// ruffini
 			HT.close();
-			pol = GetWString(HT);
+			pol = HT.str();
 			if (pol != Polynomial and !Xout and input) {
 				Polynomial = pol;
 				SetConsoleTextAttribute(hConsole, 6);
@@ -5770,7 +5807,7 @@ static polynomial DecompPolynomial(switchcase& argc, wstring Polynomial)
 		HT.clear();
 		for (auto a : Back_T) HT += CompleteTheSquare(a);
 		HT.close();
-		pol = GetWString(HT);
+		pol = HT.str();
 		if (pol != Polynomial and !Xout and input) {
 			Polynomial = pol;
 			SetConsoleTextAttribute(hConsole, 79);
@@ -5786,7 +5823,7 @@ static polynomial DecompPolynomial(switchcase& argc, wstring Polynomial)
 		for (auto a : Back_T) HT += TrinomialSquare(a);
 		
 		HT.close();
-		pol = GetWString(HT);
+		pol = HT.str();
 		if (pol != Polynomial and !Xout and input) {
 			Polynomial = pol;
 			SetConsoleTextAttribute(hConsole, 79);
@@ -5945,35 +5982,33 @@ static void DecompFraction(switchcase& argc)
 			}
 
 			// caso con le potenze
-			if (is_modifier)
-				for (int j = DScomp[i - 1][0].coefficient; j > 0; --j)
-				{
-					denominators.push_back({});
-					if (j > 1) denominators[index].push_back({ {-1, j} });
-					denominators[index].push_back(DScomp[i]);
-					index++;
-					complementaries.push_back(
-						Complementary(DScomp, DScomp[i], j)
+			if (is_modifier) for (int j = DScomp[i - 1][0].coefficient; j > 0; --j)
+			{
+				denominators.push_back({});
+				if (j > 1) denominators[index].push_back({ {-1, j} });
+				denominators[index].push_back(DScomp[i]);
+				index++;
+				complementaries.push_back(
+					Complementary(DScomp, DScomp[i], j)
+				);
+			}
+			
+			// caso con le potenze della variabile
+			else if (DScomp[i] == 1) for (int j = DScomp[i][0].degree; j > 0; --j)
+			{
+				denominators.push_back({});
+				denominators[index].push_back({ {j, 1} });
+				index++;
+				auto NewScomp{ DScomp };
+				NewScomp.erase(NewScomp.begin() + i);
+				NewScomp.insert(NewScomp.begin() + i, { {1, 1} });
+				NewScomp.insert(NewScomp.begin() + i, {
+					{-1, DScomp[i][0].degree} }
 					);
-				}
-			else if (DScomp[i] == 1)
-
-				// caso con le potenze della variabile
-				for (int j = DScomp[i][0].degree; j > 0; --j)
-				{
-					denominators.push_back({});
-					denominators[index].push_back({ {j, 1} });
-					index++;
-					auto NewScomp{ DScomp };
-					NewScomp.erase(NewScomp.begin() + i);
-					NewScomp.insert(NewScomp.begin() + i, { {1, 1} });
-					NewScomp.insert(NewScomp.begin() + i, {
-						{-1, DScomp[i][0].degree} }
-						);
-					complementaries.push_back(
-						Complementary(NewScomp, NewScomp[i + 1], j)
-					);
-				}
+				complementaries.push_back(
+					Complementary(NewScomp, NewScomp[i + 1], j)
+				);
+			}
 
 			// caso senza potenze
 			else {
@@ -6235,7 +6270,7 @@ static void DecompFraction(switchcase& argc)
 
 			// caso costante o fattore
 			else if (NScomp == 1 and new_print) {
-				auto output = GetString(ToXV(NScomp[0]));
+				auto output = NScomp[0].str();
 				if (BOOLALPHA) ElabExponents(output);
 				if (output == L"1") {
 					wcout << ' ' << NCOEFF << "\n\n";
@@ -6247,7 +6282,7 @@ static void DecompFraction(switchcase& argc)
 			}
 
 			// caso polinomio
-			else if (new_print) wcout << ' ' << GetWString(ToXV(NScomp));
+			else if (new_print) wcout << ' ' << NScomp.str();
 		}
 
 		// caso non scomponibile
@@ -6270,7 +6305,8 @@ static void DecompFraction(switchcase& argc)
 
 		// output polinomio di resto
 		if (!skip) for (auto a : Quotient) {
-			auto pol{ GetString(ToXV(tensor{ {a} })) };
+			auto rest{ POLYNOMIAL({ FACTOR({a}) }) };
+			auto pol{ rest.str() };
 			bool is_minus{ false };
 
 			if (pol.at(0) == '-') {
