@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+	<Type Name="tensor&lt;*&gt;" Inheritable="true">
+		<DisplayString Condition="count == 0">
+			VOID
+		</DisplayString>
+		<DisplayString Condition="count > 2147483647">
+			§§§§§§§§§§§§§§§§§§§§
+		</DisplayString>
+		<DisplayString>
+			{{size == {count}}}, ElementAt(0) == {data[0]}
+		</DisplayString>
+		<Expand>
+			<ArrayItems>
+				<Size>count</Size>
+				<ValuePointer>data</ValuePointer>
+			</ArrayItems>
+		</Expand>
+	</Type>
+</AutoVisualizer>

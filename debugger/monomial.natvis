@@ -1,14 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
-	<Type Name="tensor&lt;*&gt;">
+	<Type Name="monomial">
 		<DisplayString>
-			size = {count}
+			Coeff_ == {coefficient}, ElementAt(0) == {exp[0]}
 		</DisplayString>
 		<Expand>
-			<ArrayItems>
-				<Size>count</Size>
-				<ValuePointer>data</ValuePointer>
-			</ArrayItems>
+			<ExpandedItem>exp</ExpandedItem>
 		</Expand>
 	</Type>
 </AutoVisualizer>

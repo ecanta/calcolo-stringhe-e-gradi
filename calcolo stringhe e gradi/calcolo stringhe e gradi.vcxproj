@@ -131,7 +131,13 @@
     <ClCompile Include="calcolo stringhe e gradi.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <Natvis Include="..\tensor.natvis" />
+    <ClInclude Include="..\tensor\tensor.h" />
+    <ClInclude Include="..\tensor\tensor_impl.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="..\debugger\factor.natvis" />
+    <Natvis Include="..\debugger\monomial.natvis" />
+    <Natvis Include="..\tensor\tensor.natvis" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -20,6 +20,22 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <Natvis Include="..\tensor.natvis" />
+    <ClInclude Include="..\tensor\tensor.h">
+      <Filter>File di intestazione</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tensor\tensor_impl.h">
+      <Filter>File di intestazione</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="..\tensor\tensor.natvis">
+      <Filter>File di intestazione</Filter>
+    </Natvis>
+    <Natvis Include="..\debugger\factor.natvis">
+      <Filter>File di intestazione</Filter>
+    </Natvis>
+    <Natvis Include="..\debugger\monomial.natvis">
+      <Filter>File di intestazione</Filter>
+    </Natvis>
   </ItemGroup>
 </Project>

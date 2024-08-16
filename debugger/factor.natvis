@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+	<Type Name="factor">
+		<DisplayString Condition="count == 0">
+			VOID
+		</DisplayString>
+		<DisplayString Condition="count > 2147483647">
+			§§§§§§§§§§§§§§§§§§§§
+		</DisplayString>
+		<DisplayString Condition="data[0].exp[0] == -1">
+			MODIFIER({data[0].coefficient})
+		</DisplayString>
+		<DisplayString>
+			{{size == {count}}}
+		</DisplayString>
+		<Expand>
+			<ArrayItems>
+				<Size>count</Size>
+				<ValuePointer>data</ValuePointer>
+			</ArrayItems>
+		</Expand>
+	</Type>
+</AutoVisualizer>
