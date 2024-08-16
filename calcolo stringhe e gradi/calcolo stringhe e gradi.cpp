@@ -24,7 +24,7 @@
 
 // Descrizione programma ::
 	/*                                                          |
-	*  Strings ZP[0.7.5].cpp: il programma calcola singola e\o  |
+	*  Strings ZP[0.7.6].cpp: il programma calcola singola e\o  |
 	*  doppia scomposizione di alcuni interi in una stringa o   |
 	*  il contrario, i numeri primi, cifre e divisori, scompone |
 	*  anche i polinomi e le frazioni algebriche                |
@@ -1087,9 +1087,7 @@ public:
 
 	// costruttori
 	complex() : RealPart(0), ImaginaryPart(0) {}
-	complex(int real) : RealPart(real), ImaginaryPart(0) {}
 	complex(double real) : RealPart(real), ImaginaryPart(0) {}
-	complex(int real, int imag) : RealPart(real), ImaginaryPart(imag) {}
 	complex(double real, double imag) : RealPart(real), ImaginaryPart(imag) {}
 
 	// metodi matematici
@@ -1190,9 +1188,9 @@ public:
 	wstring c_str() const
 	{
 		wostringstream output;
-		output << setprecision(10) << RealPart << L' ';
+		output << setprecision(10) << L'(' << RealPart << L' ';
 		ImaginaryPart > 0 ? output << L'+' : output << L'-';
-		output << L' ' << fabs(ImaginaryPart) << L'i';
+		output << L" i" << fabs(ImaginaryPart) << L')';
 		return output.str();
 	}
 };
@@ -2002,7 +2000,7 @@ int main()
 #ifndef BETA
 				wcout << L' ';
 #endif
-				wcout << L"0.7.5 ";
+				wcout << L"0.7.6 ";
 #ifdef BETA
 				wcout << L"BETA ";
 #endif
@@ -5041,7 +5039,7 @@ static factor GetMonomials(wstring pol)
 #pragma region HandPolynomials
 
 // calcola le posizioni delle variabili di un polinomio a più variabili
-static tensor<tensor<int>> FromPolynomialToPos(
+static tensor<tensor<long double>> FromPolynomialToPos(
 	factor vect,
 	int& StartIndex,
 	tensor<int>& CorrectSizes,
@@ -5117,7 +5115,7 @@ static tensor<tensor<int>> FromPolynomialToPos(
 	}
 
 	// iterazione per ogni dimensione tra quelle possibili
-	tensor<tensor<int>> result;
+	tensor<tensor<long double>> result;
 	for (auto CorrectSize : CorrectSizes) {
 
 		// ridimensionamento esponenti
@@ -5136,7 +5134,7 @@ static tensor<tensor<int>> FromPolynomialToPos(
 
 		// assegnazione di una posizione ai coefficienti
 		int KnVarPos{ -1 };
-		tensor<int> position(CorrectSize + 1, 0);
+		tensor<long double> position(CorrectSize + 1, 0);
 		for (int i = StartIndex; i < Variables.size(); ++i)
 			if (KnownSeq[i] > 0) {
 				KnVarPos = i;
@@ -5545,7 +5543,7 @@ static polynomial Ruffini(factor vect)
 	tensor<int> VKnownTerm;
 	tensor<tensor<int>> VDirectorSeq;
 	tensor<tensor<int>> VKnownSeq;
-	tensor<tensor<int>> ListPos{
+	auto ListPos{
 		FromPolynomialToPos(
 			vect,
 			StartIndex,
@@ -5580,7 +5578,7 @@ static polynomial Ruffini(factor vect)
 		for (int n = 1; n < CorrectSize; ++n) {
 
 			// regola di ruffini
-			tensor<int> temp;
+			tensor<long double> temp;
 			for (auto root : PossibleRoots) {
 				Root = root;
 				do {
@@ -6014,11 +6012,10 @@ static int Determinant(tensor<tensor<int>> mx)
 
 // funzione per calcolare le soluzioni di un equazione
 // con il metodo di newton-raphson
-static void Approximator(tensor<int>& Equation, long double& root)
+static void Approximator(tensor<long double>& Equation, long double& root)
 {
-	FACTOR equation;
+	FACTOR equation(Equation.size());
 	for (int i = Equation.size() - 1; i >= 0; --i) {
-		equation++;
 		equation[i].coefficient = Equation[i];
 		equation[i].degree = Equation.size() - i - 1;
 	}
@@ -6057,8 +6054,7 @@ static void Approximator(tensor<int>& Equation, long double& root)
 	// divisione del polinomio
 	for (int i = 1; i < equation.size(); ++i) {
 		equation[i].coefficient =
-			root * equation[i - 1].coefficient
-			+ equation[i].coefficient;
+			root * equation[i - 1].coefficient + equation[i].coefficient;
 		equation[i].degree--;
 	}
 	equation[0].degree--;
@@ -6136,30 +6132,59 @@ static tensor<wstring> ExistenceConditions(factor Equation)
 	if (equation.size() > 0) while (true) {
 
 		// equazione di secondo grado
-		if (equation == 3) {
+		if (equation[0] == 3) {
 			long double A, B, C;
 			A = equation[0][0];
 			B = equation[0][1];
 			C = equation[0][2];
 
-			long double delta{ sqrt(B * B - 4 * A * C) };
-			auto sol1{ (-B + delta) / (2 * A) };
-			auto sol2{ (-B - delta) / (2 * A) };
+			long double delta_4{ (B * B - 4 * A * C) / (4 * A * A) };
+			long double half_root_sum{ -B / (2 * A) };
+			wstring _push;
 
-			if (!isnan(sol1)) {
-				answer << charVariable + L" != " << to_wstring(sol1);
-				answer << charVariable + L" != " << to_wstring(sol2);
+			// radici reali
+			if (delta_4 >= 0) {
+				_push = factor({ monomial({ 1, VDirectorSeq[0] }) }).str() + L" != "
+					+ to_wstring(half_root_sum + sqrt(delta_4));
+				if (VKnownSeq[0] != tensor<int>(Variables.size(), 0))
+					_push += factor({ monomial({ 1, VKnownSeq[0] }) }).str();
+				answer << _push;
+
+				_push = factor({ monomial({ 1, VDirectorSeq[0] }) }).str() + L" != "
+					+ to_wstring(half_root_sum - sqrt(delta_4));
+				if (VKnownSeq[0] != tensor<int>(Variables.size(), 0))
+					_push += factor({ monomial({ 1, VKnownSeq[0] }) }).str();
+				answer << _push;
+			}
+
+			// radici complesse
+			else {
+				_push = factor({ monomial({ 1, VDirectorSeq[0] }) }).str() + L" != "
+					+ complex(half_root_sum, sqrt(-delta_4)).c_str();
+				if (VKnownSeq[0] != tensor<int>(Variables.size(), 0))
+					_push += factor({ monomial({ 1, VKnownSeq[0] }) }).str();
+				answer << _push;
+
+				_push = factor({ monomial({ 1, VDirectorSeq[0] }) }).str() + L" != "
+					+ complex(half_root_sum, -sqrt(-delta_4)).c_str();
+				if (VKnownSeq[0] != tensor<int>(Variables.size(), 0))
+					_push += factor({ monomial({ 1, VKnownSeq[0] }) }).str();
+				answer << _push;
 			}
 			return answer;
 		}
 
-		// metodo di newton-raphson
+		// metodo di Newton-Raphson
 		long double root{};
 		Approximator(equation[0], root);
-		answer << charVariable + L" != " << to_wstring(root);
+		auto push{
+			factor({ monomial({ 1, VDirectorSeq[0] }) }).str()
+			+ L" != " + to_wstring(root)
+		};
+		if (VKnownSeq[0] != tensor<int>(Variables.size(), 0))
+			push += factor({ monomial({ 1, VKnownSeq[0] }) }).str();
+		answer << push;
 	}
-
-	// fai il test e utilizza i monomi corretti al posto di charVariable (riga 6132)
 }
 
 // funzione che stampa una frazione
@@ -6720,7 +6745,7 @@ static polynomial DecompPolynomial(switchcase& argc, wstring Polynomial)
 	SetConsoleTextAttribute(hConsole, 14);
 
 	// variabili
-	wstring pol, POL;
+	wstring pol;
 	polynomial HT;
 	bool empty{ true }, Xout{ false }, input { Polynomial.empty() };
 
@@ -6832,12 +6857,13 @@ static polynomial DecompPolynomial(switchcase& argc, wstring Polynomial)
 		do {
 
 			// raccoglimento parziale
+			pol = Polynomial;
 			auto polydata{ HT.last() };
 			HT--;
 			HT += Partial(polydata);
 			HT.close();
 			Polynomial = HT.str();
-			if (Back_T % HT and input) {
+			if (Back_T % HT and Polynomial != pol and input) {
 				SetConsoleTextAttribute(hConsole, 4);
 				wcout << L"raccoglimento parziale: " << Polynomial << L'\n';
 				empty = false;
@@ -6899,7 +6925,7 @@ static polynomial DecompPolynomial(switchcase& argc, wstring Polynomial)
 
 			// scomposizione con ruffini
 			for (auto& poldata : HT) poldata.SortByExponents();
-			POL = HT.str();
+			pol = HT.str();
 			Back_T = HT;
 			HT.clear();
 			extend = 1;
@@ -6929,7 +6955,7 @@ static polynomial DecompPolynomial(switchcase& argc, wstring Polynomial)
 				wcout << Polynomial << L'\n';
 				empty = false;
 			}
-		} while (Polynomial != POL);
+		} while (Polynomial != pol);
 
 		// completamento del quadrato
 		Back_T = HT;
@@ -7525,11 +7551,11 @@ static void DecompFraction(switchcase& argc)
 // file natvis 56 righe
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
-// \complete [C.E.]																			   //
 // \add bignumbers																			   //
 // ...																						   //
 // \add graph: / | \ _ - . *, zoom, traslation, max, min, polynomial 1 variable				   //
 // \add complex numbers -> [C.E.]															   //
+// ...																						   //
 // ...																						   //
 // \change -> atkin																			   //
 // \add matrices L-U																		   //
