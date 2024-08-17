@@ -24,7 +24,7 @@
 
 // Descrizione programma ::
 	/*                                                          |
-	*  Strings ZP[0.7.6].cpp: il programma calcola singola e\o  |
+	*  Strings ZP[0.7.7].cpp: il programma calcola singola e\o  |
 	*  doppia scomposizione di alcuni interi in una stringa o   |
 	*  il contrario, i numeri primi, cifre e divisori, scompone |
 	*  anche i polinomi e le frazioni algebriche                |
@@ -793,6 +793,31 @@ private: tensor<int> Integer;
 
 public:
 
+	long double Number()
+	{
+		// calcolo limiti
+		const constexpr long double max_long_double{
+			numeric_limits<long double>::max()
+		};
+		const constexpr long double min_long_double{
+			numeric_limits<long double>::lowest()
+		};
+		ptrdiff_t val{};
+
+		// calcolo parte intera
+		for (int i = 0; i < Integer; ++i) {
+			val += Integer[i] * pow(10, Integer.size() - i - 1);
+			if (val > max_long_double or val < min_long_double)
+				return numeric_limits<long double>::quiet_NaN();
+		}
+		long double res = val;
+		
+		// parte decimale e segno
+		res += decimal;
+		if (sign == NEG) res *= -1;
+		return res;
+	}
+
 	// costruttori
 	big() : sign(POS), Integer(), decimal(0) {}
 	big(int param) : sign(param < 0), Integer(), decimal(0)
@@ -846,10 +871,16 @@ public:
 		if (sign and !other.sign) return true;
 		if (!sign and other.sign) return false;
 
-		while (integ[0] == 0) --integ;
-		while (oth_integ[0] == 0) --oth_integ;
+		while (integ[0] == 0) {
+			if (integ <= 1) break;
+			--integ;
+		}
+		while (oth_integ[0] == 0) {
+			if (oth_integ <= 1) break;
+			--oth_integ;
+		}
 
-		if (integ != oth_integ) return integ < oth_integ xor sign;
+		if (integ % oth_integ) return integ < oth_integ xor sign;
 		for (int i = 0; i < integ; ++i) if (integ[i] != oth_integ[i])
 				return integ[i] < oth_integ[i] xor sign;
 
@@ -955,7 +986,10 @@ public:
 			This.Integer[i] = (diff + 10) % 10;
 		}
 
-		while (This.Integer[0] == 0) This.Integer.pop_front();
+		while (This.Integer[0] == 0) {
+			if (This.Integer <= 1) break;
+			--This.Integer;
+		}
 		return This;
 	}
 	big& operator-=(const big& value)
@@ -1030,15 +1064,53 @@ public:
 		return *this;
 	}
 
+	// divisione intera
+	big operator/(const big& value) const
+	{
+		if (value == big(0)) throw invalid_argument("Division by zero!");
+
+		big This = *this;
+		big result, current;
+		result.Integer.clear();
+		result.sign = This.sign != value.sign;
+
+		// divisione lunga
+		for (int i = 0; i < This.Integer; ++i)
+		{
+			// correzione
+			int quotient = 0;
+			current.Integer << This.Integer[i];
+			while (current.Integer > 1 and current.Integer[0] == 0) --current.Integer;
+
+			// divisione
+			while (current >= value.fabs()) {
+				current -= value.fabs();
+				quotient++;
+			}
+			result.Integer << quotient;
+		}
+
+		// ridimensionamento
+		while (result.Integer > 1 and result.Integer[0] == 0) --result.Integer;
+		result.decimal = 0;
+		return result;
+	}
+	big& operator/=(const big& value)
+	{
+		*this = *this / value;
+		return *this;
+	}
+
 	// metodi matematici
 	bool intg() const
 	{
 		return decimal == 0;
 	}
-	big fabs()
+	big fabs() const
 	{
-		sign = POS;
-		return *this;
+		big other = *this;
+		other.sign = POS;
+		return other;
 	}
 	big floor()
 	{
@@ -1058,17 +1130,23 @@ public:
 		decimal = 0;
 		return *this;
 	}
+	big invert()
+	{
+		sign = !sign;
+		return *this;
+	}
 
 	// output
-	void print()
+	wostringstream c_str(int precision)
 	{
+		wostringstream oss, result;
 		if (sign) wcout << L'-';
-		for (auto intg : Integer) wcout << intg;
-		wostringstream oss;
-		oss << decimal;
+		for (auto intg : Integer) result << intg;
+		oss << setprecision(precision) << decimal;
 		auto str{ oss.str() };
 		str.erase(0, 1);
-		if (!str.empty()) wcout << L'.' << str;
+		if (!str.empty()) result << L'.' << str;
+		return result;
 	}
 };
 
@@ -1197,18 +1275,19 @@ public:
 
 // monomi
 wstring Variables;
-struct MONOMIAL {
+template<typename T_int = long double>struct MONOMIAL {
 	int degree;
-	long double coefficient;
+	T_int coefficient;
 	bool operator == (const MONOMIAL& other) const
 	{
 		return coefficient == other.coefficient and
 			degree == other.degree;
 	}
 };
-class monomial
+template<typename T_int = long double>class monomial
 {
-public: long double coefficient{};
+public:
+	T_int coefficient{};
 	tensor<int> exp;
 
 	bool operator==(const monomial& other) const
@@ -1241,25 +1320,25 @@ public: long double coefficient{};
 };
 
 // fattori di polinomi
-class factor : public tensor<monomial>
+template<typename T_int = long double>class factor : public tensor<monomial<T_int>>
 {
 public:
 	factor() {}
-	factor(initializer_list<monomial> init): tensor<monomial>(init) {}
-	factor(size_t size, const monomial& initial_value)
+	factor(initializer_list<monomial<T_int>> init): tensor<monomial<T_int>>(init) {}
+	factor(size_t size, const monomial<T_int>& initial_value)
 	{
-		resize(size);
+		this->resize(size);
 		count = size;
 		fill(data, data + count, initial_value);
 	}
 	factor(size_t size)
 	{
-		resize(size);
-		count = size;
+		this->resize(size);
+		this->count = size;
 	}
-	factor(tensor<monomial> vect)
+	factor(tensor<monomial<T_int>> vect)
 	{
-		for (const auto& value : vect) push_back(value);
+		for (const auto& value : vect) this->push_back(value);
 	}
 
 	void SortByDegree()
@@ -1288,53 +1367,53 @@ public:
 	{
 		wstring polynomial;
 		tensor<int> null(size, 0);
-		for (auto data : *this) {
+		for (auto data : *this) if constexpr (is_same_v<T_int, long double>) {
 
 			// caso nullo
 			if (data.coefficient == 0) continue;
 
 			// aggiunta coefficiente
-			wstring monomial;
-			monomial = data.coefficient > 0 ? L'+' : L'-';
+			wstring Monomial;
+			Monomial = data.coefficient > 0 ? L'+' : L'-';
 			if (fabs(data.coefficient) != 1 or data.exp == null)
-				monomial += to_wstring((int)fabs(data.coefficient));
+				Monomial += to_wstring((int)fabs(data.coefficient));
 
 			// aggiunta variabili ed esponenti
 			for (int i = 0; i < Variables.size(); ++i) if (data.exp[i] != 0) {
-				monomial += size == Variables.size() ?
+				Monomial += size == Variables.size() ?
 					Variables.at(i) : Variables.at(Variables.find(charVariable));
 				if (data.exp[i] > 1) {
-					monomial += L'^';
-					monomial += to_wstring((int)data.exp[i]);
+					Monomial += L'^';
+					Monomial += to_wstring((int)data.exp[i]);
 				}
 			}
 
-			polynomial += monomial;
+			polynomial += Monomial;
 		}
 		if (polynomial.at(0) == L'+') polynomial.erase(0, 1);
 
 		return polynomial;
 	}
 };
-class FACTOR : public tensor<MONOMIAL>
+template<typename T_int = long double>class FACTOR : public tensor<MONOMIAL<T_int>>
 {
 public:
 	FACTOR() {}
-	FACTOR(initializer_list<MONOMIAL> init): tensor<MONOMIAL>(init) {}
-	FACTOR(size_t size, const MONOMIAL& initial_value)
+	FACTOR(initializer_list<MONOMIAL<T_int>> init): tensor<MONOMIAL<T_int>>(init) {}
+	FACTOR(size_t size, const MONOMIAL<T_int>& initial_value)
 	{
-		resize(size);
+		this->resize(size);
 		count = size;
 		fill(data, data + count, initial_value);
 	}
 	FACTOR(size_t size)
 	{
-		resize(size);
-		count = size;
+		this->resize(size);
+		this->count = size;
 	}
-	FACTOR(tensor<MONOMIAL> vect)
+	FACTOR(tensor<MONOMIAL<T_int>> vect)
 	{
-		for (const auto& value : vect) push_back(value);
+		for (const auto& value : vect) this->push_back(value);
 	}
 
 	void sort()
@@ -1365,10 +1444,10 @@ public:
 
 	_NODISCARD wstring str(int size = Variables.size()) override
 	{
-		factor traduction;
+		factor<T_int> traduction;
 		int _FirstPos = Variables.find(charVariable);
 		for (auto Monomial : *this) {
-			monomial element;
+			monomial<T_int> element;
 			element.coefficient = Monomial.coefficient;
 			element.exp(Variables.size(), 0);
 			element.exp[_FirstPos] = Monomial.degree;
@@ -1377,12 +1456,12 @@ public:
 		return traduction.str(1);
 	}
 };
-static factor ToXV(FACTOR vect)
+static factor<> ToXV(FACTOR<> vect)
 {
-	factor output;
+	factor<> output;
 	int _FirstPos = Variables.find(charVariable);
 	for (auto Monomial : vect) {
-		monomial element;
+		monomial<> element;
 		element.coefficient = Monomial.coefficient;
 		element.exp(Variables.size(), 0);
 		element.exp[_FirstPos] = Monomial.degree;
@@ -1390,12 +1469,12 @@ static factor ToXV(FACTOR vect)
 	}
 	return output;
 }
-static FACTOR To1V(factor vect)
+static FACTOR<> To1V(factor<> vect)
 {
-	FACTOR output;
+	FACTOR<> output;
 	int _FirstPos = Variables.find(charVariable);
 	for (auto Monomial : vect) {
-		MONOMIAL element;
+		MONOMIAL<> element;
 		element.coefficient = Monomial.coefficient;
 		element.degree = Monomial.exp[_FirstPos];
 		output << element;
@@ -1405,23 +1484,23 @@ static FACTOR To1V(factor vect)
 
 // polinomi completi
 static void ElabExponents(wstring& str);
-class polynomial : public tensor<factor>
+template<typename T_int = long double>class polynomial : public tensor<factor<T_int>>
 {
 public:
 	polynomial() {}
-	polynomial(initializer_list<factor> init): tensor<factor>(init) {}
-	polynomial(size_t size, const factor& initial_value)
+	polynomial(initializer_list<factor<T_int>> init): tensor<factor<T_int>>(init) {}
+	polynomial(size_t size, const factor<T_int>& initial_value)
 	{
-		resize(size);
+		this->resize(size);
 		count = size;
 		fill(data, data + count, initial_value);
 	}
 	polynomial(size_t size)
 	{
-		resize(size);
-		count = size;
+		this->resize(size);
+		this->count = size;
 	}
-	polynomial(tensor<factor> vect)
+	polynomial(tensor<factor<T_int>> vect)
 	{
 		for (const auto& value : vect) push_back(value);
 	}
@@ -1430,17 +1509,17 @@ public:
 	{
 		for (int i = 0; i < this->size(); ++i) if ((*this)[i][0].exp[0] == -1)
 		{
-			int repeat = (*this)[i][0].coefficient;
+			auto repeat = (*this)[i][0].coefficient;
 			this->erase(this->begin() + i);
 			auto push{ (*this)[i] };
-			for (int j = 0; j < repeat - 1; ++j) this->push_front(push);
+			for (big j = 0; j < repeat - 1; ++j) this->push_front(push);
 		}
 	}
 	void close()
 	{
 		tensor<int> modifier(Variables.size());
 		modifier[0] = -1;
-		factor CommonFactor;
+		factor<T_int> CommonFactor;
 		if (!this->empty()) for (int i = 0; i < this->size(); ++i)
 			for (int j = this->size() - 1; j > i; --j)
 				if ((*this)[i] == (*this)[j] and (*this)[i][0].exp[0] >= 0)
@@ -1473,16 +1552,8 @@ public:
 
 					// caso di eccezione
 					else {
-						int setK = 0;
 						this->push_front({ {2, modifier} });
-						this->erase(this->begin() + j);
-						for (int k = 0; k < this->size(); ++k)
-							if ((*this)[k] == CommonFactor) {
-								setK = k;
-								break;
-							}
-						if ((*this)[i + 1] != CommonFactor)
-							swap((*this)[i + 1], (*this)[setK]);
+						this->erase(this->begin() + j + 1);
 					}
 				}
 	}
@@ -1495,7 +1566,10 @@ public:
 
 			// caso di monomio modificatore
 			if (!T[0].exp.empty()) if (T[0].exp[0] < 0) {
-				exp = to_wstring((int)T[0].coefficient);
+				if constexpr (is_same_v<T_int, long double>)
+					exp = to_wstring((int)T[0].coefficient);
+				else if constexpr (is_same_v<T_int, big>)
+					exp = T[0].coefficient.c_str(0).str();
 				IsAModifier = true;
 				continue;
 			}
@@ -1520,30 +1594,30 @@ public:
 		return output;
 	}
 };
-class POLYNOMIAL : public tensor<FACTOR>
+template<typename T_int = long double>class POLYNOMIAL : public tensor<FACTOR<T_int>>
 {
 public:
 	POLYNOMIAL() {}
-	POLYNOMIAL(initializer_list<FACTOR> init): tensor<FACTOR>(init) {}
-	POLYNOMIAL(size_t size, const FACTOR& initial_value)
+	POLYNOMIAL(initializer_list<FACTOR<T_int>> init): tensor<FACTOR<T_int>>(init) {}
+	POLYNOMIAL(size_t size, const FACTOR<T_int>& initial_value)
 	{
-		resize(size);
+		this->resize(size);
 		count = size;
 		fill(data, data + count, initial_value);
 	}
 	POLYNOMIAL(size_t size)
 	{
-		resize(size);
-		count = size;
+		this->resize(size);
+		this->count = size;
 	}
-	POLYNOMIAL(tensor<FACTOR> vect)
+	POLYNOMIAL(tensor<FACTOR<T_int>> vect)
 	{
 		for (const auto& value : vect) push_back(value);
 	}
 
 	void open()
 	{
-		polynomial NewClass;
+		polynomial<T_int> NewClass;
 		for (int i = 0; i < this->size(); ++i) NewClass << ToXV((*this)[i]);
 		NewClass.open();
 		this->clear();
@@ -1552,7 +1626,7 @@ public:
 	}
 	void close()
 	{
-		polynomial NewClass;
+		polynomial<T_int> NewClass;
 		for (int i = 0; i < this->size(); ++i)
 			NewClass.push_back(ToXV((*this)[i]));
 		NewClass.close();
@@ -1563,22 +1637,46 @@ public:
 
 	_NODISCARD wstring str(int size = Variables.size()) override
 	{
-		polynomial traduction;
+		polynomial<T_int> traduction;
 		for (auto vector : *this) traduction << ToXV(vector);
 		return traduction.str(1);
 	}
 };
-static polynomial ToXV(POLYNOMIAL vect)
+
+static polynomial<> ToXV(POLYNOMIAL<> vect)
 {
-	polynomial output;
+	polynomial<> output;
 	for (auto vector : vect) output << ToXV(vector);
 	return output;
 }
-static POLYNOMIAL To1V(polynomial vect)
+static POLYNOMIAL<> To1V(polynomial<> vect)
 {
-	POLYNOMIAL output;
+	POLYNOMIAL<> output;
 	for (auto vector : vect) output << To1V(vector);
 	return output;
+}
+
+static polynomial<> FromBigToDefault(polynomial<big> BigPolynomial)
+{
+	polynomial<> traduction;
+	for (auto fact : BigPolynomial) {
+		factor<> element;
+		for (auto mon : fact) {
+			monomial<> unity;
+			unity.coefficient = mon.coefficient.Number();
+
+			if (isnan(unity.coefficient)) return
+				polynomial<>({ factor<>({ monomial({
+					1,
+					tensor<int>(1, -2)
+				}) }) });
+
+			unity.exp = mon.exp;
+			element << unity;
+		}
+		traduction << element;
+	}
+	return traduction;
 }
 
 // estensioni di tensor
@@ -1897,36 +1995,38 @@ static void CodeConverter
 (wstring ToEvaluate, wstring message, bool ShowErrors, bool NecBoundary);
 static void LongComputation
 (wstring ToEvaluate, wstring message, bool ShowErrors, bool NecBoundary);
-static polynomial GetMonomialsAssister(wstring pol);
-static polynomial GetMonomialsDirector(wstring pol, bool changx = true);
-static factor GetMonomials(wstring pol);
-static factor PolynomialSum(factor vect);
-static factor PolynomialMultiply(polynomial Polynomial);
+static polynomial<big> GetMonomialsAssister(wstring pol);
+static polynomial<big> GetMonomialsDirector(wstring pol, bool changx = true);
+static factor<big> GetMonomials(wstring pol);
+template<typename T_int = long double>
+static factor<T_int> PolynomialSum(factor<T_int> vect);
+template<typename T_int = long double>
+static factor<T_int> PolynomialMultiply(polynomial<T_int> Polynomial);
 static void PolynomialDivide
 (
-	FACTOR dividend, FACTOR divisor,
-	FACTOR& quotient, FACTOR& rest
+	FACTOR<> dividend, FACTOR<> divisor,
+	FACTOR<>& quotient, FACTOR<>& rest
 );
-static polynomial Total(factor vect);
-static polynomial Partial(factor vect);
-static polynomial Binomial(factor vect);
-static polynomial Trinomial(factor vect);
-static polynomial SquareDifference(factor vect);
-static polynomial Ruffini(factor vect);
-static polynomial CompleteTheSquare(factor vect);
-static polynomial TrinomialSquare(factor vect);
-static FACTOR Complementary(POLYNOMIAL Polynomial, FACTOR factor, int exp);
+static polynomial<> Total(factor<> vect);
+static polynomial<> Partial(factor<> vect);
+static polynomial<> Binomial(factor<> vect);
+static polynomial<> Trinomial(factor<> vect);
+static polynomial<> SquareDifference(factor<> vect);
+static polynomial<> Ruffini(factor<> vect);
+static polynomial<> CompleteTheSquare(factor<> vect);
+static polynomial<> TrinomialSquare(factor<> vect);
+static FACTOR<> Complementary(POLYNOMIAL<> Polynomial, FACTOR<> factor, int exp);
 static void Simplify(
-	polynomial& num, polynomial& den,
+	polynomial<>& num, polynomial<>& den,
 	int& ncoeff, int& dcoeff, bool& changed
 );
 static int Determinant(tensor<tensor<int>> mx);
-static void Approximator(FACTOR& equation, long double& root);
-static tensor<wstring> ExistenceConditions(factor equation);
+static void Approximator(tensor<long double>& Equation, long double& root);
+static tensor<wstring> ExistenceConditions(factor<> equation);
 static void PrintFraction
 (
 	int NC, int DC, int& LINE, bool WritePlus,
-	polynomial numerator, polynomial denominator
+	polynomial<> numerator, polynomial<> denominator
 );
 static void CodeToNumber(switchcase& argc);
 static void Repeater(
@@ -1940,12 +2040,12 @@ static void Loop(
 	NumberData CPU(ptrdiff_t input),
 	bool select
 );
-static polynomial DecompPolynomial(switchcase& argc, wstring polynomial);
+static polynomial<> DecompPolynomial(switchcase& argc, wstring polynomial);
 static void DecompFraction(switchcase& argc);
 
 #pragma endregion
 
-// programma
+// programma principale
 int main()
 {
 	setlocale(LC_ALL, "");
@@ -2000,7 +2100,7 @@ int main()
 #ifndef BETA
 				wcout << L' ';
 #endif
-				wcout << L"0.7.6 ";
+				wcout << L"0.7.7 ";
 #ifdef BETA
 				wcout << L"BETA ";
 #endif
@@ -2268,7 +2368,7 @@ static int Gcd(int A, int B)
 }
 
 // massimo comuner divisore tra più termini
-template<typename T> static int Gcd(tensor<T> terms)
+template<typename T>static int Gcd(tensor<T> terms)
 {
 	int gcd{};
 	if (terms.empty()) return 0;
@@ -2283,8 +2383,19 @@ template<typename T> static int Gcd(tensor<T> terms)
 		}
 	}
 
+	// tensore di numeri grandi
+	else if constexpr (is_same_v<T, big>)
+	{
+		if (terms == 1) return terms[0].Number();
+		gcd = terms[0].Number();
+		for (auto term : terms) {
+			gcd = Gcd(gcd, term.Number());
+			if (gcd == 1) break;
+		}
+	}
+
 	// fattore
-	else if constexpr (is_same_v<T, MONOMIAL> or is_same_v<T, monomial>)
+	else if constexpr (is_same_v<T, MONOMIAL<>> or is_same_v<T, monomial<>>)
 	{
 		if (terms == 1) return terms[0].coefficient;
 		gcd = terms[0].coefficient;
@@ -4128,7 +4239,6 @@ static wstring PolynomialSyntaxDirector(wstring pol)
 	if (copy.size() >= 2) {
 		if (copy.at(0) == L'(') copy.erase(0, 1);
 		if (copy.at(copy.size() - 1) == L')') copy.erase(copy.size() - 1);
-		if (pol.size() - copy.size() == 1) return L"le parentesi non sono a posto";
 	}
 	if (copy.find(L'(') == wstring::npos and copy.find(L')') == wstring::npos)
 		return PolynomialSyntax(copy);
@@ -4761,7 +4871,8 @@ static void LongComputation
 #pragma region Translate
 
 // modifica gli asterischi trasformandoli in parentesi
-static polynomial GetMonomialsAssister(wstring pol)
+// e poi traduce il polinomio in una struttura
+static polynomial<big> GetMonomialsAssister(wstring pol)
 {
 	for (int index = pol.size() - 2; index > 0; --index)
 		if (pol.at(index) == L'*' and
@@ -4804,7 +4915,7 @@ static polynomial GetMonomialsAssister(wstring pol)
 }
 
 // gestisce la traduzione di un polinomio con le parentesi
-static polynomial GetMonomialsDirector(wstring pol, bool changx)
+static polynomial<big> GetMonomialsDirector(wstring pol, bool changx)
 {
 
 	// calcolo variabili
@@ -4812,7 +4923,8 @@ static polynomial GetMonomialsDirector(wstring pol, bool changx)
 		Variables.clear();
 		for (auto c : pol) if (isalpha(c)) {
 			bool IsTheVariableSet{ false };
-			for (auto Variable : Variables) if (Variable == c) IsTheVariableSet = true;
+			for (auto Variable : Variables) if (Variable == c)
+				IsTheVariableSet = true;
 			if (!IsTheVariableSet) Variables += c;
 		}
 		if (Variables.empty()) Variables = L"x";
@@ -4825,7 +4937,7 @@ static polynomial GetMonomialsDirector(wstring pol, bool changx)
 		if (copy.at(copy.size() - 1) == L')') copy.erase(copy.size() - 1);
 	}
 	if (copy.find(L'(') == wstring::npos and copy.find(L')') == wstring::npos)
-		return polynomial({ PolynomialSum(GetMonomials(copy)) });
+		return polynomial<big>({ PolynomialSum(GetMonomials(copy)) });
 
 	// eliminazione parentesi in più
 	int ParenthesisBalance{};
@@ -4844,23 +4956,24 @@ static polynomial GetMonomialsDirector(wstring pol, bool changx)
 	auto fact = FractPolynomial(pol);
 	tensor<int> null(Variables.size(), 0);
 
-	tensor<polynomial> Union;
+	tensor<polynomial<big>> Union;
 	tensor<long double> ExpPos, ExpVal;
 	for (auto adder : fact) {
-		polynomial UnionElement(adder.size());
+		polynomial<big> UnionElement(adder.size());
 		for (int i = 0; i < adder; ++i) {
 
 			// esponente
 			if (adder[i].at(0) == L'^') {
 				int value{ adder[i].at(1) - L'0' };
-				if (adder[i].size() > 2) value = 10 * value + adder[i].at(2) - L'0';
+				if (adder[i].size() > 2)
+					value = 10 * value + adder[i].at(2) - L'0';
 				ExpPos << i;
 				ExpVal << value;
 			}
 
 			// fattore
 			else UnionElement[i] =
-				PolynomialMultiply(GetMonomialsDirector(adder[i], false));
+				PolynomialMultiply<big>(GetMonomialsDirector(adder[i], false));
 		}
 
 		// aggiunta
@@ -4876,7 +4989,7 @@ static polynomial GetMonomialsDirector(wstring pol, bool changx)
 	}
 
 	// aggiustamento segni
-	tensor<int> numbers;
+	tensor<big> numbers;
 	for (int i = 0; i < Union; ++i) {
 		Union[i].open();
 
@@ -4886,17 +4999,18 @@ static polynomial GetMonomialsDirector(wstring pol, bool changx)
 			Union[i][j].SortByExponents();
 			if (Union[i][j][0].coefficient < 0) {
 				sign *= -1;
-				for (int k = 0; k < Union[i][j]; ++k) Union[i][j][k].coefficient *= -1;
+				for (int k = 0; k < Union[i][j]; ++k)
+					Union[i][j][k].coefficient.invert();
 			}
 		}
 
 		// calcolo coefficiente
-		int Coeff{ sign };
+		big Coeff( sign );
 		for (int j = Union[i].size() - 1; j >= 0; --j) if (Union[i][j] == 1)
 		{
 			bool IsACoefficient{ true };
-			for (int k = 0; k < Variables.size(); ++k) if (Union[i][j][0].exp[k] != 0)
-				IsACoefficient = false;
+			for (int k = 0; k < Variables.size(); ++k)
+				if (Union[i][j][0].exp[k] != 0) IsACoefficient = false;
 			if (IsACoefficient) {
 				Coeff *= Union[i][j][0].coefficient;
 				Union[i].erase(Union[i].begin() + j);
@@ -4904,14 +5018,17 @@ static polynomial GetMonomialsDirector(wstring pol, bool changx)
 		}
 
 		// push coefficiente
-		Union[i] >> factor{ monomial{(long double)Coeff, null} };
+		Union[i] >> factor<big>({ monomial<big>({Coeff, null}) });
 		numbers << Coeff;
 	}
 	int gcd{ Gcd(numbers) };
-	for (int i = 0; i < Union; ++i) Union[i][0][0].coefficient /= gcd;
+	if (abs(gcd) != 1)
+		for (int i = 0; i < Union; ++i) Union[i][0][0].coefficient /= gcd;
+	else if (gcd == -1)
+		for (int i = 0; i < Union; ++i) Union[i][0][0].coefficient.invert();
 
 	// ricerca fattori in comune
-	polynomial ListCommonFactors{ Union[0] };
+	auto ListCommonFactors{ Union[0] };
 	--ListCommonFactors;
 	for (int i = ListCommonFactors.size() - 1; i >= 0; --i) {
 		bool IsCommon{ true };
@@ -4938,39 +5055,36 @@ static polynomial GetMonomialsDirector(wstring pol, bool changx)
 					Union[i].erase(Union[i].begin() + j);
 					break;
 				}
-	ListCommonFactors >> factor{ monomial{ (long double)gcd, null } };
+	ListCommonFactors >> factor<big>{ monomial<big>{ gcd, null } };
 	
 	// calcolo prodotti
-	tensor<factor> products;
-	for (auto Adder : Union) products << PolynomialMultiply(Adder);
+	tensor<factor<big>> products;
+	for (auto Adder : Union) products << PolynomialMultiply<big>(Adder);
 	
 	// calcolo somma dei prodotti
-	factor Sum;
+	factor<big> Sum;
 	for (auto product : products) Sum += product;
 	ListCommonFactors << PolynomialSum(Sum);
 
 	// correzione termine polinomio
-	if (ListCommonFactors.last()[0].exp == null) {
-		ListCommonFactors[0][0].coefficient *=
-			ListCommonFactors.last()[0].coefficient;
+	if (ListCommonFactors.last() == factor<big>({ monomial<big>({1, null}) }))
 		ListCommonFactors--;
-	}
 	for (int i = 0; i < ListCommonFactors; ++i)
 		if (ListCommonFactors[i] == 1) if (ListCommonFactors[i][0].coefficient < 0)
 		{
-			ListCommonFactors[i][0].coefficient *= -1;
-			ListCommonFactors[0][0].coefficient *= -1;
+			ListCommonFactors[i][0].coefficient.invert();
+			ListCommonFactors[0][0].coefficient.invert();
 		}
 
 	// aggiustamento coefficiente
-	if (ListCommonFactors[0] == factor{ {1, null} } and ListCommonFactors > 1)
+	if (ListCommonFactors[0] == factor<big>{ {1, null} } and ListCommonFactors > 1)
 		--ListCommonFactors;
-	else if (ListCommonFactors[0] == factor{ {-1, null} } and
+	else if (ListCommonFactors[0] == factor<big>{ {-1, null} } and
 		ListCommonFactors > 1)
 	{
 		--ListCommonFactors;
 		for (int i = 0; i < ListCommonFactors[0]; ++i)
-			ListCommonFactors[0][i].coefficient *= -1;
+			ListCommonFactors[0][i].coefficient.invert();
 	}
 
 	ListCommonFactors.close();
@@ -4978,9 +5092,9 @@ static polynomial GetMonomialsDirector(wstring pol, bool changx)
 }
 
 // traduce un polinomio senza parentesi
-static factor GetMonomials(wstring pol)
+static factor<big> GetMonomials(wstring pol)
 {
-	factor out;
+	factor<big> out;
 	if (pol.empty()) return {};
 	if (!issign(pol.at(0))) pol = L'+' + pol;
 	for (int i = pol.size() - 1; i >= 0; --i) if (issign(pol.at(i))) {
@@ -4989,7 +5103,7 @@ static factor GetMonomials(wstring pol)
 		part.erase(0, i);
 
 		// calcolo segno
-		monomial mono{ 1, tensor<int>(Variables.size(), 0) };
+		monomial<big> mono{ 1, tensor<int>(Variables.size(), 0) };
 		if (part.at(0) == L'-') mono.coefficient = -1;
 		part.erase(0, 1);
 
@@ -5040,7 +5154,7 @@ static factor GetMonomials(wstring pol)
 
 // calcola le posizioni delle variabili di un polinomio a più variabili
 static tensor<tensor<long double>> FromPolynomialToPos(
-	factor vect,
+	factor<> vect,
 	int& StartIndex,
 	tensor<int>& CorrectSizes,
 	tensor<int>& VDirectorTerm,
@@ -5163,7 +5277,8 @@ static tensor<tensor<long double>> FromPolynomialToPos(
 }
 
 // somma un fattore di un polinomio
-static factor PolynomialSum(factor vect)
+template<typename T_int = long double>
+static factor<T_int> PolynomialSum(factor<T_int> vect)
 {
 
 	// ricerca di monomi simili
@@ -5185,21 +5300,22 @@ static factor PolynomialSum(factor vect)
 		if (vect[i].coefficient == 0) vect[i].exp.clear();
 
 	// rimozione
-	auto it = remove(vect.begin(), vect.end(), monomial{ 0, {} });
+	auto it = remove(vect.begin(), vect.end(), monomial<T_int>{ 0, {} });
 	vect.erase(it, vect.end());
 
 	return vect;
 }
 
 // moltiplica un polinomio (inverso della scomposizione)
-static factor PolynomialMultiply(polynomial Polynomial)
+template<typename T_int = long double>
+static factor<T_int> PolynomialMultiply(polynomial<T_int> Polynomial)
 {
 	if (Polynomial.empty()) return { {1, tensor(Variables.size(), 0)} };
 	Polynomial.open();
 	while (Polynomial > 1) {
 
-		monomial temp;
-		factor Temp;
+		monomial<T_int> temp;
+		factor<T_int> Temp;
 		for (auto A : Polynomial[0])
 			for (auto B : Polynomial[1]) {
 				temp.coefficient = A.coefficient * B.coefficient;
@@ -5217,8 +5333,8 @@ static factor PolynomialMultiply(polynomial Polynomial)
 // esegue la divisione tra polinomi
 static void PolynomialDivide
 (
-	FACTOR dividend, FACTOR divisor,
-	FACTOR& quotient, FACTOR& rest
+	FACTOR<> dividend, FACTOR<> divisor,
+	FACTOR<>& quotient, FACTOR<>& rest
 )
 {
 
@@ -5248,7 +5364,7 @@ static void PolynomialDivide
 		dividend = V1converter(PolynomialSum, dividend + divide);
 		dividend.complete(deg);
 		dividend.sort();
-		quotient << MONOMIAL{ deg - _deg, rest_element };
+		quotient << MONOMIAL<>{ deg - _deg, rest_element };
 	}
 	rest = dividend;
 
@@ -5266,11 +5382,11 @@ static void PolynomialDivide
 #pragma region Techniques
 
 // raccoglimento totale
-static polynomial Total(factor vect)
+static polynomial<> Total(factor<> vect)
 {
 	
 	// filtro per tensori con più di un termine
-	polynomial output;
+	polynomial<> output;
 	output << vect;
 	if (vect <= 1) return output;
 
@@ -5286,7 +5402,7 @@ static polynomial Total(factor vect)
 	}
 	if (abs(GCD) != 1 or positive_min) {
 		output.clear();
-		output << factor{ {(long double)GCD, exponents} };
+		output << factor<>{ {(long double)GCD, exponents} };
 		for (int i = 0; i < vect; ++i) {
 			vect[i].coefficient /= GCD;
 			for (int j = 0; j < Variables.size(); ++j) vect[i].exp[j] -= exponents[j];
@@ -5296,30 +5412,30 @@ static polynomial Total(factor vect)
 	// totale
 	if (abs(GCD) != 1 or positive_min) {
 		output.clear();
-		output << factor{ {(long double)GCD, exponents} } << vect;
+		output << factor<>{ {(long double)GCD, exponents} } << vect;
 		return output;
 	}
 	return { vect };
 }
 
 // raccoglimento parziale
-static polynomial Partial(factor vect)
+static polynomial<> Partial(factor<> vect)
 {
 
 	// filtro tensori a quattro termini
-	polynomial outp;
+	polynomial<> outp;
 	outp << vect;
 	if (vect != 4) return outp;
 	tensor<int> null(Variables.size(), 0);
 
 	// riassegnazione e dichiarazioni
-	factor part_1{ vect[0], vect[1] };
-	factor part_2{ vect[2], vect[3] };
+	factor<> part_1{ vect[0], vect[1] };
+	factor<> part_2{ vect[2], vect[3] };
 	auto Part1{ Total(part_1) };
 	auto Part2{ Total(part_2) };
-	if (PolynomialSum(Part1.last() + Part2.last()).empty()) {
+	if (PolynomialSum<long double>(Part1.last() + Part2.last()).empty()) {
 		if (Part1 == 1) swap(Part1, Part2);
-		Part2 >> factor{ { -1, null } };
+		Part2 >> factor<>{ { -1, null } };
 		for (int i = 0; i < Part2[1]; ++i) Part2[1][i].coefficient *= -1;
 	}
 	part_1 = Part1.last();
@@ -5328,18 +5444,18 @@ static polynomial Partial(factor vect)
 	outp.clear();
 
 	// riordinamento del totale
-	polynomial mon_1;
-	polynomial mon_2;
-	if (Part1 == 1) mon_1 << factor{ monomial{1, null} };
+	polynomial<> mon_1;
+	polynomial<> mon_2;
+	if (Part1 == 1) mon_1 << factor<>{ monomial<>{1, null} };
 	else mon_1 << Part1[0];
-	if (Part2 == 1) mon_2 << factor{ monomial{1, null} };
+	if (Part2 == 1) mon_2 << factor<>{ monomial<>{1, null} };
 	else mon_2 << Part2[0];
 	mon_1 << part_1;
 	mon_2 << part_2;
 
 	// riordinamento del parziale
 	part_1.SortByExponents();
-	part_2 = PolynomialSum(mon_1[0] + mon_2[0]);
+	part_2 = PolynomialSum<long double>(mon_1[0] + mon_2[0]);
 	part_2.SortByExponents();
 	outp << part_1 << part_2;
 
@@ -5347,11 +5463,11 @@ static polynomial Partial(factor vect)
 }
 
 // potenza di binomio
-static polynomial Binomial(factor vect)
+static polynomial<> Binomial(factor<> vect)
 {
 	
 	// filtro per tensori con più di un termine
-	polynomial outp;
+	polynomial<> outp;
 	outp << vect;
 	int exponent = vect.size() - 1, sign{ 1 };
 	if (exponent <= 1) return outp;
@@ -5425,19 +5541,19 @@ static polynomial Binomial(factor vect)
 
 	// composizione della potenza di binomio
 	outp.clear();
-	outp << factor{ {(long double)exponent, modifier} };
+	outp << factor<>{ {(long double)exponent, modifier} };
 	outp++;
-	outp[1] << monomial{ Sq_A, Aexps } << monomial{ sign * Sq_B, Bexps };
+	outp[1] << monomial<>{ Sq_A, Aexps } << monomial<>{ sign * Sq_B, Bexps };
 
 	return outp;
 }
 
 // trinomio speciale
-static polynomial Trinomial(factor vect)
+static polynomial<> Trinomial(factor<> vect)
 {
 
 	// filtro per tensori di tre termini
-	polynomial outp;
+	polynomial<> outp;
 	outp << vect;
 	if (vect != 3) return outp;
 	vect.SortByDegree();
@@ -5479,8 +5595,8 @@ static polynomial Trinomial(factor vect)
 
 	// composizione del trinomio scomposto
 	outp = { {}, {} };
-	outp[0] << monomial{ -I * firstX, Cexps } << monomial{ (long double)I, Aexps };
-	outp[1] << monomial{ -J * secondX, Cexps } << monomial{ (long double)J, Aexps };
+	outp[0] << monomial<>{ -I * firstX, Cexps } << monomial<>{ (long double)I, Aexps };
+	outp[1] << monomial<>{ -J * secondX, Cexps } << monomial<>{ (long double)J, Aexps };
 	outp[0].SortByExponents();
 	outp[1].SortByExponents();
 
@@ -5488,11 +5604,11 @@ static polynomial Trinomial(factor vect)
 }
 
 // differenza di cubi (presto diventerà differenza di potenze)
-static polynomial SquareDifference(factor vect)
+static polynomial<> SquareDifference(factor<> vect)
 {
 
 	// filtro per tensori di due termini
-	polynomial outp;
+	polynomial<> outp;
 	outp << vect;
 	if (vect != 2) return outp;
 
@@ -5515,10 +5631,10 @@ static polynomial SquareDifference(factor vect)
 
 	// composizione di somma e differenza
 	outp = { {}, {} };
-	outp[0] << monomial{ +sqrt(fabs(vect[1].coefficient)), Bexps };
-	outp[0] << monomial{ +sqrt(fabs(vect[0].coefficient)), Aexps };
-	outp[1] << monomial{ +sqrt(fabs(vect[1].coefficient)), Bexps };
-	outp[1] << monomial{ -sqrt(fabs(vect[0].coefficient)), Aexps };
+	outp[0] << monomial<>{ +sqrt(fabs(vect[1].coefficient)), Bexps };
+	outp[0] << monomial<>{ +sqrt(fabs(vect[0].coefficient)), Aexps };
+	outp[1] << monomial<>{ +sqrt(fabs(vect[1].coefficient)), Bexps };
+	outp[1] << monomial<>{ -sqrt(fabs(vect[0].coefficient)), Aexps };
 	if (Sign_A) {
 		outp[1][0].coefficient *= -1;
 		outp[1][1].coefficient *= -1;
@@ -5528,11 +5644,11 @@ static polynomial SquareDifference(factor vect)
 }
 
 // scomposizione con ruffini
-static polynomial Ruffini(factor vect)
+static polynomial<> Ruffini(factor<> vect)
 {
 
 	// filtro per tensori con più di un termine
-	polynomial output;
+	polynomial<> output;
 	output << vect;
 	if (vect < 2) return output;
 	vect.SortByExponents();
@@ -5605,8 +5721,8 @@ static polynomial Ruffini(factor vect)
 			if (SetRoot != 0) {
 				output.clear();
 				output++;
-				output[0] << monomial{ 1, DirectorSeq };
-				output[0] << monomial{ -(long double)SetRoot, KnownSeq };
+				output[0] << monomial<>{ 1, DirectorSeq };
+				output[0] << monomial<>{ -(long double)SetRoot, KnownSeq };
 				output++;
 				for (int i = 0; i < CorrectSize; ++i) {
 					if (position[CorrectSize - 1 - i] == 0) continue;
@@ -5622,7 +5738,7 @@ static polynomial Ruffini(factor vect)
 					}
 					for (int j = index; j < Variables.size(); ++j)
 						VariableExp[j] = (CorrectSize - 1 - i) * KnownSeq[j];
-					output[1] << monomial{ 
+					output[1] << monomial<>{
 						(long double)position[CorrectSize - i - 1], VariableExp
 					};
 				}
@@ -5636,11 +5752,11 @@ static polynomial Ruffini(factor vect)
 }
 
 // completamento del quadrato
-static polynomial CompleteTheSquare(factor vect)
+static polynomial<> CompleteTheSquare(factor<> vect)
 {
 
 	// filtro per tensori con tre termini
-	polynomial output;
+	polynomial<> output;
 	output << vect;
 	if (vect != 3) return output;
 	vect.SortByDegree();
@@ -5664,7 +5780,7 @@ static polynomial CompleteTheSquare(factor vect)
 	}
 
 	// dichiarazioni
-	monomial DiffSquare, Diffneg;
+	monomial<> DiffSquare, Diffneg;
 	for (int i = 0; i < Variables.size(); ++i)
 		DiffSquare.exp << A.exp[i] / 4 + B.exp[i] / 4;
 	int middleterm{ 2 * (int)Sq_A * (int)Sq_B }, sign;
@@ -5695,18 +5811,18 @@ static polynomial CompleteTheSquare(factor vect)
 	output[0].clear();
 	output[1].clear();
 
-	output[0] << monomial{ Sq_A, A.exp } << DiffSquare << monomial{ Sq_B, B.exp };
-	output[1] << monomial{ Sq_A, A.exp } << Diffneg << monomial{ Sq_B, B.exp };
+	output[0] << monomial<>{ Sq_A, A.exp } << DiffSquare << monomial<>{ Sq_B, B.exp };
+	output[1] << monomial<>{ Sq_A, A.exp } << Diffneg << monomial<>{ Sq_B, B.exp };
 
 	return output;
 }
 
 // quadrato di trinomio
-static polynomial TrinomialSquare(factor vect)
+static polynomial<> TrinomialSquare(factor<> vect)
 {
 
 	// filtro per tensori con 5 o 6 termini
-	polynomial output;
+	polynomial<> output;
 	output << vect;
 	if (vect != 5 and vect != 6) return output;
 
@@ -5755,23 +5871,23 @@ static polynomial TrinomialSquare(factor vect)
 
 		// composizione del quadrato di trinomio
 		output.clear();
-		output << factor{ { 2, modifier } };
+		output << factor<>{ { 2, modifier } };
 		output++;
-		output[1] << monomial{ A, vect[2].exp };
-		output[1] << monomial{ B, vect[3].exp };
-		output[1] << monomial{ C, vect[4].exp };
+		output[1] << monomial<>{ A, vect[2].exp };
+		output[1] << monomial<>{ B, vect[3].exp };
+		output[1] << monomial<>{ C, vect[4].exp };
 	}
 	else if (vect == 6) {
 
 		// ricerca dei quadrati
-		factor squares;
+		factor<> squares;
 		for (int i = 0; i < 6; ++i) if (vect[i].IsSquare()) squares << vect[i];
 		if (squares < 3) return output;
 		tensor<int> _pos{1, 2, 2};
 		int IndexAccesser{ 2 };
 
 		// ricerca dei quadrati corretti
-		monomial A, B, C;
+		monomial<> A, B, C;
 		bool AB2, AC2, BC2;
 		bool start{ true };
 		while (IndexAccesser >= 0) {
@@ -5791,14 +5907,14 @@ static polynomial TrinomialSquare(factor vect)
 			_pos = backup;
 
 			// // controllo quadrati
-			factor NewSquares(3);
+			factor<> NewSquares(3);
 			for (int i = 0; i < 3; ++i) NewSquares[i] = squares[_pos[i] - 1];
 
 			A = NewSquares[0].Root(2);
 			B = NewSquares[1].Root(2);
 			C = NewSquares[2].Root(2);
 
-			monomial AB, AC, BC;
+			monomial<> AB, AC, BC;
 			AB.coefficient = 2 * A.coefficient * B.coefficient;
 			AC.coefficient = 2 * A.coefficient * C.coefficient;
 			BC.coefficient = 2 * B.coefficient * C.coefficient;
@@ -5809,7 +5925,7 @@ static polynomial TrinomialSquare(factor vect)
 				BC.exp << B.exp[i] + C.exp[i];
 			}
 
-			monomial ABterm, ACterm, BCterm;
+			monomial<> ABterm, ACterm, BCterm;
 			for (auto v : vect) {
 
 				if (v == AB) ABterm = v;
@@ -5823,7 +5939,7 @@ static polynomial TrinomialSquare(factor vect)
 				if (v2 == AC) ACterm = v;
 				if (v2 == BC) BCterm = v;
 			}
-			if (ABterm == monomial{} or ACterm == monomial{} or BCterm == monomial{})
+			if (ABterm == monomial<>{} or ACterm == monomial<>{} or BCterm == monomial<>{})
 				continue;
 			// //
 
@@ -5845,7 +5961,7 @@ static polynomial TrinomialSquare(factor vect)
 		if (AC2) B.coefficient *= -1;
 		if (AB2) C.coefficient *= -1;
 		output.clear();
-		output << factor{ { 2, modifier } };
+		output << factor<>{ { 2, modifier } };
 		output++;
 		output[1] << A << B << C;
 	}
@@ -5860,7 +5976,7 @@ static polynomial TrinomialSquare(factor vect)
 
 // funzione per calcolare il complementario
 // di un polinomio rispetto a un fattore
-static FACTOR Complementary(POLYNOMIAL Polynomial, FACTOR factor, int exp)
+static FACTOR<> Complementary(POLYNOMIAL<> Polynomial, FACTOR<> factor, int exp)
 {
 
 	// caso di eccezione
@@ -5891,7 +6007,7 @@ static FACTOR Complementary(POLYNOMIAL Polynomial, FACTOR factor, int exp)
 
 // funzione per semplificare numeratore e denominatore
 static void Simplify(
-	polynomial& num, polynomial& den,
+	polynomial<>& num, polynomial<>& den,
 	int& ncoeff, int& dcoeff, bool& changed
 )
 {
@@ -5978,9 +6094,9 @@ static void Simplify(
 	num.close();
 	den.close();
 
-	for (int i = 0; i < num.size(); ++i) if (num[i] == factor({ monomial({1, null}) }))
+	for (int i = 0; i < num.size(); ++i) if (num[i] == factor<>({ monomial<>({1, null}) }))
 		num.erase(num.begin() + i);
-	for (int i = 0; i < den.size(); ++i) if (den[i] == factor({ monomial({1, null}) }))
+	for (int i = 0; i < den.size(); ++i) if (den[i] == factor<>({ monomial<>({1, null}) }))
 		den.erase(den.begin() + i);
 }
 
@@ -6014,7 +6130,7 @@ static int Determinant(tensor<tensor<int>> mx)
 // con il metodo di newton-raphson
 static void Approximator(tensor<long double>& Equation, long double& root)
 {
-	FACTOR equation(Equation.size());
+	FACTOR<> equation(Equation.size());
 	for (int i = Equation.size() - 1; i >= 0; --i) {
 		equation[i].coefficient = Equation[i];
 		equation[i].degree = Equation.size() - i - 1;
@@ -6065,7 +6181,7 @@ static void Approximator(tensor<long double>& Equation, long double& root)
 }
 
 // funzione per gestire un equazione (per le c.e.)
-static tensor<wstring> ExistenceConditions(factor Equation)
+static tensor<wstring> ExistenceConditions(factor<> Equation)
 {
 	// caso nullo
 	if (Equation.empty()) return {};
@@ -6101,9 +6217,9 @@ static tensor<wstring> ExistenceConditions(factor Equation)
 		}
 		Equation[0].coefficient = 1;
 		if (sign) Equation[1].coefficient *= -1;
-		wstring push{ factor{ Equation[0] }.str() + L" != " };
+		wstring push{ factor<>{ Equation[0] }.str() + L" != " };
 		if (!sign) push += L'-';
-		push += factor{ Equation[1] }.str();
+		push += factor<>{ Equation[1] }.str();
 		if (coeff != 1) push += L" / " + to_wstring(coeff);
 		answer << push;
 	}
@@ -6144,31 +6260,31 @@ static tensor<wstring> ExistenceConditions(factor Equation)
 
 			// radici reali
 			if (delta_4 >= 0) {
-				_push = factor({ monomial({ 1, VDirectorSeq[0] }) }).str() + L" != "
+				_push = factor<>({ monomial<>({ 1, VDirectorSeq[0] }) }).str() + L" != "
 					+ to_wstring(half_root_sum + sqrt(delta_4));
 				if (VKnownSeq[0] != tensor<int>(Variables.size(), 0))
-					_push += factor({ monomial({ 1, VKnownSeq[0] }) }).str();
+					_push += factor<>({ monomial<>({ 1, VKnownSeq[0] }) }).str();
 				answer << _push;
 
-				_push = factor({ monomial({ 1, VDirectorSeq[0] }) }).str() + L" != "
+				_push = factor<>({ monomial<>({ 1, VDirectorSeq[0] }) }).str() + L" != "
 					+ to_wstring(half_root_sum - sqrt(delta_4));
 				if (VKnownSeq[0] != tensor<int>(Variables.size(), 0))
-					_push += factor({ monomial({ 1, VKnownSeq[0] }) }).str();
+					_push += factor<>({ monomial<>({ 1, VKnownSeq[0] }) }).str();
 				answer << _push;
 			}
 
 			// radici complesse
 			else {
-				_push = factor({ monomial({ 1, VDirectorSeq[0] }) }).str() + L" != "
+				_push = factor<>({ monomial<>({ 1, VDirectorSeq[0] }) }).str() + L" != "
 					+ complex(half_root_sum, sqrt(-delta_4)).c_str();
 				if (VKnownSeq[0] != tensor<int>(Variables.size(), 0))
-					_push += factor({ monomial({ 1, VKnownSeq[0] }) }).str();
+					_push += factor<>({ monomial<>({ 1, VKnownSeq[0] }) }).str();
 				answer << _push;
 
-				_push = factor({ monomial({ 1, VDirectorSeq[0] }) }).str() + L" != "
+				_push = factor<>({ monomial<>({ 1, VDirectorSeq[0] }) }).str() + L" != "
 					+ complex(half_root_sum, -sqrt(-delta_4)).c_str();
 				if (VKnownSeq[0] != tensor<int>(Variables.size(), 0))
-					_push += factor({ monomial({ 1, VKnownSeq[0] }) }).str();
+					_push += factor<>({ monomial<>({ 1, VKnownSeq[0] }) }).str();
 				answer << _push;
 			}
 			return answer;
@@ -6178,11 +6294,11 @@ static tensor<wstring> ExistenceConditions(factor Equation)
 		long double root{};
 		Approximator(equation[0], root);
 		auto push{
-			factor({ monomial({ 1, VDirectorSeq[0] }) }).str()
+			factor<>({ monomial<>({ 1, VDirectorSeq[0] }) }).str()
 			+ L" != " + to_wstring(root)
 		};
 		if (VKnownSeq[0] != tensor<int>(Variables.size(), 0))
-			push += factor({ monomial({ 1, VKnownSeq[0] }) }).str();
+			push += factor<>({ monomial<>({ 1, VKnownSeq[0] }) }).str();
 		answer << push;
 	}
 }
@@ -6191,7 +6307,7 @@ static tensor<wstring> ExistenceConditions(factor Equation)
 static void PrintFraction
 (
 	int NC, int DC, int& LINE, bool WritePlus,
-	polynomial numerator, polynomial denominator
+	polynomial<> numerator, polynomial<> denominator
 )
 {
 
@@ -6213,8 +6329,8 @@ static void PrintFraction
 	if (numerator == 1) if (numerator[0] == 1)
 		if (numerator[0][0].exp == null)
 			root = numerator[0][0].coefficient;
-	if (numerator.empty()) numerator = polynomial(
-		{ factor({ monomial({1, null}) }) }
+	if (numerator.empty()) numerator = polynomial<>(
+		{ factor<>({ monomial<>({1, null}) }) }
 	);
 
 	// calcolo coefficienti e correzione
@@ -6244,7 +6360,7 @@ static void PrintFraction
 	if (denominator >= 1) if (denominator[0] == 1)
 		if (denominator[0][0].exp == null) HasACoefficient = true;
 	if (HasACoefficient) denominator[0][0].coefficient *= CORRECTION_RATIO;
-	else denominator >> factor{ monomial{CORRECTION_RATIO, null} };
+	else denominator >> factor<>{ monomial<>{CORRECTION_RATIO, null} };
 
 	// calcolo GCD e segni
 	int gcd{ Gcd(NC, DC) };
@@ -6256,13 +6372,13 @@ static void PrintFraction
 	denominator[0][0].coefficient /= Gcd;
 	if (root != 0) Root /= Gcd;
 	else numerator[0][0].coefficient /= Gcd;
-	if (denominator[0][0] == monomial{1, null}) --denominator;
-	else if (denominator[0][0] == monomial{-1, null}) {
+	if (denominator[0][0] == monomial<>{1, null}) --denominator;
+	else if (denominator[0][0] == monomial<>{-1, null}) {
 		--denominator;
 		if (root == 0) numerator[0][0].coefficient *= -1;
 		else Root *= -1;
 	}
-	if (root == 0) if (numerator[0][0] == monomial{1, null}) --numerator;
+	if (root == 0) if (numerator[0][0] == monomial<>{1, null}) --numerator;
 	if (root != 0) num_ = to_wstring(NC * Root);
 
 	// calcolo numeratore
@@ -6736,7 +6852,7 @@ static void Loop(
 }
 
 // programma per scomporre i polinomi
-static polynomial DecompPolynomial(switchcase& argc, wstring Polynomial)
+static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 {
 	setlocale(LC_ALL, "");
 	SetConsoleOutputCP(CP_UTF8);
@@ -6746,7 +6862,7 @@ static polynomial DecompPolynomial(switchcase& argc, wstring Polynomial)
 
 	// variabili
 	wstring pol;
-	polynomial HT;
+	polynomial<> HT;
 	bool empty{ true }, Xout{ false }, input { Polynomial.empty() };
 
 	// istruzioni
@@ -6820,10 +6936,24 @@ static polynomial DecompPolynomial(switchcase& argc, wstring Polynomial)
 		}
 
 		// somma
-		HT = GetMonomialsAssister(Polynomial);
-		tensor<int> null(Variables.size());
+		polynomial<> BackT, Back_T{ HT };
+		tensor<int> null;
+		int size;
+		auto bigHT{ GetMonomialsAssister(Polynomial) };
+		HT = FromBigToDefault(bigHT);
+		if (HT[0][0].exp[0] == -2) {
+			SetConsoleTextAttribute(hConsole, 2);
+			wcout << L"questo è il polinomio: " << bigHT.str() << L'\n';
+			SetConsoleTextAttribute(hConsole, 64);
+			wcout << L"il polinomio è troppo grande.";
+			SetConsoleTextAttribute(hConsole, 15);
+			wcout << L'\n';
+			goto EndOfDecomposition;
+		}
+
+		null(Variables.size());
 		null[0] = -1;
-		if (HT == polynomial{ factor{} }) Polynomial = L"0";
+		if (HT == polynomial<>{ factor<>{} }) Polynomial = L"0";
 		else if (HT == 1) Polynomial = HT[0].str();
 		else Polynomial = HT.str();
 		if (BOOLALPHA) ElabExponents(Polynomial);
@@ -6836,8 +6966,7 @@ static polynomial DecompPolynomial(switchcase& argc, wstring Polynomial)
 		}
 
 		// caso nullo
-		polynomial BackT, Back_T{ HT };
-		int size = HT.size();
+		size = HT.size();
 		if (Polynomial == L"0") {
 			SetConsoleTextAttribute(hConsole, 15);
 			wcout << "il polinomio non è scomponibile\n";
@@ -6845,9 +6974,9 @@ static polynomial DecompPolynomial(switchcase& argc, wstring Polynomial)
 		}
 
 		// raccoglimento totale
+		Back_T = HT;
 		HT.clear();
 		for (auto polydata : Back_T) HT += Total(polydata);
-		Back_T = HT;
 		Polynomial = HT.str();
 		if (HT != size and input) {
 			SetConsoleTextAttribute(hConsole, 12);
@@ -6907,7 +7036,7 @@ static polynomial DecompPolynomial(switchcase& argc, wstring Polynomial)
 				}
 				BackT = SquareDifference(a);
 				for (auto b : BackT) {
-					if (extend > 1) HT << factor{ {(long double)extend, null} };
+					if (extend > 1) HT << factor<>{ {(long double)extend, null} };
 					HT << b;
 				}
 				extend = 1;
@@ -6940,7 +7069,7 @@ static polynomial DecompPolynomial(switchcase& argc, wstring Polynomial)
 					break;
 				}
 				for (auto b : BackT) {
-					if (extend > 1) HT << factor{ {(long double)extend, null} };
+					if (extend > 1) HT << factor<>{ {(long double)extend, null} };
 					HT << b;
 				}
 				extend = 1;
@@ -7079,7 +7208,8 @@ static void DecompFraction(switchcase& argc)
 				SetConsoleTextAttribute(hConsole, 15);
 			}
 			if (!No1 and !No2)
-				if (GetMonomialsAssister(denominator) == polynomial{ factor{} })
+				if (GetMonomialsAssister(denominator)
+					== polynomial<big>{ factor<big>{} })
 				{
 					No2 = true;
 					SetConsoleTextAttribute(hConsole, 4);
@@ -7141,14 +7271,14 @@ static void DecompFraction(switchcase& argc)
 
 		// caso con più variabili
 		bool IsAModifier{ false }, HasMoreVariables{ false };
-		tensor<POLYNOMIAL> denominators;
-		POLYNOMIAL complementaries;
+		tensor<POLYNOMIAL<>> denominators;
+		POLYNOMIAL<> complementaries;
 		int index{}, size{}, Det;
 		tensor<tensor<int>> Matrix;
 		tensor<int> results;
 		tensor<double> roots;
-		FACTOR Quotient;
-		FACTOR Rest;
+		FACTOR<> Quotient;
+		FACTOR<> Rest;
 		if (N_ != ToXV(NScomp) or D_ != ToXV(DScomp)) {
 			HasMoreVariables = true;
 			goto PrintStatement;
@@ -7165,7 +7295,7 @@ static void DecompFraction(switchcase& argc)
 			if (IsAModifier) for (int j = DScomp[i - 1][0].coefficient; j > 0; --j)
 			{
 				denominators++;
-				if (j > 1) denominators[index] << FACTOR{ {-1, (long double)j} };
+				if (j > 1) denominators[index] << FACTOR<>{ {-1, (long double)j} };
 				denominators[index] << DScomp[i];
 				index++;
 				complementaries << Complementary(DScomp, DScomp[i], j);
@@ -7175,7 +7305,7 @@ static void DecompFraction(switchcase& argc)
 			else if (DScomp[i] == 1) for (int j = DScomp[i][0].degree; j > 0; --j)
 			{
 				denominators++;
-				denominators[index] << FACTOR{ {j, 1} };
+				denominators[index] << FACTOR<>{ {j, 1} };
 				index++;
 				auto NewScomp{ DScomp };
 				NewScomp.erase(NewScomp.begin() + i);
@@ -7316,7 +7446,7 @@ static void DecompFraction(switchcase& argc)
 			(
 				// frazione semplificata
 
-				NScomp == POLYNOMIAL({ FACTOR({ MONOMIAL(0, 1) }) })
+				NScomp == POLYNOMIAL<>({ FACTOR<>({ MONOMIAL<>(0, 1) }) })
 				and
 				NScomp == DScomp
 				and
@@ -7328,7 +7458,7 @@ static void DecompFraction(switchcase& argc)
 			(
 				// denominatore assente
 				
-				DScomp == POLYNOMIAL({ FACTOR({ MONOMIAL(0, 1) }) })
+				DScomp == POLYNOMIAL<>({ FACTOR<>({ MONOMIAL<>(0, 1) }) })
 				and
 				!_Dchangx
 				and
@@ -7366,8 +7496,8 @@ static void DecompFraction(switchcase& argc)
 
 			// caso di frazione semplificata ma non scomposta
 			bool NewPrint{ false };
-			polynomial TopPart = HasMoreVariables ? N_ : ToXV(NScomp);
-			polynomial BottomPart = HasMoreVariables ? D_ : ToXV(DScomp);
+			polynomial<> TopPart = HasMoreVariables ? N_ : ToXV(NScomp);
+			polynomial<> BottomPart = HasMoreVariables ? D_ : ToXV(DScomp);
 			if (!BottomPart.empty()) {
 				if (BottomPart > 1 or BottomPart[0] > 1 or
 					BottomPart[0][0].exp != tensor<int>(Variables.size(), 0))
@@ -7400,7 +7530,7 @@ static void DecompFraction(switchcase& argc)
 					lines,
 					false,
 					TopPart,
-					{ { monomial{ 1, tensor<int>(Variables.size(), 0) } } }
+					{ { monomial<>{ 1, tensor<int>(Variables.size(), 0) } } }
 				);
 				wcout << L"\n\n";
 			}
@@ -7415,8 +7545,8 @@ static void DecompFraction(switchcase& argc)
 					DCOEFF,
 					lines,
 					false,
-					{ { monomial{ 1, tensor<int>(Variables.size(), 0) } } },
-					{ { monomial{ 1, tensor<int>(Variables.size(), 0) } } }
+					{ { monomial<>{ 1, tensor<int>(Variables.size(), 0) } } },
+					{ { monomial<>{ 1, tensor<int>(Variables.size(), 0) } } }
 				);
 				wcout << L"\n\n";
 			}
@@ -7467,7 +7597,7 @@ static void DecompFraction(switchcase& argc)
 
 		// output polinomio di resto
 		if (!skip) for (auto a : Quotient) {
-			auto rest{ POLYNOMIAL({ FACTOR({a}) }) };
+			auto rest{ POLYNOMIAL<>({ FACTOR<>({a}) }) };
 			if (a.coefficient == 0) continue;
 
 			// output normale
@@ -7513,11 +7643,11 @@ static void DecompFraction(switchcase& argc)
 					1,
 					lines,
 					true,
-					{ { monomial{
+					{ { monomial<>{
 						a.coefficient,
 						tensor<int>(Variables.size(), 0) 
 					} } },
-					{ { monomial{1, tensor<int>(Variables.size(), 0)} } }
+					{ { monomial<>{1, tensor<int>(Variables.size(), 0)} } }
 				);
 
 				// avanzamento cursore
@@ -7550,12 +7680,10 @@ static void DecompFraction(switchcase& argc)
 // fine del codice
 // file natvis 56 righe
 
-/////////////////////////////////////////////////////////////////////////////////////////////////
-// \add bignumbers																			   //
-// ...																						   //
+/////////////////////////////////////////////////////////////////////////////////////////////////																		   //
+// \debug																					   //
 // \add graph: / | \ _ - . *, zoom, traslation, max, min, polynomial 1 variable				   //
 // \add complex numbers -> [C.E.]															   //
-// ...																						   //
 // ...																						   //
 // \change -> atkin																			   //
 // \add matrices L-U																		   //
