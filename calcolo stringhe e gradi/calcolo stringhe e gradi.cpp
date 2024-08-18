@@ -24,7 +24,7 @@
 
 // Descrizione programma ::
 	/*                                                          |
-	*  Strings ZP[0.7.7].cpp: il programma calcola singola e\o  |
+	*  Strings ZP[0.7.8].cpp: il programma calcola singola e\o  |
 	*  doppia scomposizione di alcuni interi in una stringa o   |
 	*  il contrario, i numeri primi, cifre e divisori, scompone |
 	*  anche i polinomi e le frazioni algebriche                |
@@ -795,20 +795,12 @@ public:
 
 	long double Number()
 	{
-		// calcolo limiti
-		const constexpr long double max_long_double{
-			numeric_limits<long double>::max()
-		};
-		const constexpr long double min_long_double{
-			numeric_limits<long double>::lowest()
-		};
 		ptrdiff_t val{};
 
 		// calcolo parte intera
 		for (int i = 0; i < Integer; ++i) {
 			val += Integer[i] * pow(10, Integer.size() - i - 1);
-			if (val > max_long_double or val < min_long_double)
-				return numeric_limits<long double>::quiet_NaN();
+			if (val <= -2'147'483'647 or val >= 2'147'483'647) return nan("");
 		}
 		long double res = val;
 		
@@ -941,12 +933,12 @@ public:
 	}
 	big& operator++()
 	{
-		*this = *this + big(1);
+		*this = *this + 1;
 		return *this;
 	}
 	big& operator++(int)
 	{
-		*this = *this + big(1);
+		*this = *this + 1;
 		return *this;
 	}
 
@@ -999,19 +991,19 @@ public:
 	}
 	big& operator--()
 	{
-		*this = *this - big(1);
+		*this = *this - 1;
 		return *this;
 	}
 	big& operator--(int)
 	{
-		*this = *this - big(1);
+		*this = *this - 1;
 		return *this;
 	}
 
 	// moltiplicazione
 	big operator*(const big& value) const
 	{
-		if (*this == big(0) or value == big(0)) return big(0);
+		if (*this == 0 or value == 0) return 0;
 		big Val = value;
 		big This = *this;
 		Val.shift();
@@ -1067,7 +1059,7 @@ public:
 	// divisione intera
 	big operator/(const big& value) const
 	{
-		if (value == big(0)) throw invalid_argument("Division by zero!");
+		if (value == 0) throw invalid_argument("Division by zero!");
 
 		big This = *this;
 		big result, current;
@@ -1098,6 +1090,37 @@ public:
 	big& operator/=(const big& value)
 	{
 		*this = *this / value;
+		return *this;
+	}
+
+	// modulo
+	big operator%(const big& value) const
+	{
+		if (value == 0) throw invalid_argument("Modulo by zero!");
+
+		// segni
+		big This = *this;
+		big Val = value;
+		This.sign = POS;
+		Val.sign = POS;
+
+		// calcolo
+		while (This >= Val) {
+			big temp = Val;
+			big factor = 1;
+
+			while (temp * 10 <= This) {
+				factor *= 10;
+				temp *= 10;
+			}
+			This -= temp;
+		}
+
+		return This;
+	}
+	big& operator%=(const big& value)
+	{
+		*this = *this % value;
 		return *this;
 	}
 
@@ -1367,7 +1390,7 @@ public:
 	{
 		wstring polynomial;
 		tensor<int> null(size, 0);
-		for (auto data : *this) if constexpr (is_same_v<T_int, long double>) {
+		for (auto data : *this) {
 
 			// caso nullo
 			if (data.coefficient == 0) continue;
@@ -1375,8 +1398,14 @@ public:
 			// aggiunta coefficiente
 			wstring Monomial;
 			Monomial = data.coefficient > 0 ? L'+' : L'-';
-			if (fabs(data.coefficient) != 1 or data.exp == null)
-				Monomial += to_wstring((int)fabs(data.coefficient));
+			if ((data.coefficient != 1 and data.coefficient != -1)
+				or data.exp == null)
+			{
+				if constexpr (is_same_v<T_int, long double>)
+					Monomial += to_wstring((int)fabs(data.coefficient));
+				else if constexpr (is_same_v<T_int, big>)
+					Monomial += data.coefficient.fabs().c_str(0).str();
+			}
 
 			// aggiunta variabili ed esponenti
 			for (int i = 0; i < Variables.size(); ++i) if (data.exp[i] != 0) {
@@ -2018,7 +2047,7 @@ static polynomial<> TrinomialSquare(factor<> vect);
 static FACTOR<> Complementary(POLYNOMIAL<> Polynomial, FACTOR<> factor, int exp);
 static void Simplify(
 	polynomial<>& num, polynomial<>& den,
-	int& ncoeff, int& dcoeff, bool& changed
+	int& ncoeff, int& dcoeff
 );
 static int Determinant(tensor<tensor<int>> mx);
 static void Approximator(tensor<long double>& Equation, long double& root);
@@ -2096,28 +2125,27 @@ static void DrawGraph(FACTOR<> funct, SHORT shiftX, SHORT shiftY, double zoom)
 	// output funzione
 	SetConsoleTextAttribute(hConsole, 4);
 	for (
-		double x = - WindowLenght * zoom - shiftX;
-		x <= WindowLenght * zoom - shiftX;
-		++x
+		double x = -WindowLenght / zoom - shiftX;
+		x <= WindowLenght / zoom - shiftX + 1;
+		x += 1 / zoom
 		)
 	{
 		// calcolo valori
-		char point;
-		double fx{}, dfx{};
+		double fx{};
 		for (int i = 0; i < funct; ++i)
-			fx -= funct[i].coefficient * intpow(x, funct[i].degree);
+			fx -= funct[i].coefficient * pow(x, funct[i].degree);
 		fx = round(fx / DIM);
-		point = L'*';
 
 		// calcolo valori con traslazione e zoom
 		short X{ (short)((x + shiftX) * zoom + WindowLenght + 1) };
 		short Y{ (short)((fx + shiftY) * zoom + WindowWidth + 1) };
-
+		
 		// output punto
 		if (Y > 0 and Y <= 2 * WindowWidth + 1 and
-			X > 0 and X <= 2 * WindowLenght + 1) {
+			X > 0 and X <= 2 * WindowLenght + 1)
+		{
 			SetConsoleCursorPosition(hConsole, { X, Y });
-			wcout << point;
+			wcout << L'*';
 		}
 	}
 	SetConsoleTextAttribute(hConsole, 15);
@@ -2128,44 +2156,49 @@ static void DrawGraph(FACTOR<> funct, SHORT shiftX, SHORT shiftY, double zoom)
 int main()
 {
 	//////////////////////////////////////////////////////////////////////////////////////////////
-	double zoom{ 1.5 };
-	COORD shift{ 13, 0 };
-	wstring str;
-	wcin >> str;
-	while(true) {
-		polynomial<> temp = FromBigToDefault(GetMonomialsAssister(str));
-		DrawGraph(To1V(temp[0]), shift.X, shift.Y, zoom);
-		char move;
-		do{
-			move = tolower(_getch());
-			switch (move) {
-			case 'a': shift.X--;
-				break;
-			case 'd': shift.X++;
-				break;
-			case 'w': shift.Y--;
-				break;
-			case 's': shift.Y++;
-				break;
-			case 'r':
-				shift = { 0, 0 };
-				zoom = 1;
-				break;
-			case '+': zoom *= 2;
-				break;
-			case '-': zoom /= 2;
-				break;
-			}
-		} while (
-			move != 'a' and
-			move != 'd' and
-			move != 's' and
-			move != 'w' and
-			move != 'r' and
-			!issign(move)
-			);
-		system("cls");
-	}
+	//bool Break{ false };
+	//double zoom{ 1 };
+	//COORD shift{ 0, 0 };
+	//wstring str;
+	//wcin >> str;
+	//while(true) {
+	//	polynomial<> temp = FromBigToDefault(GetMonomialsAssister(str));
+	//	DrawGraph(To1V(temp[0]), shift.X, shift.Y, zoom);
+	//	char move;
+	//	do{
+	//		move = tolower(_getch());
+	//		switch (move) {
+	//		case 'a': shift.X--;
+	//			break;
+	//		case 'd': shift.X++;
+	//			break;
+	//		case 'w': shift.Y--;
+	//			break;
+	//		case 's': shift.Y++;
+	//			break;
+	//		case 'r':
+	//			shift = { 0, 0 };
+	//			zoom = 1;
+	//			break;
+	//		case '+': zoom *= 1.3;
+	//			break;
+	//		case '-': zoom /= 1.3;
+	//			break;
+	//		case '\r': Break = true;
+	//			break;
+	//		}
+	//	} while (
+	//		move != 'a' and
+	//		move != 'd' and
+	//		move != 's' and
+	//		move != 'w' and
+	//		move != 'r' and
+	//		move != '\r' and
+	//		!issign(move)
+	//		);
+	//	system("cls");
+	//	if (Break) break;
+	//}
 	//////////////////////////////////////////////////////////////////////////////////////////////
 
 	setlocale(LC_ALL, "");
@@ -2220,7 +2253,7 @@ int main()
 #ifndef BETA
 				wcout << L' ';
 #endif
-				wcout << L"0.7.7 ";
+				wcout << L"0.7.8 ";
 #ifdef BETA
 				wcout << L"BETA ";
 #endif
@@ -2487,7 +2520,19 @@ static int Gcd(int A, int B)
 	return A;
 }
 
-// massimo comuner divisore tra più termini
+// massimo comune divisore tra due interi grandi
+static big Gcd(big A, big B)
+{
+	if (A < B) swap(A, B);
+	while (B != 0) {
+		big temp = B;
+		B = A % B;
+		A = temp;
+	}
+	return A;
+}
+
+// massimo comune divisore tra più termini
 template<typename T>static int Gcd(tensor<T> terms)
 {
 	int gcd{};
@@ -2503,17 +2548,6 @@ template<typename T>static int Gcd(tensor<T> terms)
 		}
 	}
 
-	// tensore di numeri grandi
-	else if constexpr (is_same_v<T, big>)
-	{
-		if (terms == 1) return terms[0].Number();
-		gcd = terms[0].Number();
-		for (auto term : terms) {
-			gcd = Gcd(gcd, term.Number());
-			if (gcd == 1) break;
-		}
-	}
-
 	// fattore
 	else if constexpr (is_same_v<T, MONOMIAL<>> or is_same_v<T, monomial<>>)
 	{
@@ -2525,6 +2559,18 @@ template<typename T>static int Gcd(tensor<T> terms)
 		}
 	}
 
+	return gcd;
+}
+
+// massimo comune divisore tra numeri molto grandi
+static big Gcd(tensor<big> terms)
+{
+	if (terms == 1) return terms[0];
+	auto gcd{ terms[0] };
+	for (auto term : terms) {
+		gcd = Gcd(gcd, term);
+		if (gcd == 1) break;
+	}
 	return gcd;
 }
 
@@ -4411,8 +4457,9 @@ balance:
 		if (PolynomialSyntaxDirector(element).empty()) continue;
 
 		bool exp{ element.size() > 1 and element.size() < 4 };
-		if (exp) if (element.at(0) == L'^') for (int i = 1; i < element.size(); ++i)
-			if (!isdigit(element.at(i))) return L"gli esponenti devono essere costanti";
+		if (exp) if (element.at(0) == L'^')
+			for (int i = 1; i < element.size(); ++i) if (!isdigit(element.at(i)))
+				return L"gli esponenti devono essere costanti";
 	}
 
 	return L"";
@@ -4426,7 +4473,7 @@ static wstring PolynomialSyntax(wstring pol)
 	if (pol.empty()) return L"il polinomio non può essere void";
 
 	// controllo caratteri ammessi
-	for (auto c : pol) if (!isalnum(c) and c != L'^' and !issign(c))
+	for (auto c : pol) if (!isalnum(c) and c != L'^' and c != L' ' and !issign(c))
 		return L"il polinomio presenta dei caratteri non ammessi";
 
 	// controllo segni
@@ -5148,11 +5195,11 @@ static polynomial<big> GetMonomialsDirector(wstring pol, bool changx)
 		Union[i] >> factor<big>({ monomial<big>({Coeff, null}) });
 		numbers << Coeff;
 	}
-	int gcd{ Gcd(numbers) };
-	if (abs(gcd) != 1)
-		for (int i = 0; i < Union; ++i) Union[i][0][0].coefficient /= gcd;
-	else if (gcd == -1)
+	auto gcd{ Gcd(numbers) };
+	if (gcd == -1)
 		for (int i = 0; i < Union; ++i) Union[i][0][0].coefficient.invert();
+	else if (gcd != 1)
+		for (int i = 0; i < Union; ++i) Union[i][0][0].coefficient /= gcd;
 
 	// ricerca fattori in comune
 	auto ListCommonFactors{ Union[0] };
@@ -6142,7 +6189,7 @@ static FACTOR<> Complementary(POLYNOMIAL<> Polynomial, FACTOR<> factor, int exp)
 // funzione per semplificare numeratore e denominatore
 static void Simplify(
 	polynomial<>& num, polynomial<>& den,
-	int& ncoeff, int& dcoeff, bool& changed
+	int& ncoeff, int& dcoeff
 )
 {
 	tensor<int> null(Variables.size(), 0);
@@ -6217,7 +6264,6 @@ static void Simplify(
 
 	// semplificazione coefficienti
 	int GCD{ Gcd(abs(ncoeff), abs(dcoeff)) };
-	changed = GCD != 1;
 	ncoeff /= GCD;
 	dcoeff /= GCD;
 	if (FindN >= 0) num[FindN][0].coefficient = 1;
@@ -7075,14 +7121,17 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		int size;
 		auto bigHT{ GetMonomialsAssister(Polynomial) };
 		HT = FromBigToDefault(bigHT);
-		if (HT[0][0].exp[0] == -2) {
-			SetConsoleTextAttribute(hConsole, 2);
-			wcout << L"questo è il polinomio: " << bigHT.str() << L'\n';
-			SetConsoleTextAttribute(hConsole, 64);
-			wcout << L"il polinomio è troppo grande.";
-			SetConsoleTextAttribute(hConsole, 15);
-			wcout << L'\n';
-			goto EndOfDecomposition;
+		if (HT > 1) if (HT[0] > 1) if (HT[0][0].exp[0] == -2) {
+			if (input) {
+				SetConsoleTextAttribute(hConsole, 2);
+				wcout << L"questo è il polinomio: " << bigHT.str() << L'\n';
+				SetConsoleTextAttribute(hConsole, 64);
+				wcout << L"il polinomio è troppo grande.";
+				SetConsoleTextAttribute(hConsole, 15);
+				wcout << L'\n';
+				goto EndOfDecomposition;
+			}
+			else return {};
 		}
 
 		null(Variables.size());
@@ -7295,6 +7344,7 @@ static void DecompFraction(switchcase& argc)
 		// input della frazione algebrica
 		wstring numerator, denominator;
 		bool No1{ false }, No2{ false }, skip{ false };
+	insert:
 		do {
 
 			// input
@@ -7341,16 +7391,22 @@ static void DecompFraction(switchcase& argc)
 				wcout << L"quella non è una frazione algebrica\n\a";
 				SetConsoleTextAttribute(hConsole, 15);
 			}
-			if (!No1 and !No2)
-				if (GetMonomialsAssister(denominator)
-					== polynomial<big>{ factor<big>{} })
-				{
-					No2 = true;
-					SetConsoleTextAttribute(hConsole, 4);
-					wcout << L"il denominatore non può essere nullo\n\a";
-					SetConsoleTextAttribute(hConsole, 15);
-				}
-			
+
+			// denominatore nullo
+			if (!No1 and !No2) if (GetMonomialsAssister(denominator)
+				== polynomial<big>{ factor<big>{} })
+			{
+				No2 = true;
+				SetConsoleTextAttribute(hConsole, 4);
+				wcout << L"il denominatore non può essere nullo\n\a";
+				SetConsoleTextAttribute(hConsole, 15);
+			}
+
+			// numeratore nullo
+			if (!No1 and !No2 and numerator != L"0")
+				if (GetMonomialsAssister(numerator)
+					== polynomial<big>{ factor<big>{} }) numerator = L"0";
+
 		} while (No1 or No2);
 		if (numerator == L"0") break;
 
@@ -7361,6 +7417,15 @@ static void DecompFraction(switchcase& argc)
 		auto savx{ Variables };
 		auto D_{ DecompPolynomial(use, denominator) };
 		
+		if (!(N_ and D_)) {
+			wcout << L'\n';
+			SetConsoleTextAttribute(hConsole, 64);
+			wcout << L"input overflow: prova a inserire valori più piccoli";
+			SetConsoleTextAttribute(hConsole, 15);
+			wcout << L'\n';
+			goto insert;
+		}
+
 		// aggiunta di spazio nella memoria
 		auto oldV{ Variables };
 		for (auto ch : Variables) if (savx.find(ch) == wstring::npos) savx += ch;
@@ -7378,10 +7443,10 @@ static void DecompFraction(switchcase& argc)
 		auto NumBackup{ N_ };
 		auto DenBackup{ D_ };
 		int NCOEFF{ 1 }, DCOEFF{ 1 };
-		bool print, _Nchangx{ false }, _Dchangx{ false };
+		bool _Nchangx{ false }, _Dchangx{ false };
 
 		// semplificazione fattori
-		Simplify(N_, D_, NCOEFF, DCOEFF, print);
+		Simplify(N_, D_, NCOEFF, DCOEFF);
 		if (N_ != NumBackup) _Nchangx = true;
 		if (D_ != DenBackup) _Dchangx = true;
 
@@ -7541,71 +7606,10 @@ static void DecompFraction(switchcase& argc)
 		}
 		else wcout << L'\n';
 
-		// calcolo casi
-		if (!print) print =
-		(
-			(
-				// il denominatore è cambiato e
-				_Dchangx
-				and
-
-				// non è un coefficiente oppure è 0 o 1
-				(
-					DenBackup > 1
-					or
-					DenBackup[0] > 1
-					or
-					DenBackup[0][0].exp != tensor<int>(Variables.size(), 0)
-					or
-					DenBackup[0][0].coefficient == 0
-					or
-					fabs(DenBackup[0][0].coefficient) == 1
-				)
-			)
-			// oppure
-			or
-			(
-				// il numeratore è cambiato ma
-				_Nchangx
-				and
-
-				// non è un coefficiente
-				(
-					NumBackup > 1
-					or
-					NumBackup[0] > 1
-				)
-			)
-			or
-			(
-				// frazione semplificata
-
-				NScomp == POLYNOMIAL<>({ FACTOR<>({ MONOMIAL<>(0, 1) }) })
-				and
-				NScomp == DScomp
-				and
-				NCOEFF != NumBackup[0][0].coefficient
-				and
-				DCOEFF != DenBackup[0][0].coefficient
-			)
-			or
-			(
-				// denominatore assente
-				
-				DScomp == POLYNOMIAL<>({ FACTOR<>({ MONOMIAL<>(0, 1) }) })
-				and
-				!_Dchangx
-				and
-				DCOEFF == 1
-			)
-		);
-		
 		// output frazioni
-		if (!skip or print) {
-			SetConsoleTextAttribute(hConsole, 10);
-			wcout << L"\nla scomposizione è: ";
-			SetConsoleTextAttribute(hConsole, 12);
-		}
+		SetConsoleTextAttribute(hConsole, 10);
+		wcout << L"\nla scomposizione è: ";
+		SetConsoleTextAttribute(hConsole, 12);
 		bool ShowPlus{ false };
 		int lines{};
 
@@ -7626,7 +7630,7 @@ static void DecompFraction(switchcase& argc)
 			wcout << L"\n\n";
 		}
 
-		else if (print) {
+		else {
 
 			// caso di frazione semplificata ma non scomposta
 			bool NewPrint{ false };
@@ -7707,19 +7711,6 @@ static void DecompFraction(switchcase& argc)
 				HasMoreVariables ? wcout << N_.str() : wcout << NScomp.str();
 			}
 				
-		}
-
-		// caso non scomponibile
-		else {
-			wcout << L'\n';
-			SetConsoleTextAttribute(hConsole, 64);
-			
-			// messaggio di errore
-			wcout << L"NON E' POSSIBILE SCOMPORRE!!\a";
-			
-			SetConsoleTextAttribute(hConsole, 15);
-			wcout << L'\n';
-			continue;
 		}
 
 		// reset cursore
@@ -7813,13 +7804,3 @@ static void DecompFraction(switchcase& argc)
 
 // fine del codice
 // file natvis 56 righe
-
-/////////////////////////////////////////////////////////////////////////////////////////////////																		   //
-// \debug																					   //
-// \add graph: / | \ _ - . *, zoom, traslation, max, min, polynomial 1 variable				   //
-// \add complex numbers -> [C.E.]															   //
-// ...																						   //
-// \change -> atkin																			   //
-// \add matrices L-U																		   //
-// \change -> nvidia cuda																	   //
-/////////////////////////////////////////////////////////////////////////////////////////////////
