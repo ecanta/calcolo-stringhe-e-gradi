@@ -2045,9 +2045,129 @@ static void DecompFraction(switchcase& argc);
 
 #pragma endregion
 
+static void DrawGraph(FACTOR<> funct, SHORT shiftX, SHORT shiftY, double zoom)
+{
+	const short WindowLenght{ 40 };
+	const short WindowWidth{ 12 };
+	const double DIM{ 1.9 };
+	SetConsoleTextAttribute(hConsole, 11);
+	SetConsoleCursorInfo(hConsole, &cursorInfo);
+
+	// margini finestra
+	SetConsoleCursorPosition(hConsole, { 0, 0 });
+	wcout << wstring(2 * WindowLenght + 3, L'-');
+	SetConsoleCursorPosition(hConsole, { 0, (short)(2 * WindowWidth + 2) });
+	wcout << wstring(2 * WindowLenght + 3, L'-');
+	for (short i = 0; i <= 2 * WindowWidth + 2; ++i)
+	{
+		SetConsoleCursorPosition(hConsole, { 0, i }); 
+		wcout << L'|';
+		SetConsoleCursorPosition(hConsole, { (short)(2 * WindowLenght + 2), i });
+		wcout << L'|';
+	}
+
+	COORD origin;
+	origin.X = WindowLenght + shiftX * zoom;
+	origin.Y = WindowWidth + shiftY * zoom;
+	SetConsoleTextAttribute(hConsole, 15);
+
+	// asse x
+	if (origin.Y > 0 and origin.Y <= 2 * WindowWidth + 1) {
+		SetConsoleCursorPosition(hConsole, { 1, origin.Y });
+		wcout << wstring(2 * WindowLenght + 1, L'-');
+	}
+	else origin.Y = -1;
+
+	// asse y
+	if (origin.X > 0 and origin.X <= 2 * WindowLenght + 1)
+		for (short i = 1; i <= 2 * WindowWidth + 1; ++i)
+		{
+			SetConsoleCursorPosition(hConsole, { origin.X, i });
+			wcout << L'|';
+		}
+	else origin.X = -1;
+
+	// origine degli assi
+	if (origin.X != -1 and origin.Y != -1) {
+		SetConsoleCursorPosition(hConsole, origin);
+		wcout << L'+';
+	}
+
+	// output funzione
+	SetConsoleTextAttribute(hConsole, 4);
+	for (
+		double x = - WindowLenght * zoom - shiftX;
+		x <= WindowLenght * zoom - shiftX;
+		++x
+		)
+	{
+		// calcolo valori
+		char point;
+		double fx{}, dfx{};
+		for (int i = 0; i < funct; ++i)
+			fx -= funct[i].coefficient * intpow(x, funct[i].degree);
+		fx = round(fx / DIM);
+		point = L'*';
+
+		// calcolo valori con traslazione e zoom
+		short X{ (short)((x + shiftX) * zoom + WindowLenght + 1) };
+		short Y{ (short)((fx + shiftY) * zoom + WindowWidth + 1) };
+
+		// output punto
+		if (Y > 0 and Y <= 2 * WindowWidth + 1 and
+			X > 0 and X <= 2 * WindowLenght + 1) {
+			SetConsoleCursorPosition(hConsole, { X, Y });
+			wcout << point;
+		}
+	}
+	SetConsoleTextAttribute(hConsole, 15);
+	SetConsoleCursorInfo(hConsole, &cursor);
+}
+
 // programma principale
 int main()
 {
+	//////////////////////////////////////////////////////////////////////////////////////////////
+	double zoom{ 1.5 };
+	COORD shift{ 13, 0 };
+	wstring str;
+	wcin >> str;
+	while(true) {
+		polynomial<> temp = FromBigToDefault(GetMonomialsAssister(str));
+		DrawGraph(To1V(temp[0]), shift.X, shift.Y, zoom);
+		char move;
+		do{
+			move = tolower(_getch());
+			switch (move) {
+			case 'a': shift.X--;
+				break;
+			case 'd': shift.X++;
+				break;
+			case 'w': shift.Y--;
+				break;
+			case 's': shift.Y++;
+				break;
+			case 'r':
+				shift = { 0, 0 };
+				zoom = 1;
+				break;
+			case '+': zoom *= 2;
+				break;
+			case '-': zoom /= 2;
+				break;
+			}
+		} while (
+			move != 'a' and
+			move != 'd' and
+			move != 's' and
+			move != 'w' and
+			move != 'r' and
+			!issign(move)
+			);
+		system("cls");
+	}
+	//////////////////////////////////////////////////////////////////////////////////////////////
+
 	setlocale(LC_ALL, "");
 	SetConsoleOutputCP(CP_UTF8);
 	SetConsoleCP(CP_UTF8);
@@ -4882,20 +5002,27 @@ static polynomial<big> GetMonomialsAssister(wstring pol)
 			// calcolo indici
 			bool AssignedStart{ false }, AssignedEnd{ false };
 			int startIndex{}, endIndex = pol.size() - 1;
-			for (int i = index - 1; i >= 0; --i)
-				if (issign(pol.at(i)) or pol.at(i) == L'(')
+			int StartBalance{}, EndBalance{};
+			for (int i = index - 1; i >= 0; --i) {
+				if (pol.at(i) == ')') StartBalance--;
+				if (pol.at(i) == '(') StartBalance++;
+				if (issign(pol.at(i)) or StartBalance == 1)
 				{
 					startIndex = i;
 					AssignedStart = true;
 					break;
 				}
-			for (int i = index + 1; i < pol.size() - 1; ++i)
-				if (issign(pol.at(i)) or pol.at(i) == L')')
+			}
+			for (int i = index + 1; i < pol.size() - 1; ++i) {
+				if (pol.at(i) == '(') EndBalance--;
+				if (pol.at(i) == ')') EndBalance++;
+				if (issign(pol.at(i)) or EndBalance == 1)
 				{
 					endIndex = i;
 					AssignedEnd = true;
 					break;
 				}
+			}
 
 			// calcolo stringhe
 			wstring start{ pol }, first{ pol }, last{ pol }, end{ pol };
@@ -5114,7 +5241,14 @@ static factor<big> GetMonomials(wstring pol)
 			part.erase(0, 1);
 			if (part.empty()) break;
 		}
-		if (!coeff.empty()) mono.coefficient *= stoi(coeff);
+		big Coeff = 0;
+		for (int i = 0; i < coeff.size(); ++i) {
+			Coeff += coeff.at(i) - '0';
+			if (i < coeff.size() - 1) Coeff *= 10;
+		}
+		if (coeff.empty()) Coeff = 1;
+		if (mono.coefficient == -1) Coeff.invert();
+		mono.coefficient = Coeff;
 		if (part.empty()) {
 			out << mono;
 			continue;
