@@ -2094,9 +2094,36 @@ static void DecompFraction(switchcase& argc);
 
 #pragma endregion
 
+static void PrintMatrix(tensor<tensor<int>> Matrix)
+{
+// +-----------------------+
+// |  120   25   43    8   |
+// |                       |
+// |  3     709  76    47  |
+// |                       |
+// |  11    53   80    341 |
+// |                       |
+// |  1234  43   1000  27  |
+// +-----------------------+
+
+
+
+}
+
 // programma principale
 int main()
 {
+	//
+	tensor<tensor<int>> MATRIX
+	{
+		{ 120 , 25 , 43  , 8   },
+		{ 2   , 709, 76  , 47  },
+		{ 11  , 53 , 80  , 341 },
+		{ 1234, 43 , 1000, 27  }
+	};
+	PrintMatrix(MATRIX);
+	//
+
 	setlocale(LC_ALL, "");
 	SetConsoleOutputCP(CP_UTF8);
 	SetConsoleCP(CP_UTF8);
@@ -2806,8 +2833,8 @@ static void DrawGraphFrame(
 	// output funzione
 	SetConsoleTextAttribute(hConsole, 4);
 	for (
-		double x = -WindowLenght / zoom - shift.X / zoom;
-		x <= WindowLenght / zoom - shift.X / zoom + 1;
+		double x = (-WindowLenght - shift.X) / zoom;
+		x <= (WindowLenght - shift.X) / zoom + 1;
 		x += 1 / zoom
 		)
 	{
@@ -2830,6 +2857,39 @@ static void DrawGraphFrame(
 		}
 	}
 	SetConsoleTextAttribute(hConsole, 15);
+
+	// scrittura estremi asse y
+	SetConsoleCursorPosition(hConsole, { (short)(2 * WindowLenght + 3), 0 });
+	wcout << wstring(13, ' ');
+	SetConsoleCursorPosition(hConsole, { (short)(2 * WindowLenght + 3), 0 });
+	wcout << (WindowWidth + shift.Y) * DIM / zoom;
+	SetConsoleCursorPosition(
+		hConsole,
+		{ (short)(2 * WindowLenght + 3), (short)(2 * WindowWidth + 2)}
+	);
+	wcout << wstring(13, ' ');
+	SetConsoleCursorPosition(
+		hConsole,
+		{ (short)(2 * WindowLenght + 3), (short)(2 * WindowWidth + 2) }
+	);
+
+	wcout << (shift.Y - 2 - WindowWidth) * DIM / zoom;
+
+	// scrittura estremi asse x
+	SetConsoleCursorPosition(hConsole, { 0, (short)(2 * WindowWidth + 3) });
+	wcout << wstring(13, ' ');
+	SetConsoleCursorPosition(hConsole, { 0, (short)(2 * WindowWidth + 3) });
+	wcout << (-WindowLenght - shift.X) / zoom;
+	SetConsoleCursorPosition(
+		hConsole,
+		{ (short)(2 * WindowLenght), (short)(2 * WindowWidth + 3) }
+	);
+	wcout << wstring(13, ' ');
+	SetConsoleCursorPosition(
+		hConsole,
+		{ (short)(2 * WindowLenght), (short)(2 * WindowWidth + 3) }
+	);
+	wcout << (WindowLenght + 2 - shift.X) / zoom;
 }
 
 #pragma endregion
@@ -3007,7 +3067,7 @@ static void PrintGraph(FACTOR<> funct, const coord position)
 			case '\r':
 				SetConsoleCursorPosition(
 					hConsole,
-					{ 0, (short)(position.Y + width * 2 + 3) }
+					{ 0, (short)(position.Y + width * 2 + 4) }
 				);
 				return;
 			}
@@ -7376,7 +7436,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		// controllo dimensione console
 		if (Variables.size() != 1) continue;
 		GetConsoleScreenBufferInfo(hConsole, &csbi);
-		if (csbi.dwSize.X <= 81 or csbi.dwSize.Y <= 25) continue;
+		if (csbi.dwSize.X <= 94 or csbi.dwSize.Y <= 26) continue;
 
 		// aggiunta di spazio
 		wcout << wstring(csbi.dwSize.Y - 1, L'\n');
@@ -7656,17 +7716,17 @@ static void DecompFraction(switchcase& argc)
 		}
 
 		// output condizioni di esistenza
-		for (auto i : C_E_) {
+		for (auto I : C_E_) {
 			
 			// eliminazione cifre decimali nulle
-			if (i.find(L'.') != wstring::npos or i.find(L',') != wstring::npos)
-			while (i.at(i.size() - 1) == L'0') i.erase(i.size() - 1);
-			if (i.at(i.size() - 1) == L',' or i.at(i.size() - 1) == L'.')
-				i.erase(i.size() - 1);
+			if (I.find(L'.') != wstring::npos or I.find(L',') != wstring::npos)
+			while (I.at(I.size() - 1) == L'0') I.erase(I.size() - 1);
+			if (I.at(I.size() - 1) == L',' or I.at(I.size() - 1) == L'.')
+				I.erase(I.size() - 1);
 
 			// stampa
-			ElabExponents(i);
-			wcout << i << L"; ";
+			if (BOOLALPHA) ElabExponents(I);
+			wcout << I << L"; ";
 			HasBeenPrinted = true;
 
 		}
