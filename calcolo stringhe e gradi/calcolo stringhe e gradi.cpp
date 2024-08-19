@@ -24,7 +24,7 @@
 
 // Descrizione programma ::
 	/*                                                          |
-	*  Strings ZP[0.7.8].cpp: il programma calcola singola e\o  |
+	*  Strings ZP[0.7.9].cpp: il programma calcola singola e\o  |
 	*  doppia scomposizione di alcuni interi in una stringa o   |
 	*  il contrario, i numeri primi, cifre e divisori, scompone |
 	*  anche i polinomi e le frazioni algebriche                |
@@ -1972,16 +1972,21 @@ static ptrdiff_t intpow(ptrdiff_t base, int exp);
 static wstring ConvertEnumToWString(switchcase Enum);
 static switchcase ConvertWStringToEnum(wstring str);
 static void ReassigneEnum(switchcase& option);
-static void ClearArea(COORD WinCenter);
+static void ClearArea(COORD WinCenter, COORD Dimensions);
 static void PrintPFrame
 (double deg, int sides, double radius, COORD WinCenter);
 static void DrawFrame
 (int arc, double __i, int centerX, int centerY, double DIM);
 static void DrawCircleSquare(COORD CircleCenter);
+static void DrawGraphFrame(
+	FACTOR<> funct, COORD shift, const COORD pos, double zoom,
+	const short WindowLenght, const short WindowWidth
+);
 static void CS_CenterPrinter();
 static void CS_CornerPrinter();
 static void ProgressBar(double ratio, double barWidth);
 static long double WaitingScreen(auto begin, auto end);
+static void PrintGraph(FACTOR<> funct, const COORD position);
 static wstring CTSuperScript(wchar_t input);
 static wstring CFSuperScript(wstring script);
 static void DeduceFromExponents(wstring& str);
@@ -2074,133 +2079,9 @@ static void DecompFraction(switchcase& argc);
 
 #pragma endregion
 
-static void DrawGraph(FACTOR<> funct, SHORT shiftX, SHORT shiftY, double zoom)
-{
-	const short WindowLenght{ 40 };
-	const short WindowWidth{ 12 };
-	const double DIM{ 1.9 };
-	SetConsoleTextAttribute(hConsole, 11);
-	SetConsoleCursorInfo(hConsole, &cursorInfo);
-
-	// margini finestra
-	SetConsoleCursorPosition(hConsole, { 0, 0 });
-	wcout << wstring(2 * WindowLenght + 3, L'-');
-	SetConsoleCursorPosition(hConsole, { 0, (short)(2 * WindowWidth + 2) });
-	wcout << wstring(2 * WindowLenght + 3, L'-');
-	for (short i = 0; i <= 2 * WindowWidth + 2; ++i)
-	{
-		SetConsoleCursorPosition(hConsole, { 0, i }); 
-		wcout << L'|';
-		SetConsoleCursorPosition(hConsole, { (short)(2 * WindowLenght + 2), i });
-		wcout << L'|';
-	}
-
-	COORD origin;
-	origin.X = WindowLenght + shiftX * zoom;
-	origin.Y = WindowWidth + shiftY * zoom;
-	SetConsoleTextAttribute(hConsole, 15);
-
-	// asse x
-	if (origin.Y > 0 and origin.Y <= 2 * WindowWidth + 1) {
-		SetConsoleCursorPosition(hConsole, { 1, origin.Y });
-		wcout << wstring(2 * WindowLenght + 1, L'-');
-	}
-	else origin.Y = -1;
-
-	// asse y
-	if (origin.X > 0 and origin.X <= 2 * WindowLenght + 1)
-		for (short i = 1; i <= 2 * WindowWidth + 1; ++i)
-		{
-			SetConsoleCursorPosition(hConsole, { origin.X, i });
-			wcout << L'|';
-		}
-	else origin.X = -1;
-
-	// origine degli assi
-	if (origin.X != -1 and origin.Y != -1) {
-		SetConsoleCursorPosition(hConsole, origin);
-		wcout << L'+';
-	}
-
-	// output funzione
-	SetConsoleTextAttribute(hConsole, 4);
-	for (
-		double x = -WindowLenght / zoom - shiftX;
-		x <= WindowLenght / zoom - shiftX + 1;
-		x += 1 / zoom
-		)
-	{
-		// calcolo valori
-		double fx{};
-		for (int i = 0; i < funct; ++i)
-			fx -= funct[i].coefficient * pow(x, funct[i].degree);
-		fx = round(fx / DIM);
-
-		// calcolo valori con traslazione e zoom
-		short X{ (short)((x + shiftX) * zoom + WindowLenght + 1) };
-		short Y{ (short)((fx + shiftY) * zoom + WindowWidth + 1) };
-		
-		// output punto
-		if (Y > 0 and Y <= 2 * WindowWidth + 1 and
-			X > 0 and X <= 2 * WindowLenght + 1)
-		{
-			SetConsoleCursorPosition(hConsole, { X, Y });
-			wcout << L'*';
-		}
-	}
-	SetConsoleTextAttribute(hConsole, 15);
-	SetConsoleCursorInfo(hConsole, &cursor);
-}
-
 // programma principale
 int main()
 {
-	//////////////////////////////////////////////////////////////////////////////////////////////
-	//bool Break{ false };
-	//double zoom{ 1 };
-	//COORD shift{ 0, 0 };
-	//wstring str;
-	//wcin >> str;
-	//while(true) {
-	//	polynomial<> temp = FromBigToDefault(GetMonomialsAssister(str));
-	//	DrawGraph(To1V(temp[0]), shift.X, shift.Y, zoom);
-	//	char move;
-	//	do{
-	//		move = tolower(_getch());
-	//		switch (move) {
-	//		case 'a': shift.X--;
-	//			break;
-	//		case 'd': shift.X++;
-	//			break;
-	//		case 'w': shift.Y--;
-	//			break;
-	//		case 's': shift.Y++;
-	//			break;
-	//		case 'r':
-	//			shift = { 0, 0 };
-	//			zoom = 1;
-	//			break;
-	//		case '+': zoom *= 1.3;
-	//			break;
-	//		case '-': zoom /= 1.3;
-	//			break;
-	//		case '\r': Break = true;
-	//			break;
-	//		}
-	//	} while (
-	//		move != 'a' and
-	//		move != 'd' and
-	//		move != 's' and
-	//		move != 'w' and
-	//		move != 'r' and
-	//		move != '\r' and
-	//		!issign(move)
-	//		);
-	//	system("cls");
-	//	if (Break) break;
-	//}
-	//////////////////////////////////////////////////////////////////////////////////////////////
-
 	setlocale(LC_ALL, "");
 	SetConsoleOutputCP(CP_UTF8);
 	SetConsoleCP(CP_UTF8);
@@ -2253,7 +2134,7 @@ int main()
 #ifndef BETA
 				wcout << L' ';
 #endif
-				wcout << L"0.7.8 ";
+				wcout << L"0.7.9 ";
 #ifdef BETA
 				wcout << L"BETA ";
 #endif
@@ -2698,20 +2579,20 @@ double DWidth{ 1.9 };
 const tensor<int> spectrum{ 9, 9, 9, 11, 11, 3, 3, 12, 4 };
 
 // cancella un'area rettangolare di spazio
-static void ClearArea(COORD WinCenter)
+static void ClearArea(COORD WinCenter, COORD Dimensions)
 {
 	GetConsoleScreenBufferInfo(hConsole, &csbi);
-	DWORD consoleSize = intpow(2 * Min.X + 1, 2);
+	DWORD consoleSize = intpow(2 * Dimensions.X + 1, 2);
 	DWORD written;
 	COORD coord;
 
-	coord.X = WinCenter.X - Min.X;
-	coord.Y = WinCenter.Y - Min.Y;
+	coord.X = WinCenter.X - Dimensions.X;
+	coord.Y = WinCenter.Y - Dimensions.Y;
 
-	for (int y = WinCenter.Y; y <= WinCenter.Y + 2 * Min.Y; ++y) {
-		coord.Y = y - Min.Y;
+	for (int y = WinCenter.Y; y <= WinCenter.Y + 2 * Dimensions.Y; ++y) {
+		coord.Y = y - Dimensions.Y;
 		FillConsoleOutputCharacter
-		(hConsole, L' ', 2 * Min.X + 1, coord, &written);
+		(hConsole, L' ', 2 * Dimensions.X + 1, coord, &written);
 	}
 }
 
@@ -2831,7 +2712,7 @@ static void DrawCircleSquare(COORD CircleCenter)
 	for (CircleRotDegreeAngle;; CircleRotDegreeAngle += 7) {
 		// termine funzione
 		if (IsDone.load() and !DoNotSkip) {
-			ClearArea(CircleCenter);
+			ClearArea(CircleCenter, Min);
 			SetConsoleCursorPosition
 			(hConsole, cursor);
 			return;
@@ -2868,8 +2749,72 @@ static void DrawCircleSquare(COORD CircleCenter)
 				break;
 			}
 		sleep_for(microseconds(1));
-		ClearArea(CircleCenter);
+		ClearArea(CircleCenter, Min);
 	}
+}
+
+// stampa il grafico di un polinomio
+static void DrawGraphFrame(
+	FACTOR<> funct, COORD shift, const COORD pos, double zoom,
+	const short WindowLenght, const short WindowWidth
+)
+{
+	const double DIM{ 1.9 };
+
+	COORD origin;
+	origin.X = WindowLenght + shift.X * zoom + pos.X;
+	origin.Y = WindowWidth + shift.Y * zoom + pos.Y;
+	SetConsoleTextAttribute(hConsole, 15);
+
+	// asse x
+	if (origin.Y > pos.Y and origin.Y <= 2 * WindowWidth + + pos.Y + 1) {
+		SetConsoleCursorPosition(hConsole, { (short)(pos.X + 1), origin.Y });
+		wcout << wstring(2 * WindowLenght + 1, L'-');
+	}
+	else origin.Y = -1;
+
+	// asse y
+	if (origin.X > pos.X and origin.X <= 2 * WindowLenght + pos.X + 1)
+		for (short i = 1; i <= 2 * WindowWidth + 1; ++i)
+		{
+			SetConsoleCursorPosition(hConsole, { origin.X, (short)(pos.Y + i) });
+			wcout << L'|';
+		}
+	else origin.X = -1;
+
+	// origine degli assi
+	if (origin.X != -1 and origin.Y != -1) {
+		SetConsoleCursorPosition(hConsole, origin);
+		wcout << L'+';
+	}
+
+	// output funzione
+	SetConsoleTextAttribute(hConsole, 4);
+	for (
+		double x = -WindowLenght / zoom - shift.X;
+		x <= WindowLenght / zoom - shift.X + 1;
+		x += 1 / zoom
+		)
+	{
+		// calcolo valori
+		double fx{};
+		for (int i = 0; i < funct; ++i)
+			fx -= funct[i].coefficient * pow(x, funct[i].degree);
+		fx /= DIM;
+
+		// calcolo valori con traslazione e zoom
+		short X{ (short)((x + shift.X) * zoom + WindowLenght + pos.X + 1) };
+		short Y{ (short)((fx + shift.Y) * zoom + WindowWidth + pos.Y + 1) };
+		
+		// output punto
+		if (Y > pos.Y and Y <= 2 * WindowWidth + pos.Y + 1 and
+			X > pos.X and X <= 2 * WindowLenght + pos.X + 1)
+		{
+			SetConsoleCursorPosition(hConsole, { X, Y });
+			wcout << L'*';
+		}
+	}
+	SetConsoleTextAttribute(hConsole, 15);
 }
 
 #pragma endregion
@@ -2976,6 +2921,92 @@ static long double WaitingScreen(auto begin, auto end)
 	sleep_for(seconds(1));
 
 	return ExceptDelta;
+}
+
+// crea una finestra con dei comandi per ridimensionare il grafico
+static void PrintGraph(FACTOR<> funct, const COORD position)
+{
+
+	// variabili
+	bool Break{ false };
+	double zoom{ 1 };
+	COORD shift{ 0, 0 };
+	const short lenght{ 40 };
+	const short width{ 12 };
+	SetConsoleCursorInfo(hConsole, &cursorInfo);
+
+	// // output margini finestra
+	SetConsoleTextAttribute(hConsole, 11);
+
+	// linee orizzontali
+	SetConsoleCursorPosition(hConsole, position);
+	wcout << wstring(2 * lenght + 3, L'-');
+	SetConsoleCursorPosition(
+		hConsole, 
+		{ position.X, (short)(2 * width + position.Y + 2) }
+	);
+	wcout << wstring(2 * lenght + 3, L'-');
+
+	// linee verticali
+	for (short i = 0; i <= 2 * width + 2; ++i)
+	{
+		SetConsoleCursorPosition(hConsole, { position.X, (short)(i + position.Y) });
+		wcout << L'|';
+		SetConsoleCursorPosition(
+			hConsole,
+			{ (short)(2 * lenght + position.X + 2), (short)(i + position.Y) }
+		);
+		wcout << L'|';
+	}
+	// //
+	
+	while (true) {
+
+		// grafico
+		DrawGraphFrame(funct, shift, position, zoom, lenght, width);
+		char move;
+
+		// elaborazione input mosse
+		do {
+			move = tolower(_getch());
+			switch (move) {
+			case 'a': shift.X--;
+				break;
+			case 'd': shift.X++;
+				break;
+			case 'w': shift.Y--;
+				break;
+			case 's': shift.Y++;
+				break;
+			case 'r':
+				shift = { 0, 0 };
+				zoom = 1;
+				break;
+			case '+': zoom *= 1.3;
+				break;
+			case '-': zoom /= 1.3;
+				break;
+			case '\r': Break = true;
+				break;
+			}
+		} while (
+			move != 'a' and
+			move != 'd' and
+			move != 's' and
+			move != 'w' and
+			move != 'r' and
+			move != '\r' and
+			!issign(move)
+			);
+
+		ClearArea(
+			{ (short)(lenght + position.X + 1), (short)(width + position.Y + 1) },
+			{ lenght, width }
+		);
+		if (Break) break;
+	}
+
+	SetConsoleCursorInfo(hConsole, &cursor);
 }
 
 #pragma endregion
@@ -7121,7 +7152,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		int size;
 		auto bigHT{ GetMonomialsAssister(Polynomial) };
 		HT = FromBigToDefault(bigHT);
-		if (HT > 1) if (HT[0] > 1) if (HT[0][0].exp[0] == -2) {
+		if (HT >= 1) if (HT[0] >= 1) if (HT[0][0].exp[0] == -2) {
 			if (input) {
 				SetConsoleTextAttribute(hConsole, 2);
 				wcout << L"questo è il polinomio: " << bigHT.str() << L'\n';
