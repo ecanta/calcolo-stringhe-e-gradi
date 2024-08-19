@@ -83,7 +83,7 @@ using Concurrency::parallel_for, this_thread::sleep_for;
 #pragma region Globals
 
 // oggetti windows
-auto hConsole{
+void* hConsole{
 	GetStdHandle(STD_OUTPUT_HANDLE)
 };
 CONSOLE_CURSOR_INFO cursorInfo{ 10, FALSE };
@@ -125,6 +125,21 @@ struct digitRatio {
 	int digitProductRatioDen{};
 };
 digitRatio items;
+struct coord {
+	double X;
+	double Y;
+	
+	coord() : X(0), Y(0) {}
+	coord(double _x, double _y) : X(_x), Y(_y) {}
+	coord(COORD _coord) : X(_coord.X), Y(_coord.Y) {}
+
+	operator COORD() const {
+		COORD result;
+		result.X = static_cast<SHORT>(X);
+		result.Y = static_cast<SHORT>(Y);
+		return result;
+	}
+};
 
 // enum e mappe
 enum switchcase
@@ -1503,9 +1518,9 @@ static FACTOR<> To1V(factor<> vect)
 	FACTOR<> output;
 	int _FirstPos = Variables.find(charVariable);
 	for (auto Monomial : vect) {
-		MONOMIAL<> element;
+		MONOMIAL<> element{ 0, 0 };
 		element.coefficient = Monomial.coefficient;
-		element.degree = Monomial.exp[_FirstPos];
+		if (_FirstPos != wstring::npos) element.degree = Monomial.exp[_FirstPos];
 		output << element;
 	}
 	return output;
@@ -1979,14 +1994,14 @@ static void DrawFrame
 (int arc, double __i, int centerX, int centerY, double DIM);
 static void DrawCircleSquare(COORD CircleCenter);
 static void DrawGraphFrame(
-	FACTOR<> funct, COORD shift, const COORD pos, double zoom,
+	FACTOR<> funct, coord shift, const COORD pos, double zoom,
 	const short WindowLenght, const short WindowWidth
 );
 static void CS_CenterPrinter();
 static void CS_CornerPrinter();
 static void ProgressBar(double ratio, double barWidth);
 static long double WaitingScreen(auto begin, auto end);
-static void PrintGraph(FACTOR<> funct, const COORD position);
+static void PrintGraph(FACTOR<> funct, const coord position);
 static wstring CTSuperScript(wchar_t input);
 static wstring CFSuperScript(wstring script);
 static void DeduceFromExponents(wstring& str);
@@ -2755,19 +2770,19 @@ static void DrawCircleSquare(COORD CircleCenter)
 
 // stampa il grafico di un polinomio
 static void DrawGraphFrame(
-	FACTOR<> funct, COORD shift, const COORD pos, double zoom,
+	FACTOR<> funct, coord shift, const COORD pos, double zoom,
 	const short WindowLenght, const short WindowWidth
 )
 {
 	const double DIM{ 1.9 };
 
 	COORD origin;
-	origin.X = WindowLenght + shift.X * zoom + pos.X;
-	origin.Y = WindowWidth + shift.Y * zoom + pos.Y;
+	origin.X = WindowLenght + shift.X + pos.X;
+	origin.Y = WindowWidth + shift.Y + pos.Y;
 	SetConsoleTextAttribute(hConsole, 15);
 
 	// asse x
-	if (origin.Y > pos.Y and origin.Y <= 2 * WindowWidth + + pos.Y + 1) {
+	if (origin.Y > pos.Y and origin.Y <= 2 * WindowWidth + pos.Y + 1) {
 		SetConsoleCursorPosition(hConsole, { (short)(pos.X + 1), origin.Y });
 		wcout << wstring(2 * WindowLenght + 1, L'-');
 	}
@@ -2791,8 +2806,8 @@ static void DrawGraphFrame(
 	// output funzione
 	SetConsoleTextAttribute(hConsole, 4);
 	for (
-		double x = -WindowLenght / zoom - shift.X;
-		x <= WindowLenght / zoom - shift.X + 1;
+		double x = -WindowLenght / zoom - shift.X / zoom;
+		x <= WindowLenght / zoom - shift.X / zoom + 1;
 		x += 1 / zoom
 		)
 	{
@@ -2803,8 +2818,8 @@ static void DrawGraphFrame(
 		fx /= DIM;
 
 		// calcolo valori con traslazione e zoom
-		short X{ (short)((x + shift.X) * zoom + WindowLenght + pos.X + 1) };
-		short Y{ (short)((fx + shift.Y) * zoom + WindowWidth + pos.Y + 1) };
+		short X{ (short)(x * zoom + shift.X + WindowLenght + pos.X) };
+		short Y{ (short)(fx * zoom + shift.Y + WindowWidth + pos.Y) };
 		
 		// output punto
 		if (Y > pos.Y and Y <= 2 * WindowWidth + pos.Y + 1 and
@@ -2924,13 +2939,13 @@ static long double WaitingScreen(auto begin, auto end)
 }
 
 // crea una finestra con dei comandi per ridimensionare il grafico
-static void PrintGraph(FACTOR<> funct, const COORD position)
+static void PrintGraph(FACTOR<> funct, const coord position)
 {
 
 	// variabili
 	bool Break{ false };
 	double zoom{ 1 };
-	COORD shift{ 0, 0 };
+	coord shift{ 0, 0 };
 	const short lenght{ 40 };
 	const short width{ 12 };
 	SetConsoleCursorInfo(hConsole, &cursorInfo);
@@ -2943,14 +2958,17 @@ static void PrintGraph(FACTOR<> funct, const COORD position)
 	wcout << wstring(2 * lenght + 3, L'-');
 	SetConsoleCursorPosition(
 		hConsole, 
-		{ position.X, (short)(2 * width + position.Y + 2) }
+		{ (short)position.X, (short)(2 * width + position.Y + 2) }
 	);
 	wcout << wstring(2 * lenght + 3, L'-');
 
 	// linee verticali
 	for (short i = 0; i <= 2 * width + 2; ++i)
 	{
-		SetConsoleCursorPosition(hConsole, { position.X, (short)(i + position.Y) });
+		SetConsoleCursorPosition(
+			hConsole,
+			{ (short)position.X, (short)(i + position.Y) }
+		);
 		wcout << L'|';
 		SetConsoleCursorPosition(
 			hConsole,
@@ -2970,13 +2988,13 @@ static void PrintGraph(FACTOR<> funct, const COORD position)
 		do {
 			move = tolower(_getch());
 			switch (move) {
-			case 'a': shift.X--;
+			case 'a': shift.X++;
 				break;
-			case 'd': shift.X++;
+			case 'd': shift.X--;
 				break;
-			case 'w': shift.Y--;
+			case 'w': shift.Y++;
 				break;
-			case 's': shift.Y++;
+			case 's': shift.Y--;
 				break;
 			case 'r':
 				shift = { 0, 0 };
@@ -2986,8 +3004,12 @@ static void PrintGraph(FACTOR<> funct, const COORD position)
 				break;
 			case '-': zoom /= 1.3;
 				break;
-			case '\r': Break = true;
-				break;
+			case '\r':
+				SetConsoleCursorPosition(
+					hConsole,
+					{ 0, (short)(position.Y + width * 2 + 3) }
+				);
+				return;
 			}
 		} while (
 			move != 'a' and
@@ -6341,6 +6363,8 @@ static int Determinant(tensor<tensor<int>> mx)
 // con il metodo di newton-raphson
 static void Approximator(tensor<long double>& Equation, long double& root)
 {
+
+	// traduzione
 	FACTOR<> equation(Equation.size());
 	for (int i = Equation.size() - 1; i >= 0; --i) {
 		equation[i].coefficient = Equation[i];
@@ -6410,31 +6434,26 @@ static tensor<wstring> ExistenceConditions(factor<> Equation)
 
 	// caso binomio
 	if (Equation == 2) {
-		int gcd = Gcd(Equation);
+		int gcd{ Gcd(Equation) };
 		Equation[0].coefficient /= gcd;
 		Equation[1].coefficient /= gcd;
 
 		for (int i = 0; i < Variables.size(); ++i) {
-			int min = ::min(Equation[0].exp[i], Equation[1].exp[i]);
+			int min{ ::min(Equation[0].exp[i], Equation[1].exp[i]) };
 			Equation[0].exp[i] -= min;
 			Equation[1].exp[i] -= min;
 		}
-
-		bool sign{ Equation[1].coefficient < 0 };
+		
 		int coeff = Equation[0].coefficient;
-		if (coeff < 0) {
-			coeff *= -1;
-			sign = !sign;
-		}
 		Equation[0].coefficient = 1;
-		if (sign) Equation[1].coefficient *= -1;
+		if (coeff < 0) coeff *= -1;
+		else Equation[1].coefficient *= -1;
+
 		wstring push{ factor<>{ Equation[0] }.str() + L" != " };
-		if (!sign) push += L'-';
 		push += factor<>{ Equation[1] }.str();
 		if (coeff != 1) push += L" / " + to_wstring(coeff);
 		answer << push;
 	}
-
 	if (Equation <= 2) return answer;
 
 	// calcolo della posizione
@@ -6604,6 +6623,7 @@ static void PrintFraction
 		if (num_ == L"0") num_.clear();
 		if (abs(NC) != 1) num_ = to_wstring(NC) + num_;
 		if (num_.empty()) num_ = L"1";
+		if (NC == -1) num_ = L'-' + num_;
 	}
 
 	// calcolo denominatore
@@ -6622,16 +6642,24 @@ static void PrintFraction
 	if (DC == -1) den_ = L'-' + den_;
 
 	// aggiustamento segni
-	if (num_.at(0) == L'-' and den_.at(0) == L'-') {
+	bool both{ true };
+	if (num_.at(0) == L'-' and den_.at(0) == L'-' and
+		numerator == 1 and denominator == 1)
+		if (numerator[0] == 1 and denominator[0] == 1)
+		{
+			num_.erase(0, 1);
+			den_.erase(0, 1);
+			both = false;
+		}
+	if (num_.at(0) == L'-' and numerator == 1 and both) if (numerator[0] == 1)
+	{
 		num_.erase(0, 1);
-		den_.erase(0, 1);
-	}
-	else if (den_.at(0) == L'-') {
-		den_.erase(0, 1);
 		IsMinus = !IsMinus;
+		both = false;
 	}
-	else if (num_.at(0) == L'-') {
-		num_.erase(0, 1);
+	if (den_.at(0) == L'-' and denominator == 1 and both) if (denominator[0] == 1)
+	{
+		den_.erase(0, 1);
 		IsMinus = !IsMinus;
 	}
 
@@ -7151,6 +7179,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		tensor<int> null;
 		int size;
 		auto bigHT{ GetMonomialsAssister(Polynomial) };
+		if (input) charVariable = Variables.at(0);
 		HT = FromBigToDefault(bigHT);
 		if (HT >= 1) if (HT[0] >= 1) if (HT[0][0].exp[0] == -2) {
 			if (input) {
@@ -7344,6 +7373,16 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			wcout << L'\n';
 		}
 
+		// controllo dimensione console
+		if (Variables.size() != 1) continue;
+		GetConsoleScreenBufferInfo(hConsole, &csbi);
+		if (csbi.dwSize.X <= 81 or csbi.dwSize.Y <= 25) continue;
+
+		// aggiunta di spazio
+		wcout << wstring(csbi.dwSize.Y - 1, L'\n');
+		SetConsoleCursorPosition(hConsole, { 0, 0 });
+		PrintGraph(To1V(PolynomialMultiply(HT)), { 0, 0 });
+
 	EndOfDecomposition: if (!input) break;
 
 	} while (input);
@@ -7510,6 +7549,7 @@ static void DecompFraction(switchcase& argc)
 		FACTOR<> Quotient;
 		FACTOR<> Rest;
 		if (N_ != ToXV(NScomp) or D_ != ToXV(DScomp)) {
+			skip = true;
 			HasMoreVariables = true;
 			goto PrintStatement;
 		}
@@ -7619,13 +7659,16 @@ static void DecompFraction(switchcase& argc)
 		for (auto i : C_E_) {
 			
 			// eliminazione cifre decimali nulle
+			if (i.find(L'.') != wstring::npos or i.find(L',') != wstring::npos)
 			while (i.at(i.size() - 1) == L'0') i.erase(i.size() - 1);
 			if (i.at(i.size() - 1) == L',' or i.at(i.size() - 1) == L'.')
 				i.erase(i.size() - 1);
 
 			// stampa
+			ElabExponents(i);
 			wcout << i << L"; ";
 			HasBeenPrinted = true;
+
 		}
 		if (!HasBeenPrinted) wcout << L"\r      \r";
 		GetConsoleScreenBufferInfo(hConsole, &csbi);
