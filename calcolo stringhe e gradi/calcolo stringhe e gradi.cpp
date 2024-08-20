@@ -24,7 +24,7 @@
 
 // Descrizione programma ::
 	/*                                                          |
-	*  Strings ZP[0.7.9].cpp: il programma calcola singola e\o  |
+	*  Strings ZP[0.8.1].cpp: il programma calcola singola e\o  |
 	*  doppia scomposizione di alcuni interi in una stringa o   |
 	*  il contrario, i numeri primi, cifre e divisori, scompone |
 	*  anche i polinomi e le frazioni algebriche                |
@@ -2069,7 +2069,6 @@ static void Simplify(
 	polynomial<>& num, polynomial<>& den,
 	int& ncoeff, int& dcoeff
 );
-static int Determinant(tensor<tensor<int>> mx);
 static void Approximator(tensor<long double>& Equation, long double& root);
 static tensor<wstring> ExistenceConditions(factor<> equation);
 static void PrintFraction
@@ -2077,6 +2076,8 @@ static void PrintFraction
 	int NC, int DC, int& LINE, bool WritePlus,
 	polynomial<> numerator, polynomial<> denominator
 );
+static int Determinant(tensor<tensor<int>> mx);
+static tensor<int> OutputMatrix(tensor<tensor<int>> Matrix);
 static void CodeToNumber(switchcase& argc);
 static void Repeater(
 	switchcase& argc,
@@ -2094,35 +2095,113 @@ static void DecompFraction(switchcase& argc);
 
 #pragma endregion
 
-static void PrintMatrix(tensor<tensor<int>> Matrix)
+static tensor<tensor<int>> InputMatrix()
 {
-// +-----------------------+
-// |  120   25   43    8   |
-// |                       |
-// |  3     709  76    47  |
-// |                       |
-// |  11    53   80    341 |
-// |                       |
-// |  1234  43   1000  27  |
-// +-----------------------+
+
+	// calcolo posizione cursore
+	GetConsoleScreenBufferInfo(hConsole, &csbi);
+	auto start{ csbi.dwCursorPosition };
+
+	// inizializzazione
+	tensor<tensor<int>> TheMatrix(2);
+	TheMatrix[0](2, 0);
+	TheMatrix[1](2, 0);
+	OutputMatrix(TheMatrix);
+	COORD IndexAccesser{};
+	
+	bool arrow{ false };
+	wstring MatrixAtIndex;
+	while (true) if (_kbhit()) {
+		char c = tolower(_getch());
+
+		// casi speciali
+		if (c == -32) {
+			arrow = true;
+			continue;
+		}
+		if (c <= 0) continue;
 
 
+		// // scelta carattere
+		int size;
 
+		// casi che non modificano la matrice
+		switch (c) {
+
+			// wasd per cambiare l'elemento da modificare
+		case 'w': IndexAccesser.Y = (IndexAccesser.Y - 1) % TheMatrix.size();
+			break;
+		case 'a': IndexAccesser.Y = (IndexAccesser.Y + 1) % TheMatrix.size();
+			break;
+		case 's': IndexAccesser.X = (IndexAccesser.X - 1) % TheMatrix.size();
+			break;
+		case 'd': IndexAccesser.X = (IndexAccesser.X + 1) % TheMatrix.size();
+			break;
+		}
+
+		MatrixAtIndex = to_wstring(TheMatrix[IndexAccesser.X][IndexAccesser.Y]);
+		
+		// casi che modificano la matrice
+		switch(c) {
+
+			// '\b' cancella un carattere
+		case '\b':
+			if (MatrixAtIndex.size() == 1) {
+				MatrixAtIndex = L"0";
+				break;
+			}
+			MatrixAtIndex.erase(MatrixAtIndex.size() - 1);
+			break;
+
+			// ctrl + '\b' cancella tutto
+		case 127: MatrixAtIndex = L"0";
+			break;
+
+			// '+' aumenta la dimensione
+		case '+': if (TheMatrix.size() > 6) break;
+			size = TheMatrix.size() + 1;
+			TheMatrix(size, 0);
+			for (auto& row : TheMatrix) row(size, 0);
+			break;
+
+			// '-' riduce la dimensione
+		case '-': if (TheMatrix.size() <= 2) break;
+			TheMatrix--;
+			for (auto& row : TheMatrix) row--;
+			IndexAccesser.X %= TheMatrix.size();
+			IndexAccesser.Y %= TheMatrix.size();
+			break;
+
+			// '\r' invia la matrice
+		case '\r': return TheMatrix;
+
+			// '.' termina il programma
+		case '.': return {};
+
+		default:
+
+			// aggiunta di carattere numerico
+			if (isdigit(c)) {
+				if (MatrixAtIndex.size() > 4) break;
+				if (MatrixAtIndex == L"0") MatrixAtIndex.clear();
+				MatrixAtIndex += c;
+			}
+		}
+		// //
+
+		TheMatrix[IndexAccesser.X][IndexAccesser.Y] = stoi(MatrixAtIndex);
+		SetConsoleCursorPosition(hConsole, start);
+		ClearArea({ (short)(start.X + 27), (short)(start.Y + 7) }, { 27, 7 });
+		OutputMatrix(TheMatrix);
+
+
+	}
 }
 
 // programma principale
 int main()
 {
-	//
-	tensor<tensor<int>> MATRIX
-	{
-		{ 120 , 25 , 43  , 8   },
-		{ 2   , 709, 76  , 47  },
-		{ 11  , 53 , 80  , 341 },
-		{ 1234, 43 , 1000, 27  }
-	};
-	PrintMatrix(MATRIX);
-	//
+	InputMatrix();
 
 	setlocale(LC_ALL, "");
 	SetConsoleOutputCP(CP_UTF8);
@@ -2176,7 +2255,7 @@ int main()
 #ifndef BETA
 				wcout << L' ';
 #endif
-				wcout << L"0.7.9 ";
+				wcout << L"0.8.1 ";
 #ifdef BETA
 				wcout << L"BETA ";
 #endif
@@ -6393,32 +6472,6 @@ static void Simplify(
 		den.erase(den.begin() + i);
 }
 
-// funzione per calcolare il determinante di una matrice
-// con il teorema di laplace
-static int Determinant(tensor<tensor<int>> mx)
-{
-	int det{};
-	int s = mx.size();
-
-	// casi speciali
-	if (s == 1) return mx[0][0];
-	if (s == 2) return mx[0][0] * mx[1][1] - mx[0][1] * mx[1][0];
-
-	// caso generale
-	for (int i = 0; i < s; ++i) {
-
-		tensor<tensor<int>> MX(s - 1);
-		for (int I = 0; I < s - 1; ++I) for (int J = 0; J < s; ++J)
-		{
-			if (i == J) continue;
-			MX[I] << mx[I + 1][J];
-		}
-		
-		det += intpow(-1, i) * mx[0][i] * Determinant(MX);
-	}
-	return det;
-}
-
 // funzione per calcolare le soluzioni di un equazione
 // con il metodo di newton-raphson
 static void Approximator(tensor<long double>& Equation, long double& root)
@@ -6763,6 +6816,83 @@ static void PrintFraction
 
 	// aggiornamento linea
 	LINE += sizemax + 1;
+}
+
+#pragma endregion
+
+// funzioni relative alle matrici
+#pragma region matrices
+
+// funzione per calcolare il determinante di una matrice
+// con il teorema di laplace
+static int Determinant(tensor<tensor<int>> mx)
+{
+	int det{};
+	int s = mx.size();
+
+	// casi speciali
+	if (s == 1) return mx[0][0];
+	if (s == 2) return mx[0][0] * mx[1][1] - mx[0][1] * mx[1][0];
+
+	// caso generale
+	for (int i = 0; i < s; ++i) {
+
+		tensor<tensor<int>> MX(s - 1);
+		for (int I = 0; I < s - 1; ++I) for (int J = 0; J < s; ++J)
+		{
+			if (i == J) continue;
+			MX[I] << mx[I + 1][J];
+		}
+		
+		det += intpow(-1, i) * mx[0][i] * Determinant(MX);
+	}
+	return det;
+}
+
+// stampa una matrice quadrata e restituisce la lunghezza delle colonne
+static tensor<int> OutputMatrix(tensor<tensor<int>> Matrix)
+{
+	int size = Matrix.size();
+
+	// calcolo stringhe e trasposizione matrice stringhe
+	tensor<tensor<wstring>> StrMatrix(size);
+	for (int i = 0; i < size; ++i) for (int j = 0; j < Matrix[i]; ++j)
+		StrMatrix[i] << to_wstring(Matrix[j][i]);
+
+	// correzione lunghezza stringhe
+	tensor<int> ColumnLenght;
+	for (auto& column : StrMatrix) {
+		int maxlenght{ 3 };
+		for (auto num : column) if (num.size() > maxlenght) maxlenght = num.size();
+		for (auto& num : column) if (num.size() < maxlenght)
+			num += wstring(maxlenght - num.size(), L' ');
+		ColumnLenght << maxlenght;
+	}
+
+	// calcolo della lunghezza della riga
+	int sum{};
+	for (auto clenght : ColumnLenght) sum += clenght;
+
+	// stampa
+	for (int i = 0; i < 2 * size - 1; ++i) {
+
+		// inizio riga
+		if (i == 0) wcout << L"/  ";
+		else if (i == 2 * size - 2) wcout << L"\\  ";
+		else wcout << L"|  ";
+
+		// output elemento (la matrice delle stringhe è trasposta)
+		if (i % 2 == 0) for (int j = 0; j < size; ++j)
+			wcout << StrMatrix[j][i / 2] << L"  ";
+		else wcout << wstring(sum + 2 * size, L' ');
+
+		// fine riga
+		if (i == 0) wcout << L"\\\n";
+		else if (i == 2 * size - 2) wcout << L"/\n";
+		else wcout << L"|\n";
+	}
+
+	return ColumnLenght;
 }
 
 #pragma endregion
