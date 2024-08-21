@@ -23,7 +23,7 @@
 
 // Descrizione programma ::
 	/*                                                          |
-	*  Strings ZP[0.8.3].cpp: il programma calcola singola e\o  |
+	*  Strings ZP[0.8.4].cpp: il programma calcola singola e\o  |
 	*  doppia scomposizione di alcuni interi in una stringa o   |
 	*  il contrario, i numeri primi, cifre e divisori, scompone |
 	*  anche i polinomi, le frazioni algebriche e le matrici    |
@@ -2159,7 +2159,7 @@ int main()
 #ifndef BUGS
 				wcout << L' ';
 #endif
-				wcout << L"0.8.3 ";
+				wcout << L"0.8.4 ";
 #ifdef BUGS
 				wcout << L"BETA ";
 #endif
@@ -6770,7 +6770,7 @@ static int Determinant(tensor<tensor<int>> mx)
 	return det;
 }
 
-// stampa una matrice quadrata e restituisce la lunghezza delle colonne
+// stampa una matrice quadrata e restituisce la posizione del cursore
 static int OutputMatrix(
 	tensor<tensor<double>> Matrix,
 	COORD SelectedElement
@@ -6859,16 +6859,12 @@ static int OutputMatrix(
 		if (index % 2 == 0) {
 			wcout << wstring(sum, L' ') << L'|';
 			index++;
-			csbi
-				.dwCursorPosition.Y++;
+			csbi.dwCursorPosition.Y++;
 			SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
 			continue;
 		}
 		if (HaveTheyFractions[(index - 1) / 2]) row++;
-		if (row == 4) {
-			index++;
-			row = 0;
-		}
+		if (row == 4) row = 1;
 
 		// output elemento (la matrice delle stringhe è trasposta)
 		for (int j = 0; j < size; ++j) {
@@ -6896,44 +6892,34 @@ static int OutputMatrix(
 			else switch (row) {
 
 				// numeratori
-			case 1: 
-				if (StrDenominators[j][(index - 1) / 2].at(0) == L' ') {
+			case 1:
+				if (StrDenominators[j][(index - 1) / 2].at(0) == L' ')
 					wcout << wstring(
-						StrMatrix[j][(index - 1) / 2].size() + 2, L' '
+						StrMatrix[j][(index - 1) / 2].size() + 1, L' '
 					);
-					break;
-				}
-				wcout << StrMatrix[j][(index - 1) / 2];
+				else wcout << StrMatrix[j][(index - 1) / 2] << L' ';
 				break;
 
 				// linee di frazione e numeri
 			case 2:
 				wcout << wstring(StrMatrix[j][(index - 1) / 2].size(), L'-');
-				if (j == SelectedElement.X and (index - 1) / 2 == SelectedElement.Y)
-				{
-					SetConsoleTextAttribute(hConsole, 4);
-					wcout << L'.';
-				}
-				else wcout << L' ';
+				wcout << L' ';
 				break;
 				
 				// denominatori non nulli
 			case 3:
-				if (StrDenominators[j][(index - 1) / 2].at(0) == L' ') {
+				if (StrDenominators[j][(index - 1) / 2].at(0) == L' ')
 					wcout << wstring(
-						StrMatrix[j][(index - 1) / 2].size() + 2, L' '
+						StrMatrix[j][(index - 1) / 2].size() + 1, L' '
 					);
-					break;
-				}
-				wcout << StrDenominators[j][(index - 1) / 2];
+				else wcout << StrDenominators[j][(index - 1) / 2] << L' ';
 				break;
 			}
 
 			SetConsoleTextAttribute(hConsole, 15);
 			wcout << L' ';
 		}
-		index++;
-		if (row != 0) row--;
+		if (row == 0 or row == 3) index++;
 
 		// fine riga
 		wcout << L'|';
@@ -6942,11 +6928,13 @@ static int OutputMatrix(
 	}
 
 	// riposizionamento cursore
-	if (SelectedElement.Y == -2) begin.Y += 2 * size + 1;
+	if (SelectedElement.Y == -2) {
+		line = max(line, (int)SelectedElement.X);
+		begin.Y += line + 1;
+	}
 	if (SelectedElement.X == -1) begin.X += sum + 3;
 	SetConsoleCursorPosition(hConsole, begin);
 
-	if (SelectedElement.Y == -2) line = max(line, (int)SelectedElement.X);
 	return line;
 }
 
@@ -7771,15 +7759,18 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			wcout << L'\n';
 		}
 
-		// controllo dimensione console
-		if (Variables.size() != 1) continue;
-		GetConsoleScreenBufferInfo(hConsole, &csbi);
-		if (csbi.dwSize.X <= 94 or csbi.dwSize.Y <= 26) continue;
+		if (input) {
 
-		// aggiunta di spazio
-		wcout << wstring(csbi.dwSize.Y - 1, L'\n');
-		SetConsoleCursorPosition(hConsole, { 0, 0 });
-		PrintGraph(To1V(PolynomialMultiply(HT)), { 0, 0 });
+			// controllo dimensione console
+			if (Variables.size() != 1) continue;
+			GetConsoleScreenBufferInfo(hConsole, &csbi);
+			if (csbi.dwSize.X <= 94 or csbi.dwSize.Y <= 26) continue;
+
+			// aggiunta di spazio
+			wcout << wstring(csbi.dwSize.Y - 1, L'\n');
+			SetConsoleCursorPosition(hConsole, { 0, 0 });
+			PrintGraph(To1V(PolynomialMultiply(HT)), { 0, 0 });
+		}
 
 	EndOfDecomposition: if (!input) break;
 
@@ -8281,7 +8272,7 @@ static void DecompMatrices(switchcase& argc)
 	SetConsoleTextAttribute(hConsole, 14);
 	wcout << L"il PROGRAMMA scompone le matrici\n\n";
 	SetConsoleTextAttribute(hConsole, 12);
-	wcout << L"tipi di scomposizione: L-U, ...\n\n"; // completare qui
+	wcout << L"tipi di scomposizione: LU, PLU, ...\n\n";
 	SetConsoleTextAttribute(hConsole, 15);
 	tensor<tensor<double>> Mx;
 
@@ -8299,14 +8290,34 @@ static void DecompMatrices(switchcase& argc)
 			break;
 		wcout << L'\n';
 
-		// setup matrici L e U
-		auto lower{
-			tensor<tensor<double>>(Mx.size(), tensor<double>(Mx.size(), 0))
-		};
-		for (int i = 0; i < Mx.size(); ++i) lower[i][i] = 1;
-		auto upper{ Mx };
+		// calcolo matrice di permutazione
+		auto Id{ tensor<tensor<double>>(Mx.size(), tensor<double>(Mx.size(), 0)) };
+		for (int i = 0; i < Mx.size(); ++i) Id[i][i] = 1;
+		auto permutator{ Id };
+		for (int i = 0; i < Mx.size() - 1; ++i) {
+
+			int max = Mx[Mx.size() - 1][i], IndexofMax = Mx.size() - 1;
+			for (int j = Mx.size() - 2; j >= i; --j) if (Mx[j][i] > max) {
+				max = Mx[j][i];
+				IndexofMax = j;
+			}
+
+			if (IndexofMax != i) {
+				swap(Mx[IndexofMax], Mx[i]);
+				swap(permutator[IndexofMax], permutator[i]);
+			}
+
+		}
+
+		// trasposizione della matrice di permutazione
+		auto NewPermutator{ tensor<tensor<double>>(permutator.size(), 0) };
+		for (int i = 0; i < Mx.size(); ++i) for (int j = 0; j < Mx.size(); ++j)
+			NewPermutator[i] << permutator[j][i];
+		permutator = NewPermutator;
 
 		// calcolo elementi
+		auto lower{ Id };
+		auto upper{ Mx };
 		bool Break{ false };
 		for (int i = 0; i < Mx.size() - 1; ++i) {
 			
@@ -8326,15 +8337,22 @@ static void DecompMatrices(switchcase& argc)
 			if (Break) break;
 		}
 
-		// decomposizione L-U
+		// decomposizione L-U o P-L-U
 		if (lower != tensor<tensor<double>>()) {
-			wcout << L"decomposizione L-U:\n";
+			if (permutator == Id) wcout << L"decomposizione LU:\n";
+			else wcout << L"decomposizione PLU:\n";
+
 			GetConsoleScreenBufferInfo(hConsole, &csbi);
 			auto start{ csbi.dwCursorPosition };
 			int line{ OutputMatrix(lower) };
 			GetConsoleScreenBufferInfo(hConsole, &csbi);
 			start.X = csbi.dwCursorPosition.X;
-			OutputMatrix(upper, { (short)line, -2 });
+
+			line = permutator == Id ?
+				max(line, OutputMatrix(upper, { (short)line, -2 })) :
+				max(line, OutputMatrix(upper));
+
+			if (permutator != Id) OutputMatrix(permutator, { (short)line, -2 });
 			wcout << L'\n';
 		}
 
@@ -8354,18 +8372,12 @@ static void DecompMatrices(switchcase& argc)
 
 impegni programma:
 	
-	cambiare l'output perché funzioni con i numeri decimali
+	aggiungere i tipi rimanenti di decomposizione matrici (22-23/08)
 
-	aggiungere i tipi rimanenti di decomposizione matrici
+	aggiungere dei thread per il controllo della dimensione della console (24-25/08)
+	
+	refactor foreach loop e for auto& loop (26/08)
 
-	ricerca sui font
-
-	refactor foreach loop e for auto& loop
-
-	aggiungere max / min al grafico
-
-	aggiungere dei thread per il controllo della dimensione della console
-
-	fare un grande debug
+	fare un grande debug (26/08)
 
 */
