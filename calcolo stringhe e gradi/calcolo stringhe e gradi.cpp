@@ -23,7 +23,7 @@
 
 // Descrizione programma ::
 	/*                                                          |
-	*  Strings ZP[0.8.6].cpp: il programma calcola singola e\o  |
+	*  Strings ZP[0.8.7].cpp: il programma calcola singola e\o  |
 	*  doppia scomposizione di alcuni interi in una stringa o   |
 	*  il contrario, i numeri primi, cifre e divisori, scompone |
 	*  anche i polinomi, le frazioni algebriche e le matrici    |
@@ -70,7 +70,7 @@
 #include <string> // per le stringhe e i metodi
 #include <thread> // per il multithreading
 #include <type_traits>
-#include <unordered_map> // per la conFversione degli enum
+#include <unordered_map> // per la conversione degli enum
 #include <utility>
 #include <Windows.h> // per hConsole e la posizione del cursore
 
@@ -2100,8 +2100,9 @@ static tensor<tensor<double>> MatrixMultiply(
 );
 template<typename T> static T Determinant(tensor<tensor<T>> mx);
 FACTOR<> PolynomialMatrixDeterminant(tensor<tensor<FACTOR<>>> PolynomialMatrix);
-static tensor<double> EigenValues
-(tensor<tensor<double>> mx, bool determinant = false);
+static tensor<double> EigenValues(tensor<tensor<double>> mx);
+static tensor<tensor<double>> EigenVectors
+(tensor<tensor<double>> mx, tensor<double> EigenV = {});
 static void CodeToNumber(switchcase& argc);
 static void Repeater(
 	switchcase& argc,
@@ -2175,7 +2176,7 @@ int main()
 #ifndef BUGS
 				wcout << L' ';
 #endif
-				wcout << L"0.8.6 ";
+				wcout << L"0.8.7 ";
 #ifdef BUGS
 				wcout << L"BETA ";
 #endif
@@ -7180,7 +7181,7 @@ FACTOR<> PolynomialMatrixDeterminant(tensor<tensor<FACTOR<>>> PolynomialMatrix)
 };
 
 // calcola gli autovalori di una matrice
-static tensor<double> EigenValues(tensor<tensor<double>> mx, bool determinant)
+static tensor<double> EigenValues(tensor<tensor<double>> mx)
 {
 
 	// inizializzazione
@@ -7201,7 +7202,54 @@ static tensor<double> EigenValues(tensor<tensor<double>> mx, bool determinant)
 		str.erase(0, str.find(L'=') + 1);
 		if (str.find(L'i') == wstring::npos) eigenvalues << stod(str);
 	}
+
+	// ordinamento in ordine decrescente
+	for (int i = 0; i < eigenvalues; ++i) for (int j = i + 1; j < eigenvalues; ++j)
+		if (eigenvalues[i] < eigenvalues[j]) swap(eigenvalues[i], eigenvalues[j]);
+
 	return eigenvalues;
+}
+
+// calcola gli autovettori di una matrice
+static tensor<tensor<double>> EigenVectors
+(tensor<tensor<double>> mx, tensor<double> EigenV)
+{
+	int size = mx.size();
+	if (EigenV.empty()) EigenV = EigenValues(mx);
+
+	// calcolo autovettori e matrici ortogonali
+	tensor<double> result;
+	tensor<tensor<double>> eigenvectors(size);
+	for (int i = 0; i < size - 1; ++i) result << -mx[i].last();
+	mx--;
+	for (int i = 0; i < size - 1; ++i) mx[i]--;
+
+	// risoluzione sistemi lineari
+	for (int i = 0; i < size; ++i) {
+
+		// sottrazione autovalore
+		auto NewMx{ mx };
+		for (int j = 0; j < size; ++j) NewMx[j][j] -= EigenV[i];
+		auto Det{ Determinant(NewMx) };
+
+		// calcolo soluzioni e determinanti
+		for (int j = 0; j < size - 1; ++j) {
+			auto NewMatrix{ mx };
+			for (int k = 0; k < size - 1; ++k) NewMatrix[k][k] = result[k];
+			eigenvectors[i] << Determinant(NewMatrix) / Det;
+		}
+		eigenvectors[i] << 1;
+
+		// normalizzazione autovettori
+		double norm{};
+		for (int j = 0; j < size; ++j)
+			norm += eigenvectors[i][j] * eigenvectors[i][j];
+		norm = sqrt(norm);
+		for (int j = 0; j < size; ++j)
+			eigenvectors[i][j] /= norm;
+	}
+
+	return eigenvectors;
 }
 
 #pragma endregion
@@ -8403,19 +8451,20 @@ static void DecompMatrices(switchcase& argc)
 			argc = Random;
 			return;
 		}
-		if (matrix == tensor<tensor<double>>(Mx.size(), tensor<double>(Mx.size(), 0)))
+		int size = matrix.size();
+		if (matrix == tensor<tensor<double>>(size, tensor<double>(size, 0)))
 			break;
 		wcout << L'\n';
 		Mx = matrix;
 
 		// calcolo matrice di permutazione
-		auto Id{ tensor<tensor<double>>(Mx.size(), tensor<double>(Mx.size(), 0)) };
-		for (int i = 0; i < Mx; ++i) Id[i][i] = 1;
+		auto Id{ tensor<tensor<double>>(size, tensor<double>(size, 0)) };
+		for (int i = 0; i < size; ++i) Id[i][i] = 1;
 		auto permutator{ Id };
-		for (int i = 0; i + 1 < Mx; ++i) {
+		for (int i = 0; i + 1 < size; ++i) {
 
-			int max = Mx[Mx.size() - 1][i], IndexofMax = Mx.size() - 1;
-			for (int j = Mx.size() - 2; j >= i; --j) if (Mx[j][i] > max) {
+			int max = Mx[size - 1][i], IndexofMax = size - 1;
+			for (int j = size - 2; j >= i; --j) if (Mx[j][i] > max) {
 				max = Mx[j][i];
 				IndexofMax = j;
 			}
@@ -8428,8 +8477,8 @@ static void DecompMatrices(switchcase& argc)
 		}
 
 		// trasposizione della matrice di permutazione
-		auto NewPermutator{ tensor<tensor<double>>(permutator.size(), 0) };
-		for (int i = 0; i < Mx; ++i) for (int j = 0; j < Mx; ++j)
+		auto NewPermutator{ tensor<tensor<double>>(size) };
+		for (int i = 0; i < size; ++i) for (int j = 0; j < size; ++j)
 			NewPermutator[i] << permutator[j][i];
 		permutator = NewPermutator;
 
@@ -8437,9 +8486,9 @@ static void DecompMatrices(switchcase& argc)
 		auto lower{ Id };
 		auto upper{ Mx };
 		bool Break{ false };
-		for (int i = 0; i + 1 < Mx; ++i) {
+		for (int i = 0; i + 1 < size; ++i) {
 			
-			for (int j = i + 1; j < Mx; ++j) {
+			for (int j = i + 1; j < size; ++j) {
 				
 				if (upper[i][i] == 0) {
 					Break = true;
@@ -8447,7 +8496,7 @@ static void DecompMatrices(switchcase& argc)
 				}
 				lower[j][i] = upper[j][i] / upper[i][i];
 
-				for (int k = 0; k < Mx; ++k)
+				for (int k = 0; k < size; ++k)
 					upper[j][k] -= lower[j][i] * upper[i][k];
 			}
 			if (Break) break;
@@ -8466,8 +8515,8 @@ static void DecompMatrices(switchcase& argc)
 		Mx = matrix;
 		auto ortogonal{ Id };
 		Break = false;
-		for (int i = 0; i < Mx; ++i) {
-			for (int j = i + 1; j < Mx; ++j) if (Mx[j][i] != 0) {
+		for (int i = 0; i < size; ++i) {
+			for (int j = i + 1; j < size; ++j) if (Mx[j][i] != 0) {
 
 				double norm{ hypot(Mx[j][i], Mx[j - 1][i]) };
 				if (norm == 0) {
@@ -8499,7 +8548,7 @@ static void DecompMatrices(switchcase& argc)
 		Mx = matrix;
 		lower = Id;
 		Break = false;
-		for (int i = 0; i < Mx; ++i) {
+		for (int i = 0; i < size; ++i) {
 			for (int j = 0; j <= i; ++j) {
 				double sum{};
 
@@ -8524,9 +8573,9 @@ static void DecompMatrices(switchcase& argc)
 			}
 			if (Break) break;
 		}
-		auto lowerT{ tensor<tensor<double>>(Mx.size()) };
-		if (!Break) for (int i = 0; i < Mx; ++i)
-			for (int j = 0; j < Mx; ++j) lowerT[i] << lower[j][i];
+		auto lowerT{ tensor<tensor<double>>(size) };
+		if (!Break) for (int i = 0; i < size; ++i)
+			for (int j = 0; j < size; ++j) lowerT[i] << lower[j][i];
 
 		// output decomposizione
 		if (!Break) {
@@ -8535,8 +8584,36 @@ static void DecompMatrices(switchcase& argc)
 			wcout << L'\n';
 		}
 
-		// decomposizione a valori singolari
+		// calcolo autovalori
+		Mx = matrix;
+		auto MxT{ Id };
+		for (int i = 0; i < size; ++i) for (int j = 0; j < size; ++j)
+			MxT[i][j] = Mx[j][i];
+		auto Mx_MxT{ MatrixMultiply(Mx, MxT) };
+		auto MxT_Mx{ MatrixMultiply(MxT, Mx) };
+		auto EigenV{ EigenValues(Mx_MxT) };
 
+		// calcolo matrici U, V e sigma
+		auto sigma{ Id };
+		Break = EigenV.size() != size;
+		tensor<tensor<double>> U, V;
+		if (!Break) {
+			for (int i = 0; i < size; ++i) sigma[i][i] = sqrt(EigenV[i]);
+			U = EigenVectors(Mx_MxT, EigenV);
+			V = EigenVectors(MxT_Mx);
+		}
+
+		// decomposizione a valori singolari
+		if (!Break) {
+			wcout << L"decomposizione a valori singolari:\n";
+			int line{ OutputMatrix(U) };
+			line = max(line, OutputMatrix(sigma));
+			OutputMatrix(V, { (short)line, -2 });
+			wcout << L'\n';
+		}
+
+		// aggiungi tu qui altre decomposizioni
+		Mx = matrix;
 
 	}
 
