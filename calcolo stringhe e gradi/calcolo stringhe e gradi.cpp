@@ -23,7 +23,7 @@
 
 // Descrizione programma ::
 	/*                                                          |
-	*  Strings ZP[0.8.4].cpp: il programma calcola singola e\o  |
+	*  Strings ZP[0.8.6].cpp: il programma calcola singola e\o  |
 	*  doppia scomposizione di alcuni interi in una stringa o   |
 	*  il contrario, i numeri primi, cifre e divisori, scompone |
 	*  anche i polinomi, le frazioni algebriche e le matrici    |
@@ -2051,6 +2051,15 @@ static void LongComputation
 static polynomial<big> GetMonomialsAssister(wstring pol);
 static polynomial<big> GetMonomialsDirector(wstring pol, bool changx = true);
 static factor<big> GetMonomials(wstring pol);
+static tensor<tensor<long double>> FromPolynomialToPos(
+	factor<> vect,
+	int& StartIndex,
+	tensor<int>& CorrectSizes,
+	tensor<int>& VDirectorTerm,
+	tensor<int>& VKnownTerm,
+	tensor<tensor<int>>& VDirectorSeq,
+	tensor<tensor<int>>& VKnownSeq
+);
 template<typename T_int = long double>
 static factor<T_int> PolynomialSum(factor<T_int> vect);
 template<typename T_int = long double>
@@ -2074,18 +2083,25 @@ static void Simplify(
 	int& ncoeff, int& dcoeff
 );
 static void Approximator(tensor<long double>& Equation, long double& root);
-static tensor<wstring> ExistenceConditions(factor<> equation);
+static tensor<wstring> EquationSolver(factor<> equation);
 static void PrintFraction
 (
 	int NC, int DC, int& LINE, bool WritePlus,
 	polynomial<> numerator, polynomial<> denominator
 );
-static int Determinant(tensor<tensor<int>> mx);
 static int OutputMatrix(
 	tensor<tensor<double>> Matrix,
 	COORD SelectedElement = { -1, -1 }
 );
 static tensor<tensor<double>> InputMatrix();
+static tensor<tensor<double>> MatrixMultiply(
+	tensor<tensor<double>> A,
+	tensor<tensor<double>> B
+);
+template<typename T> static T Determinant(tensor<tensor<T>> mx);
+FACTOR<> PolynomialMatrixDeterminant(tensor<tensor<FACTOR<>>> PolynomialMatrix);
+static tensor<double> EigenValues
+(tensor<tensor<double>> mx, bool determinant = false);
 static void CodeToNumber(switchcase& argc);
 static void Repeater(
 	switchcase& argc,
@@ -2159,7 +2175,7 @@ int main()
 #ifndef BUGS
 				wcout << L' ';
 #endif
-				wcout << L"0.8.4 ";
+				wcout << L"0.8.6 ";
 #ifdef BUGS
 				wcout << L"BETA ";
 #endif
@@ -2401,14 +2417,14 @@ End:
 // funzioni matematiche
 #pragma region Math
 
-// funzione fattoriale x! = x*(x-1)*...*2*1
+// fattoriale x! = x*(x-1)*...*2*1
 static size_t Factorial(size_t n)
 {
 	if (n <= 1) return 1;
 	return n * Factorial(n - 1);
 }
 
-// funzione coefficiente binomiale: (n k) = n! / (k! (n-k)!)
+// coefficiente binomiale: (n k) = n! / (k! (n-k)!)
 static size_t BinomialCoeff(size_t n, size_t k)
 {
 	long double coeff{ 1.0 };
@@ -2486,7 +2502,7 @@ static big Gcd(tensor<big> terms)
 	return gcd;
 }
 
-// funzione potenza sugli interi (per precisione)
+// potenza sugli interi (per precisione)
 static ptrdiff_t intpow(ptrdiff_t base, int exp)
 {
 	ptrdiff_t power{ 1 };
@@ -2644,7 +2660,7 @@ static void PrintPFrame
 	long double theta{ 2 * M_PI / sides };
 
 	// calcolo apotema e lato con la goniometria e le formule
-	long double sidelenght{ sqrt(2 * pow(radius, 2) * (1 - cos(theta))) };
+	long double sidelenght{ sqrt(2 * radius * radius * (1 - cos(theta))) };
 	long double apotem{ sqrt(pow(radius, 2) - pow(sidelenght / 2, 2)) };
 
 	// stringa dei caratteri per l'illuminazione del poligono
@@ -6268,8 +6284,7 @@ static polynomial<> TrinomialSquare(factor<> vect)
 // funzioni utili per lavorare con le frazioni algebriche
 #pragma region Algebric
 
-// funzione per calcolare il complementario
-// di un polinomio rispetto a un fattore
+// calcola il complementario di un fattore rispetto a un polinomio
 static FACTOR<> Complementary(POLYNOMIAL<> Polynomial, FACTOR<> factor, int exp)
 {
 
@@ -6299,7 +6314,7 @@ static FACTOR<> Complementary(POLYNOMIAL<> Polynomial, FACTOR<> factor, int exp)
 	return V1converter(PolynomialMultiply, Polynomial);
 }
 
-// funzione per semplificare numeratore e denominatore
+// semplifica numeratore e denominatore in una frazione
 static void Simplify(
 	polynomial<>& num, polynomial<>& den,
 	int& ncoeff, int& dcoeff
@@ -6393,8 +6408,7 @@ static void Simplify(
 		den.erase(den.begin() + i);
 }
 
-// funzione per calcolare le soluzioni di un equazione
-// con il metodo di newton-raphson
+// calcola una soluzione di un equazione con il metodo di newton-raphson
 static void Approximator(tensor<long double>& Equation, long double& root)
 {
 
@@ -6449,8 +6463,8 @@ static void Approximator(tensor<long double>& Equation, long double& root)
 	Equation--;
 }
 
-// funzione per gestire un equazione (per le c.e.)
-static tensor<wstring> ExistenceConditions(factor<> Equation)
+// calcola gli zeri di un polinomio
+static tensor<wstring> EquationSolver(factor<> Equation)
 {
 	// caso nullo
 	if (Equation.empty()) return {};
@@ -6567,7 +6581,7 @@ static tensor<wstring> ExistenceConditions(factor<> Equation)
 	}
 }
 
-// funzione che stampa una frazione
+// stampa una frazione
 static void PrintFraction
 (
 	int NC, int DC, int& LINE, bool WritePlus,
@@ -6744,32 +6758,6 @@ static void PrintFraction
 // funzioni relative alle matrici
 #pragma region matrices
 
-// funzione per calcolare il determinante di una matrice
-// con il teorema di laplace
-static int Determinant(tensor<tensor<int>> mx)
-{
-	int det{};
-	int s = mx.size();
-
-	// casi speciali
-	if (s == 1) return mx[0][0];
-	if (s == 2) return mx[0][0] * mx[1][1] - mx[0][1] * mx[1][0];
-
-	// caso generale
-	for (int i = 0; i < s; ++i) {
-
-		tensor<tensor<int>> MX(s - 1);
-		for (int I = 0; I < s - 1; ++I) for (int J = 0; J < s; ++J)
-		{
-			if (i == J) continue;
-			MX[I] << mx[I + 1][J];
-		}
-		
-		det += intpow(-1, i) * mx[0][i] * Determinant(MX);
-	}
-	return det;
-}
-
 // stampa una matrice quadrata e restituisce la posizione del cursore
 static int OutputMatrix(
 	tensor<tensor<double>> Matrix,
@@ -6801,13 +6789,26 @@ static int OutputMatrix(
 		}
 
 		// elemento decimale
-		int I{ 2 };
-		while (true) {
-			if (integer(I * element)) break;
-			I++;
+		int I{ -1 };
+		for (int i = 2; i < 1'000; ++i) {
+			if (integer(i * element)) {
+				I = i;
+				break;
+			}
+			i++;
 		}
-		StrMatrix[i] << to_wstring((int)(element * I));
-		StrDenominators[i] << to_wstring(I);
+		if (I == -1) {
+
+			// elemento sottoforma di numero decimale
+			StrMatrix[i] << to_wstring(element);
+			StrDenominators[i] << L"";
+		}
+		else {
+
+			// elemento sottoforma di frazione
+			StrMatrix[i] << to_wstring((int)(element * I));
+			StrDenominators[i] << to_wstring(I);
+		}
 	}
 
 	// correzione lunghezza stringhe
@@ -7085,6 +7086,122 @@ static tensor<tensor<double>> InputMatrix()
 		OutputMatrix(TheMatrix, IndexAccesser);
 	}
 	SetConsoleCursorInfo(hConsole, &cursor);
+}
+
+// moltiplica due matrici
+static tensor<tensor<double>> MatrixMultiply(
+	tensor<tensor<double>> A,
+	tensor<tensor<double>> B
+)
+{
+	if (A % B) return {};
+	int size = A.size();
+	tensor<tensor<double>> C(size);
+
+	for (int i = 0; i < size; ++i) for (int j = 0; j < size; ++j) {
+		double scalar_prod{};
+		for (int k = 0; k < size; ++k) scalar_prod += A[i][k] * B[k][j];
+		C[i] << scalar_prod;
+	}
+	
+	return C;
+}
+
+// calcola il determinante di una matrice con il teorema di laplace
+template<typename T> static T Determinant(tensor<tensor<T>> mx)
+{
+	T det{};
+	int s = mx.size();
+
+	// casi speciali
+	if (s == 1) return mx[0][0];
+	if (s == 2) return mx[0][0] * mx[1][1] - mx[0][1] * mx[1][0];
+
+	// caso generale
+	for (int i = 0; i < s; ++i) {
+
+		tensor<tensor<T>> MX(s - 1);
+		for (int I = 0; I < s - 1; ++I) for (int J = 0; J < s; ++J)
+		{
+			if (i == J) continue;
+			MX[I] << mx[I + 1][J];
+		}
+		
+		det += intpow(-1, i) * mx[0][i] * Determinant(MX);
+	}
+	return det;
+}
+
+// calcola il determinante di una matrice di polinomi
+FACTOR<> PolynomialMatrixDeterminant(tensor<tensor<FACTOR<>>> PolynomialMatrix)
+{
+
+	FACTOR<> det;
+	int s = PolynomialMatrix.size();
+
+	// casi speciali del calcolo del determinante
+	if (s == 1) return PolynomialMatrix[0][0];
+	if (s == 2) {
+		auto addend1{
+			PolynomialMultiply(
+				{ ToXV(PolynomialMatrix[0][0]), ToXV(PolynomialMatrix[1][1]) }
+			)
+		};
+		auto addend2{
+			PolynomialMultiply(
+				{ ToXV(PolynomialMatrix[0][1]), ToXV(PolynomialMatrix[1][0]) }
+			)
+		};
+		for (auto& mon : addend2) mon.coefficient *= -1;
+		return To1V(PolynomialSum<long double>(addend1 + addend2));
+	}
+
+	// caso generale del calcolo del determinante
+	for (int i = 0; i < s; ++i) {
+
+		tensor<tensor<FACTOR<>>> MX(s - 1);
+		for (int I = 0; I < s - 1; ++I) for (int J = 0; J < s; ++J)
+		{
+			if (i == J) continue;
+			MX[I] << PolynomialMatrix[I + 1][J];
+		}
+
+		auto adder{
+			PolynomialMultiply<long double>({
+				ToXV(PolynomialMatrix[0][i]),
+				ToXV(PolynomialMatrixDeterminant(MX))
+				})
+		};
+		for (auto& mon : adder) mon.coefficient *= -1;
+		det = To1V(PolynomialSum<long double>(ToXV(det) + adder));
+	}
+
+	return det;
+};
+
+// calcola gli autovalori di una matrice
+static tensor<double> EigenValues(tensor<tensor<double>> mx, bool determinant)
+{
+
+	// inizializzazione
+	int s = mx.size();
+	auto PolynomialMatrix{ tensor<tensor<FACTOR<>>>(s, tensor<FACTOR<>>(s)) };
+	for (int i = 0; i < s; ++i) for (int j = 0; j < s; ++j)
+		PolynomialMatrix[i][j] << MONOMIAL<>{ 0, (long double)mx[i][j] };
+	for (int i = 0; i < s; ++i) PolynomialMatrix[i][i] >> MONOMIAL<>{ 1, -1 };
+	
+	// calcolo autovalori
+	tensor<double> eigenvalues;
+	auto EigenStrings{
+		EquationSolver(
+			ToXV(PolynomialMatrixDeterminant(PolynomialMatrix))
+		)
+	};
+	for (auto str : EigenStrings) {
+		str.erase(0, str.find(L'=') + 1);
+		if (str.find(L'i') == wstring::npos) eigenvalues << stod(str);
+	}
+	return eigenvalues;
 }
 
 #pragma endregion
@@ -8040,7 +8157,7 @@ static void DecompFraction(switchcase& argc)
 		// push condizioni di esistenza
 		COORD cursorPos;
 		for (auto d : DenBackup) {
-			auto Ctemp_{ ExistenceConditions(d) };
+			auto Ctemp_{ EquationSolver(d) };
 			for (auto i : Ctemp_) C_E_ << i;
 		}
 
@@ -8260,7 +8377,7 @@ static void DecompFraction(switchcase& argc)
 	argc = NotAssigned;
 }
 
-// programma per scomporre le matrici
+// programma per decomporre le matrici
 static void DecompMatrices(switchcase& argc)
 {
 	setlocale(LC_ALL, "");
@@ -8272,29 +8389,30 @@ static void DecompMatrices(switchcase& argc)
 	SetConsoleTextAttribute(hConsole, 14);
 	wcout << L"il PROGRAMMA scompone le matrici\n\n";
 	SetConsoleTextAttribute(hConsole, 12);
-	wcout << L"tipi di scomposizione: LU, PLU, ...\n\n";
+	wcout << L"sono ammesse solo matrici quadrate da 2x2 a 7x7\n\n";
 	SetConsoleTextAttribute(hConsole, 15);
-	tensor<tensor<double>> Mx;
+	tensor<tensor<double>> matrix, Mx;
 
 	while (true)
 	{
 		// input
 		SetConsoleTextAttribute(hConsole, 15);
 		wcout << L"inserisci una matrice, usa wasd per cambiare elemento\n";
-		Mx = InputMatrix();
-		if (Mx.empty()) {
+		matrix = InputMatrix();
+		if (matrix.empty()) {
 			argc = Random;
 			return;
 		}
-		if (Mx == tensor<tensor<double>>(Mx.size(), tensor<double>(Mx.size(), 0)))
+		if (matrix == tensor<tensor<double>>(Mx.size(), tensor<double>(Mx.size(), 0)))
 			break;
 		wcout << L'\n';
+		Mx = matrix;
 
 		// calcolo matrice di permutazione
 		auto Id{ tensor<tensor<double>>(Mx.size(), tensor<double>(Mx.size(), 0)) };
-		for (int i = 0; i < Mx.size(); ++i) Id[i][i] = 1;
+		for (int i = 0; i < Mx; ++i) Id[i][i] = 1;
 		auto permutator{ Id };
-		for (int i = 0; i < Mx.size() - 1; ++i) {
+		for (int i = 0; i + 1 < Mx; ++i) {
 
 			int max = Mx[Mx.size() - 1][i], IndexofMax = Mx.size() - 1;
 			for (int j = Mx.size() - 2; j >= i; --j) if (Mx[j][i] > max) {
@@ -8311,7 +8429,7 @@ static void DecompMatrices(switchcase& argc)
 
 		// trasposizione della matrice di permutazione
 		auto NewPermutator{ tensor<tensor<double>>(permutator.size(), 0) };
-		for (int i = 0; i < Mx.size(); ++i) for (int j = 0; j < Mx.size(); ++j)
+		for (int i = 0; i < Mx; ++i) for (int j = 0; j < Mx; ++j)
 			NewPermutator[i] << permutator[j][i];
 		permutator = NewPermutator;
 
@@ -8319,16 +8437,14 @@ static void DecompMatrices(switchcase& argc)
 		auto lower{ Id };
 		auto upper{ Mx };
 		bool Break{ false };
-		for (int i = 0; i < Mx.size() - 1; ++i) {
+		for (int i = 0; i + 1 < Mx; ++i) {
 			
 			for (int j = i + 1; j < Mx; ++j) {
 				
-				Break = upper[i][i] == 0;
-				if (Break) {
-					lower = tensor<tensor<double>>();
+				if (upper[i][i] == 0) {
+					Break = true;
 					break;
 				}
-				
 				lower[j][i] = upper[j][i] / upper[i][i];
 
 				for (int k = 0; k < Mx; ++k)
@@ -8337,24 +8453,90 @@ static void DecompMatrices(switchcase& argc)
 			if (Break) break;
 		}
 
-		// decomposizione L-U o P-L-U
-		if (lower != tensor<tensor<double>>()) {
-			if (permutator == Id) wcout << L"decomposizione LU:\n";
-			else wcout << L"decomposizione PLU:\n";
-
-			GetConsoleScreenBufferInfo(hConsole, &csbi);
-			auto start{ csbi.dwCursorPosition };
-			int line{ OutputMatrix(lower) };
-			GetConsoleScreenBufferInfo(hConsole, &csbi);
-			start.X = csbi.dwCursorPosition.X;
-
-			line = permutator == Id ?
-				max(line, OutputMatrix(upper, { (short)line, -2 })) :
-				max(line, OutputMatrix(upper));
-
-			if (permutator != Id) OutputMatrix(permutator, { (short)line, -2 });
+		// decomposizione PLU
+		if (!Break) {
+			wcout << L"decomposizione PLU:\n";
+			int line{ OutputMatrix(permutator) };
+			line = max(line, OutputMatrix(lower));
+			OutputMatrix(upper, { (short)line, -2 });
 			wcout << L'\n';
 		}
+
+		// algoritmo di givens
+		Mx = matrix;
+		auto ortogonal{ Id };
+		Break = false;
+		for (int i = 0; i < Mx; ++i) {
+			for (int j = i + 1; j < Mx; ++j) if (Mx[j][i] != 0) {
+
+				double norm{ hypot(Mx[j][i], Mx[j - 1][i]) };
+				if (norm == 0) {
+					Break = true;
+					break;
+				}
+				double cosine{ Mx[j - 1][i] / norm }, sine{ Mx[j][i] / norm };
+
+				auto givens{ Id };
+				givens[i][i] = cosine;
+				givens[i][j] = sine;
+				givens[j][i] = -sine;
+				givens[j][j] = cosine;
+
+				Mx = MatrixMultiply(givens, Mx);
+				ortogonal = MatrixMultiply(ortogonal, givens);
+			}
+			if (Break) break;
+		}
+
+		// decomposizione QR
+		if (!Break) {
+			wcout << L"decomposizione QR:\n";
+			OutputMatrix(Mx, { (short)OutputMatrix(ortogonal), -2 });
+			wcout << L'\n';
+		}
+
+		// decomposizione di cholesky
+		Mx = matrix;
+		lower = Id;
+		Break = false;
+		for (int i = 0; i < Mx; ++i) {
+			for (int j = 0; j <= i; ++j) {
+				double sum{};
+
+				// elementi sulla diagonale
+				if (i == j) {
+					for (int k = 0; k < i; ++k) sum += lower[i][k] * lower[i][k];
+					lower[i][i] = sqrt(Mx[i][i] - sum);
+				}
+
+				// controllo risultati corretti
+				if (lower[i][i] == 0 or isnan(lower[i][i])) {
+					Break = true;
+					break;
+				}
+
+				// elementi sotto alla diagonale
+				if (i != j) {
+					for (int k = 0; k < i; ++k) sum += lower[i][k] * lower[j][k];
+					lower[i][j] = (Mx[i][j] - sum) / lower[j][j];
+				}
+
+			}
+			if (Break) break;
+		}
+		auto lowerT{ tensor<tensor<double>>(Mx.size()) };
+		if (!Break) for (int i = 0; i < Mx; ++i)
+			for (int j = 0; j < Mx; ++j) lowerT[i] << lower[j][i];
+
+		// output decomposizione
+		if (!Break) {
+			wcout << L"decomposizione di cholesky:\n";
+			OutputMatrix(lowerT, { (short)OutputMatrix(lower), -2 });
+			wcout << L'\n';
+		}
+
+		// decomposizione a valori singolari
+
 
 	}
 
