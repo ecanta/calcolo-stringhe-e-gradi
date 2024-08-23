@@ -29,18 +29,25 @@
 	*  anche i polinomi, le frazioni algebriche e le matrici    |
 	*///                                                        |
 
-	// macro
-#define and &&
-#define or ||
-#define xor !=
-#define POS false
-#define NEG true
+	// macro di definizione
 #define BUGS
 #define DEBUG
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #define _USE_MATH_DEFINES
 #define NO_DISCARD_CONST_EXPR _NODISCARD _CONSTEXPR20
+
+// macro di rinominazione
+#define and &&
+#define or ||
+#define xor !=
+#define POS false
+#define NEG true
+#define ret return
+
+// funzioni macro
+#define GetCursorPos() GetConsoleScreenBufferInfo(hConsole, &csbi)
+#define ResetAttribute() SetConsoleTextAttribute(hConsole, 15)
 #define integer(x) (_STD fabs(x - _STD round(x)) < 1e-9)
 #define issign(x) (x == L'+' or x == L'-')
 #define V1converter(func, param) To1V(func(ToXV(param)))
@@ -76,7 +83,7 @@
 
 // namespace globali
 using namespace std;
-using namespace chrono;
+using namespace _STD chrono;
 using Concurrency::parallel_for, this_thread::sleep_for;
 
 #pragma endregion
@@ -99,10 +106,10 @@ bool PRINTN(true);
 double CORRECTION_RATIO{ 1.0 };
 
 // variabili globali e atomiche
-atomic<bool> GlobalInterr(false);
-atomic<bool> interrupted(false);
-atomic<bool> computing(false);
-atomic<bool> IsDone(false);
+atomic_bool GlobalInterr(false);
+atomic_bool interrupted(false);
+atomic_bool computing(false);
+atomic_bool IsDone(false);
 condition_variable cv, Cv;
 mutex CoutMutex, mtx;
 COORD Min{ 25, 15 };
@@ -137,7 +144,7 @@ struct coord {
 		COORD result;
 		result.X = static_cast<SHORT>(X);
 		result.Y = static_cast<SHORT>(Y);
-		return result;
+		ret result;
 	}
 };
 
@@ -242,7 +249,7 @@ protected:
 	// metodi privati
 	void resize(size_t new_capacity)
 	{
-		if (new_capacity < capacity) return;
+		if (new_capacity < capacity) ret;
 		T* new_data = new(nothrow) T[new_capacity];
 		if (data != nullptr) {
 			for (size_t i = 0; i < count; ++i) new_data[i] = move(data[i]);
@@ -303,7 +310,7 @@ public:
 			for (size_t i = 0; i < other.count; ++i) data[i] = other.data[i];
 			count = other.count;
 		}
-		return *this;
+		ret *this;
 	}
 	tensor& operator=(tensor&& other) noexcept
 	{
@@ -316,7 +323,7 @@ public:
 			other.capacity = 0;
 			other.count = 0;
 		}
-		return *this;
+		ret *this;
 	}
 	void assign(tensor<T> other)
 	{
@@ -326,35 +333,35 @@ public:
 	// metodi di base
 	size_t size() const
 	{
-		return count;
+		ret count;
 	}
 	size_t get_capacity() const
 	{
-		return capacity;
+		ret capacity;
 	}
 	bool empty() const
 	{
-		return count == 0;
+		ret count == 0;
 	}
 
 	// metodi di accesso agli elementi
 	T& at(size_t index)
 	{
 		if (index >= count) throw out_of_range("Index out of range");
-		return data[index];
+		ret data[index];
 	}
 	const T& at(size_t index) const
 	{
 		if (index >= count) throw out_of_range("Index out of range");
-		return data[index];
+		ret data[index];
 	}
 	T& last()
 	{
-		return data[count - 1];
+		ret data[count - 1];
 	}
 	const T& last() const
 	{
-		return data[count - 1];
+		ret data[count - 1];
 	}
 
 	// metodi di taglio
@@ -378,11 +385,11 @@ public:
 	// operatori di accesso agli elementi
 	NO_DISCARD_CONST_EXPR T& operator[](size_t index)
 	{
-		return at(index);
+		ret at(index);
 	}
 	NO_DISCARD_CONST_EXPR const T& operator[](size_t index) const
 	{
-		return at(index);
+		ret at(index);
 	}
 
 	// operatori di modifica degli elementi e della dimensione
@@ -414,29 +421,29 @@ public:
 	tensor<T>& operator++()
 	{
 		push_front(T());
-		return *this;
+		ret *this;
 	}
 	tensor<T> operator++(int)
 	{
 		tensor temp = *this;
 		push_back(T());
-		return temp;
+		ret temp;
 	}
 	tensor<T>& operator--()
 	{
 		pop_front();
-		return *this;
+		ret *this;
 	}
 	tensor<T> operator--(int)
 	{
 		tensor temp = *this;
 		pop_back();
-		return temp;
+		ret temp;
 	}
 	tensor& operator-=(size_t n)
 	{
 		count = n > count ? 0 : count - n;
-		return *this;
+		ret *this;
 	}
 
 	// operatori push
@@ -444,37 +451,37 @@ public:
 	{
 		if (n >= count) resize(n * 2);
 		count = n;
-		return *this;
+		ret *this;
 	}
 	tensor& operator()(size_t n, const T& value)
 	{
 		if (n >= count) resize(n * 2);
 		for (int i = count; i < n; ++i) data[i] = value;
 		count = n;
-		return *this;
+		ret *this;
 	}
 	constexpr tensor& operator<<(const T& value)
 	{
 		push_back(value);
-		return *this;
+		ret *this;
 	}
 	constexpr tensor& operator>>(const T& value)
 	{
 		push_front(value);
-		return *this;
+		ret *this;
 	}
 
 	// operatori di uguaglianza
 	_NODISCARD bool operator==(const tensor& other) const
 	{
-		if (count != other.count) return false;
+		if (count != other.count) ret false;
 		for (size_t i = 0; i < count; ++i) if (data[i] != other.data[i])
-			return false;
-		return true;
+			ret false;
+		ret true;
 	}
 	NO_DISCARD_CONST_EXPR bool operator!=(const tensor& other) const
 	{
-		return !(*this == other);
+		ret !(*this == other);
 	}
 
 	// operatori di concatenazione
@@ -482,108 +489,108 @@ public:
 	{
 		tensor result = *this;
 		result += other;
-		return result;
+		ret result;
 	}
 	tensor& operator+=(const tensor& other)
 	{
 		for (size_t i = 0; i < other.count; ++i) push_back(other.data[i]);
-		return *this;
+		ret *this;
 	}
 
 	// operatori di confronto tra tensori
 	NO_DISCARD_CONST_EXPR bool operator<(const tensor& other) const
 	{
-		return count < other.count;
+		ret count < other.count;
 	}
 	NO_DISCARD_CONST_EXPR bool operator<=(const tensor& other) const
 	{
-		return count <= other.count;
+		ret count <= other.count;
 	}
 	NO_DISCARD_CONST_EXPR bool operator>(const tensor& other) const
 	{
-		return count > other.count;
+		ret count > other.count;
 	}
 	NO_DISCARD_CONST_EXPR bool operator>=(const tensor& other) const
 	{
-		return count >= other.count;
+		ret count >= other.count;
 	}
 
 	// operatori di confronto a destra con un intero
 	template<typename U, typename = enable_if_t<is_integral_v<U>>>
 	friend bool operator==(const tensor& t, U n)
 	{
-		return t.count == static_cast<size_t>(n);
+		ret t.count == static_cast<size_t>(n);
 	}
 	template<typename U, typename = enable_if_t<is_integral_v<U>>>
 	friend bool operator!=(const tensor& t, U n)
 	{
-		return t.count != static_cast<size_t>(n);
+		ret t.count != static_cast<size_t>(n);
 	}
 	template<typename U, typename = enable_if_t<is_integral_v<U>>>
 	friend bool operator<(const tensor& t, U n)
 	{
-		return t.count < static_cast<size_t>(n);
+		ret t.count < static_cast<size_t>(n);
 	}
 	template<typename U, typename = enable_if_t<is_integral_v<U>>>
 	friend bool operator<=(const tensor& t, U n)
 	{
-		return t.count <= static_cast<size_t>(n);
+		ret t.count <= static_cast<size_t>(n);
 	}
 	template<typename U, typename = enable_if_t<is_integral_v<U>>>
 	friend bool operator>(const tensor& t, U n)
 	{
-		return t.count > static_cast<size_t>(n);
+		ret t.count > static_cast<size_t>(n);
 	}
 	template<typename U, typename = enable_if_t<is_integral_v<U>>>
 	friend bool operator>=(const tensor& t, U n)
 	{
-		return t.count >= static_cast<size_t>(n);
+		ret t.count >= static_cast<size_t>(n);
 	}
 
 	// operatori di confronto a sinistra con un intero
 	template<typename U, typename = enable_if_t<is_integral_v<U>>>
 	friend bool operator==(U n, const tensor& t)
 	{
-		return static_cast<size_t>(n) == t.count;
+		ret static_cast<size_t>(n) == t.count;
 	}
 	template<typename U, typename = enable_if_t<is_integral_v<U>>>
 	friend bool operator!=(U n, const tensor& t)
 	{
-		return static_cast<size_t>(n) != t.count;
+		ret static_cast<size_t>(n) != t.count;
 	}
 	template<typename U, typename = enable_if_t<is_integral_v<U>>>
 	friend bool operator<(U n, const tensor& t)
 	{
-		return static_cast<size_t>(n) < t.count;
+		ret static_cast<size_t>(n) < t.count;
 	}
 	template<typename U, typename = enable_if_t<is_integral_v<U>>>
 	friend bool operator<=(U n, const tensor& t)
 	{
-		return static_cast<size_t>(n) <= t.count;
+		ret static_cast<size_t>(n) <= t.count;
 	}
 	template<typename U, typename = enable_if_t<is_integral_v<U>>>
 	friend bool operator>(U n, const tensor& t)
 	{
-		return static_cast<size_t>(n) > t.count;
+		ret static_cast<size_t>(n) > t.count;
 	}
 	template<typename U, typename = enable_if_t<is_integral_v<U>>>
 	friend bool operator>=(U n, const tensor& t)
 	{
-		return static_cast<size_t>(n) >= t.count;
+		ret static_cast<size_t>(n) >= t.count;
 	}
 
 	// operatori logici
 	NO_DISCARD_CONST_EXPR bool operator&&(const tensor& other) const
 	{
-		return !this->empty() and !other.empty();
+		ret !this->empty() and !other.empty();
 	}
 	NO_DISCARD_CONST_EXPR bool operator||(const tensor& other) const
 	{
-		return !this->empty() or !other.empty();
+		ret !this->empty() or !other.empty();
 	}
 	NO_DISCARD_CONST_EXPR bool operator%(const tensor& other) const
 	{
-		return this->size() xor other.size();
+		ret this->size() xor other.size();
 	}
 
 	// iteratori
@@ -603,105 +610,105 @@ public:
 		iterator& operator++()
 		{
 			index++; 
-			return *this; 
+			ret *this;
 		}
 		iterator operator++(int)
 		{ 
 			iterator temp = *this;
 			index++; 
-			return temp; 
+			ret temp;
 		}
 		iterator& operator--()
 		{
 			index--;
-			return *this;
+			ret *this;
 		}
 		iterator operator--(int)
 		{
 			iterator temp = *this;
 			index--;
-			return temp;
+			ret temp;
 		}
 
 		iterator operator+(size_t n) const
 		{
-			return iterator(data, index + n);
+			ret iterator(data, index + n);
 		}
 		iterator& operator+=(size_t n)
 		{
 			index += n;
-			return *this;
+			ret *this;
 		}
 		iterator operator-(size_t n) const
 		{
-			return iterator(data, index - n);
+			ret iterator(data, index - n);
 		}
 		iterator& operator-=(size_t n)
 		{
 			index -= n;
-			return *this;
+			ret *this;
 		}
 
 		size_t operator+(iterator value) const
 		{
-			return index + value.index;
+			ret index + value.index;
 		}
 		size_t operator-(iterator value) const
 		{
-			if (index == value.index) return 0;
+			if (index == value.index) ret 0;
 			if (index < value.index) throw out_of_range("Index out of range");
-			return index - value.index;
+			ret index - value.index;
 		}
 
 		T& operator*()
 		{
-			return data[index];
+			ret data[index];
 		}
 		const T& operator*() const
 		{
-			return data[index];
+			ret data[index];
 		}
 		T* operator->()
 		{
-			return &data[index];
+			ret &data[index];
 		}
 		const T* operator->() const
 		{
-			return &data[index];
+			ret &data[index];
 		}
 
 		bool operator==(const iterator& other) const
 		{
-			return index == other.index;
+			ret index == other.index;
 		}
 		bool operator!=(const iterator& other) const
 		{
-			return index != other.index;
+			ret index != other.index;
 		}
 		bool operator<(const iterator& other) const
 		{
-			return index < other.index;
+			ret index < other.index;
 		}
 		bool operator<=(const iterator& other) const
 		{
-			return index <= other.index;
+			ret index <= other.index;
 		}
 		bool operator>(const iterator& other) const
 		{
-			return index > other.index;
+			ret index > other.index;
 		}
 		bool operator>=(const iterator& other) const
 		{
-			return index >= other.index;
+			ret index >= other.index;
 		}
 	};
 	iterator begin()
 	{
-		return iterator(data, 0);
+		ret iterator(data, 0);
 	}
 	iterator end()
 	{
-		return iterator(data, count);
+		ret iterator(data, count);
 	}
 
 	// metodi con gli operatori
@@ -714,7 +721,7 @@ public:
 	}
 	void erase(iterator first, iterator last)
 	{
-		if (first == last) return;
+		if (first == last) ret;
 		size_t start{ first - begin() };
 		size_t end{ last - begin() };
 
@@ -775,7 +782,7 @@ public:
 			for (const auto& element : *this) result << element << L", ";
 
 		// niente
-		else return L"";
+		else ret L"";
 
 		// fine
 		outp = result.str();
@@ -783,7 +790,7 @@ public:
 			outp.pop_back();
 			outp.pop_back();
 		}
-		return L'{' + outp + L'}';
+		ret L'{' + outp + L'}';
 	}
 };
 
@@ -819,14 +826,14 @@ public:
 		// calcolo parte intera
 		for (int i = 0; i < Integer; ++i) {
 			val += Integer[i] * pow(10, Integer.size() - i - 1);
-			if (val <= -2'147'483'647 or val >= 2'147'483'647) return nan("");
+			if (val <= -2'147'483'647 or val >= 2'147'483'647) ret nan("");
 		}
 		long double res = val;
 		
 		// parte decimale e segno
 		res += decimal;
 		if (sign == NEG) res *= -1;
-		return res;
+		ret res;
 	}
 
 	// costruttori
@@ -861,16 +868,16 @@ public:
 		sign = other.sign;
 		Integer = other.Integer;
 		decimal = other.decimal;
-		return *this;
+		ret *this;
 	}
 	bool operator==(const big& other) const
 	{
-		return sign == other.sign and Integer == other.Integer
+		ret sign == other.sign and Integer == other.Integer
 			and decimal == other.decimal;
 	}
 	bool operator!=(const big& other) const
 	{
-		return !(*this == other);
+		ret !(*this == other);
 	}
 
 	// confronto secondario
@@ -879,8 +886,8 @@ public:
 		auto integ{ Integer };
 		auto oth_integ{ other.Integer };
 
-		if (sign and !other.sign) return true;
-		if (!sign and other.sign) return false;
+		if (sign and !other.sign) ret true;
+		if (!sign and other.sign) ret false;
 
 		while (integ[0] == 0) {
 			if (integ <= 1) break;
@@ -891,23 +898,23 @@ public:
 			--oth_integ;
 		}
 
-		if (integ % oth_integ) return integ < oth_integ xor sign;
+		if (integ % oth_integ) ret integ < oth_integ xor sign;
 		for (int i = 0; i < integ; ++i) if (integ[i] != oth_integ[i])
-				return integ[i] < oth_integ[i] xor sign;
+			ret integ[i] < oth_integ[i] xor sign;
 
-		return decimal < other.decimal xor sign;
+		ret decimal < other.decimal xor sign;
 	}
 	bool operator<=(const big& other) const
 	{
-		return *this < other or *this == other;
+		ret *this < other or *this == other;
 	}
 	bool operator>=(const big& other) const
 	{
-		return !(*this < other);
+		ret !(*this < other);
 	}
 	bool operator>(const big& other) const
 	{
-		return !(*this == other or *this < other);
+		ret !(*this == other or *this < other);
 	}
 
 	// addizione
@@ -920,11 +927,11 @@ public:
 		// segni
 		if (!This.sign and Val.sign) {
 			Val.sign = POS;
-			return This - Val;
+			ret This - Val;
 		}
 		if (This.sign and !Val.sign) {
 			This.sign = POS;
-			return Val - This;
+			ret Val - This;
 		}
 		if (Val.sign and This.sign) Val.sign = POS;
 
@@ -943,22 +950,22 @@ public:
 		}
 		if (carry) This.Integer >> 1;
 
-		return This;
+		ret This;
 	}
 	big& operator+=(const big& value)
 	{
 		*this = *this + value;
-		return *this;
+		ret *this;
 	}
 	big& operator++()
 	{
 		*this = *this + 1;
-		return *this;
+		ret *this;
 	}
 	big& operator++(int)
 	{
 		*this = *this + 1;
-		return *this;
+		ret*this;
 	}
 
 	// sottrazione
@@ -971,11 +978,11 @@ public:
 		// segni
 		if (!This.sign and Val.sign) {
 			Val.sign = POS;
-			return This + Val;
+			ret This + Val;
 		}
 		if (This.sign and !Val.sign) {
 			Val.sign = NEG;
-			return Val + This;
+			ret Val + This;
 		}
 		if (Val.sign and This.sign) Val.sign = POS;
 
@@ -1001,28 +1008,28 @@ public:
 			if (This.Integer <= 1) break;
 			--This.Integer;
 		}
-		return This;
+		ret This;
 	}
 	big& operator-=(const big& value)
 	{
 		*this = *this - value;
-		return *this;
+		ret *this;
 	}
 	big& operator--()
 	{
 		*this = *this - 1;
-		return *this;
+		ret *this;
 	}
 	big& operator--(int)
 	{
 		*this = *this - 1;
-		return *this;
+		ret *this;
 	}
 
 	// moltiplicazione
 	big operator*(const big& value) const
 	{
-		if (*this == 0 or value == 0) return 0;
+		if (*this == 0 or value == 0) ret 0;
 		big Val = value;
 		big This = *this;
 		Val.shift();
@@ -1067,12 +1074,12 @@ public:
 		This.decimal = dec / pow(10, decprecision);
 
 		This.sign = sign xor value.sign;
-		return This;
+		ret This;
 	}
 	big& operator*=(const big& value)
 	{
 		*this = *this * value;
-		return *this;
+		ret *this;
 	}
 
 	// divisione intera
@@ -1104,12 +1111,12 @@ public:
 		// ridimensionamento
 		while (result.Integer > 1 and result.Integer[0] == 0) --result.Integer;
 		result.decimal = 0;
-		return result;
+		ret result;
 	}
 	big& operator/=(const big& value)
 	{
 		*this = *this / value;
-		return *this;
+		ret *this;
 	}
 
 	// modulo
@@ -1135,47 +1142,47 @@ public:
 			This -= temp;
 		}
 
-		return This;
+		ret This;
 	}
 	big& operator%=(const big& value)
 	{
 		*this = *this % value;
-		return *this;
+		ret *this;
 	}
 
 	// metodi matematici
 	bool intg() const
 	{
-		return decimal == 0;
+		ret decimal == 0;
 	}
 	big fabs() const
 	{
 		big other = *this;
 		other.sign = POS;
-		return other;
+		ret other;
 	}
 	big floor()
 	{
 		decimal = 0;
-		return *this;
+		ret *this;
 	}
 	big ceil()
 	{
 		bool integ = decimal == 0;
 		decimal = 0;
 		if (integ) (*this)++;
-		return *this;
+		ret *this;
 	}
 	big round()
 	{
 		*this += _STD round(decimal);
 		decimal = 0;
-		return *this;
+		ret *this;
 	}
 	big invert()
 	{
 		sign = !sign;
-		return *this;
+		ret *this;
 	}
 
 	// output
@@ -1188,7 +1195,7 @@ public:
 		auto str{ oss.str() };
 		str.erase(0, 1);
 		if (!str.empty()) result << L'.' << str;
-		return result;
+		ret result;
 	}
 };
 
@@ -1202,7 +1209,7 @@ public:
 	double ImaginaryPart;
 	double norm() const
 	{
-		return sqrt(RealPart * RealPart + ImaginaryPart * ImaginaryPart);
+		ret sqrt(RealPart * RealPart + ImaginaryPart * ImaginaryPart);
 	}
 
 	// costruttori
@@ -1213,17 +1220,17 @@ public:
 	// metodi matematici
 	complex conjugate() const
 	{
-		return complex(RealPart, -ImaginaryPart);
+		ret complex(RealPart, -ImaginaryPart);
 	}
 	complex opposite() const
 	{
-		return complex(-RealPart, -ImaginaryPart);
+		ret complex(-RealPart, -ImaginaryPart);
 	}
 
 	// addizione
 	complex operator+(complex value) const
 	{
-		return complex(
+		ret complex(
 			RealPart + value.RealPart,
 			ImaginaryPart + value.ImaginaryPart
 		);
@@ -1231,23 +1238,23 @@ public:
 	complex& operator+=(complex value)
 	{
 		*this = *this + value;
-		return *this;
+		ret *this;
 	}
 	complex& operator++()
 	{
 		*this = *this + 1;
-		return *this;
+		ret *this;
 	}
 	complex& operator++(int)
 	{
 		*this = *this + 1;
-		return *this;
+		ret *this;
 	}
 
 	// sottrazione
 	complex operator-(complex value) const
 	{
-		return complex(
+		ret complex(
 			RealPart - value.RealPart,
 			ImaginaryPart - value.ImaginaryPart
 		);
@@ -1255,17 +1262,17 @@ public:
 	complex& operator-=(complex value)
 	{
 		*this = *this - value;
-		return *this;
+		ret *this;
 	}
 	complex& operator--()
 	{
 		*this = *this - 1;
-		return *this;
+		ret *this;
 	}
 	complex& operator--(int)
 	{
 		*this = *this - 1;
-		return *this;
+		ret *this;
 	}
 
 	// moltiplicazione e divisione
@@ -1276,7 +1283,7 @@ public:
 		double c{ value.RealPart };
 		double d{ value.ImaginaryPart };
 
-		return complex(
+		ret complex(
 			a * c - b * d,
 			b * c + a * d
 		);
@@ -1284,7 +1291,7 @@ public:
 	complex& operator*=(complex value)
 	{
 		*this = *this * value;
-		return *this;
+		ret *this;
 	}
 	complex operator/(complex value) const
 	{
@@ -1293,7 +1300,7 @@ public:
 		double c{ value.RealPart };
 		double d{ value.ImaginaryPart };
 
-		return complex(
+		ret complex(
 			(a * c + b * d) / (c * c + d * d),
 			(b * c - a * d) / (c * c + d * d)
 		);
@@ -1301,7 +1308,7 @@ public:
 	complex operator/=(complex value)
 	{
 		*this = *this / value;
-		return *this;
+		ret *this;
 	}
 
 	// output
@@ -1311,7 +1318,7 @@ public:
 		output << setprecision(10) << L'(' << RealPart << L' ';
 		ImaginaryPart > 0 ? output << L'+' : output << L'-';
 		output << L" i" << fabs(ImaginaryPart) << L')';
-		return output.str();
+		ret output.str();
 	}
 };
 
@@ -1322,7 +1329,7 @@ template<typename T_int = long double>struct MONOMIAL {
 	T_int coefficient;
 	bool operator == (const MONOMIAL& other) const
 	{
-		return coefficient == other.coefficient and
+		ret coefficient == other.coefficient and
 			degree == other.degree;
 	}
 };
@@ -1334,20 +1341,20 @@ public:
 
 	bool operator==(const monomial& other) const
 	{
-		return coefficient == other.coefficient and exp == other.exp;
+		ret coefficient == other.coefficient and exp == other.exp;
 	}
 	int degree()
 	{
 		int sum{};
 		for (size_t i = 0; i < exp.size(); ++i) sum += exp[i];
-		return sum;
+		ret sum;
 	}
 	bool IsSquare()
 	{
-		if (!integer(sqrt(fabs(this->coefficient)))) return false;
+		if (!integer(sqrt(fabs(this->coefficient)))) ret false;
 		for (size_t i = 0; i < exp.size(); ++i)
-			if (exp[i] % 2 == 1) return false;
-		return true;
+			if (exp[i] % 2 == 1) ret false;
+		ret true;
 	}
 	monomial Root(int order)
 	{
@@ -1357,7 +1364,7 @@ public:
 		for (size_t i = 0; i < exp.size(); ++i)
 			result.exp.push_back(exp[i] / order);
 
-		return result;
+		ret result;
 	}
 };
 
@@ -1440,7 +1447,7 @@ public:
 		}
 		if (polynomial.at(0) == L'+') polynomial.erase(0, 1);
 
-		return polynomial;
+		ret polynomial;
 	}
 };
 template<typename T_int = long double>class FACTOR : public tensor<MONOMIAL<T_int>>
@@ -1501,7 +1508,7 @@ public:
 			element.exp[_FirstPos] = Monomial.degree;
 			traduction << element;
 		}
-		return traduction.str(1);
+		ret traduction.str(1);
 	}
 };
 static factor<> ToXV(FACTOR<> vect)
@@ -1515,7 +1522,7 @@ static factor<> ToXV(FACTOR<> vect)
 		element.exp[_FirstPos] = Monomial.degree;
 		output << element;
 	}
-	return output;
+	ret output;
 }
 static FACTOR<> To1V(factor<> vect)
 {
@@ -1527,7 +1534,7 @@ static FACTOR<> To1V(factor<> vect)
 		if (_FirstPos != wstring::npos) element.degree = Monomial.exp[_FirstPos];
 		output << element;
 	}
-	return output;
+	ret output;
 }
 
 // polinomi completi
@@ -1636,10 +1643,10 @@ public:
 		}
 
 		// caso nullo
-		if (output.empty()) return L"0";
+		if (output.empty()) ret L"0";
 
 		if (BOOLALPHA) ElabExponents(output);
-		return output;
+		ret output;
 	}
 };
 template<typename T_int = long double>class POLYNOMIAL : public tensor<FACTOR<T_int>>
@@ -1687,7 +1694,7 @@ public:
 	{
 		polynomial<T_int> traduction;
 		for (auto vector : *this) traduction << ToXV(vector);
-		return traduction.str(1);
+		ret traduction.str(1);
 	}
 };
 
@@ -1695,13 +1702,13 @@ static polynomial<> ToXV(POLYNOMIAL<> vect)
 {
 	polynomial<> output;
 	for (auto vector : vect) output << ToXV(vector);
-	return output;
+	ret output;
 }
 static POLYNOMIAL<> To1V(polynomial<> vect)
 {
 	POLYNOMIAL<> output;
 	for (auto vector : vect) output << To1V(vector);
-	return output;
+	ret output;
 }
 
 static polynomial<> FromBigToDefault(polynomial<big> BigPolynomial)
@@ -1713,7 +1720,7 @@ static polynomial<> FromBigToDefault(polynomial<big> BigPolynomial)
 			monomial<> unity;
 			unity.coefficient = mon.coefficient.Number();
 
-			if (isnan(unity.coefficient)) return
+			if (isnan(unity.coefficient)) ret
 				polynomial<>({ factor<>({ monomial<>({
 					1,
 					tensor<int>(1, -2)
@@ -1724,7 +1731,7 @@ static polynomial<> FromBigToDefault(polynomial<big> BigPolynomial)
 		}
 		traduction << element;
 	}
-	return traduction;
+	ret traduction;
 }
 
 // estensioni di tensor
@@ -1756,7 +1763,7 @@ public:
 			is_prime = other.is_prime;
 			list_primes = other.list_primes;
 		}
-		return *this;
+		ret *this;
 	}
 };
 tensor_t PrimeNumbers;
@@ -1814,7 +1821,7 @@ public:
 			if (
 				digit.digitSumRatioNum == 0 and
 				digit.digitProductRatioNum == 0
-				) return;
+				) ret;
 			wcout << L"numero " << number << L":\n";
 			SetConsoleTextAttribute(hConsole, 2);
 			wcout << L"in esadecimale è " << hex << uppercase;
@@ -1865,7 +1872,7 @@ public:
 			if (PrimeNumbers.is_prime[number]) {
 				SetConsoleTextAttribute(hConsole, 240);
 				wcout << L"il numero è primo";
-				SetConsoleTextAttribute(hConsole, 15);
+				ResetAttribute();
 				wcout << L'\n';
 			}
 
@@ -1893,7 +1900,7 @@ public:
 			}
 
 		}
-		SetConsoleTextAttribute(hConsole, 15);
+		ResetAttribute();
 	}
 };
 class NumberDataTensor : public tensor<NumberData>
@@ -1946,7 +1953,7 @@ public:
 		if (buffer.size() == 0) buffer.push(_getwch());
 		auto front{ buffer.front() };
 		buffer.pop();
-		return front;
+		ret front;
 	}
 };
 TestInputReader ObjectGetCh;
@@ -2017,8 +2024,11 @@ static wstring GetUserNum
 static void SetDebug(wstring message, switchcase& opt, bool& Return,
 	ptrdiff_t& LowerBound, ptrdiff_t& UpperBound, ptrdiff_t& datalenght
 );
-static bool Prime(ptrdiff_t number);
+static void SendCtrlPlusMinus(bool plus);
+static void MonitorConsoleSize
+(short minWidth, short minHeight, atomic_bool& runMonitor);
 static void UserInputThread();
+static bool Prime(ptrdiff_t number);
 static void PrimeNCalculator(ptrdiff_t max, ptrdiff_t min = 0);
 static tensor<compost> DecomposeNumber(ptrdiff_t input);
 static tensor<wstring> Fractioner(wstring polinomial);
@@ -2222,7 +2232,7 @@ int main()
 				if (global < 10'000'000) global = 10'000'000;
 				break;
 			};
-			SetConsoleTextAttribute(hConsole, 15);
+			ResetAttribute();
 
 			// output del tempo
 			if (global != 0 or start) {
@@ -2235,7 +2245,7 @@ int main()
 
 				steady_clock::time_point end{ steady_clock::now() };
 				ComputationTime = WaitingScreen(begin, end);
-				SetConsoleTextAttribute(hConsole, 15);
+				ResetAttribute();
 				SetConsoleCursorInfo(hConsole, &cursor);
 				start = false;
 			}
@@ -2285,7 +2295,7 @@ int main()
 		wcout << L"\t'c' = cifre, codifica, sequenza e grado\n";
 		wcout << L"\t'f' = fattorizzazione, cifre e divisori\n";
 		wcout << L"\t't' = tutti i dati compresi quelli sulle cifre\n";
-		SetConsoleTextAttribute(hConsole, 15);
+		ResetAttribute();
 		wcout << L"selezionando più operazioni, il tempo di calcolo aumenta\n";
 
 		vel = GetLine(true, 10);
@@ -2316,7 +2326,7 @@ int main()
 			wcout << L'\n';
 			SetConsoleTextAttribute(hConsole, 64);
 			wcout << L"NON CORRETTO !!\a";
-			SetConsoleTextAttribute(hConsole, 15);
+			ResetAttribute();
 
 		option_choice:
 
@@ -2325,11 +2335,10 @@ int main()
 			goto assigne;
 		}
 
+		// cambio titolo
 		wcout << L"\n\n";
 		ReassigneEnum(option);
 		auto wtitle{ ConvertEnumToWString(option) };
-
-		// cambio titolo
 		system("cls");
 		SetConsoleTitle(wtitle.c_str());
 
@@ -2411,7 +2420,7 @@ End:
 	Beep(750, 100);
 	Beep(650, 75);
 	Beep(550, 50);
-	return 0;
+	ret 0;
 }
 
 #pragma region Functions
@@ -2422,8 +2431,8 @@ End:
 // fattoriale x! = x*(x-1)*...*2*1
 static size_t Factorial(size_t n)
 {
-	if (n <= 1) return 1;
-	return n * Factorial(n - 1);
+	if (n <= 1) ret 1;
+	ret n * Factorial(n - 1);
 }
 
 // coefficiente binomiale: (n k) = n! / (k! (n-k)!)
@@ -2435,7 +2444,7 @@ static size_t BinomialCoeff(size_t n, size_t k)
 	if (n <= 20) coeff = Factorial(n) / (Factorial(k) * Factorial(n - k));
 	else for (int j = 1; j <= n - k; ++j) coeff *= (k + j) / j;
 
-	return (size_t)coeff;
+	ret (size_t)coeff;
 }
 
 // massimo comune divisore tra due interi
@@ -2447,7 +2456,7 @@ static int Gcd(int A, int B)
 		B = A % B;
 		A = temp;
 	}
-	return A;
+	ret A;
 }
 
 // massimo comune divisore tra due interi grandi
@@ -2459,18 +2468,18 @@ static big Gcd(big A, big B)
 		B = A % B;
 		A = temp;
 	}
-	return A;
+	ret A;
 }
 
 // massimo comune divisore tra più termini
 template<typename T>static int Gcd(tensor<T> terms)
 {
 	int gcd{};
-	if (terms.empty()) return 0;
+	if (terms.empty()) ret 0;
 
 	// tensore di interi
 	if constexpr (is_same_v<T, int>) {
-		if (terms == 1) return terms[0];
+		if (terms == 1) ret terms[0];
 		gcd = terms[0];
 		for (auto term : terms) {
 			gcd = Gcd(gcd, term);
@@ -2481,7 +2490,7 @@ template<typename T>static int Gcd(tensor<T> terms)
 	// fattore
 	else if constexpr (is_same_v<T, MONOMIAL<>> or is_same_v<T, monomial<>>)
 	{
-		if (terms == 1) return terms[0].coefficient;
+		if (terms == 1) ret terms[0].coefficient;
 		gcd = terms[0].coefficient;
 		for (auto term : terms) {
 			gcd = Gcd(gcd, term.coefficient);
@@ -2489,19 +2498,19 @@ template<typename T>static int Gcd(tensor<T> terms)
 		}
 	}
 
-	return gcd;
+	ret gcd;
 }
 
 // massimo comune divisore tra numeri molto grandi
 static big Gcd(tensor<big> terms)
 {
-	if (terms == 1) return terms[0];
+	if (terms == 1) ret terms[0];
 	auto gcd{ terms[0] };
 	for (auto term : terms) {
 		gcd = Gcd(gcd, term);
 		if (gcd == 1) break;
 	}
-	return gcd;
+	ret gcd;
 }
 
 // potenza sugli interi (per precisione)
@@ -2513,10 +2522,10 @@ static ptrdiff_t intpow(ptrdiff_t base, int exp)
 	if (base < 0) NewBase *= -1;
 	while (--NewExp > 0) {
 		power *= NewBase;
-		if (power < 0) return -1;
+		if (power < 0) ret -1;
 	}
-	if (exp % 2 == 1 and base < 0) return -power;
-	return power;
+	if (exp % 2 == 1 and base < 0) ret -power;
+	ret power;
 }
 
 #pragma endregion
@@ -2528,25 +2537,25 @@ static ptrdiff_t intpow(ptrdiff_t base, int exp)
 static wstring ConvertEnumToWString(switchcase Enum)
 {
 	auto it = enumToStringMap.find(Enum);
-	if (it != enumToStringMap.end()) return it->second;
+	if (it != enumToStringMap.end()) ret it->second;
 }
 
 // da stringa a enum
 static switchcase ConvertWStringToEnum(wstring str)
 {
 	auto it = stringToEnumMap.find(str);
-	if (it != stringToEnumMap.end()) return it->second;
+	if (it != stringToEnumMap.end()) ret it->second;
 	else {
 		stringToEnumMap.insert({ str , NotAssigned });
 		it = stringToEnumMap.find(str);
-		return it->second;
+		ret it->second;
 	}
 }
 
 // riassegna l'opzione casuale dell'enum
 static void ReassigneEnum(switchcase& option)
 {
-	if (option != Random) return;
+	if (option != Random) ret;
 	random_device rng;
 	mt19937 gen(rng());
 	uniform_int_distribution<> dis(0, 20);
@@ -2632,7 +2641,7 @@ const tensor<int> spectrum{ 9, 9, 9, 11, 11, 3, 3, 12, 4 };
 // cancella un'area rettangolare di spazio
 static void ClearArea(COORD WinCenter, COORD Dimensions)
 {
-	GetConsoleScreenBufferInfo(hConsole, &csbi);
+	GetCursorPos();
 	DWORD consoleSize = intpow(2 * Dimensions.X + 1, 2);
 	DWORD written;
 	COORD coord;
@@ -2651,7 +2660,7 @@ static void ClearArea(COORD WinCenter, COORD Dimensions)
 static void PrintPFrame
 (double deg, int sides, double radius, COORD WinCenter)
 {
-	SetConsoleTextAttribute(hConsole, 15);
+	ResetAttribute();
 
 	COORD coord;
 	const double DIM{ 1.9 };
@@ -2766,7 +2775,7 @@ static void DrawCircleSquare(COORD CircleCenter)
 			ClearArea(CircleCenter, Min);
 			SetConsoleCursorPosition
 			(hConsole, cursor);
-			return;
+			ret;
 		}
 		DoNotSkip = false;
 
@@ -2815,7 +2824,7 @@ static void DrawGraphFrame(
 	COORD origin;
 	origin.X = WindowLenght + shift.X + pos.X;
 	origin.Y = WindowWidth + shift.Y + pos.Y;
-	SetConsoleTextAttribute(hConsole, 15);
+	ResetAttribute();
 
 	// asse x
 	if (origin.Y > pos.Y and origin.Y <= 2 * WindowWidth + pos.Y + 1) {
@@ -2865,7 +2874,7 @@ static void DrawGraphFrame(
 			wcout << L'*';
 		}
 	}
-	SetConsoleTextAttribute(hConsole, 15);
+	ResetAttribute();
 
 	// scrittura estremi asse y
 	SetConsoleCursorPosition(hConsole, { (short)(2 * WindowLenght + 3), 0 });
@@ -2911,7 +2920,7 @@ static void CS_CenterPrinter()
 {
 
 	// assegnazione delle coordinate del centro
-	GetConsoleScreenBufferInfo(hConsole, &csbi);
+	GetCursorPos();
 	COORD WinCenter;
 	if (csbi.dwSize.X / 2 < Min.X) WinCenter.X = Min.X;
 	else WinCenter.X = csbi.dwSize.X / 2;
@@ -2928,7 +2937,7 @@ static void CS_CornerPrinter()
 {
 
 	// lettura coordinate
-	GetConsoleScreenBufferInfo(hConsole, &csbi);
+	GetCursorPos();
 	wcout << wstring(csbi.dwSize.Y - 1, L'\n');
 
 	// animazione
@@ -2940,7 +2949,7 @@ static void CS_CornerPrinter()
 // stampa una barra di avanzamento
 static void ProgressBar(double ratio, double barWidth)
 {
-	if (barWidth <= 10) return;
+	if (barWidth <= 10) ret;
 
 	// necessario per poter scrivere messaggi 
 	// sotto alla barra di progresso
@@ -2993,7 +3002,7 @@ static long double WaitingScreen(auto begin, auto end)
 		output << delta / 60'000'000;
 		output << L" minuti\n\n";
 	}
-	GetConsoleScreenBufferInfo(hConsole, &csbi);
+	GetCursorPos();
 	SetConsoleTextAttribute(hConsole, 6);
 
 	// output
@@ -3004,7 +3013,7 @@ static long double WaitingScreen(auto begin, auto end)
 	wcout << output.str();
 	sleep_for(seconds(1));
 
-	return ExceptDelta;
+	ret ExceptDelta;
 }
 
 // crea una finestra con dei comandi per ridimensionare il grafico
@@ -3080,7 +3089,7 @@ static void PrintGraph(FACTOR<> funct, const coord position)
 					hConsole,
 					{ 0, (short)(position.Y + width * 2 + 4) }
 				);
-				return;
+				ret;
 			}
 		} while (
 			move != 'a' and
@@ -3111,28 +3120,28 @@ static void PrintGraph(FACTOR<> funct, const coord position)
 static wstring CTSuperScript(wchar_t input)
 {
 	switch (input) {
-	case L'0': return L"⁰";
+	case L'0': ret L"⁰";
 		break;
-	case L'1': return L"¹";
+	case L'1': ret L"¹";
 		break;
-	case L'2': return L"²";
+	case L'2': ret L"²";
 		break;
-	case L'3': return L"³";
+	case L'3': ret L"³";
 		break;
-	case L'4': return L"⁴";
+	case L'4': ret L"⁴";
 		break;
-	case L'5': return L"⁵";
+	case L'5': ret L"⁵";
 		break;
-	case L'6': return L"⁶";
+	case L'6': ret L"⁶";
 		break;
-	case L'7': return L"⁷";
+	case L'7': ret L"⁷";
 		break;
-	case L'8': return L"⁸";
+	case L'8': ret L"⁸";
 		break;
-	case L'9': return L"9";
+	case L'9': ret L"9";
 		break;
 	}
-	return wstring(1, input);
+	ret wstring(1, input);
 }
 
 // converte da apice a numero
@@ -3144,7 +3153,7 @@ static wstring CFSuperScript(wstring script)
 		if (it != ConvertFromSuperScript.end()) output += it->second;
 		else output += wstring(1, ch);
 	}
-	return output;
+	ret output;
 }
 
 // cambia una stringa da formato numeri a formato esponenti
@@ -3214,7 +3223,7 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 	bool IsTheCursorAtStart{ true };
 
 	// aggiunta di spazio
-	GetConsoleScreenBufferInfo(hConsole, &csbi);
+	GetCursorPos();
 	auto START{ csbi.dwCursorPosition };
 	wcout << wstring(10, L'\n');
 	GetConsoleScreenBufferInfo(hConsole, &csbi);
@@ -3257,14 +3266,14 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 			SetConsoleCursorPosition(hConsole, start);
 			for (int a = 0; a < 4; ++a) wcout << S << L'\n';
 			SetConsoleCursorInfo(hConsole, &cursor);
-			return;
+			ret;
 
 			// L'\r' termina l'input
 		case L'\r':
 			start.Y += 4;
 			SetConsoleCursorPosition(hConsole, start);
 			if (denominator.empty()) denominator = L"1";
-			return;
+			ret;
 
 			// L'\b' cancella indietro
 		case L'\b': vel = IsTheCursorAtStart ? Num : Den;
@@ -3401,7 +3410,7 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 			if (!script) {
 				SetConsoleTextAttribute(hConsole, 6);
 				wcout << command << L'\r';
-				SetConsoleTextAttribute(hConsole, 15);
+				ResetAttribute();
 			}
 			wcout << Num << L'\n';
 			wcout << S << wstring(Num.size(), L'-') << L'\n';
@@ -3414,7 +3423,7 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 				SetConsoleTextAttribute(hConsole, 6);
 				wcout << wstring(spaces, L' ');
 				wcout << command << L'\r';
-				SetConsoleTextAttribute(hConsole, 15);
+				ResetAttribute();
 			}
 			wcout << wstring(spaces, L' ') << Num << L'\n';
 			wcout << S << wstring(Den.size(), L'-') << L'\n';
@@ -3477,7 +3486,7 @@ static wstring GetLine(bool ShowSuggestions, int sizemax)
 		switch (c) {
 
 			// L'.' termina il programma
-		case L'.': return L".";
+		case L'.': ret L".";
 
 			// L'\b' cancella indietro
 		case L'\b':
@@ -3587,7 +3596,7 @@ static wstring GetLine(bool ShowSuggestions, int sizemax)
 					SetConsoleTextAttribute(hConsole, 6);
 					wcout << L'\r' << wstring(sizemax, ' ');
 					wcout << L'\r' << command;
-					SetConsoleTextAttribute(hConsole, 15);
+					ResetAttribute();
 
 					wcout << L'\r' << E_Vel << L'\r' << Velpart;
 					script = false;
@@ -3600,7 +3609,7 @@ static wstring GetLine(bool ShowSuggestions, int sizemax)
 		}
 		SetConsoleCursorInfo(hConsole, &cursor);
 	}
-	return vel;
+	ret vel;
 }
 
 // inputa un numero dati valore minimo e valore massimo
@@ -3618,14 +3627,14 @@ static wstring GetUserNum
 
 		// input
 		bool error{ true };
-		bool ReturnFalse{ false };
+		bool retFalse{ false };
 		wcout << txt;
 		check = GetLine(ShowSuggestions, 10);
 		wcout << L'\n';
-		if (check == L"." or check.empty()) return check;
+		if (check == L"." or check.empty()) ret check;
 		option = ConvertWStringToEnum(check);
 		ReassigneEnum(option);
-		if (option != NotAssigned) return ConvertEnumToWString(option);
+		if (option != NotAssigned) ret ConvertEnumToWString(option);
 
 		// controllo
 		wregex CheckDigits(L"\\D");
@@ -3634,7 +3643,7 @@ static wstring GetUserNum
 
 		if (UserNum < low or UserNum > high) wcout << L'\a';
 	} while (UserNum < low or UserNum > high);
-	return to_wstring(UserNum);
+	ret to_wstring(UserNum);
 }
 
 // inputa gli estremi della ricerca debug
@@ -3648,14 +3657,14 @@ static void SetDebug(wstring message, switchcase& opt, bool& Return,
 	wcout << L" tra 1 e " << n_ << L"\n\n";
 
 	// input e controllo valore iniziale
-	SetConsoleTextAttribute(hConsole, 15);
+	ResetAttribute();
 	txt = L"inserisci il valore di inizio della ricerca\n";
 	do Input = GetUserNum(txt, 1, GlobalMax, true);
 	while (Input.empty());
 	if (Input == L".") {
 		opt = Random;
 		Return = true;
-		return;
+		ret;
 	}
 	opt = ConvertWStringToEnum(Input);
 	ReassigneEnum(opt);
@@ -3663,7 +3672,7 @@ static void SetDebug(wstring message, switchcase& opt, bool& Return,
 		system("cls");
 		SetConsoleTitle(Input.c_str());
 		Return = true;
-		return;
+		ret;
 	}
 	LowerBound = stoull(Input) + 1;
 
@@ -3681,7 +3690,7 @@ static void SetDebug(wstring message, switchcase& opt, bool& Return,
 		system("cls");
 		SetConsoleTitle(Input.c_str());
 		Return = true;
-		return;
+		ret;
 	}
 	UpperBound = stoull(Input) + 1;
 
@@ -3691,19 +3700,59 @@ static void SetDebug(wstring message, switchcase& opt, bool& Return,
 
 #pragma endregion
 
-// alcune funzioni
-#pragma region Primitive
+// funzioni thread
+#pragma region Threads
 
-// calcola se un numero è primo
-static bool Prime(ptrdiff_t number)
+// funzione che invia ctrl + / -
+static void SendCtrlPlusMinus(bool plus)
 {
-	if (number <= 1) return false;
-	if (number <= 3) return true;
-	if (number < GlobalMax) return PrimeNumbers.is_prime[number];
-	if (number % 2 == 0 or number % 3 == 0) return false;
-	for (int i = 5; i * i <= number; i += 6)
-		if (number % i == 0 or number % (i + 2) == 0) return true;
-	return true;
+	INPUT inputs[4]{};
+
+	// premere ctrl
+	inputs[0].type = INPUT_KEYBOARD;
+	inputs[0].ki.wVk = VK_CONTROL;
+
+	// premere + / -
+	inputs[1].type = INPUT_KEYBOARD;
+	inputs[1].ki.wVk = plus ? VK_OEM_PLUS : VK_OEM_MINUS;
+
+	// rilasciare + / -
+	inputs[2].type = INPUT_KEYBOARD;
+	inputs[2].ki.wVk = plus ? VK_OEM_PLUS : VK_OEM_MINUS;
+	inputs[2].ki.dwFlags = KEYEVENTF_KEYUP;
+
+	// rilasciare ctrl
+	inputs[3].type = INPUT_KEYBOARD;
+	inputs[3].ki.wVk = VK_CONTROL;
+	inputs[3].ki.dwFlags = KEYEVENTF_KEYUP;
+
+	// invio comandi
+	SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
+}
+
+// funzione che riduce lo zoom se la console è piccola
+static void MonitorConsoleSize
+(short minWidth, short minHeight, atomic_bool& runMonitor)
+{
+	while (true) {
+		while (true) {
+			GetCursorPos();
+			auto oldLength{ csbi.dwSize.X };
+
+			if (oldLength >= minWidth and csbi.dwSize.Y >= minHeight) break;
+			SendCtrlPlusMinus(false);
+			sleep_for(milliseconds(1));
+
+			GetCursorPos();
+			auto newLength{ csbi.dwSize.X };
+
+			if (oldLength == newLength) {
+				system("cls");
+				runMonitor = false;
+				ret;
+			}
+		}
+	}
 }
 
 // gestisce il secondo thread del code to number (non va)
@@ -3716,7 +3765,7 @@ static void UserInputThread()
 		if (choice == L'S' or choice == L's') {
 			GlobalInterr = true;
 			interrupted = true;
-			return;
+			ret;
 		}
 
 		// riduzione uso della CPU
@@ -3724,10 +3773,27 @@ static void UserInputThread()
 	}
 }
 
+#pragma endregion
+
+// funzioni di scomposizione di base per i numeri primi
+#pragma region Operators
+
+// calcola se un numero è primo
+static bool Prime(ptrdiff_t number)
+{
+	if (number <= 1) ret false;
+	if (number <= 3) ret true;
+	if (number < GlobalMax) ret PrimeNumbers.is_prime[number];
+	if (number % 2 == 0 or number % 3 == 0) ret false;
+	for (int i = 5; i * i <= number; i += 6)
+		if (number % i == 0 or number % (i + 2) == 0) ret true;
+	ret true;
+}
+
 // calcola i numeri primi con il crivello di eratostene
 static void PrimeNCalculator(ptrdiff_t max, ptrdiff_t min)
 {
-	GetConsoleScreenBufferInfo(hConsole, &csbi);
+	GetCursorPos();
 	const int BARWIDTH{ csbi.dwSize.X - 11 };
 
 	// calcolo tensori
@@ -3753,7 +3819,7 @@ static void PrimeNCalculator(ptrdiff_t max, ptrdiff_t min)
 	}
 
 	auto begin{ steady_clock::now() };
-	SetConsoleTextAttribute(hConsole, 15);
+	ResetAttribute();
 	for (int p = 2; p < SQUARE; ++p) {
 
 		// calcolo numeri primi
@@ -3810,11 +3876,6 @@ static void PrimeNCalculator(ptrdiff_t max, ptrdiff_t min)
 	PrimeNumbers = { is_prime, primes };
 }
 
-#pragma endregion
-
-// funzioni di scomposizione di base
-#pragma region Operators
-
 // scompone un numero nei suoi fattori sottoforma di struttura
 static tensor<compost> DecomposeNumber(ptrdiff_t input)
 {
@@ -3846,7 +3907,7 @@ static tensor<compost> DecomposeNumber(ptrdiff_t input)
 	if (output[index].factors == input) output[index].exp++;
 	else output[index].factors = input;
 
-	return output;
+	ret output;
 }
 
 // divide una scomposizione singola
@@ -3864,7 +3925,7 @@ static tensor<int> DecomposeStrings(wstring Terminal)
 		}
 
 		// eccezioni
-		if (i >= Terminal.size()) return ciphres;
+		if (i >= Terminal.size()) ret ciphres;
 		if (i == Terminal.size() - 1) CiphresElement = Terminal.at(i) - L'0';
 
 		// caso di seconda eccezione
@@ -3898,7 +3959,7 @@ static tensor<int> DecomposeStrings(wstring Terminal)
 		ciphres << CiphresElement;
 	}
 
-	return ciphres;
+	ret ciphres;
 }
 
 // divide una scomposizione doppia
@@ -3935,7 +3996,7 @@ static tensor<wstring> Fractioner(wstring str)
 	}
 	monomials << str;
 
-	return monomials;
+	ret monomials;
 }
 
 // scompone un polinomio nelle sue parti (non fattori)
@@ -4005,7 +4066,7 @@ static tensor<tensor<wstring>> FractPolynomial(wstring pol)
 	for (int i = factors.size() - 1; i >= 0; --i)
 		if (factors[i].empty()) factors.erase(factors.begin() + i);
 
-	return factors;
+	ret factors;
 }
 
 #pragma endregion
@@ -4141,7 +4202,7 @@ static wstring Cript(ptrdiff_t input)
 		}
 	}
 
-	return result;
+	ret result;
 }
 
 // esegue la scomposizione singola
@@ -4161,7 +4222,7 @@ static wstring FactNumber(ptrdiff_t input)
 	// rimozione della fine
 	output.erase(output.size() - 3);
 
-	return output;
+	ret output;
 }
 
 // calcola il valore aritmetico di un'espressione
@@ -4202,7 +4263,7 @@ static int ExeStrings(wstring input)
 	// somma dei monomi
 	for (int end = 0; end < parts.size(); ++end) output += values[end];
 
-	return output;
+	ret output;
 }
 
 // calcola i dati riguardanti i divisori di un numero
@@ -4288,7 +4349,7 @@ static divisor DivisorCalculator(wstring factor)
 		output.DivProduct = -1;
 	}
 
-	return output;
+	ret output;
 }
 
 // calcola i dati riguardanti le cifre di un numero
@@ -4337,7 +4398,7 @@ static digitRatio DigitRationalizer(ptrdiff_t inpt)
 		output.digitProductRatioNum = items.digitProductRatioNum;
 		output.digitProductRatioDen = items.digitProductRatioDen;
 	}
-	return output;
+	ret output;
 }
 
 // elenca i divisori di un numero
@@ -4367,7 +4428,7 @@ static tensor<int> DivisorCounter(int num)
 		MainDiv--;
 	}
 
-	return MainDiv[0];
+	ret MainDiv[0];
 }
 
 #pragma endregion
@@ -4381,7 +4442,7 @@ static NumberData ExecuteSimpledeg(ptrdiff_t input)
 	NumberData output;
 	output.number = input;
 	output.code = Cript(input);
-	return output;
+	ret output;
 }
 
 // calcola codice, grado e sequenza
@@ -4402,7 +4463,7 @@ static NumberData ExecuteDegree(ptrdiff_t input)
 
 	output.sequence << 1;
 	copy = input;
-	return output;
+	ret output;
 }
 
 // calcola la fattorizzazione
@@ -4411,7 +4472,7 @@ static NumberData ExecuteSimpleFact(ptrdiff_t input)
 	NumberData output;
 	output.number = input;
 	output.expression = FactNumber(input);
-	return output;
+	ret output;
 }
 
 // calcola fattorizzazione e divisori
@@ -4422,7 +4483,7 @@ static NumberData ExecuteFactor(ptrdiff_t input)
 	output.expression = FactNumber(input);
 	divisor D{ DivisorCalculator(output.expression) };
 	output.div = D;
-	return output;
+	ret output;
 }
 
 // calcola fattorizzazione e codice
@@ -4432,7 +4493,7 @@ static NumberData ExecuteSimpleDF(ptrdiff_t input)
 	output.number = input;
 	output.code = Cript(input);
 	output.expression = FactNumber(input);
-	return output;
+	ret output;
 }
 
 // calcola le cifre (beta)
@@ -4442,7 +4503,7 @@ static NumberData ExecuteDigit(ptrdiff_t input)
 	digitRatio D{ DigitRationalizer(input) };
 	output.number = input;
 	output.digit = D;
-	return output;
+	ret output;
 }
 
 // calcola codice, grado, sequenza, fattorizzazione e divisori
@@ -4452,7 +4513,7 @@ static NumberData ExecuteDegFactor(ptrdiff_t input)
 	NumberData B{ ExecuteFactor(input) };
 	A.expression = B.expression;
 	A.div = B.div;
-	return A;
+	ret A;
 }
 
 // calcola codice, grado, sequenza e cifre
@@ -4460,11 +4521,11 @@ static NumberData ExecuteDegDigit(ptrdiff_t input)
 {
 	NumberData B{ ExecuteDigit(input) };
 	if (B.digit.digitSumRatioNum == 0 and
-		B.digit.digitProductRatioNum == 0) return B;
+		B.digit.digitProductRatioNum == 0) ret B;
 
 	NumberData A{ ExecuteDegree(input) };
 	A.digit = B.digit;
-	return A;
+	ret A;
 }
 
 // calcola fattorizzazione, divisori e cifre
@@ -4472,11 +4533,11 @@ static NumberData ExecuteFactDigit(ptrdiff_t input)
 {
 	NumberData B{ ExecuteDigit(input) };
 	if (B.digit.digitSumRatioNum == 0 and
-		B.digit.digitProductRatioNum == 0) return B;
+		B.digit.digitProductRatioNum == 0) ret B;
 
 	NumberData A{ ExecuteFactor(input) };
 	A.digit = B.digit;
-	return A;
+	ret A;
 }
 
 // calcola codice, grado, sequenza, fattorizzazione, divisori e cifre
@@ -4484,14 +4545,14 @@ static NumberData ExecuteAll(ptrdiff_t input)
 {
 	NumberData C{ ExecuteDigit(input) };
 	if (C.digit.digitSumRatioNum == 0 and
-		C.digit.digitProductRatioNum == 0) return C;
+		C.digit.digitProductRatioNum == 0) ret C;
 
 	NumberData A{ ExecuteDegree(input) };
 	NumberData B{ ExecuteFactor(input) };
 	A.expression = B.expression;
 	A.div = B.div;
 	A.digit = C.digit;
-	return A;
+	ret A;
 }
 
 #pragma endregion
@@ -4505,24 +4566,24 @@ static wstring PolynomialSyntaxDirector(wstring pol)
 	
 	// controllo asterischi
 	if (pol.at(0) == L'*' or pol.at(pol.size() - 1) == L'*')
-		return L"manca un termine";
+		ret L"manca un termine";
 	for (int i = pol.size() - 2; i > 0; --i) if (pol.at(i) == L'*') {
 		if (pol.at(i - 1) == '(' or pol.at(i + 1) == ')')
-			return L"un asterisco non può essere racchiuso tra parentesi";
+			ret L"un asterisco non può essere racchiuso tra parentesi";
 		if (pol.at(i - 1) == ')' or pol.at(i + 1) == '(') {
 			pol.erase(i, 1);
 			continue;
 		}
 		if (!isalnum(pol.at(i - 1)) or !isalnum(pol.at(i + 1)))
-			return L"asterisco nel punto sbagliato";
+			ret L"asterisco nel punto sbagliato";
 		pol.erase(i, 1);
 	}
 
 	// caso vuoto
 	for (int i = 0; i < (int)pol.size() - 2; ++i)
 		if (pol.at(i) == L'(' and pol.at(i + 1) == L')')
-			return L"il polinomio non può essere void";
-	if (pol.empty()) return L"il polinomio non può essere void";
+			ret L"il polinomio non può essere void";
+	if (pol.empty()) ret L"il polinomio non può essere void";
 
 	// senza parentesi
 	auto copy{ pol };
@@ -4531,7 +4592,7 @@ static wstring PolynomialSyntaxDirector(wstring pol)
 		if (copy.at(copy.size() - 1) == L')') copy.erase(copy.size() - 1);
 	}
 	if (copy.find(L'(') == wstring::npos and copy.find(L')') == wstring::npos)
-		return PolynomialSyntax(copy);
+		ret PolynomialSyntax(copy);
 
 	// controllo bilancio parentesi
 	bool balanced{ false };
@@ -4546,9 +4607,9 @@ balance:
 		}
 		if (ParenthesisBalance < 0) {
 			if (!balanced) break;
-			return L"le parentesi sono invertite";
+			ret L"le parentesi sono invertite";
 		}
-		if (ParenthesisBalance >= 100) return L"ci sono troppe parentesi";
+		if (ParenthesisBalance >= 100) ret L"ci sono troppe parentesi";
 	}
 	if (ParenthesisBalance == 0) pol = copy;
 	else if (!balanced) {
@@ -4556,7 +4617,7 @@ balance:
 		copy = pol;
 		goto balance;
 	}
-	else return L"le parentesi sono sbilanciate";
+	else ret L"le parentesi sono sbilanciate";
 
 	// rimozione spazi
 	for (int i = pol.size() - 1; i >= 0; --i)
@@ -4565,29 +4626,29 @@ balance:
 	// controllo caratteri non ammessi
 	for (auto c : pol)
 		if (!isalnum(c) and !issign(c) and c != L'(' and c != L')' and c != L'^')
-			return L"il polinomio presenta dei caratteri non ammessi";
+			ret L"il polinomio presenta dei caratteri non ammessi";
 
 	// controllo segni
 	bool error{ true };
 	for (auto c : pol) if (!issign(c)) error = false;
-	if (error) return L"non è presente alcun monomio";
+	if (error) ret L"non è presente alcun monomio";
 	for (int i = 1; i < pol.size(); ++i)
-		if (issign(pol.at(i)) and issign(pol.at(i - 1))) return L"manca un monomio";
-	if (pol.at(0) == L'^') return L"manca la base rispetto al relativo esponente";
+		if (issign(pol.at(i)) and issign(pol.at(i - 1))) ret L"manca un monomio";
+	if (pol.at(0) == L'^') ret L"manca la base rispetto al relativo esponente";
 
 	// controllo di ogni parte
 	auto fact = FractPolynomial(pol);
-	for (auto adder : fact) if (adder > 10) return L"il polinomio è troppo grande";
+	for (auto adder : fact) if (adder > 10) ret L"il polinomio è troppo grande";
 	for (auto adder : fact) for (auto element : adder) {
 		if (PolynomialSyntaxDirector(element).empty()) continue;
 
 		bool exp{ element.size() > 1 and element.size() < 4 };
 		if (exp) if (element.at(0) == L'^')
 			for (int i = 1; i < element.size(); ++i) if (!isdigit(element.at(i)))
-				return L"gli esponenti devono essere costanti";
+				ret L"gli esponenti devono essere costanti";
 	}
 
-	return L"";
+	ret L"";
 }
 
 // convalida un polinomio senza parentesi
@@ -4595,24 +4656,24 @@ static wstring PolynomialSyntax(wstring pol)
 {
 
 	// caso vuoto
-	if (pol.empty()) return L"il polinomio non può essere void";
+	if (pol.empty()) ret L"il polinomio non può essere void";
 
 	// controllo caratteri ammessi
 	for (auto c : pol) if (!isalnum(c) and c != L'^' and c != L' ' and !issign(c))
-		return L"il polinomio presenta dei caratteri non ammessi";
+		ret L"il polinomio presenta dei caratteri non ammessi";
 
 	// controllo segni
 	for (int i = 1; i < pol.size(); ++i)
 		if (issign(pol.at(i)) and issign(pol.at(i - 1)))
-			return L"manca un monomio";
+			ret L"manca un monomio";
 	if (!issign(pol.at(0))) pol = L'+' + pol;
 	if (issign(pol.at(pol.size() - 1)))
-		return L"manca un monomio";
+		ret L"manca un monomio";
 
 	// controllo esponenti in forma di numero
 	for (int i = 0; i < pol.size() - 1; ++i)
 		if (pol.at(i) == L'^' and !isdigit(pol.at(i + 1)))
-			return L"gli esponenti devono essere costanti";
+			ret L"gli esponenti devono essere costanti";
 
 	// suddivisione in parti
 	tensor <wstring> parts;
@@ -4635,20 +4696,20 @@ static wstring PolynomialSyntax(wstring pol)
 
 		// controllo estremi
 		if (part.at(0) == L'^' or part.at(part.size() - 1) == L'^')
-			return L"manca la base rispetto al relativo esponente";
+			ret L"manca la base rispetto al relativo esponente";
 
 		// controllo variabili ripetute
 		for (int i = 0; i < part.size(); ++i)
 			for (int j = i + 1; j < part.size(); ++j)
 				if (isalpha(part.at(i)) and part.at(i) == part.at(j))
-					return L"non è possibile ripetere le variabili nello stesso monomio";
+					ret L"non è possibile ripetere le variabili nello stesso monomio";
 
 		// controllo limite esponenti
 		for (int i = 0; i < part.size() - 1; ++i) if (isdigit(part.at(i)))
 			for (int j = i; j < part.size(); ++j) {
 				if (j >= part.size()) break;
 				if (!isdigit(part.at(j))) break;
-				if (j - i >= 2) return L"gli esponenti sono troppo grandi";
+				if (j - i >= 2) ret L"gli esponenti sono troppo grandi";
 			}
 
 		// controllo coefficienti corretti
@@ -4657,10 +4718,10 @@ static wstring PolynomialSyntax(wstring pol)
 			!isdigit(part.at(i - 1)) and
 			part.at(i - 1) != L'^'
 			)
-			return L"il coefficiente deve precedere il monomio";
+			ret L"il coefficiente deve precedere il monomio";
 	}
 
-	return L"";
+	ret L"";
 }
 
 // aggiorna una stringa di codice
@@ -4676,7 +4737,7 @@ static wstring UpdateString(wstring& ToEvaluate)
 			break;
 		}
 		if (BoundaryBalance > 1 or BoundaryBalance < 0)
-			return L"le parentesi di delimitazione non possono essere doppie";
+			ret L"le parentesi di delimitazione non possono essere doppie";
 	}
 
 	// suddivisione della stringa in pezzi
@@ -4707,7 +4768,7 @@ static wstring UpdateString(wstring& ToEvaluate)
 			piece.erase(0, 1);
 		}
 		if (piece.find(L'<') != wstring::npos or piece.find(L'>') != wstring::npos)
-			return L"le parentesi di delimitazione sono al contrario";
+			ret L"le parentesi di delimitazione sono al contrario";
 	}
 
 	// creazione nuova stringa
@@ -4724,17 +4785,17 @@ static wstring UpdateString(wstring& ToEvaluate)
 				if (!isdigit(piece.at(i))) piece.erase(i, 1);
 			if (piece.empty()) continue;
 			int number = stoi(piece);
-			if (number > GlobalMax or number <= 0) return L"XRANGE";
+			if (number > GlobalMax or number <= 0) ret L"XRANGE";
 			ToEvaluate = Cript(number) + ToEvaluate;
 		}
 	}
-	return L"";
+	ret L"";
 }
 
 // convalida una stringa di codice
 static wstring NumberCodeSyntax(wstring ToEvaluate)
 {
-	if (ToEvaluate == L"f") return L"";
+	if (ToEvaluate == L"f") ret L"";
 	tensor<wstring> mono;
 	wstring CharsAllowed{ L"0123456789+(_)." };
 	bool LocError{ true };
@@ -4753,43 +4814,43 @@ static wstring NumberCodeSyntax(wstring ToEvaluate)
 		case ')': ParenthesisBalance--;
 			break;
 		}
-		if (ParenthesisBalance < 0) return L"le parentesi sono invertite";
-		if (ParenthesisBalance >= 100) return L"ci sono troppe parentesi";
+		if (ParenthesisBalance < 0) ret L"le parentesi sono invertite";
+		if (ParenthesisBalance >= 100) ret L"ci sono troppe parentesi";
 	}
-	if (ParenthesisBalance != 0) return L"le parentesi sono sbilanciate";
+	if (ParenthesisBalance != 0) ret L"le parentesi sono sbilanciate";
 
 	// se la stringa è vuota
-	if (ToEvaluate.empty()) return L"la stringa è vuota";
+	if (ToEvaluate.empty()) ret L"la stringa è vuota";
 
 	// se la stringa contiene caratteri non ammessi
 	wregex unallowed_chars(L"[^\\d+()._]");
 	if (regex_search(ToEvaluate, unallowed_chars))
-		return L"sono presenti dei caratteri non ammessi";
+		ret L"sono presenti dei caratteri non ammessi";
 
 	// controllo sugli estremi
-	if (ToEvaluate.at(0) == L'+') return L"manca un monomio a inizio stringa";
-	if (ToEvaluate.at(0) == L'0') return L"un monomio non può essere null";
-	if (ToEvaluate.at(0) == L')') return L"le parentesi sono al contrario";
+	if (ToEvaluate.at(0) == L'+') ret L"manca un monomio a inizio stringa";
+	if (ToEvaluate.at(0) == L'0') ret L"un monomio non può essere null";
+	if (ToEvaluate.at(0) == L')') ret L"le parentesi sono al contrario";
 	if (ToEvaluate.at(ToEvaluate.size() - 1) == L'+')
-		return L"manca un monomio alla fine della stringa";
+		ret L"manca un monomio alla fine della stringa";
 
 	// controllo sulla non consecutività dei L'+'
 	wregex no_monomial_(L"\\+{2,}");
 	if (regex_search(ToEvaluate, no_monomial_))
-		return L"manca un monomio al centro della stringa";
+		ret L"manca un monomio al centro della stringa";
 
 	// controlli sugli zeri
 	wregex cons_null_digits(L"0{2,}");
 	if (regex_search(ToEvaluate, cons_null_digits))
-		return L"le cifre null non possono essere consecutive";
+		ret L"le cifre null non possono essere consecutive";
 	wregex excep_no_digits(L"\\.");
 	wregex no_digits(L"[_\\d]\\.[_1-9][_\\d]");
 	if (regex_search(ToEvaluate, excep_no_digits))
 		if (!regex_search(ToEvaluate, no_digits))
-			return L"esponente a due cifre impostato in modo errato";
+			ret L"esponente a due cifre impostato in modo errato";
 	wregex s_null_digits(L"[\\r\\D]0");
 	if (regex_search(ToEvaluate, s_null_digits))
-		return L"un monomio non può essere null";
+		ret L"un monomio non può essere null";
 
 	mono = Fractioner(ToEvaluate);
 
@@ -4806,7 +4867,7 @@ static wstring NumberCodeSyntax(wstring ToEvaluate)
 		// per ogni secondo monomio
 		for (int second = 1; second < mono; ++second) {
 			if (indexof != second) {
-				if (mono[indexof] == mono[second]) return L"1";
+				if (mono[indexof] == mono[second]) ret L"1";
 				wstring stick{ mono[second] };
 
 				// paragone tra le dimensioni dei monomi
@@ -4893,7 +4954,7 @@ static wstring NumberCodeSyntax(wstring ToEvaluate)
 					ciphr_max.size() - ciphr_min.size() <= 1 and
 					ciphr_max <= 1 + res and ciphr_min <= 1 + res
 					)
-					return L"2";
+					ret L"2";
 			}
 		}
 
@@ -4903,33 +4964,33 @@ static wstring NumberCodeSyntax(wstring ToEvaluate)
 			break;
 		}
 		if (stack.at(stack.size() - 1) == L')')
-			return L"manca l'esponente di fianco a una parentesi";
+			ret L"manca l'esponente di fianco a una parentesi";
 		if (stack.at(stack.size() - 1) == L'(')
-			return L"le parentesi sono al contrario";
+			ret L"le parentesi sono al contrario";
 		if (stack.at(0) == L'(') {
 
 			// controllo sulla necessità delle parentesi
 			LocError = true;
 			for (int checkplus = 1; checkplus < FindIndex; ++checkplus)
 				if (stack.at(checkplus) == L'+') LocError = false;
-			if (LocError) return L"ci sono troppe parentesi";
+			if (LocError) ret L"ci sono troppe parentesi";
 
 			stack.erase(0, 1);
 			stack.erase(FindIndex - 1);
 			auto message{ NumberCodeSyntax(stack) };
-			if (!message.empty()) return message;
+			if (!message.empty()) ret message;
 		}
-		else if (mono[indexof].at(0) == L')') return L"le parentesi sono al contrario";
+		else if (mono[indexof].at(0) == L')') ret L"le parentesi sono al contrario";
 		else for (int check = 1; check < mono[indexof].size(); ++check) {
 			if (mono[indexof].at(check) == L'(')
-				return L"l'esponente non può precedere una parentesi";
+				ret L"l'esponente non può precedere una parentesi";
 			if (mono[indexof].at(check) == L')')
-				return L"l'esponente non può precedere una parentesi";
+				ret L"l'esponente non può precedere una parentesi";
 		}
 		// //
 	}
 
-	return L"";
+	ret L"";
 }
 
 #pragma endregion
@@ -4971,11 +5032,11 @@ static size_t NumberConverter(size_t root, wstring M)
 	}
 
 	// eccezioni
-	if (XSubscriptOutOfRange) return -3;
-	if (UselessExponent) return -2;
-	if (XOutOfRange) return -1;
+	if (XSubscriptOutOfRange) ret -3;
+	if (UselessExponent) ret -2;
+	if (XOutOfRange) ret -1;
 
-	return root;
+	ret root;
 }
 
 // calcola il valore del codice di codice
@@ -5010,11 +5071,11 @@ static size_t StringConverter(wstring ToEvaluate)
 			root = NumberConverter(StringConverter(first), second);
 
 		}
-		if (root < 0) return root; // eccezione
+		if (root < 0) ret root; // eccezione
 		else integer *= root; // caso comune
 	}
 
-	return integer;
+	ret integer;
 }
 
 // gestisce i messaggi di errore riguardanti il codice
@@ -5026,7 +5087,7 @@ static void CodeConverter
 	SetConsoleCP(CP_UTF8);
 	wcout.imbue(locale(""));
 	ptrdiff_t number;
-	if (ToEvaluate == L"f") return;
+	if (ToEvaluate == L"f") ret;
 
 	for (int space = ToEvaluate.size() - 1; space >= 0; --space)
 		if (ToEvaluate.at(space) == L' ' or ToEvaluate.at(space) == L'\t')
@@ -5105,7 +5166,7 @@ static void LongComputation
 		for (auto Console : ConsoleText) {
 			SetConsoleTextAttribute(hConsole, Console.Attribute);
 			wcout << Console.Text;
-			SetConsoleTextAttribute(hConsole, 15);
+			ResetAttribute();
 		}
 		ConsoleText.clear();
 	}
@@ -5136,7 +5197,7 @@ static void LongComputation
 				ConsoleText << Console{ text , 4 };
 			}
 			else CodeConverter(backup, message, ShowErrors, false);
-			if (interrupted) return;
+			if (interrupted) ret;
 
 			IsDone = true;
 			cv.notify_one();
@@ -5150,7 +5211,7 @@ static void LongComputation
 		for (auto a : ConsoleText) {
 			SetConsoleTextAttribute(hConsole, a.Attribute);
 			wcout << a.Text;
-			SetConsoleTextAttribute(hConsole, 15);
+			ResetAttribute();
 		}
 		ConsoleText.clear();
 	}
@@ -5211,7 +5272,7 @@ static polynomial<big> GetMonomialsAssister(wstring pol)
 			pol = start + L'(' + first + L")(" + last + L')' + end;
 		}
 	for (int i = pol.size() - 1; i >= 0; --i) if (pol.at(i) == L'*') pol.erase(i, 1);
-	return GetMonomialsDirector(pol);
+	ret GetMonomialsDirector(pol);
 }
 
 // gestisce la traduzione di un polinomio con le parentesi
@@ -5237,7 +5298,7 @@ static polynomial<big> GetMonomialsDirector(wstring pol, bool changx)
 		if (copy.at(copy.size() - 1) == L')') copy.erase(copy.size() - 1);
 	}
 	if (copy.find(L'(') == wstring::npos and copy.find(L')') == wstring::npos)
-		return polynomial<big>({ PolynomialSum(GetMonomials(copy)) });
+		ret polynomial<big>({ PolynomialSum(GetMonomials(copy)) });
 
 	// eliminazione parentesi in più
 	int ParenthesisBalance{};
@@ -5388,14 +5449,14 @@ static polynomial<big> GetMonomialsDirector(wstring pol, bool changx)
 	}
 
 	ListCommonFactors.close();
-	return ListCommonFactors;
+	ret ListCommonFactors;
 }
 
 // traduce un polinomio senza parentesi
 static factor<big> GetMonomials(wstring pol)
 {
 	factor<big> out;
-	if (pol.empty()) return {};
+	if (pol.empty()) ret {};
 	if (!issign(pol.at(0))) pol = L'+' + pol;
 	for (int i = pol.size() - 1; i >= 0; --i) if (issign(pol.at(i))) {
 		auto part{ pol };
@@ -5451,7 +5512,7 @@ static factor<big> GetMonomials(wstring pol)
 		out << mono;
 	}
 
-	return out;
+	ret out;
 }
 
 #pragma endregion
@@ -5478,7 +5539,7 @@ static tensor<tensor<long double>> FromPolynomialToPos(
 	auto KnownDegSequence{ vect.last().exp };
 	StartIndex = 0;
 	for (int i = 0; i < Variables.size(); ++i)
-		if (DirectorDegSequence[i] > 0 and KnownDegSequence[i] > 0) return {};
+		if (DirectorDegSequence[i] > 0 and KnownDegSequence[i] > 0) ret {};
 	for (int i = Variables.size() - 1; i >= 0; --i)
 		if (DirectorDegSequence[i] > 0 or KnownDegSequence[i] > 0) StartIndex = i;
 
@@ -5580,7 +5641,7 @@ static tensor<tensor<long double>> FromPolynomialToPos(
 		VDirectorSeq << DirectorSeq;
 		VKnownSeq << KnownSeq;
 	}
-	return result;
+	ret result;
 }
 
 // somma un fattore di un polinomio
@@ -5610,14 +5671,14 @@ static factor<T_int> PolynomialSum(factor<T_int> vect)
 	auto it = remove(vect.begin(), vect.end(), monomial<T_int>{ 0, {} });
 	vect.erase(it, vect.end());
 
-	return vect;
+	ret vect;
 }
 
 // moltiplica un polinomio (inverso della scomposizione)
 template<typename T_int = long double>
 static factor<T_int> PolynomialMultiply(polynomial<T_int> Polynomial)
 {
-	if (Polynomial.empty()) return { {1, tensor(Variables.size(), 0)} };
+	if (Polynomial.empty()) ret { {1, tensor(Variables.size(), 0)} };
 	Polynomial.open();
 	while (Polynomial > 1) {
 
@@ -5634,7 +5695,7 @@ static factor<T_int> PolynomialMultiply(polynomial<T_int> Polynomial)
 		--(--Polynomial);
 		Polynomial >> Temp;
 	}
-	return PolynomialSum(Polynomial[0]);
+	ret PolynomialSum(Polynomial[0]);
 }
 
 // esegue la divisione tra polinomi
@@ -5695,7 +5756,7 @@ static polynomial<> Total(factor<> vect)
 	// filtro per tensori con più di un termine
 	polynomial<> output;
 	output << vect;
-	if (vect <= 1) return output;
+	if (vect <= 1) ret output;
 
 	// calcolo grado minimo e riscrittura
 	bool positive_min{ false };
@@ -5720,9 +5781,9 @@ static polynomial<> Total(factor<> vect)
 	if (abs(GCD) != 1 or positive_min) {
 		output.clear();
 		output << factor<>{ {(long double)GCD, exponents} } << vect;
-		return output;
+		ret output;
 	}
-	return { vect };
+	ret { vect };
 }
 
 // raccoglimento parziale
@@ -5732,7 +5793,7 @@ static polynomial<> Partial(factor<> vect)
 	// filtro tensori a quattro termini
 	polynomial<> outp;
 	outp << vect;
-	if (vect != 4) return outp;
+	if (vect != 4) ret outp;
 	tensor<int> null(Variables.size(), 0);
 
 	// riassegnazione e dichiarazioni
@@ -5747,7 +5808,7 @@ static polynomial<> Partial(factor<> vect)
 	}
 	part_1 = Part1.last();
 	part_2 = Part2.last();
-	if (part_1 != part_2) return outp;
+	if (part_1 != part_2) ret outp;
 	outp.clear();
 
 	// riordinamento del totale
@@ -5766,7 +5827,7 @@ static polynomial<> Partial(factor<> vect)
 	part_2.SortByExponents();
 	outp << part_1 << part_2;
 
-	return outp;
+	ret outp;
 }
 
 // potenza di binomio
@@ -5777,7 +5838,7 @@ static polynomial<> Binomial(factor<> vect)
 	polynomial<> outp;
 	outp << vect;
 	int exponent = vect.size() - 1, sign{ 1 };
-	if (exponent <= 1) return outp;
+	if (exponent <= 1) ret outp;
 	bool reassigne{ false };
 	vect.SortByDegree();
 
@@ -5789,7 +5850,7 @@ static polynomial<> Binomial(factor<> vect)
 	auto B{ vect.last() };
 
 	// controllo per evitare radici impossibili da eseguire nei reali
-	if (exponent % 2 == 0 and (A.coefficient < 0 or B.coefficient < 0)) return outp;
+	if (exponent % 2 == 0 and (A.coefficient < 0 or B.coefficient < 0)) ret outp;
 
 	// calcolo delle radici
 	double Sq_A, Sq_B;
@@ -5799,12 +5860,12 @@ static polynomial<> Binomial(factor<> vect)
 	else Sq_B = -pow(-B.coefficient, 1.0 / exponent);
 
 	// controllo sulle potenze
-	if (!integer(Sq_A)) return outp;
-	if (!integer(Sq_B)) return outp;
+	if (!integer(Sq_A)) ret outp;
+	if (!integer(Sq_B)) ret outp;
 	for (int i = 0; i < Variables.size(); ++i) if (A.exp[i] % exponent != 0)
-		return outp;
+		ret outp;
 	for (int i = 0; i < Variables.size(); ++i) if (B.exp[i] % exponent != 0)
-		return outp;
+		ret outp;
 	auto Aexps{ A.exp };
 	auto Bexps{ B.exp };
 	for (int i = 0; i < Variables.size(); ++i) {
@@ -5816,7 +5877,7 @@ static polynomial<> Binomial(factor<> vect)
 
 		// calcolo coefficiente
 		for (int j = 0; j < Variables.size(); ++j)
-			if (vect[i].exp[j] != Aexps[j] * (exponent - i) + Bexps[j] * i) return outp;
+			if (vect[i].exp[j] != Aexps[j] * (exponent - i) + Bexps[j] * i) ret outp;
 		int coeff = BinomialCoeff(exponent, i);
 
 		// caso con la sottrazione
@@ -5827,7 +5888,7 @@ static polynomial<> Binomial(factor<> vect)
 				sign = -1;
 				reassigne = 1;
 			}
-			else if (sign == 1) return outp;
+			else if (sign == 1) ret outp;
 		}
 
 		// caso con l'addizione
@@ -5839,11 +5900,11 @@ static polynomial<> Binomial(factor<> vect)
 				sign = 1;
 				reassigne = 1;
 			}
-			else if (sign == -1) return outp;
+			else if (sign == -1) ret outp;
 		}
 
 		// caso non accettato
-		else return outp;
+		else ret outp;
 	}
 
 	// composizione della potenza di binomio
@@ -5852,7 +5913,7 @@ static polynomial<> Binomial(factor<> vect)
 	outp++;
 	outp[1] << monomial<>{ Sq_A, Aexps } << monomial<>{ sign * Sq_B, Bexps };
 
-	return outp;
+	ret outp;
 }
 
 // trinomio speciale
@@ -5862,19 +5923,19 @@ static polynomial<> Trinomial(factor<> vect)
 	// filtro per tensori di tre termini
 	polynomial<> outp;
 	outp << vect;
-	if (vect != 3) return outp;
+	if (vect != 3) ret outp;
 	vect.SortByDegree();
 
 	// calcolo termini ed esponenti
 	int A, B, C;
 	for (int i = 0; i < Variables.size(); ++i)
-		if (vect[0].exp[i] % 2 == 1 or vect[2].exp[i] % 2 == 1) return outp;
+		if (vect[0].exp[i] % 2 == 1 or vect[2].exp[i] % 2 == 1) ret outp;
 
 	auto Aexps{ vect[0].exp };
 	auto Cexps{ vect[2].exp };
 	for (int i = 0; i < Variables.size(); ++i) {
 		if (2 * vect[1].exp[i] != vect[0].exp[i] + vect[2].exp[i])
-			return outp;
+			ret outp;
 		Aexps[i] /= 2;
 		Cexps[i] /= 2;
 	}
@@ -5885,11 +5946,11 @@ static polynomial<> Trinomial(factor<> vect)
 	// calcolo delle radici
 	double firstX, secondX, delta;
 	delta = B * B - 4 * A * C;
-	if (delta <= 0) return outp;
-	if (!integer(sqrt(delta))) return outp;
+	if (delta <= 0) ret outp;
+	if (!integer(sqrt(delta))) ret outp;
 	firstX = (-B - sqrt(delta)) / (2 * A);
 	secondX = (-B + sqrt(delta)) / (2 * A);
-	if (!integer(A * firstX * secondX)) return outp;
+	if (!integer(A * firstX * secondX)) ret outp;
 	outp.clear();
 
 	// calcolo dei coefficienti
@@ -5907,7 +5968,7 @@ static polynomial<> Trinomial(factor<> vect)
 	outp[0].SortByExponents();
 	outp[1].SortByExponents();
 
-	return outp;
+	ret outp;
 }
 
 // differenza di cubi (presto diventerà differenza di potenze)
@@ -5917,16 +5978,16 @@ static polynomial<> SquareDifference(factor<> vect)
 	// filtro per tensori di due termini
 	polynomial<> outp;
 	outp << vect;
-	if (vect != 2) return outp;
+	if (vect != 2) ret outp;
 
 	// controllo sui quadrati perfetti
-	if (!vect[0].IsSquare()) return outp;
-	if (!vect[1].IsSquare()) return outp;
+	if (!vect[0].IsSquare()) ret outp;
+	if (!vect[1].IsSquare()) ret outp;
 
 	// riassegnazione se i segni non vanno bene
 	bool Sign_A{ vect[0].coefficient > 0 };
 	bool Sign_B{ vect[1].coefficient > 0 };
-	if (Sign_A == Sign_B) return outp;
+	if (Sign_A == Sign_B) ret outp;
 
 	// calcolo esponenti
 	auto Aexps{ vect[0].exp };
@@ -5947,7 +6008,7 @@ static polynomial<> SquareDifference(factor<> vect)
 		outp[1][1].coefficient *= -1;
 	}
 
-	return outp;
+	ret outp;
 }
 
 // scomposizione con ruffini
@@ -5957,7 +6018,7 @@ static polynomial<> Ruffini(factor<> vect)
 	// filtro per tensori con più di un termine
 	polynomial<> output;
 	output << vect;
-	if (vect < 2) return output;
+	if (vect < 2) ret output;
 	vect.SortByExponents();
 	tensor<int> null(Variables.size(), 0);
 	int StartIndex;
@@ -6050,12 +6111,12 @@ static polynomial<> Ruffini(factor<> vect)
 					};
 				}
 				output[1].SortByExponents();
-				return output;
+				ret output;
 			}
 		}
 	}
 
-	return { vect };
+	ret { vect };
 }
 
 // completamento del quadrato
@@ -6065,25 +6126,25 @@ static polynomial<> CompleteTheSquare(factor<> vect)
 	// filtro per tensori con tre termini
 	polynomial<> output;
 	output << vect;
-	if (vect != 3) return output;
+	if (vect != 3) ret output;
 	vect.SortByDegree();
 	auto A{ vect[0] };
 	auto B{ vect[2] };
 
 	// calcolo delle radici
-	if (A.coefficient < 0 or B.coefficient < 0) return output;
+	if (A.coefficient < 0 or B.coefficient < 0) ret output;
 	double Sq_A = sqrt(A.coefficient);
 	double Sq_B = sqrt(B.coefficient);
 
 	// controllo sui quadrati
-	if (!A.IsSquare()) return output;
-	if (!B.IsSquare()) return output;
-	for (int i = 0; i < Variables.size(); ++i) if (A.exp[i] % 4 != 0) return output;
+	if (!A.IsSquare()) ret output;
+	if (!B.IsSquare()) ret output;
+	for (int i = 0; i < Variables.size(); ++i) if (A.exp[i] % 4 != 0) ret output;
 	
 	// controllo sui gradi
 	for (int i = 0; i < Variables.size(); ++i) {
-		if (vect[1].exp[i] != A.exp[i] / 2 + B.exp[i] / 2) return output;
-		if (!integer(A.exp[i] / 4 + B.exp[i] / 4)) return output;
+		if (vect[1].exp[i] != A.exp[i] / 2 + B.exp[i] / 2) ret output;
+		if (!integer(A.exp[i] / 4 + B.exp[i] / 4)) ret output;
 	}
 
 	// dichiarazioni
@@ -6103,7 +6164,7 @@ static polynomial<> CompleteTheSquare(factor<> vect)
 		DiffSquare.coefficient = sqrt(CaseMinus);
 		sign = -1;
 	}
-	else return output;
+	else ret output;
 	Diffneg.coefficient = -DiffSquare.coefficient;
 	Diffneg.exp = DiffSquare.exp;
 
@@ -6121,7 +6182,7 @@ static polynomial<> CompleteTheSquare(factor<> vect)
 	output[0] << monomial<>{ Sq_A, A.exp } << DiffSquare << monomial<>{ Sq_B, B.exp };
 	output[1] << monomial<>{ Sq_A, A.exp } << Diffneg << monomial<>{ Sq_B, B.exp };
 
-	return output;
+	ret output;
 }
 
 // quadrato di trinomio
@@ -6131,7 +6192,7 @@ static polynomial<> TrinomialSquare(factor<> vect)
 	// filtro per tensori con 5 o 6 termini
 	polynomial<> output;
 	output << vect;
-	if (vect != 5 and vect != 6) return output;
+	if (vect != 5 and vect != 6) ret output;
 
 	// push del monomio modificatore dell'esponente
 	tensor<int> modifier(Variables.size(), 0);
@@ -6143,16 +6204,16 @@ static polynomial<> TrinomialSquare(factor<> vect)
 		// controllo coefficienti
 		bool AB2, AC2, BC2;
 		long double A{ sqrt(vect[0].coefficient) };
-		if (!integer(A)) return output;
+		if (!integer(A)) ret output;
 		long double C{ sqrt(vect[4].coefficient)};
-		if (!integer(C)) return output;
+		if (!integer(C)) ret output;
 		long double B{ (long double)vect[3].coefficient / (2 * C) };
-		if (!integer(B)) return output;
-		if (fabs(B) != fabs((double)vect[1].coefficient / (2 * A))) return output;
+		if (!integer(B)) ret output;
+		if (fabs(B) != fabs((double)vect[1].coefficient / (2 * A))) ret output;
 
 		// controllo esponenti
 		for (int i = 0; i < Variables.size(); ++i) for (int j = 0; j < 5; ++j)
-			if (vect[4 - j].exp[i] != j * vect[3].exp[i]) return output;
+			if (vect[4 - j].exp[i] != j * vect[3].exp[i]) ret output;
 
 		// calcolo segni
 		AB2 = vect[1].coefficient < 0;
@@ -6161,7 +6222,7 @@ static polynomial<> TrinomialSquare(factor<> vect)
 			AC2 = vect[2].coefficient - B * B < 0;
 		else if (fabs(vect[2].coefficient) == fabs(2 * A * C - B * B))
 			AC2 = vect[2].coefficient + B * B < 0;
-		else return output;
+		else ret output;
 		if (AB2 + AC2 + BC2 > 1) {
 			AB2 = !AB2;
 			AC2 = !AC2;
@@ -6189,7 +6250,7 @@ static polynomial<> TrinomialSquare(factor<> vect)
 		// ricerca dei quadrati
 		factor<> squares;
 		for (int i = 0; i < 6; ++i) if (vect[i].IsSquare()) squares << vect[i];
-		if (squares < 3) return output;
+		if (squares < 3) ret output;
 		tensor<int> _pos{1, 2, 2};
 		int IndexAccesser{ 2 };
 
@@ -6273,7 +6334,7 @@ static polynomial<> TrinomialSquare(factor<> vect)
 		output[1] << A << B << C;
 	}
 
-	return output;
+	ret output;
 }
 
 #pragma endregion
@@ -6308,7 +6369,7 @@ static FACTOR<> Complementary(POLYNOMIAL<> Polynomial, FACTOR<> factor, int exp)
 
 		}
 
-	return V1converter(PolynomialMultiply, Polynomial);
+	ret V1converter(PolynomialMultiply, Polynomial);
 }
 
 // semplifica numeratore e denominatore in una frazione
@@ -6462,13 +6523,13 @@ static void Approximator(tensor<long double>& Equation, long double& root)
 static tensor<wstring> EquationSolver(factor<> Equation)
 {
 	// caso nullo
-	if (Equation.empty()) return {};
+	if (Equation.empty()) ret {};
 	tensor<wstring> answer;
 
 	if (Equation == 1) {
 
 		// caso esponente
-		if (Equation[0].exp[0] == -1) return {};
+		if (Equation[0].exp[0] == -1) ret {};
 		
 		// caso monomio
 		for (int i = 0; i < Variables.size(); ++i) if (Equation[0].exp[i] != 0)
@@ -6497,7 +6558,7 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 		if (coeff != 1) push += L" / " + to_wstring(coeff);
 		answer << push;
 	}
-	if (Equation <= 2) return answer;
+	if (Equation <= 2) ret answer;
 
 	// calcolo della posizione
 	int StartIndex;
@@ -6560,7 +6621,7 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 					_push += factor<>({ monomial<>({ 1, VKnownSeq[0] }) }).str();
 				answer << _push;
 			}
-			return answer;
+			ret answer;
 		}
 
 		// metodo di Newton-Raphson
@@ -6586,10 +6647,10 @@ static void PrintFraction
 
 	// aggiunta di spazio
 	tensor<int> null(Variables.size(), 0);
-	GetConsoleScreenBufferInfo(hConsole, &csbi);
+	GetCursorPos();
 	auto start{ csbi.dwCursorPosition };
 	wcout << wstring(10, L'\n');
-	GetConsoleScreenBufferInfo(hConsole, &csbi);
+	GetCursorPos();
 	if (csbi.dwCursorPosition.Y > start.Y)
 		start.Y -= 10 - csbi.dwCursorPosition.Y + start.Y;
 	SetConsoleCursorPosition(hConsole, start);
@@ -6762,10 +6823,10 @@ static int OutputMatrix(
 	
 	// aggiunta di spazio
 	int size = Matrix.size();
-	GetConsoleScreenBufferInfo(hConsole, &csbi);
+	GetCursorPos();
 	auto begin{ csbi.dwCursorPosition };
 	wcout << wstring(4 * size + 1, L'\n');
-	GetConsoleScreenBufferInfo(hConsole, &csbi);
+	GetCursorPos();
 	if (csbi.dwCursorPosition.Y >= begin.Y)
 		begin.Y -= 4 * size + 1 - csbi.dwCursorPosition.Y + begin.Y;
 	SetConsoleCursorPosition(hConsole, begin);
@@ -6920,7 +6981,7 @@ static int OutputMatrix(
 				break;
 			}
 
-			SetConsoleTextAttribute(hConsole, 15);
+			ResetAttribute();
 			wcout << L' ';
 		}
 		if (row == 0 or row == 3) index++;
@@ -6939,7 +7000,7 @@ static int OutputMatrix(
 	if (SelectedElement.X == -1) begin.X += sum + 3;
 	SetConsoleCursorPosition(hConsole, begin);
 
-	return line;
+	ret line;
 }
 
 // inputa una matrice
@@ -7050,16 +7111,16 @@ static tensor<tensor<double>> InputMatrix()
 
 			// '\r' invia la matrice
 		case '\r':
-			GetConsoleScreenBufferInfo(hConsole, &csbi);
+			GetCursorPos();
 			csbi.dwCursorPosition.Y += 2 * TheMatrix.size() + 1;
 			SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
 			SetConsoleCursorInfo(hConsole, &cursor);
-			return TheMatrix;
+			ret TheMatrix;
 
 			// '.' termina il programma
 		case '.':
 			SetConsoleCursorInfo(hConsole, &cursor);
-			return {};
+			ret {};
 
 		default:
 
@@ -7081,7 +7142,7 @@ static tensor<tensor<double>> InputMatrix()
 		// stampa
 		TheMatrix[IndexAccesser.Y][IndexAccesser.X] =
 			MatrixAtIndex == L"-" ? 0 : stoi(MatrixAtIndex);
-		GetConsoleScreenBufferInfo(hConsole, &csbi);
+		GetCursorPos();
 		auto CursorPos{ csbi.dwCursorPosition };
 		ClearArea(
 			{ (short)(CursorPos.X + 30), (short)(CursorPos.Y + 8) }, { 30, 8 }
@@ -7097,7 +7158,7 @@ static tensor<tensor<double>> MatrixMultiply(
 	tensor<tensor<double>> B
 )
 {
-	if (A % B) return {};
+	if (A % B) ret {};
 	int size = A.size();
 	tensor<tensor<double>> C(size);
 
@@ -7107,7 +7168,7 @@ static tensor<tensor<double>> MatrixMultiply(
 		C[i] << scalar_prod;
 	}
 	
-	return C;
+	ret C;
 }
 
 // calcola il determinante di una matrice con il teorema di laplace
@@ -7117,8 +7178,8 @@ template<typename T> static T Determinant(tensor<tensor<T>> mx)
 	int s = mx.size();
 
 	// casi speciali
-	if (s == 1) return mx[0][0];
-	if (s == 2) return mx[0][0] * mx[1][1] - mx[0][1] * mx[1][0];
+	if (s == 1) ret mx[0][0];
+	if (s == 2) ret mx[0][0] * mx[1][1] - mx[0][1] * mx[1][0];
 
 	// caso generale
 	for (int i = 0; i < s; ++i) {
@@ -7132,7 +7193,7 @@ template<typename T> static T Determinant(tensor<tensor<T>> mx)
 		
 		det += intpow(-1, i) * mx[0][i] * Determinant(MX);
 	}
-	return det;
+	ret det;
 }
 
 // calcola il determinante di una matrice di polinomi
@@ -7143,7 +7204,7 @@ FACTOR<> PolynomialMatrixDeterminant(tensor<tensor<FACTOR<>>> PolynomialMatrix)
 	int s = PolynomialMatrix.size();
 
 	// casi speciali del calcolo del determinante
-	if (s == 1) return PolynomialMatrix[0][0];
+	if (s == 1) ret PolynomialMatrix[0][0];
 	if (s == 2) {
 		auto addend1{
 			PolynomialMultiply(
@@ -7156,7 +7217,7 @@ FACTOR<> PolynomialMatrixDeterminant(tensor<tensor<FACTOR<>>> PolynomialMatrix)
 			)
 		};
 		for (auto& mon : addend2) mon.coefficient *= -1;
-		return To1V(PolynomialSum<long double>(addend1 + addend2));
+		ret To1V(PolynomialSum<long double>(addend1 + addend2));
 	}
 
 	// caso generale del calcolo del determinante
@@ -7182,7 +7243,7 @@ FACTOR<> PolynomialMatrixDeterminant(tensor<tensor<FACTOR<>>> PolynomialMatrix)
 		}
 	}
 
-	return det;
+	ret det;
 };
 
 // calcola gli autovalori di una matrice
@@ -7214,7 +7275,7 @@ static tensor<double> EigenValues(tensor<tensor<double>> mx)
 	for (int i = 0; i < eigenvalues; ++i) for (int j = i + 1; j < eigenvalues; ++j)
 		if (eigenvalues[i] < eigenvalues[j]) swap(eigenvalues[i], eigenvalues[j]);
 
-	return eigenvalues;
+	ret eigenvalues;
 }
 
 // calcola gli autovettori di una matrice
@@ -7223,7 +7284,7 @@ static tensor<tensor<double>> EigenVectors
 {
 	int size = mx.size();
 	if (EigenV.empty()) EigenV = EigenValues(mx);
-	if (EigenV.size() != size) return {};
+	if (EigenV.size() != size) ret {};
 	tensor<double> result;
 	tensor<tensor<double>> eigenvectors(size);
 
@@ -7251,11 +7312,11 @@ static tensor<tensor<double>> EigenVectors
 		for (int j = 0; j < size; ++j)
 			norm += eigenvectors[i][j] * eigenvectors[i][j];
 		norm = sqrt(norm);
-		if (isnan(norm)) return {};
+		if (isnan(norm)) ret {};
 		for (int j = 0; j < size; ++j) eigenvectors[i][j] /= norm;
 	}
 
-	return eigenvectors;
+	ret eigenvectors;
 }
 
 #pragma endregion
@@ -7289,7 +7350,7 @@ static void CodeToNumber(switchcase& argc)
 	wcout << L"si indichino le cifre incognite con caratteri '_'\n";
 	wcout << L"aggiungendo '$' come primo carattere\n";
 	wcout << L"oppure '\\' o '/' senza <> non vengono mostrati gli errori\n\n";
-	SetConsoleTextAttribute(hConsole, 15);
+	ResetAttribute();
 
 	while (true)
 	{
@@ -7305,11 +7366,11 @@ static void CodeToNumber(switchcase& argc)
 			if (argc != NotAssigned) {
 				system("cls");
 				SetConsoleTitle(ToEvaluate.c_str());
-				return;
+				ret;
 			}
 			if (ToEvaluate == L".") {
 				argc = Random;
-				return;
+				ret;
 			}
 
 			// ammissione errori
@@ -7329,7 +7390,7 @@ static void CodeToNumber(switchcase& argc)
 				lock_guard<mutex> lock(CoutMutex);
 				SetConsoleTextAttribute(hConsole, 4);
 				wcout << L"ERR[404]: " << message << L'\n';
-				SetConsoleTextAttribute(hConsole, 15);
+				ResetAttribute();
 			}
 
 		} while (message.size() > 1);
@@ -7337,7 +7398,7 @@ static void CodeToNumber(switchcase& argc)
 		// caso di fine input
 		if (ToEvaluate == L"f") {
 			argc = NotAssigned;
-			return;
+			ret;
 		}
 
 		// eliminazione spazi
@@ -7362,7 +7423,7 @@ static void CodeToNumber(switchcase& argc)
 		thread InputThread(UserInputThread);
 
 		unique_lock<mutex> lock(CoutMutex);
-		Cv.wait(lock, [] { return !computing; });
+		Cv.wait(lock, [] { ret !computing; });
 
 		if (ComputationThread.joinable()) ComputationThread.join();
 		interrupted = true;
@@ -7370,11 +7431,11 @@ static void CodeToNumber(switchcase& argc)
 
 		// se il calcolo viene interrotto
 		if (GlobalInterr) {
-			SetConsoleTextAttribute(hConsole, 15);
+			ResetAttribute();
 			wcout << L'\n';
 			SetConsoleTextAttribute(hConsole, 64);
 			wcout << L"CALCOLO INTERROTTO!!!";
-			SetConsoleTextAttribute(hConsole, 15);
+			ResetAttribute();
 			wcout << L"\n\n";
 		}
 		SetConsoleCursorInfo(hConsole, &cursor);
@@ -7398,7 +7459,7 @@ static void Repeater(
 	NumberData result;
 	SetConsoleTextAttribute(hConsole, 14);
 	wcout << message << L"\n\n";
-	SetConsoleTextAttribute(hConsole, 15);
+	ResetAttribute();
 
 	while (true)
 	{
@@ -7407,19 +7468,19 @@ static void Repeater(
 		wstring txt{
 			L"inserire un numero tra 2 e " + n_ + L" (1 = fine input)\n"
 		};
-		SetConsoleTextAttribute(hConsole, 15);
+		ResetAttribute();
 		Input = GetUserNum(txt, 1, GlobalMax, true);
 		if (!Input.empty()) {
 			if (Input == L".") {
 				argc = Random;
-				return;
+				ret;
 			}
 			argc = ConvertWStringToEnum(Input);
 			ReassigneEnum(argc);
 			if (argc != NotAssigned) {
 				system("cls");
 				SetConsoleTitle(Input.c_str());
-				return;
+				ret;
 			}
 			input = stoull(Input);
 		}
@@ -7439,7 +7500,7 @@ static void Repeater(
 	}
 
 	argc = NotAssigned;
-	return;
+	ret;
 }
 
 // programma per il debug
@@ -7465,7 +7526,7 @@ static void Loop(
 	SetConsoleTextAttribute(hConsole, 14);
 	wcout << message << '\n';
 	SetDebug(message, argc, Return, LowerBound, UpperBound, datalenght);
-	if (Return) return;
+	if (Return) ret;
 
 	// input instruzioni
 	wstring instr;
@@ -7476,7 +7537,7 @@ static void Loop(
 		wcout << L"inserisci la stringa di istruzioni, il tipo è $_/_ #_/_\n";
 		wcout << L"per indicare i rapporti somma cifre con numero";
 		wcout << L" e prodotto cifre con numero\n";
-		SetConsoleTextAttribute(hConsole, 15);
+		ResetAttribute();
 
 		bool exit{ false };
 		do {
@@ -7484,7 +7545,7 @@ static void Loop(
 			instr = GetLine(true, 20);
 			if (instr == L".") {
 				argc = Random;
-				return;
+				ret;
 			}
 
 			// rimozione spazi
@@ -7557,7 +7618,7 @@ static void Loop(
 
 	// calcolo e parallelizzazione
 	system("cls");
-	GetConsoleScreenBufferInfo(hConsole, &csbi);
+	GetCursorPos();
 	const int Barwidth{ csbi.dwSize.X - 11 };
 #ifndef DEBUG
 	SetConsoleCursorInfo(hConsole, &cursorInfo);
@@ -7582,7 +7643,7 @@ static void Loop(
 
 					// calcolo del tempo rimanente
 					int time = duration_cast <milliseconds> (stop - begin).count();
-					SetConsoleTextAttribute(hConsole, 15);
+					ResetAttribute();
 					long double time_rem{ (time / Progress) * (1 - Progress) };
 					long double time_seconds{ (long double)time_rem / 1000 };
 
@@ -7644,7 +7705,7 @@ static void Loop(
 	do null = _getwch();
 	while ((null > 64 and null < 91) or null < 32);
 	argc = null == L'.' ? Random : NotAssigned;
-	return;
+	ret;
 }
 
 // programma per scomporre i polinomi
@@ -7670,7 +7731,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		wcout << L"scrivere noboolalpha\n";
 		wcout << L"per disattivare gli esponenti sottoforma di apice ";
 		wcout << L"scrivere boolalpha\n\n";
-		SetConsoleTextAttribute(hConsole, 15);
+		ResetAttribute();
 	}
 	do {
 		if (input)
@@ -7679,11 +7740,11 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			Xout = false;
 			wstring Message;
 			do {
-				GetConsoleScreenBufferInfo(hConsole, &csbi);
+				GetCursorPos();
 				bool wrong{ true };
 
 				// input
-				SetConsoleTextAttribute(hConsole, 15);
+				ResetAttribute();
 				wcout << L"inserisci un polinomio in una o più variabili";
 				wcout << L" (0 = fine input)\n";
 				do {
@@ -7692,14 +7753,14 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 				} while (Polynomial.empty());
 				if (Polynomial == L".") {
 					argc = Random;
-					return {};
+					ret {};
 				}
 				argc = ConvertWStringToEnum(Polynomial);
 				ReassigneEnum(argc);
 				if (argc != NotAssigned) {
 					system("cls");
 					SetConsoleTitle(Polynomial.c_str());
-					return {};
+					ret {};
 				}
 
 				// esponenti con gli apici
@@ -7724,7 +7785,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 				if (!Message.empty() and wrong) {
 					SetConsoleTextAttribute(hConsole, 12);
 					wcout << Message << L"!!\n\a";
-					SetConsoleTextAttribute(hConsole, 15);
+					ResetAttribute();
 				}
 
 			} while (!Message.empty());
@@ -7744,11 +7805,11 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 				wcout << L"questo è il polinomio: " << bigHT.str() << L'\n';
 				SetConsoleTextAttribute(hConsole, 64);
 				wcout << L"il polinomio è troppo grande.";
-				SetConsoleTextAttribute(hConsole, 15);
+				ResetAttribute();
 				wcout << L'\n';
 				goto EndOfDecomposition;
 			}
-			else return {};
+			else ret {};
 		}
 
 		null(Variables.size());
@@ -7768,7 +7829,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		// caso nullo
 		size = HT.size();
 		if (Polynomial == L"0") {
-			SetConsoleTextAttribute(hConsole, 15);
+			ResetAttribute();
 			wcout << "il polinomio non è scomponibile\n";
 			goto EndOfDecomposition;
 		}
@@ -7895,7 +7956,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		if (Back_T % HT and !Xout and input) {
 			SetConsoleTextAttribute(hConsole, 79);
 			wcout << L"completamento del quadrato: " << Polynomial;
-			SetConsoleTextAttribute(hConsole, 15);
+			ResetAttribute();
 			wcout << L'\n';
 			empty = false;
 		}
@@ -7910,14 +7971,14 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		if (Back_T % HT and !Xout and input) {
 			SetConsoleTextAttribute(hConsole, 79);
 			wcout << L"quadrato di trinomio scomposto: " << Polynomial;
-			SetConsoleTextAttribute(hConsole, 15);
+			ResetAttribute();
 			wcout << L'\n';
 			empty = false;
 		}
 
 		// caso vuoto
 		if (empty and !Xout and input) {
-			SetConsoleTextAttribute(hConsole, 15);
+			ResetAttribute();
 			wcout << L"il polinomio non è scomponibile";
 			wcout << L" con i metodi standard\n";
 		}
@@ -7926,7 +7987,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		if (Xout and input) {
 			SetConsoleTextAttribute(hConsole, 64);
 			wcout << L"X_OUT_OF_RANGE";
-			SetConsoleTextAttribute(hConsole, 15);
+			ResetAttribute();
 			wcout << L'\n';
 		}
 
@@ -7934,7 +7995,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 
 			// controllo dimensione console
 			if (Variables.size() != 1) continue;
-			GetConsoleScreenBufferInfo(hConsole, &csbi);
+			GetCursorPos();
 			if (csbi.dwSize.X <= 94 or csbi.dwSize.Y <= 26) continue;
 
 			// aggiunta di spazio
@@ -7948,7 +8009,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 	} while (input);
 
 	argc = NotAssigned;
-	return HT;
+	ret HT;
 }
 
 // programma per scomporre le frazioni algebriche
@@ -7967,7 +8028,7 @@ static void DecompFraction(switchcase& argc)
 	wcout << L"scrivere noboolalpha\n";
 	wcout << L"per disattivare gli esponenti sottoforma di apice ";
 	wcout << L"scrivere boolalpha\n";
-	SetConsoleTextAttribute(hConsole, 15);
+	ResetAttribute();
 
 	while (true)
 	{
@@ -7978,7 +8039,7 @@ static void DecompFraction(switchcase& argc)
 		do {
 
 			// input
-			SetConsoleTextAttribute(hConsole, 15);
+			ResetAttribute();
 			bool wrong{ true };
 			wcout << L"\ninserisci una frazione algebrica (0 = fine input)\n\n";
 			GetFraction(numerator, denominator);
@@ -7987,14 +8048,14 @@ static void DecompFraction(switchcase& argc)
 
 			if (numerator == L".") {
 				argc = Random;
-				return;
+				ret;
 			}
 			argc = ConvertWStringToEnum(numerator);
 			ReassigneEnum(argc);
 			if (argc != NotAssigned) {
 				system("cls");
 				SetConsoleTitle(numerator.c_str());
-				return;
+				ret;
 			}
 
 			// esponenti con gli apici
@@ -8019,7 +8080,7 @@ static void DecompFraction(switchcase& argc)
 			if ((No1 or No2) and wrong) {
 				SetConsoleTextAttribute(hConsole, 4);
 				wcout << L"quella non è una frazione algebrica\n\a";
-				SetConsoleTextAttribute(hConsole, 15);
+				ResetAttribute();
 			}
 
 			// denominatore nullo
@@ -8029,7 +8090,7 @@ static void DecompFraction(switchcase& argc)
 				No2 = true;
 				SetConsoleTextAttribute(hConsole, 4);
 				wcout << L"il denominatore non può essere nullo\n\a";
-				SetConsoleTextAttribute(hConsole, 15);
+				ResetAttribute();
 			}
 
 			// numeratore nullo
@@ -8051,7 +8112,7 @@ static void DecompFraction(switchcase& argc)
 			wcout << L'\n';
 			SetConsoleTextAttribute(hConsole, 64);
 			wcout << L"input overflow: prova a inserire valori più piccoli";
-			SetConsoleTextAttribute(hConsole, 15);
+			ResetAttribute();
 			wcout << L'\n';
 			goto insert;
 		}
@@ -8231,7 +8292,7 @@ static void DecompFraction(switchcase& argc)
 
 		}
 		if (!HasBeenPrinted) wcout << L"\r      \r";
-		GetConsoleScreenBufferInfo(hConsole, &csbi);
+		GetCursorPos();
 		cursorPos = csbi.dwCursorPosition;
 		if (!HasBeenPrinted) {
 			cursorPos.X = 0;
@@ -8274,7 +8335,7 @@ static void DecompFraction(switchcase& argc)
 				if (BottomPart > 1 or BottomPart[0] > 1 or
 					BottomPart[0][0].exp != tensor<int>(Variables.size(), 0))
 				{
-					GetConsoleScreenBufferInfo(hConsole, &csbi);
+					GetCursorPos();
 					csbi.dwCursorPosition.Y--;
 					SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
 					PrintFraction(
@@ -8293,7 +8354,7 @@ static void DecompFraction(switchcase& argc)
 
 			// caso di denominatore coefficiente
 			if (abs(DCOEFF) != 1 and !TopPart.empty() and NewPrint) {
-				GetConsoleScreenBufferInfo(hConsole, &csbi);
+				GetCursorPos();
 				csbi.dwCursorPosition.Y--;
 				SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
 				PrintFraction(
@@ -8309,7 +8370,7 @@ static void DecompFraction(switchcase& argc)
 
 			// caso di frazione normale
 			else if (abs(DCOEFF) != 1 and NScomp.empty() and NewPrint) {
-				GetConsoleScreenBufferInfo(hConsole, &csbi);
+				GetCursorPos();
 				csbi.dwCursorPosition.Y--;
 				SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
 				PrintFraction(
@@ -8348,7 +8409,7 @@ static void DecompFraction(switchcase& argc)
 		}
 
 		// reset cursore
-		GetConsoleScreenBufferInfo(hConsole, &csbi);
+		GetCursorPos();
 		auto cursorP{ csbi.dwCursorPosition };
 		cursorP.X = lines;
 		cursorP.Y--;
@@ -8391,7 +8452,7 @@ static void DecompFraction(switchcase& argc)
 			else {
 
 				// arretramento cursore
-				GetConsoleScreenBufferInfo(hConsole, &csbi);
+				GetCursorPos();
 				COORD dwCursorPos{ csbi.dwCursorPosition };
 				dwCursorPos.Y--;
 				SetConsoleCursorPosition(hConsole, dwCursorPos);
@@ -8410,7 +8471,7 @@ static void DecompFraction(switchcase& argc)
 				);
 
 				// avanzamento cursore
-				GetConsoleScreenBufferInfo(hConsole, &csbi);
+				GetCursorPos();
 				dwCursorPos = csbi.dwCursorPosition;
 				dwCursorPos.Y++;
 				SetConsoleCursorPosition(hConsole, dwCursorPos);
@@ -8444,18 +8505,18 @@ static void DecompMatrices(switchcase& argc)
 	wcout << L"il PROGRAMMA scompone le matrici\n\n";
 	SetConsoleTextAttribute(hConsole, 12);
 	wcout << L"sono ammesse solo matrici quadrate da 2x2 a 7x7\n\n";
-	SetConsoleTextAttribute(hConsole, 15);
+	ResetAttribute();
 	tensor<tensor<double>> matrix, Mx;
 
 	while (true)
 	{
 		// input
-		SetConsoleTextAttribute(hConsole, 15);
+		ResetAttribute();
 		wcout << L"inserisci una matrice, usa wasd per cambiare elemento\n";
 		matrix = InputMatrix();
 		if (matrix.empty()) {
 			argc = Random;
-			return;
+			ret;
 		}
 		int size = matrix.size();
 		if (matrix == tensor<tensor<double>>(size, tensor<double>(size, 0)))
