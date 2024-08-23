@@ -752,6 +752,7 @@ public:
 	{
 		wostringstream result;
 		wstring outp;
+		result << fixed;
 
 		// bool
 		if constexpr (is_same_v<T, bool>) for (const auto& element : *this) {
@@ -765,12 +766,12 @@ public:
 			result << L", ";
 		}
 
-		// dato integrale
-		else if constexpr (is_integral_v<T>)
-			for (const auto& element : *this) result << to_wstring(element) << L", ";
-
-		// stringhe
-		else if constexpr (is_same_v<T, wstring>)
+		// dati generici
+		else if constexpr (
+			is_integral_v<T> or 
+			is_same_v<T, wstring> or
+			is_same_v<T, double>
+			)
 			for (const auto& element : *this) result << element << L", ";
 
 		// niente
@@ -2507,13 +2508,12 @@ static big Gcd(tensor<big> terms)
 static ptrdiff_t intpow(ptrdiff_t base, int exp)
 {
 	ptrdiff_t power{ 1 };
-	auto NewExp{ exp };
+	auto NewExp{ exp + 1 };
 	auto NewBase{ base };
 	if (base < 0) NewBase *= -1;
-	while (NewExp > 0) {
+	while (--NewExp > 0) {
 		power *= NewBase;
 		if (power < 0) return -1;
-		NewExp--;
 	}
 	if (exp % 2 == 1 and base < 0) return -power;
 	return power;
@@ -4094,8 +4094,7 @@ static wstring Cript(ptrdiff_t input)
 				if (repeat) {
 					PrimeExp_String = wstring(1, OutputString.at(OutputString.size() - 1));
 					OutputString.erase(OutputString.size() - 1);
-					prime_exp = stoi(PrimeExp_String);
-					prime_exp++;
+					prime_exp = stoi(PrimeExp_String) + 1;
 					PrimeExp_String = to_wstring(prime_exp);
 					if (prime_exp > 10) PrimeExp_String = L'.' + PrimeExp_String;
 					OutputString.append(PrimeExp_String);
@@ -4123,23 +4122,19 @@ static wstring Cript(ptrdiff_t input)
 	int position[12], j{};
 	for (int i = 0; i < (result.size() - 2); ++i)
 		if ((result.at(i) == L'(') and (result.at(i + 1) == L'1')
-			and (result.at(i + 2) == L')'))
-		{
-			position[j] = i;
-			j++;
-		}
+			and (result.at(i + 2) == L')')) position[j++] = i;
+		
 	for (int k = j - 1; k >= 0; --k) result.erase(position[k], 3);
 
 	// eliminazione parentesi in più
 	int l{};
 	sizestring = result.size();
 	if (sizestring > 4) {
+
 		for (int m = 0; m < (result.size() - 3); ++m)
 			if ((result.at(m) == L'(') and (result.at(m + 3) == L')'))
-			{
-				position[l] = m;
-				l++;
-			}
+				position[l++] = m;
+		
 		for (int m = l - 1; m >= 0; --m) {
 			result.erase(position[m] + 3, 1);
 			result.erase(position[m], 1);
@@ -4395,8 +4390,7 @@ static NumberData ExecuteDegree(ptrdiff_t input)
 	NumberData output;
 	output.number = input;
 	output.code = Cript(input);
-	int counter{};
-	int copy = input;
+	int counter{}, copy = input;
 
 	// iterazione per ottenere grado e sequenza
 	do {
@@ -4466,8 +4460,8 @@ static NumberData ExecuteDegDigit(ptrdiff_t input)
 {
 	NumberData B{ ExecuteDigit(input) };
 	if (B.digit.digitSumRatioNum == 0 and
-		B.digit.digitProductRatioNum == 0)
-		return B;
+		B.digit.digitProductRatioNum == 0) return B;
+
 	NumberData A{ ExecuteDegree(input) };
 	A.digit = B.digit;
 	return A;
@@ -4478,8 +4472,8 @@ static NumberData ExecuteFactDigit(ptrdiff_t input)
 {
 	NumberData B{ ExecuteDigit(input) };
 	if (B.digit.digitSumRatioNum == 0 and
-		B.digit.digitProductRatioNum == 0)
-		return B;
+		B.digit.digitProductRatioNum == 0) return B;
+
 	NumberData A{ ExecuteFactor(input) };
 	A.digit = B.digit;
 	return A;
@@ -4490,8 +4484,8 @@ static NumberData ExecuteAll(ptrdiff_t input)
 {
 	NumberData C{ ExecuteDigit(input) };
 	if (C.digit.digitSumRatioNum == 0 and
-		C.digit.digitProductRatioNum == 0)
-		return C;
+		C.digit.digitProductRatioNum == 0) return C;
+
 	NumberData A{ ExecuteDegree(input) };
 	NumberData B{ ExecuteFactor(input) };
 	A.expression = B.expression;
@@ -4554,6 +4548,7 @@ balance:
 			if (!balanced) break;
 			return L"le parentesi sono invertite";
 		}
+		if (ParenthesisBalance >= 100) return L"ci sono troppe parentesi";
 	}
 	if (ParenthesisBalance == 0) pol = copy;
 	else if (!balanced) {
@@ -4759,6 +4754,7 @@ static wstring NumberCodeSyntax(wstring ToEvaluate)
 			break;
 		}
 		if (ParenthesisBalance < 0) return L"le parentesi sono invertite";
+		if (ParenthesisBalance >= 100) return L"ci sono troppe parentesi";
 	}
 	if (ParenthesisBalance != 0) return L"le parentesi sono sbilanciate";
 
@@ -6422,10 +6418,8 @@ static void Approximator(tensor<long double>& Equation, long double& root)
 
 	// calcolo derivata
 	auto derivative{ equation };
-	for (int j = 0; j < derivative; ++j) {
-		derivative[j].coefficient *= derivative[j].degree;
-		derivative[j].degree--;
-	}
+	for (int j = 0; j < derivative; ++j)
+		derivative[j].coefficient *= derivative[j].degree--;
 	derivative--;
 
 	// calcolo radice
@@ -6770,10 +6764,10 @@ static int OutputMatrix(
 	int size = Matrix.size();
 	GetConsoleScreenBufferInfo(hConsole, &csbi);
 	auto begin{ csbi.dwCursorPosition };
-	wcout << wstring(2 * size + 1, L'\n');
+	wcout << wstring(4 * size + 1, L'\n');
 	GetConsoleScreenBufferInfo(hConsole, &csbi);
 	if (csbi.dwCursorPosition.Y >= begin.Y)
-		begin.Y -= 2 * size + 1 - csbi.dwCursorPosition.Y + begin.Y;
+		begin.Y -= 4 * size + 1 - csbi.dwCursorPosition.Y + begin.Y;
 	SetConsoleCursorPosition(hConsole, begin);
 	csbi.dwCursorPosition = begin;
 
@@ -6783,7 +6777,7 @@ static int OutputMatrix(
 		double element{ Matrix[j][i] };
 
 		// elemento intero
-		if (SelectedElement.X != -1 or integer(element)) {
+		if (SelectedElement.Y >= 0 or integer(element)) {
 			StrDenominators[i] << L"";
 			StrMatrix[i] << to_wstring((int)element);
 			continue;
@@ -6791,12 +6785,9 @@ static int OutputMatrix(
 
 		// elemento decimale
 		int I{ -1 };
-		for (int i = 2; i < 1'000; ++i) {
-			if (integer(i * element)) {
-				I = i;
-				break;
-			}
-			i++;
+		for (int i = 2; i < 1'000; ++i) if (integer(i * element)) {
+			I = i;
+			break;
 		}
 		if (I == -1) {
 
@@ -6822,10 +6813,16 @@ static int OutputMatrix(
 		// calcolo della lunghezza massima e correzione
 		for (auto& num : column) if (num.size() > maxlenght) maxlenght = num.size();
 		for (auto& den : denom) if (den.size() > maxlenght) maxlenght = den.size();
-		for (auto& num : column) if (num.size() < maxlenght)
-			num += wstring(maxlenght - num.size(), L' ');
-		for (auto& den : denom) if (den.size() < maxlenght)
-			den += wstring(maxlenght - den.size(), L' ');
+		for (auto& num : column) if (num.size() < maxlenght) {
+			int TotalLenght = maxlenght - num.size();
+			num = wstring(TotalLenght / 2, L' ') +
+				num + wstring(TotalLenght - TotalLenght / 2, L' ');
+		}
+		for (auto& den : denom) if (den.size() < maxlenght) {
+			int TotalLenght = maxlenght - den.size();
+			den = wstring(TotalLenght / 2, L' ') +
+				den + wstring(TotalLenght - TotalLenght / 2, L' ');
+		}
 
 		StrMatrix[i] = column;
 		StrDenominators[i] = denom;
@@ -6836,7 +6833,10 @@ static int OutputMatrix(
 	// calcolo delle righe con e senza frazioni
 	tensor<bool> HaveTheyFractions(size, false);
 	for (int i = 0; i < size; ++i) for (int j = 0; j < size; ++j)
-		if (StrDenominators[j][i].at(0) != L' ') {
+		if (StrDenominators[j][i].at(
+			(StrDenominators[j][i].size() - 1) / 2) != L' '
+			)
+		{
 			HaveTheyFractions[i] = true;
 			break;
 		}
@@ -6876,9 +6876,11 @@ static int OutputMatrix(
 				SetConsoleTextAttribute(hConsole, 12);
 
 			// caso senza frazioni
+			auto TempDenominator{ StrDenominators[j][(index - 1) / 2] };
 			if (
 				!HaveTheyFractions[(index - 1) / 2] or
-				(row == 2 and StrDenominators[j][(index - 1) / 2].at(0) == L' ')
+				(row == 2 and TempDenominator.at(
+					(TempDenominator.size() - 1) / 2) == L' ')
 				)
 			{
 				wcout << StrMatrix[j][(index - 1) / 2];
@@ -6895,7 +6897,7 @@ static int OutputMatrix(
 
 				// numeratori
 			case 1:
-				if (StrDenominators[j][(index - 1) / 2].at(0) == L' ')
+				if (TempDenominator.at((TempDenominator.size() - 1) / 2) == L' ')
 					wcout << wstring(
 						StrMatrix[j][(index - 1) / 2].size() + 1, L' '
 					);
@@ -6910,7 +6912,7 @@ static int OutputMatrix(
 				
 				// denominatori non nulli
 			case 3:
-				if (StrDenominators[j][(index - 1) / 2].at(0) == L' ')
+				if (TempDenominator.at((TempDenominator.size() - 1) / 2) == L' ')
 					wcout << wstring(
 						StrMatrix[j][(index - 1) / 2].size() + 1, L' '
 					);
@@ -7167,14 +7169,17 @@ FACTOR<> PolynomialMatrixDeterminant(tensor<tensor<FACTOR<>>> PolynomialMatrix)
 			MX[I] << PolynomialMatrix[I + 1][J];
 		}
 
-		auto adder{
-			PolynomialMultiply<long double>({
-				ToXV(PolynomialMatrix[0][i]),
-				ToXV(PolynomialMatrixDeterminant(MX))
-				})
-		};
-		for (auto& mon : adder) mon.coefficient *= -1;
-		det = To1V(PolynomialSum<long double>(ToXV(det) + adder));
+		auto MiddleDet{ ToXV(PolynomialMatrixDeterminant(MX)) };
+		if (MiddleDet != 0) {
+			auto adder{
+				PolynomialMultiply<long double>({
+					ToXV(PolynomialMatrix[0][i]),
+					MiddleDet
+					})
+			};
+			for (auto& mon : adder) mon.coefficient *= -1;
+			det = To1V(PolynomialSum<long double>(ToXV(det) + adder));
+		}
 	}
 
 	return det;
@@ -7193,6 +7198,8 @@ static tensor<double> EigenValues(tensor<tensor<double>> mx)
 	
 	// calcolo autovalori
 	tensor<double> eigenvalues;
+	charVariable = L'x';
+	Variables = L"x";
 	auto EigenStrings{
 		EquationSolver(
 			ToXV(PolynomialMatrixDeterminant(PolynomialMatrix))
@@ -7216,25 +7223,24 @@ static tensor<tensor<double>> EigenVectors
 {
 	int size = mx.size();
 	if (EigenV.empty()) EigenV = EigenValues(mx);
-
-	// calcolo autovettori e matrici ortogonali
+	if (EigenV.size() != size) return {};
 	tensor<double> result;
 	tensor<tensor<double>> eigenvectors(size);
-	for (int i = 0; i < size - 1; ++i) result << -mx[i].last();
-	mx--;
-	for (int i = 0; i < size - 1; ++i) mx[i]--;
 
 	// risoluzione sistemi lineari
 	for (int i = 0; i < size; ++i) {
 
-		// sottrazione autovalore
+		// sottrazione autovalore e rimozione fine
 		auto NewMx{ mx };
 		for (int j = 0; j < size; ++j) NewMx[j][j] -= EigenV[i];
+		for (int j = 0; j < size - 1; ++j) result << -NewMx[j].last();
+		NewMx--;
+		for (int j = 0; j < size - 1; ++j) NewMx[j]--;
 		auto Det{ Determinant(NewMx) };
 
 		// calcolo soluzioni e determinanti
 		for (int j = 0; j < size - 1; ++j) {
-			auto NewMatrix{ mx };
+			auto NewMatrix{ NewMx };
 			for (int k = 0; k < size - 1; ++k) NewMatrix[k][k] = result[k];
 			eigenvectors[i] << Determinant(NewMatrix) / Det;
 		}
@@ -7245,8 +7251,8 @@ static tensor<tensor<double>> EigenVectors
 		for (int j = 0; j < size; ++j)
 			norm += eigenvectors[i][j] * eigenvectors[i][j];
 		norm = sqrt(norm);
-		for (int j = 0; j < size; ++j)
-			eigenvectors[i][j] /= norm;
+		if (isnan(norm)) return {};
+		for (int j = 0; j < size; ++j) eigenvectors[i][j] /= norm;
 	}
 
 	return eigenvectors;
@@ -8601,6 +8607,13 @@ static void DecompMatrices(switchcase& argc)
 			for (int i = 0; i < size; ++i) sigma[i][i] = sqrt(EigenV[i]);
 			U = EigenVectors(Mx_MxT, EigenV);
 			V = EigenVectors(MxT_Mx);
+			if (V.empty()) Break = true;
+			else {
+				auto NewV{ Id };
+				for (int i = 0; i < size; ++i) for (int j = 0; j < size; ++j)
+					NewV[i][j] = V[j][i];
+				V = NewV;
+			}
 		}
 
 		// decomposizione a valori singolari
@@ -8612,9 +8625,18 @@ static void DecompMatrices(switchcase& argc)
 			wcout << L'\n';
 		}
 
-		// aggiungi tu qui altre decomposizioni
-		Mx = matrix;
-
+		// output dati della matrice
+		wcout << L"Determinante: " << Determinant(matrix) << L'\n';
+		auto eigenvalues{ EigenValues(matrix) };
+		wcout << L"Autovalori reali: " << eigenvalues.str() << L'\n';
+		tensor<tensor<double>> eigenvectors;
+		if (eigenvalues == size) {
+			wcout << L"Autovettori reali: \n";
+			eigenvectors = EigenVectors(matrix, eigenvalues);
+			for (auto eigenvector : eigenvectors)
+				wcout << eigenvector.str() << L'\n';
+			wcout << L'\n';
+		}
 	}
 
 	argc = NotAssigned;
@@ -8631,11 +8653,9 @@ static void DecompMatrices(switchcase& argc)
 
 impegni programma:
 	
-	aggiungere i tipi rimanenti di decomposizione matrici (22-23/08)
-
-	aggiungere dei thread per il controllo della dimensione della console (24-25/08)
+	aggiungere dei thread per il controllo della dimensione della console (23-24/08)
 	
-	refactor foreach loop e for auto& loop (26/08)
+	refactor foreach loop e for auto& loop (25/08)
 
 	fare un grande debug (26/08)
 
