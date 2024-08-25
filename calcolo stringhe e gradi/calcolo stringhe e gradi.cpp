@@ -1,4 +1,6 @@
 ﻿// inizio del codice
+// ATTENZIONE: il codice del programma è molto avanzato
+// e deve essere eseguito in c++20 o c++23 e su Windows
 #pragma region Files
 
 // pragma
@@ -23,7 +25,7 @@
 
 // Descrizione programma ::
 	/*                                                          |
-	*  Strings ZP[0.8.9].cpp: il programma calcola singola e\o  |
+	*  Strings ZP[0.9.0].cpp: il programma calcola singola e\o  |
 	*  doppia scomposizione di alcuni interi in una stringa o   |
 	*  il contrario, i numeri primi, cifre e divisori, scompone |
 	*  anche i polinomi, le frazioni algebriche e le matrici    |
@@ -51,6 +53,10 @@
 #define issign(x) (x == L'+' or x == L'-')
 #define V1converter(func, param) To1V(func(ToXV(param)))
 #define VXconverter(func, param) ToXV(func(To1V(param)))
+
+#ifndef BUGS
+#pragma optimize("on", on);
+#endif // BUGS
 
 // inclusioni
 #include <algorithm>
@@ -2022,7 +2028,7 @@ static wstring CTSuperScript(wchar_t input);
 static wstring CFSuperScript(wstring script);
 static void DeduceFromExponents(wstring& str);
 static void GetFraction(wstring& numerator, wstring& denominator);
-static wstring GetLine(bool ShowSuggestions, int sizemax);
+static wstring GetLine(bool ShowSuggestions = true, int sizemax = -1);
 static wstring GetUserNum
 (wstring txt, int low, ptrdiff_t high, bool ShowSuggestions);
 static void SetDebug(wstring message, switchcase& opt, bool& Return,
@@ -2148,7 +2154,7 @@ static void DecompMatrices(switchcase& argc);
 // programma principale
 int main()
 {
-	int ErrorCode{};
+	int ErrorCode{}, ErrMessage;
 	setlocale(LC_ALL, "");
 	SetConsoleOutputCP(CP_UTF8);
 	SetConsoleCP(CP_UTF8);
@@ -2189,25 +2195,25 @@ int main()
 			Start:
 			system("cls");
 			SetConsoleTitle(L"schermata START");
-				
+			
 			// // output
 			SetConsoleTextAttribute(hConsole, 2);
 			wcout << L"~~~~~.";
 #ifndef BUGS
 			wcout << L"~~";
-#endif
+#endif // BUGS
 			wcout << L"[> CALCOLO-STRINGHE-E-GRADI V";
 #ifndef BUGS
 			wcout << L' ';
-#endif
-			wcout << L"0.8.9 ";
+#endif // BUGS
+			wcout << L"0.9.0 ";
 #ifdef BUGS
 			wcout << L"BETA ";
-#endif
+#endif // BUGS
 			wcout << L"<]";
 #ifndef BUGS
 			wcout << L"~~";
-#endif
+#endif // BUGS
 			wcout << L".~~~~~\n";
 			wcout << L"*****.*****.*****.[> CALCOLATRICE <].*****.*****.*****\n\n";
 
@@ -2251,7 +2257,7 @@ int main()
 				GlobalMax = global;
 #ifndef BUGS
 				SetConsoleCursorInfo(hConsole, &cursorInfo);
-#endif
+#endif // BUGS
 				PrimeNCalculator(GlobalMax + 1'000);
 
 				steady_clock::time_point end{ steady_clock::now() };
@@ -2447,13 +2453,35 @@ int main()
 				}
 
 			}
-			if (option == Random) goto End;
+			if (option == Random) goto MB;
 
 		} while (option != NotAssigned);
 	}
 
-	// fine del programma
+	// messaggio
+MB:
+	wcout << L'\a';
 	ErrorCode = 0;
+	ErrMessage = MessageBox(
+		NULL,
+		L"DEBUG ERROR\
+		\n\n sicuro di voler terminare il programma?\
+		\n\n [riprova] per tornare all'inizio del programma\
+		\n\n",
+		L"Microsoft Visual C++ Runtime Library",
+		MB_ABORTRETRYIGNORE
+	);
+
+	// se l'utente clicca su [riprova]
+	if (ErrMessage == IDRETRY) {
+		LockPrimeNumbersInput = false;
+		goto Start;
+	}
+
+	// se l'utente clicca su [ignora]
+	if (ErrMessage == IDIGNORE) goto MB;
+
+	// fine del programma
 End:
 	system("cls");
 	SetConsoleTextAttribute(hConsole, 4);
@@ -3068,7 +3096,7 @@ static void PrintGraph(FACTOR<> funct, const coord position)
 	const short width{ 12 };
 #ifndef BUGS
 	SetConsoleCursorInfo(hConsole, &cursorInfo);
-#endif
+#endif // BUGS
 
 	// // output margini finestra
 	SetConsoleTextAttribute(hConsole, 11);
@@ -3283,6 +3311,18 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 	auto start{ csbi.dwCursorPosition };
 	while (true) {
 		if (_kbhit) {
+			_GetCursorPos();
+			int maxsize = csbi.dwSize.X;
+
+			// overflow di caratteri nella console
+			if (numerator.size() >= maxsize or denominator.size() >= maxsize)
+			{
+				short height = csbi.dwCursorPosition.Y -
+					(vel.size() - 1) / maxsize;
+				numerator.clear();
+				denominator.clear();
+				continue;
+			}
 
 			char c = _getch();
 			_GetCursorPos();
@@ -3311,7 +3351,7 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 				numerator = L".";
 	#ifndef BUGS
 				SetConsoleCursorInfo(hConsole, &cursorInfo);
-	#endif
+	#endif // BUGS
 				SetConsoleCursorPosition(hConsole, start);
 				for (int a = 0; a < 4; ++a) wcout << S << L'\n';
 				SetConsoleCursorInfo(hConsole, &cursor);
@@ -3452,7 +3492,7 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 			// stampa frazione algebrica
 	#ifndef BUGS
 			SetConsoleCursorInfo(hConsole, &cursorInfo);
-	#endif
+	#endif // BUGS
 			if (Num.size() > Den.size()) {
 				SetConsoleCursorPosition(hConsole, start);
 				wcout << S;
@@ -3512,11 +3552,35 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 // inputa un polinomio
 static wstring GetLine(bool ShowSuggestions, int sizemax)
 {
-	int diff{};
+	// variabili
+	int diff{}, maxsize{ sizemax };
 	wstring vel, E_Vel, command{ L"rnd" };
 	bool script{ true }, arrow{ false }, Continue{ false };
+
 	while (true) {
 		if (_kbhit()) {
+
+			// controllo della dimensione della console
+			if (sizemax == -1) {
+				_GetCursorPos();
+				maxsize = csbi.dwSize.X;
+
+				// overflow di caratteri nella console
+				if (vel.size() >= maxsize) {
+					short height = csbi.dwCursorPosition.Y -
+						(vel.size() - 1) / maxsize;
+					
+					SetConsoleCursorPosition(hConsole, { 0, height });
+					wcout << wstring(vel.size(), L' ');
+					SetConsoleCursorPosition(
+						hConsole, { (short)(maxsize - 1), height }
+					);
+
+					vel.erase(maxsize - 1);
+					continue;
+				}
+			}
+
 			char c = _getch();
 			if (c != -32 and c != -109 and c < 0) continue;
 
@@ -3629,17 +3693,17 @@ static wstring GetLine(bool ShowSuggestions, int sizemax)
 			else Velpart.clear();
 
 			// stampa dei caratteri immessi
-			if (vel.size() > sizemax) {
+			if (vel.size() > maxsize) {
 				vel.clear();
 				E_Vel.clear();
 				Velpart.clear();
 				diff = 0;
-				wcout << L'\r' << wstring(sizemax, L' ');
+				wcout << L'\r' << wstring(maxsize, L' ');
 			}
 			script = true;
 #ifndef BUGS
 			SetConsoleCursorInfo(hConsole, &cursorInfo);
-#endif
+#endif // BUGS
 			if (ShowSuggestions and !vel.empty())
 
 				// ricerca suggerimento giusto
@@ -3650,7 +3714,7 @@ static wstring GetLine(bool ShowSuggestions, int sizemax)
 					if (back.size() > vel.size()) back.erase(vel.size());
 					if (back == E_Vel) {
 						SetConsoleTextAttribute(hConsole, 6);
-						wcout << L'\r' << wstring(sizemax, ' ');
+						wcout << L'\r' << wstring(maxsize, ' ');
 						wcout << L'\r' << command;
 						ResetAttribute();
 
@@ -3660,7 +3724,7 @@ static wstring GetLine(bool ShowSuggestions, int sizemax)
 					}
 				}
 			if (script) {
-				wcout << L'\r' << wstring(sizemax, L' ');
+				wcout << L'\r' << wstring(maxsize, L' ');
 				wcout << L'\r' << E_Vel << L'\r' << Velpart;
 			}
 			SetConsoleCursorInfo(hConsole, &cursor);
@@ -6412,24 +6476,27 @@ static FACTOR<> Complementary(POLYNOMIAL<> Polynomial, FACTOR<> factor, int exp)
 	// caso di eccezione
 	if (Polynomial[0] == factor) --Polynomial;
 
-	else for (int i = Polynomial.size() - 1; i > 0; --i)
+	else for (int i = Polynomial.size() - 1; i > 0 and i < Polynomial; --i)
 		if (Polynomial[i] == factor) {
 
 			// caso senza esponente
-			if (Polynomial[i - 1][0].degree != -1) {
+			if (Polynomial[i - 1][0].degree >= 0) {
 				Polynomial.erase(Polynomial.begin() + i);
 				break;
 			}
 
 			// casi con esponente
-			else if (Polynomial[i - 1][0].coefficient - exp > 1)
+			if (Polynomial[i - 1][0].coefficient - exp > 1) {
 				Polynomial[i - 1][0].coefficient -= exp;
-			else if (Polynomial[i - 1][0].coefficient - exp < 1) {
+				break;
+			}
+			if (Polynomial[i - 1][0].coefficient - exp < 1) {
 				Polynomial.erase(Polynomial.begin() + i);
 				Polynomial.erase(Polynomial.begin() + i - 1);
+				break;
 			}
-			else Polynomial.erase(Polynomial.begin() + i - 1);
-
+			Polynomial.erase(Polynomial.begin() + i - 1);
+			break;
 		}
 
 	ret V1converter(PolynomialMultiply, Polynomial);
@@ -6597,31 +6664,8 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 		// caso monomio
 		for (int i = 0; i < Variables.size(); ++i) if (Equation[0].exp[i] != 0)
 			answer << wstring(1, Variables.at(i)) + L" != 0";
+		ret answer;
 	}
-
-	// caso binomio
-	if (Equation == 2) {
-		int gcd{ Gcd(Equation) };
-		Equation[0].coefficient /= gcd;
-		Equation[1].coefficient /= gcd;
-
-		for (int i = 0; i < Variables.size(); ++i) {
-			int min{ ::min(Equation[0].exp[i], Equation[1].exp[i]) };
-			Equation[0].exp[i] -= min;
-			Equation[1].exp[i] -= min;
-		}
-		
-		int coeff = Equation[0].coefficient;
-		Equation[0].coefficient = 1;
-		if (coeff < 0) coeff *= -1;
-		else Equation[1].coefficient *= -1;
-
-		wstring push{ factor<>{ Equation[0] }.str() + L" != " };
-		push += factor<>{ Equation[1] }.str();
-		if (coeff != 1) push += L" / " + to_wstring(coeff);
-		answer << push;
-	}
-	if (Equation <= 2) ret answer;
 
 	// calcolo della posizione
 	int StartIndex;
@@ -6642,7 +6686,10 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 		)
 	};
 
-	if (equation.size() > 0) while (true) {
+	// risoluzione dell'equazione
+	if (!equation.empty()) while (true) {
+
+		if (equation[0] == 2) break;
 
 		// equazione di secondo grado
 		if (equation[0] == 3) {
@@ -6697,6 +6744,29 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 		if (VKnownSeq[0] != tensor<int>(Variables.size(), 0))
 			push += factor<>({ monomial<>({ 1, VKnownSeq[0] }) }).str();
 		answer << push;
+	}
+
+	// caso binomio
+	if (Equation == 2) {
+		int gcd{ Gcd(Equation) };
+		Equation[0].coefficient /= gcd;
+		Equation[1].coefficient /= gcd;
+
+		for (int i = 0; i < Variables.size(); ++i) {
+			int min{ ::min(Equation[0].exp[i], Equation[1].exp[i]) };
+			Equation[0].exp[i] -= min;
+			Equation[1].exp[i] -= min;
+		}
+		
+		int coeff = Equation[0].coefficient;
+		Equation[0].coefficient = 1;
+		if (coeff < 0) coeff *= -1;
+		else Equation[1].coefficient *= -1;
+
+		wstring push{ factor<>{ Equation[0] }.str() + L" != " };
+		push += factor<>{ Equation[1] }.str();
+		if (coeff != 1) push += L" / " + to_wstring(coeff);
+		ret { push };
 	}
 }
 
@@ -6975,7 +7045,9 @@ static int OutputMatrix(
 		if (index == 0 or index == 2 * size) {
 			wcout << L'+' << wstring(sum + 1, L'-') << L'+';
 			csbi.dwCursorPosition.Y++;
-			SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
+			SetConsoleCursorPosition(
+				hConsole, { begin.X, csbi.dwCursorPosition.Y }
+			);
 			index++;
 			continue;
 		}
@@ -6986,7 +7058,9 @@ static int OutputMatrix(
 			wcout << wstring(sum, L' ') << L'|';
 			index++;
 			csbi.dwCursorPosition.Y++;
-			SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
+			SetConsoleCursorPosition(
+				hConsole, { begin.X, csbi.dwCursorPosition.Y }
+			);
 			continue;
 		}
 		if (HaveTheyFractions[(index - 1) / 2]) row++;
@@ -7052,7 +7126,7 @@ static int OutputMatrix(
 		// fine riga
 		wcout << L'|';
 		csbi.dwCursorPosition.Y++;
-		SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
+		SetConsoleCursorPosition(hConsole, { begin.X, csbi.dwCursorPosition.Y });
 	}
 
 	// riposizionamento cursore
@@ -7073,7 +7147,7 @@ static tensor<tensor<double>> InputMatrix()
 	// calcolo posizione cursore
 #ifndef BUGS
 	SetConsoleCursorInfo(hConsole, &cursorInfo);
-#endif
+#endif // BUGS
 
 	// inizializzazione
 	tensor<tensor<bool>> Signs(2);
@@ -7099,13 +7173,13 @@ static tensor<tensor<double>> InputMatrix()
 			if (c <= 0) continue;
 			if (arrow) {
 				switch (c) {
-				case 'h': c = 'w';
+				case L'h': c = L'w';
 					break;
-				case 'p': c = 's';
+				case L'p': c = L's';
 					break;
-				case 'm': c = 'd';
+				case L'm': c = L'd';
 					break;
-				case 'k': c = 'a';
+				case L'k': c = L'a';
 					break;
 				}
 				arrow = false;
@@ -7118,13 +7192,13 @@ static tensor<tensor<double>> InputMatrix()
 			switch (c) {
 
 				// wasd per cambiare l'elemento da modificare
-			case 'w': IndexAccesser.Y = (IndexAccesser.Y - 1) % TheMatrix.size();
+			case L'w': IndexAccesser.Y = (IndexAccesser.Y - 1) % TheMatrix.size();
 				break;
-			case 's': IndexAccesser.Y = (IndexAccesser.Y + 1) % TheMatrix.size();
+			case L's': IndexAccesser.Y = (IndexAccesser.Y + 1) % TheMatrix.size();
 				break;
-			case 'a': IndexAccesser.X = (IndexAccesser.X - 1) % TheMatrix.size();
+			case L'a': IndexAccesser.X = (IndexAccesser.X - 1) % TheMatrix.size();
 				break;
-			case 'd': IndexAccesser.X = (IndexAccesser.X + 1) % TheMatrix.size();
+			case L'd': IndexAccesser.X = (IndexAccesser.X + 1) % TheMatrix.size();
 				break;
 			}
 
@@ -7135,8 +7209,8 @@ static tensor<tensor<double>> InputMatrix()
 			// casi che modificano la matrice
 			switch (c) {
 
-				// '\b' cancella un carattere
-			case '\b':
+				// L'\b' cancella un carattere
+			case L'\b':
 				if (MatrixAtIndex == L"0" and
 					Signs[IndexAccesser.Y][IndexAccesser.X])
 				{
@@ -7150,14 +7224,14 @@ static tensor<tensor<double>> InputMatrix()
 				MatrixAtIndex.erase(MatrixAtIndex.size() - 1);
 				break;
 
-				// ctrl + '\b' cancella tutto
+				// ctrl + L'\b' cancella tutto
 			case 127:
 				MatrixAtIndex = L"0";
 				Signs[IndexAccesser.Y][IndexAccesser.X] = POS;
 				break;
 
-				// '+' aumenta la dimensione
-			case '>': if (TheMatrix.size() > 6) break;
+				// L'+' aumenta la dimensione
+			case L'>': if (TheMatrix.size() > 6) break;
 				size = TheMatrix.size() + 1;
 				TheMatrix(size);
 				Signs(size);
@@ -7167,26 +7241,26 @@ static tensor<tensor<double>> InputMatrix()
 				}
 				break;
 
-				// '-' riduce la dimensione
-			case '<': if (TheMatrix.size() <= 2) break;
+				// L'-' riduce la dimensione
+			case L'<': if (TheMatrix.size() <= 2) break;
 				TheMatrix--;
 				for (auto& row : TheMatrix) row--;
 				IndexAccesser.X %= TheMatrix.size();
 				IndexAccesser.Y %= TheMatrix.size();
 				break;
 
-				// '\r' invia la matrice
-			case '\r':
+				// L'\r' invia la matrice
+			case L'\r':
 				_GetCursorPos();
 				csbi.dwCursorPosition.Y += 2 * TheMatrix.size() + 1;
 				SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
 				SetConsoleCursorInfo(hConsole, &cursor);
 				ret TheMatrix;
 
-				// '.' termina il programma
-			case '.':
+				// L'.' termina il programma
+			case L'.':
 				SetConsoleCursorInfo(hConsole, &cursor);
-				ret{};
+				ret {};
 
 			default:
 
@@ -7242,7 +7316,7 @@ static void DisplayMatrices(
 		OutputMatrix(A, { 0, -2 });
 		OutputMatrix(B, { 0, -2 });
 		wcout << L'\n';
-		return;
+		ret;
 	}
 
 	// console di dimensioni corrette
@@ -7265,7 +7339,7 @@ static void DisplayMatrices(
 		OutputMatrix(B, { 0, -2 });
 		OutputMatrix(C, { 0, -2 });
 		wcout << L'\n';
-		return;
+		ret;
 	}
 
 	// console di dimensioni corrette
@@ -7536,7 +7610,7 @@ static void CodeToNumber(switchcase& argc)
 		ObjectGetCh.enqueue(L' ');
 #ifndef BUGS
 		SetConsoleCursorInfo(hConsole, &cursorInfo);
-#endif
+#endif // BUGS
 
 		// dichiarazione dei thread
 		thread ComputationThread([=]() {
@@ -7745,7 +7819,7 @@ static void Loop(
 	const int Barwidth{ csbi.dwSize.X - 11 };
 #ifndef BUGS
 	SetConsoleCursorInfo(hConsole, &cursorInfo);
-#endif
+#endif // BUGS
 	if (datalenght >= 1000) {
 		int iter{};
 		atomic<long double> Progress{};
@@ -7848,14 +7922,22 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 	// istruzioni
 	if (input)
 	{
-		wcout << L"il PROGRAMMA scompone i polinomi\n\n";
+		wcout << L"il PROGRAMMA scompone e disegna il grafico dei polinomi\n\n";
 		SetConsoleTextAttribute(hConsole, 12);
 		wcout << L"per attivare gli esponenti in forma di apice ";
 		wcout << L"scrivere noboolalpha\n";
 		wcout << L"per disattivare gli esponenti sottoforma di apice ";
 		wcout << L"scrivere boolalpha\n\n";
+		wcout << L"per disattivare il grafico ingrandire la console\n";
+		wcout << L"è possibile eseguire addizioni, sottrazioni, moltiplicazioni\n";
+		wcout << L"e potenze con polinomi molto grandi\n\n";
+		SetConsoleTextAttribute(hConsole, 4);
+		wcout << L"attenzione! il programma deduce i polinomi con le parentesi,\n";
+		wcout << L"per calcolarne il valore aggiungere alla fine +1-1\n";
+		wcout << L"per le potenze di numeri includere il numero tra parentesi\n\n";
 		ResetAttribute();
 	}
+
 	do {
 		if (!RunMonitor) goto RETURN;
 		if (input)
@@ -7872,7 +7954,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 				wcout << L"inserisci un polinomio in una o più variabili";
 				wcout << L" (0 = fine input)\n";
 				do {
-					Polynomial = GetLine(true, csbi.dwSize.X);
+					Polynomial = GetLine();
 					wcout << L'\n';
 				} while (Polynomial.empty());
 				if (Polynomial == L".") {
@@ -8158,7 +8240,7 @@ static void DecompFraction(switchcase& argc)
 
 	// istruzioni
 	SetConsoleTextAttribute(hConsole, 14);
-	wcout << L"il PROGRAMMA scompone le frazioni algebriche\n\n";
+	wcout << L"il PROGRAMMA scompone e semplifica le frazioni algebriche\n\n";
 	SetConsoleTextAttribute(hConsole, 12);
 	wcout << L"per attivare gli esponenti in forma di apice ";
 	wcout << L"scrivere noboolalpha\n";
@@ -8645,7 +8727,8 @@ static void DecompMatrices(switchcase& argc)
 
 	// istruzioni
 	SetConsoleTextAttribute(hConsole, 14);
-	wcout << L"il PROGRAMMA scompone le matrici\n\n";
+	wcout << L"il PROGRAMMA scompone le matrici\n";
+	wcout << L"e calcola determiante, autovalori e autovettori\n\n";
 	SetConsoleTextAttribute(hConsole, 12);
 	wcout << L"sono ammesse solo matrici quadrate da 2x2 a 7x7\n\n";
 	ResetAttribute();
@@ -8658,6 +8741,10 @@ static void DecompMatrices(switchcase& argc)
 		wcout << L"inserisci una matrice, usa wasd per cambiare elemento\n";
 		matrix = InputMatrix();
 		int size = matrix.size();
+		if (size == 0) {
+			argc = Random;
+			goto RETURN;
+		}
 		if (matrix == tensor<tensor<double>>(size, tensor<double>(size, 0)))
 			break;
 		wcout << L'\n';
@@ -8820,23 +8907,22 @@ static void DecompMatrices(switchcase& argc)
 		wcout << L"Determinante: " << Determinant(matrix) << L'\n';
 		auto eigenvalues{ EigenValues(matrix) };
 		wcout << L"Autovalori reali: " << eigenvalues.str() << L'\n';
-		tensor<tensor<double>> eigenvectors;
-		if (eigenvalues == size) {
+		auto eigenvectors{ EigenVectors(matrix, eigenvalues) };
+		if (eigenvectors == size) {
 			wcout << L"Autovettori reali: \n";
-			eigenvectors = EigenVectors(matrix, eigenvalues);
-			for (auto eigenvector : eigenvectors)
-				wcout << eigenvector.str() << L'\n';
+			for (auto vector : eigenvectors) wcout << vector.str() << L'\n';
 			wcout << L'\n';
 		}
 	}
-
+	
 	// invio del segnale per terminare i thread
+	argc = NotAssigned;
+RETURN:
 	{
 		lock_guard<mutex> lk(MonitorMTX);
 		RunMonitor = false;
 	}
 	MonitorCV.notify_all();
-	argc = NotAssigned;
 }
 
 #pragma endregion
@@ -8845,13 +8931,3 @@ static void DecompMatrices(switchcase& argc)
 
 // file natvis 56 righe
 // fine del codice
-
-/*
-
-impegni programma:
-	
-	refactor foreach loop e for auto& loop (25/08)
-
-	fare un grande debug (26/08)
-
-*/
