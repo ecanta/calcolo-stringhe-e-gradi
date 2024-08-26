@@ -10,6 +10,7 @@
 #pragma	warning (disable : 4101) // variabile locale senza riferimenti
 #pragma	warning (disable : 4244) // conversione, possibile perdita di dati
 #pragma	warning (disable : 4267) // conversione, possibile perdita di dati
+#pragma warning (disable : 4348) // ridefinizione di un parametro predefinito
 #pragma	warning (disable : 4551) // chiamata di funzione senza elenco di argomenti
 #pragma	warning (disable : 4715) // non tutti i percorsi restituiscono un valore
 #pragma	warning (disable : 6001) // utilizzo di memoria non inizializzata
@@ -74,7 +75,6 @@
 #include <memory>
 #include <new> // per nothrow
 #include <ppl.h> // per la parallelizzazione
-#include <queue>
 #include <random> // per i generatori casuali
 #include <regex> // per la convalidazione
 #include <sstream>
@@ -119,6 +119,7 @@ atomic_bool RunMonitor(true);
 condition_variable cv, Cv, MonitorCV;
 mutex CoutMutex, mtx, MonitorMTX;
 COORD Min{ 25, 15 };
+COORD* AddrOfMinLenghts{ nullptr };
 
 // strutture locali
 struct compost {
@@ -1950,23 +1951,6 @@ public:
 		}
 	}
 };
-class TestInputReader
-{
-private: _STD queue<wchar_t> buffer;
-public:
-	void enqueue(wchar_t c)
-	{
-		buffer.push(c);
-	}
-	wchar_t read()
-	{
-		if (buffer.size() == 0) buffer.push(_getwch());
-		auto front{ buffer.front() };
-		buffer.pop();
-		ret front;
-	}
-};
-TestInputReader ObjectGetCh;
 
 // oggetti
 struct Console {
@@ -2035,8 +2019,7 @@ static void SetDebug(wstring message, switchcase& opt, bool& Return,
 	ptrdiff_t& LowerBound, ptrdiff_t& UpperBound, ptrdiff_t& datalenght
 );
 static void SendCtrlPlusMinus(bool plus);
-static void MonitorConsoleSize
-(short minWidth, short minHeight, atomic_bool& runMonitor);
+static void MonitorConsoleSize(COORD min, atomic_bool& runMonitor);
 static void UserInputThread();
 static bool Prime(ptrdiff_t number);
 static void PrimeNCalculator(ptrdiff_t max, ptrdiff_t min = 0);
@@ -2240,7 +2223,7 @@ int main()
 				ErrorCode = 3;
 				goto End;
 			}
-			if (G.empty()) global == 0;
+			if (G.empty()) global = 0;
 
 			// casi 0 e 1
 			else global = stoi(G);
@@ -2367,6 +2350,8 @@ int main()
 		do {
 			Beep(500, 200);
 			bool Threading{ false };
+			COORD MinLenght{ 50, 20 };
+			AddrOfMinLenghts = &MinLenght;
 
 			switch (option)
 			{
@@ -2424,17 +2409,21 @@ int main()
 
 			case FactorPolynomial: Threading = true;
 				calculator = thread(DecompPolynomial, ref(option), L"");
-				monitor = thread(MonitorConsoleSize, 50, 20, ref(RunMonitor));
+				monitor = thread(MonitorConsoleSize, MinLenght, ref(RunMonitor));
 				break;
 
 			case FactorFraction: Threading = true;
 				calculator = thread(DecompFraction, ref(option));
-				monitor = thread(MonitorConsoleSize, 60, 30, ref(RunMonitor));
+				monitor = thread(
+					MonitorConsoleSize, COORD{ 60, 30 }, ref(RunMonitor)
+				);
 				break;
 
 			case FactorMatrix: Threading = true;
 				calculator = thread(DecompMatrices, ref(option));
-				monitor = thread(MonitorConsoleSize, 80, 45, ref(RunMonitor));
+				monitor = thread(
+					MonitorConsoleSize, COORD{ 80, 45 }, ref(RunMonitor)
+				);
 				break;
 			}
 			if (Threading) {
@@ -2442,8 +2431,8 @@ int main()
 				// thread
 				SetThreadAffinityMask(calculator.native_handle(), 1 << 0);
 				SetThreadAffinityMask(monitor.native_handle(), 1 << 1);
-				calculator.join();
-				monitor.join();
+				if (calculator.joinable()) calculator.join();
+				if (monitor.joinable()) monitor.join();
 
 				// errore
 				if (!RunMonitor) {
@@ -2464,8 +2453,8 @@ MB:
 	ErrorCode = 0;
 	ErrMessage = MessageBox(
 		NULL,
-		L"DEBUG ERROR\
-		\n\n sicuro di voler terminare il programma?\
+		L"\t\tDEBUG ERROR\
+		\n\n sei sicuro di voler terminare il programma?\
 		\n\n [riprova] per tornare all'inizio del programma\
 		\n\n",
 		L"Microsoft Visual C++ Runtime Library",
@@ -2838,11 +2827,11 @@ static void DrawCircleSquare(COORD CircleCenter)
 	bool DoNotSkip{ true };
 
 	for (CircleRotDegreeAngle;; CircleRotDegreeAngle += 7) {
+
 		// termine funzione
 		if (IsDone.load() and !DoNotSkip) {
 			ClearArea(CircleCenter, Min);
-			SetConsoleCursorPosition
-			(hConsole, cursor);
+			SetConsoleCursorPosition(hConsole, cursor);
 			ret;
 		}
 		DoNotSkip = false;
@@ -3089,7 +3078,6 @@ static void PrintGraph(FACTOR<> funct, const coord position)
 {
 
 	// variabili
-	bool start{ true };
 	double zoom{ 1 };
 	coord shift{ 0, 0 };
 	const short lenght{ 40 };
@@ -3125,17 +3113,10 @@ static void PrintGraph(FACTOR<> funct, const coord position)
 		wcout << L'|';
 	}
 	// //
+	DrawGraphFrame(funct, shift, position, zoom, lenght, width);
 
 	while (true) {
-		if (_kbhit() or start) {
-			start = false;
-
-			// grafico
-			ClearArea(
-				{ (short)(lenght + position.X + 1), (short)(width + position.Y + 1) },
-				{ lenght, width }
-			);
-			DrawGraphFrame(funct, shift, position, zoom, lenght, width);
+		if (_kbhit()) {
 			char move;
 
 			// elaborazione input mosse
@@ -3175,6 +3156,13 @@ static void PrintGraph(FACTOR<> funct, const coord position)
 				move != '\r' and
 				!issign(move)
 				);
+
+			// grafico
+			ClearArea(
+				{ (short)(lenght + position.X + 1), (short)(width + position.Y + 1) },
+				{ lenght, width }
+			);
+			DrawGraphFrame(funct, shift, position, zoom, lenght, width);
 
 		}
 		if (!RunMonitor) {
@@ -3853,8 +3841,7 @@ static void SendCtrlPlusMinus(bool plus)
 }
 
 // funzione che riduce lo zoom se la console è piccola
-static void MonitorConsoleSize
-(short minWidth, short minHeight, atomic_bool& runMonitor)
+static void MonitorConsoleSize(COORD min, atomic_bool& runMonitor)
 {
 	unique_lock<mutex> lk(MonitorMTX);
 	while (RunMonitor) while (true) {
@@ -3866,7 +3853,7 @@ static void MonitorConsoleSize
 		// prima della riduzione dello zoom
 		_GetCursorPos();
 		auto oldLength{ csbi.dwSize.X };
-		if (oldLength >= minWidth and csbi.dwSize.Y >= minHeight) break;
+		if (oldLength >= min.X and csbi.dwSize.Y >= min.Y) break;
 			
 		// dopo la riduzione dello zoom
 		SendCtrlPlusMinus(false);
@@ -3882,21 +3869,28 @@ static void MonitorConsoleSize
 	}
 }
 
-// gestisce il secondo thread del code to number (non va)
+// gestisce il secondo thread del code to number
 static void UserInputThread()
 {
 	while (computing) {
 
-		// controllo
-		wchar_t choice{ ObjectGetCh.read() };
-		if (choice == L'S' or choice == L's') {
-			GlobalInterr = true;
-			interrupted = true;
-			ret;
-		}
-
 		// riduzione uso della CPU
 		sleep_for(milliseconds(100));
+
+		if (_kbhit()) {
+
+			// controllo
+			char choice = _getch();
+			if (choice == L'S' or choice == L's') {
+				{
+					lock_guard<mutex> lock(mtx);
+					GlobalInterr = true;
+					interrupted = true;
+				}
+				Cv.notify_all();
+				ret;
+			}
+		}
 	}
 }
 
@@ -3994,8 +3988,8 @@ static void PrimeNCalculator(ptrdiff_t max, ptrdiff_t min)
 			}
 		);
 		thread t2(CS_CenterPrinter);
-		t1.join();
-		t2.join();
+		if (t1.joinable()) t1.join();
+		if (t2.joinable()) t2.join();
 	}
 
 	// push numeri primi
@@ -5287,8 +5281,8 @@ static void LongComputation
 	}
 
 	// caso di stringa univoca
-	lock_guard<mutex> lock(CoutMutex);
 	if (counter == 0) {
+		lock_guard<mutex> lock(CoutMutex);
 		CodeConverter(ToEvaluate, message, ShowErrors, NecBoundary);
 		for (auto Console : ConsoleText) {
 			SetConsoleTextAttribute(hConsole, Console.Attribute);
@@ -5301,8 +5295,14 @@ static void LongComputation
 	// caso di stringa ripetuta
 	else for (int i = 0; i < intpow(10, counter); ++i) {
 
+		// uscita
+		{
+			lock_guard<mutex> lock(mtx);
+			if (GlobalInterr) break;
+		}
+
 		// passa variabili per indirizzo
-		thread t1([&]() {
+		thread comp_thread([&]() {
 
 			auto j{ to_wstring(i) };
 			backup = ToEvaluate;
@@ -5314,36 +5314,47 @@ static void LongComputation
 			message = NumberCodeSyntax(backup);
 
 			// eventuale stampa degli errori
-			lock_guard<mutex> lock(mtx);
-			if (message.size() > 1 and ShowErrors) {
+			{
+				lock_guard<mutex> lock(mtx);
+				if (message.size() > 1 and ShowErrors) {
 
-				auto text{ L"codice <" + backup + L"> :\n" };
-				ConsoleText << Console{ text , 11 };
+					auto text{ L"codice <" + backup + L"> :\n" };
+					ConsoleText << Console{ text , 11 };
 
-				text = L"ERR[404]: " + message + L"\n";
-				ConsoleText << Console{ text , 4 };
+					text = L"ERR[404]: " + message + L"\n";
+					ConsoleText << Console{ text , 4 };
+				}
+				else CodeConverter(backup, message, ShowErrors, false);
+				if (interrupted) ret;
+
+				IsDone = true;
+				cv.notify_one();
 			}
-			else CodeConverter(backup, message, ShowErrors, false);
-			if (interrupted) ret;
-
-			IsDone = true;
-			cv.notify_one();
 
 			}
 		);
-		thread t2(CS_CornerPrinter);
-		t1.join();
-		t2.join();
+		thread output_thread(CS_CornerPrinter);
+		if (comp_thread.joinable()) comp_thread.join();
+		if (output_thread.joinable()) output_thread.join();
 
+		// output errori
 		for (auto a : ConsoleText) {
 			SetConsoleTextAttribute(hConsole, a.Attribute);
 			wcout << a.Text;
 			ResetAttribute();
 		}
 		ConsoleText.clear();
+
+		// uscita
+		{
+			lock_guard<mutex> lock(mtx);
+			if (GlobalInterr) break;
+		}
 	}
+
+	Cv.notify_all();
 	computing = false;
-	Cv.notify_one();
+	interrupted = true;
 }
 
 #pragma endregion
@@ -7603,37 +7614,35 @@ static void CodeToNumber(switchcase& argc)
 			if (ToEvaluate.at(space) == L' ' or ToEvaluate.at(space) == L'\t')
 				ToEvaluate.erase(space, 1);
 
-		GlobalInterr = false;
-		computing = true;
-		interrupted = false;
+		// reset globali
+		{
+			lock_guard<mutex> lock(mtx);
+			GlobalInterr = false;
+			interrupted = false;
+			computing = true;
+		}
+		Cv.notify_all();
 
-		ObjectGetCh.enqueue(L' ');
 #ifndef BUGS
 		SetConsoleCursorInfo(hConsole, &cursorInfo);
 #endif // BUGS
 
-		// dichiarazione dei thread
+		// dichiarazione ed esecuzione dei thread
 		thread ComputationThread([=]() {
 			LongComputation(to_evaluate, message, ShowErrors, NecessaryBoundary);
 			}
 		);
 		thread InputThread(UserInputThread);
-
 		unique_lock<mutex> lock(CoutMutex);
-		Cv.wait(lock, [] { ret !computing; });
-
+		Cv.wait(lock, [] { ret !GlobalInterr; });
 		if (ComputationThread.joinable()) ComputationThread.join();
-		interrupted = true;
 		if (InputThread.joinable()) InputThread.join();
 
 		// se il calcolo viene interrotto
 		if (GlobalInterr) {
+			SetConsoleTextAttribute(hConsole, 14);
+			wcout << L"\nfine del calcolo\n\n";
 			ResetAttribute();
-			wcout << L'\n';
-			SetConsoleTextAttribute(hConsole, 64);
-			wcout << L"CALCOLO INTERROTTO!!!";
-			ResetAttribute();
-			wcout << L"\n\n";
 		}
 		SetConsoleCursorInfo(hConsole, &cursor);
 	}
@@ -7866,8 +7875,8 @@ static void Loop(
 			}
 		);
 		thread t2(CS_CenterPrinter);
-		t2.join();
-		t1.join();
+		if (t2.joinable()) t2.join();
+		if (t1.joinable()) t1.join();
 		system("cls");
 
 		// stampa risultati
@@ -8200,6 +8209,8 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		}
 
 		if (input) {
+			AddrOfMinLenghts->X *= 2;
+			AddrOfMinLenghts->Y *= 2;
 
 			// controllo dimensione console
 			if (Variables.size() != 1) continue;
