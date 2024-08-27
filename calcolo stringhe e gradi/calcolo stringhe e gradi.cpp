@@ -26,7 +26,7 @@
 
 // Descrizione programma ::
 	/*                                                          |
-	*  Strings ZP[0.9.0].cpp: il programma calcola singola e\o  |
+	*  Strings ZP[0.9.1].cpp: il programma calcola singola e\o  |
 	*  doppia scomposizione di alcuni interi in una stringa o   |
 	*  il contrario, i numeri primi, cifre e divisori, scompone |
 	*  anche i polinomi, le frazioni algebriche e le matrici    |
@@ -108,7 +108,7 @@ ptrdiff_t GlobalMax(pow(10, 10));
 const ptrdiff_t GLOBAL_CAP(1e10);
 bool BOOLALPHA(true);
 bool PRINTN(true);
-double CORRECTION_RATIO{ 1.0 };
+double CORRECTION_RATIO(1.0);
 
 // variabili globali e atomiche
 atomic_bool GlobalInterr(false);
@@ -872,7 +872,12 @@ public:
 		for (auto ch : Param) Integer << ch - '0';
 		decimal = _STD fabs(param) - _STD fabs(intParam);
 	}
-	big(tensor<int> dig) : sign(POS), Integer(dig), decimal(0) {}
+	big(tensor<int> Big) : sign(POS), Integer(Big), decimal(0) {}
+	big(wstring wstr) : sign(POS), Integer(0), decimal(0)
+	{
+		tensor<int> Big;
+		for (auto c : wstr) if (isdigit(c)) Integer << c - '0';
+	}
 
 	// confronto primario e assegnazione
 	big& operator=(const big& other)
@@ -1210,6 +1215,7 @@ public:
 		ret result;
 	}
 };
+big LCM(1);
 
 // numeri complessi
 class complex
@@ -1654,6 +1660,14 @@ public:
 			output += xout;
 		}
 
+		// aggiunta del denominatore
+		if (LCM != 1) {
+			if constexpr (is_same_v<T_int, long double>)
+				output = L"[1/" + LCM.c_str(0).str() + L"][" + output + L']';
+			else if constexpr (is_same_v<T_int, big>)
+				output = L'[' + output + L"]/[" + LCM.c_str(0).str() + L']';
+		}
+
 		// caso nullo
 		if (output.empty()) ret L"0";
 
@@ -1694,8 +1708,7 @@ public:
 	void close()
 	{
 		polynomial<T_int> NewClass;
-		for (int i = 0; i < this->size(); ++i)
-			NewClass.push_back(ToXV((*this)[i]));
+		for (int i = 0; i < this->size(); ++i) NewClass.push_back(ToXV((*this)[i]));
 		NewClass.close();
 		this->clear();
 		for (int i = 0; i < NewClass.size(); ++i)
@@ -2043,8 +2056,8 @@ static NumberData ExecuteDegFactor(ptrdiff_t input);
 static NumberData ExecuteDegDigit(ptrdiff_t input);
 static NumberData ExecuteFactDigit(ptrdiff_t input);
 static NumberData ExecuteAll(ptrdiff_t input);
-static wstring PolynomialSyntaxDirector(wstring pol);
 static wstring PolynomialSyntax(wstring pol);
+static wstring PolynomialSyntaxDirector(wstring pol);
 static wstring UpdateString(wstring& ToEvaluate);
 static wstring NumberCodeSyntax(wstring ToEvaluate);
 static size_t NumberConverter(size_t root, wstring M);
@@ -2053,9 +2066,9 @@ static void CodeConverter
 (wstring ToEvaluate, wstring message, bool ShowErrors, bool NecBoundary);
 static void LongComputation
 (wstring ToEvaluate, wstring message, bool ShowErrors, bool NecBoundary);
-static polynomial<big> GetMonomialsAssister(wstring pol);
-static polynomial<big> GetMonomialsDirector(wstring pol, bool changx = true);
 static factor<big> GetMonomials(wstring pol);
+static polynomial<big> GetMonomialsDirector(wstring pol);
+static polynomial<big> GetMonomialsAssister(wstring pol);
 static tensor<tensor<long double>> FromPolynomialToPos(
 	factor<> vect,
 	int& StartIndex,
@@ -2190,7 +2203,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"0.9.0 ";
+			wcout << L"0.9.1 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -4682,6 +4695,102 @@ static NumberData ExecuteAll(ptrdiff_t input)
 // funzioni per validare un input utente
 #pragma region Convalid
 
+// convalida un polinomio senza parentesi
+static wstring PolynomialSyntax(wstring pol)
+{
+
+	// caso vuoto
+	if (pol.empty()) ret L"il polinomio non può essere void";
+
+	// controllo caratteri ammessi
+	for (auto c : pol)
+		if (!isalnum(c) and !issign(c) and c != L'^' and c != L' ' and c != L'/')
+			ret L"il polinomio presenta dei caratteri non ammessi";
+
+	// controllo segni
+	for (int i = 1; i < pol.size(); ++i)
+		if (issign(pol.at(i)) and issign(pol.at(i - 1)))
+			ret L"manca un monomio";
+	if (!issign(pol.at(0))) pol = L'+' + pol;
+	if (issign(pol.at(pol.size() - 1)))
+		ret L"manca un monomio";
+
+	// controllo esponenti in forma di numero
+	for (int i = 0; i < pol.size() - 1; ++i)
+		if (pol.at(i) == L'^' and !isdigit(pol.at(i + 1)))
+			ret L"gli esponenti devono essere costanti";
+
+	// suddivisione in parti
+	tensor<wstring> parts;
+	for (int i = pol.size() - 1; i >= 0; --i) if (issign(pol.at(i))) {
+		auto part{ pol };
+		part.erase(0, i + 1);
+		pol.erase(i);
+		parts << part;
+	}
+
+	for (auto part : parts) {
+
+		// controllo doppia divisione
+		auto New{ part };
+		if (New.find(L'/') != wstring::npos) New.erase(New.find(L'/'), 1);
+		if (!New.empty()) if (New.find(L'/') != wstring::npos)
+			ret L"è possibile eseguire massimo una divisione per monomio";
+
+		// controllo del denominatore
+		if (part.find(L'/') != wstring::npos) {
+			if (part.at(0) == L'/') ret L"manca un numeratore";
+			if (part.at(part.size() - 1) == L'/') ret L"manca un denominatore";
+			if (!isdigit(part.at(part.size() - 1))) ret L"denominatore non valido";
+			while (isdigit(part.at(part.size() - 1))) {
+				if (part.empty()) break;
+				part.erase(part.size() - 1);
+				if (part.at(part.size() - 1) == L'/') {
+					part.erase(part.size() - 1);
+					break;
+				}
+				if (!isdigit(part.at(part.size() - 1))) ret L"denominatore non valido";
+			}
+		}
+		if (part.empty()) continue;
+
+		// cancellamento coefficiente
+		while (isdigit(part.at(0))) {
+			part.erase(0, 1);
+			if (part.empty()) break;
+		}
+		if (part.empty()) continue;
+
+		// controllo estremi
+		if (part.at(0) == L'^' or part.at(part.size() - 1) == L'^')
+			ret L"manca la base rispetto al relativo esponente";
+
+		// controllo variabili ripetute
+		for (int i = 0; i < part.size(); ++i)
+			for (int j = i + 1; j < part.size(); ++j)
+				if (isalpha(part.at(i)) and part.at(i) == part.at(j))
+					ret L"non è possibile ripetere le variabili nello stesso monomio";
+
+		// controllo limite esponenti
+		for (int i = 0; i < part.size() - 1; ++i) if (isdigit(part.at(i)))
+			for (int j = i; j < part.size(); ++j) {
+				if (j >= part.size()) break;
+				if (!isdigit(part.at(j))) break;
+				if (j - i >= 2) ret L"gli esponenti sono troppo grandi";
+			}
+
+		// controllo coefficienti corretti
+		for (int i = 1; i < part.size(); ++i) if (
+			isdigit(part.at(i)) and
+			!isdigit(part.at(i - 1)) and
+			part.at(i - 1) != L'^'
+			)
+			ret L"il coefficiente deve precedere il monomio";
+	}
+
+	ret L"";
+}
+
 // gestisce la convalidazione di un polinomio con le parentesi
 static wstring PolynomialSyntaxDirector(wstring pol)
 {
@@ -4747,7 +4856,9 @@ balance:
 
 	// controllo caratteri non ammessi
 	for (auto c : pol)
-		if (!isalnum(c) and !issign(c) and c != L'(' and c != L')' and c != L'^')
+		if (!isalnum(c) and !issign(c)
+			and c != L'(' and c != L')' and c != L'^' and c != L'/'
+			)
 			ret L"il polinomio presenta dei caratteri non ammessi";
 
 	// controllo segni
@@ -4768,79 +4879,6 @@ balance:
 		if (exp) if (element.at(0) == L'^')
 			for (int i = 1; i < element.size(); ++i) if (!isdigit(element.at(i)))
 				ret L"gli esponenti devono essere costanti";
-	}
-
-	ret L"";
-}
-
-// convalida un polinomio senza parentesi
-static wstring PolynomialSyntax(wstring pol)
-{
-
-	// caso vuoto
-	if (pol.empty()) ret L"il polinomio non può essere void";
-
-	// controllo caratteri ammessi
-	for (auto c : pol) if (!isalnum(c) and c != L'^' and c != L' ' and !issign(c))
-		ret L"il polinomio presenta dei caratteri non ammessi";
-
-	// controllo segni
-	for (int i = 1; i < pol.size(); ++i)
-		if (issign(pol.at(i)) and issign(pol.at(i - 1)))
-			ret L"manca un monomio";
-	if (!issign(pol.at(0))) pol = L'+' + pol;
-	if (issign(pol.at(pol.size() - 1)))
-		ret L"manca un monomio";
-
-	// controllo esponenti in forma di numero
-	for (int i = 0; i < pol.size() - 1; ++i)
-		if (pol.at(i) == L'^' and !isdigit(pol.at(i + 1)))
-			ret L"gli esponenti devono essere costanti";
-
-	// suddivisione in parti
-	tensor <wstring> parts;
-	for (int i = pol.size() - 1; i >= 0; --i)
-		if (issign(pol.at(i))) {
-			auto part{ pol };
-			part.erase(0, i + 1);
-			pol.erase(i);
-			parts << part;
-		}
-
-	for (auto part : parts) {
-
-		// cancellamento coefficiente
-		while (isdigit(part.at(0))) {
-			part.erase(0, 1);
-			if (part.empty()) break;
-		}
-		if (part.empty()) continue;
-
-		// controllo estremi
-		if (part.at(0) == L'^' or part.at(part.size() - 1) == L'^')
-			ret L"manca la base rispetto al relativo esponente";
-
-		// controllo variabili ripetute
-		for (int i = 0; i < part.size(); ++i)
-			for (int j = i + 1; j < part.size(); ++j)
-				if (isalpha(part.at(i)) and part.at(i) == part.at(j))
-					ret L"non è possibile ripetere le variabili nello stesso monomio";
-
-		// controllo limite esponenti
-		for (int i = 0; i < part.size() - 1; ++i) if (isdigit(part.at(i)))
-			for (int j = i; j < part.size(); ++j) {
-				if (j >= part.size()) break;
-				if (!isdigit(part.at(j))) break;
-				if (j - i >= 2) ret L"gli esponenti sono troppo grandi";
-			}
-
-		// controllo coefficienti corretti
-		for (int i = 1; i < part.size(); ++i) if (
-			isdigit(part.at(i)) and
-			!isdigit(part.at(i - 1)) and
-			part.at(i - 1) != L'^'
-			)
-			ret L"il coefficiente deve precedere il monomio";
 	}
 
 	ret L"";
@@ -5363,74 +5401,80 @@ static void LongComputation
 // funzioni necessarie per tradurre i polinomi in strutture
 #pragma region Translate
 
-// modifica gli asterischi trasformandoli in parentesi
-// e poi traduce il polinomio in una struttura
-static polynomial<big> GetMonomialsAssister(wstring pol)
+// traduce un polinomio senza parentesi
+static factor<big> GetMonomials(wstring pol)
 {
-	for (int index = pol.size() - 2; index > 0; --index)
-		if (pol.at(index) == L'*' and
-			pol.at(index - 1) != ')' and pol.at(index + 1) != '(')
-		{
+	factor<big> out;
+	if (pol.empty()) ret {};
+	if (!issign(pol.at(0))) pol = L'+' + pol;
+	for (int i = pol.size() - 1; i >= 0; --i) if (issign(pol.at(i))) {
+		auto part{ pol };
+		pol.erase(i);
+		part.erase(0, i);
 
-			// calcolo indici
-			bool AssignedStart{ false }, AssignedEnd{ false };
-			int startIndex{}, endIndex = pol.size() - 1;
-			int StartBalance{}, EndBalance{};
-			for (int i = index - 1; i >= 0; --i) {
-				if (pol.at(i) == ')') StartBalance--;
-				if (pol.at(i) == '(') StartBalance++;
-				if (issign(pol.at(i)) or StartBalance == 1)
-				{
-					startIndex = i;
-					AssignedStart = true;
-					break;
-				}
-			}
-			for (int i = index + 1; i < pol.size() - 1; ++i) {
-				if (pol.at(i) == '(') EndBalance--;
-				if (pol.at(i) == ')') EndBalance++;
-				if (issign(pol.at(i)) or EndBalance == 1)
-				{
-					endIndex = i;
-					AssignedEnd = true;
-					break;
-				}
-			}
-
-			// calcolo stringhe
-			wstring start{ pol }, first{ pol }, last{ pol }, end{ pol };
-			if (AssignedEnd) end.erase(0, endIndex + (pol.at(endIndex) == L')'));
-			else end.clear();
-			if (AssignedStart)
-				start.erase(startIndex + (pol.at(startIndex) != L'('));
-			else start.clear();
-			if (AssignedEnd) last.erase(endIndex);
-			last.erase(0, index + 1);
-			first.erase(index);
-			if (AssignedStart) first.erase(0, startIndex + 1);
-
-			pol = start + L'(' + first + L")(" + last + L')' + end;
+		// calcolo del numeratore
+		big Numerator = LCM;
+		if (part.find(L'/') != wstring::npos) {
+			auto Denominator{ part };
+			Denominator.erase(0, part.find(L'/'));
+			Numerator /= Denominator;
 		}
-	for (int i = pol.size() - 1; i >= 0; --i)
-		if (pol.at(i) == L'*') pol.erase(i, 1);
-	ret GetMonomialsDirector(pol);
+
+		// calcolo segno
+		monomial<big> mono{ 1, tensor<int>(Variables.size(), 0) };
+		if (part.at(0) == L'-') mono.coefficient = -1;
+		part.erase(0, 1);
+
+		// calcolo coefficiente
+		wstring coeff;
+		while (isdigit(part.at(0))) {
+			coeff += part.at(0);
+			part.erase(0, 1);
+			if (part.empty()) break;
+		}
+		big Coeff = 0;
+		for (int i = 0; i < coeff.size(); ++i) {
+			Coeff += coeff.at(i) - '0';
+			if (i < coeff.size() - 1) Coeff *= 10;
+		}
+		if (coeff.empty()) Coeff = 1;
+		if (mono.coefficient == -1) Coeff.invert();
+		mono.coefficient = Coeff * Numerator;
+		if (part.empty()) {
+			out << mono;
+			continue;
+		}
+
+		// calcolo gradi
+		for (int j = 0; j < part.size(); ++j) if (isalpha(part.at(j))) {
+
+			// calcolo posizione
+			int VariableIndex;
+			for (int k = 0; k < Variables.size(); ++k)
+				if (Variables.at(k) == part.at(j)) {
+					VariableIndex = k;
+					break;
+				}
+
+			// calcolo grado
+			int degree{ 1 };
+			if (j < (int)part.size() - 2)
+				if (part.at(j + 1) == L'^' and isdigit(part.at(j + 2))) {
+					degree = part.at(j + 2) - L'0';
+					if (j < (int)part.size() - 3) if (isdigit(part.at(j + 3)))
+						degree = 10 * degree + part.at(j + 3) - L'0';
+				}
+			mono.exp[VariableIndex] = degree;
+		}
+		out << mono;
+	}
+
+	ret out;
 }
 
 // gestisce la traduzione di un polinomio con le parentesi
-static polynomial<big> GetMonomialsDirector(wstring pol, bool changx)
+static polynomial<big> GetMonomialsDirector(wstring pol)
 {
-
-	// calcolo variabili
-	if (changx) {
-		Variables.clear();
-		for (auto c : pol) if (isalpha(c)) {
-			bool IsTheVariableSet{ false };
-			for (auto Variable : Variables) if (Variable == c)
-				IsTheVariableSet = true;
-			if (!IsTheVariableSet) Variables += c;
-		}
-		if (Variables.empty()) Variables = L"x";
-	}
 
 	// caso senza parentesi
 	auto copy{ pol };
@@ -5439,7 +5483,7 @@ static polynomial<big> GetMonomialsDirector(wstring pol, bool changx)
 		if (copy.at(copy.size() - 1) == L')') copy.erase(copy.size() - 1);
 	}
 	if (copy.find(L'(') == wstring::npos and copy.find(L')') == wstring::npos)
-		ret polynomial<big>({ PolynomialSum(GetMonomials(copy)) });
+		ret polynomial<big>({ PolynomialSum<big>(GetMonomials(copy)) });
 
 	// eliminazione parentesi in più
 	int ParenthesisBalance{};
@@ -5475,7 +5519,7 @@ static polynomial<big> GetMonomialsDirector(wstring pol, bool changx)
 
 			// fattore
 			else UnionElement[i] =
-				PolynomialMultiply<big>(GetMonomialsDirector(adder[i], false));
+				PolynomialMultiply<big>(GetMonomialsDirector(adder[i]));
 		}
 
 		// aggiunta
@@ -5591,67 +5635,153 @@ static polynomial<big> GetMonomialsDirector(wstring pol, bool changx)
 	ret ListCommonFactors;
 }
 
-// traduce un polinomio senza parentesi
-static factor<big> GetMonomials(wstring pol)
+// modifica gli asterischi trasformandoli in parentesi
+// e poi traduce il polinomio in una struttura
+static polynomial<big> GetMonomialsAssister(wstring pol)
 {
-	factor<big> out;
-	if (pol.empty()) ret {};
-	if (!issign(pol.at(0))) pol = L'+' + pol;
-	for (int i = pol.size() - 1; i >= 0; --i) if (issign(pol.at(i))) {
-		auto part{ pol };
-		pol.erase(i);
-		part.erase(0, i);
+	for (int index = pol.size() - 2; index > 0; --index)
+		if (pol.at(index) == L'*' and
+			pol.at(index - 1) != ')' and pol.at(index + 1) != '(')
+		{
 
-		// calcolo segno
-		monomial<big> mono{ 1, tensor<int>(Variables.size(), 0) };
-		if (part.at(0) == L'-') mono.coefficient = -1;
-		part.erase(0, 1);
-
-		// calcolo coefficiente
-		wstring coeff;
-		while (isdigit(part.at(0))) {
-			coeff += part.at(0);
-			part.erase(0, 1);
-			if (part.empty()) break;
-		}
-		big Coeff = 0;
-		for (int i = 0; i < coeff.size(); ++i) {
-			Coeff += coeff.at(i) - '0';
-			if (i < coeff.size() - 1) Coeff *= 10;
-		}
-		if (coeff.empty()) Coeff = 1;
-		if (mono.coefficient == -1) Coeff.invert();
-		mono.coefficient = Coeff;
-		if (part.empty()) {
-			out << mono;
-			continue;
-		}
-
-		// calcolo gradi
-		for (int j = 0; j < part.size(); ++j) if (isalpha(part.at(j))) {
-
-			// calcolo posizione
-			int VariableIndex;
-			for (int k = 0; k < Variables.size(); ++k)
-				if (Variables.at(k) == part.at(j)) {
-					VariableIndex = k;
+			// calcolo indici
+			bool AssignedStart{ false }, AssignedEnd{ false };
+			int startIndex{}, endIndex = pol.size() - 1;
+			int StartBalance{}, EndBalance{};
+			for (int i = index - 1; i >= 0; --i) {
+				if (pol.at(i) == ')') StartBalance--;
+				if (pol.at(i) == '(') StartBalance++;
+				if (issign(pol.at(i)) or StartBalance == 1)
+				{
+					startIndex = i;
+					AssignedStart = true;
 					break;
 				}
-
-			// calcolo grado
-			int degree{ 1 };
-			if (j < (int)part.size() - 2)
-				if (part.at(j + 1) == L'^' and isdigit(part.at(j + 2))) {
-					degree = part.at(j + 2) - L'0';
-					if (j < (int)part.size() - 3) if (isdigit(part.at(j + 3)))
-						degree = 10 * degree + part.at(j + 3) - L'0';
+			}
+			for (int i = index + 1; i < pol.size() - 1; ++i) {
+				if (pol.at(i) == '(') EndBalance--;
+				if (pol.at(i) == ')') EndBalance++;
+				if (issign(pol.at(i)) or EndBalance == 1)
+				{
+					endIndex = i;
+					AssignedEnd = true;
+					break;
 				}
-			mono.exp[VariableIndex] = degree;
+			}
+
+			// calcolo stringhe
+			wstring start{ pol }, first{ pol }, last{ pol }, end{ pol };
+			if (AssignedEnd) end.erase(0, endIndex + (pol.at(endIndex) == L')'));
+			else end.clear();
+			if (AssignedStart)
+				start.erase(startIndex + (pol.at(startIndex) != L'('));
+			else start.clear();
+			if (AssignedEnd) last.erase(endIndex);
+			last.erase(0, index + 1);
+			first.erase(index);
+			if (AssignedStart) first.erase(0, startIndex + 1);
+
+			pol = start + L'(' + first + L")(" + last + L')' + end;
 		}
-		out << mono;
+	for (int i = pol.size() - 1; i >= 0; --i)
+		if (pol.at(i) == L'*') pol.erase(i, 1);
+
+	// calcolo variabili
+	Variables.clear();
+	for (auto c : pol) if (isalpha(c)) {
+		bool IsTheVariableSet{ false };
+		for (auto Variable : Variables) if (Variable == c)
+			IsTheVariableSet = true;
+		if (!IsTheVariableSet) Variables += c;
+	}
+	if (Variables.empty()) Variables = L"x";
+
+	// aggiustamento segni e parentesi
+	auto Pol{ pol };
+	for (int i = Pol.size() - 1; i >= 0; --i) if (issign(Pol.at(i)))
+		Pol.erase(i, 1);
+	for (int i = Pol.size() - 2; i > 0; --i) {
+		if (
+			Pol.at(i) == L'(' and
+			Pol.at(i - 1) != L'(' and
+			Pol.at(i - 1) != L')'
+			)
+			Pol.insert(Pol.begin() + i, L')');
+		else if (
+			Pol.at(i) == L')' and 
+			Pol.at(i + 1) != L'(' and 
+			Pol.at(i + 1) != L')'
+			)
+			Pol.insert(Pol.begin() + i + 1, L'(');
 	}
 
-	ret out;
+	// calcolo minimo comune multiplo
+	while (true) {
+		big sub = 1;
+
+		int Balance{}, startIndex{};
+		bool active{ false };
+		for (int i = Pol.size() - 1; i >= 0; --i) {
+
+			active = false;
+			switch (Pol.at(i)) {
+			case L'(': Balance = 0;
+				startIndex = i;
+				break;
+			case L')': Balance++;
+				active = true;
+				break;
+			}
+
+			// sostituzione
+			if (Balance == 1 and active) {
+				auto NewPol{ Pol };
+				NewPol.erase(i);
+				NewPol.erase(0, startIndex + 1);
+				sub = 1;
+				for (int i = 0; i < NewPol.size(); ++i)
+					if (NewPol.at(i) == L'/')
+					{
+
+						// ritaglio stringa
+						auto bigger{ NewPol };
+						int J{ -1 };
+						if (i < bigger.size() - 2)
+							for (int j = 0; j < bigger.size(); ++j) {
+								auto ch{ bigger.at(j) };
+								if (issign(ch) or ch == L'(' or ch == L')')
+								{
+									J = j;
+									break;
+								}
+							}
+						bigger.erase(0, i + 1);
+						if (J >= 0) bigger.erase(J + 1);
+
+						// calcolo
+						big second = bigger;
+						sub = (sub * second).fabs() / Gcd(sub, second);
+					}
+
+				// ricomposizione
+				auto first{ Pol };
+				auto last{ Pol };
+				first.erase(startIndex);
+				last.erase(0, i + 1);
+				Pol = first;
+				if (sub != 1) Pol += L"+1/" + sub.c_str(0).str();
+				Pol += last;
+			}
+		}
+		
+		// salvataggio dati
+		if (Pol.find(L'(') != wstring::npos) {
+			LCM = sub;
+			break;
+		}
+	}
+
+	ret GetMonomialsDirector(pol);
 }
 
 #pragma endregion
@@ -7938,7 +8068,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		wcout << L"scrivere noboolalpha\n";
 		wcout << L"per disattivare gli esponenti sottoforma di apice ";
 		wcout << L"scrivere boolalpha\n\n";
-		wcout << L"per disattivare il grafico ingrandire la console\n";
+		wcout << L"per disegnare il grafico aggiungere '\\' all'inizio\n";
 		wcout << L"è possibile eseguire addizioni, sottrazioni, moltiplicazioni\n";
 		wcout << L"e potenze con polinomi molto grandi\n\n";
 		SetConsoleTextAttribute(hConsole, 4);
@@ -7949,6 +8079,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 	}
 
 	do {
+		bool draw{ false };
 		if (!RunMonitor) goto RETURN;
 		if (input)
 		{
@@ -7967,6 +8098,12 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 					Polynomial = GetLine();
 					wcout << L'\n';
 				} while (Polynomial.empty());
+				if (Polynomial.at(0) == L'\\') {
+					Polynomial.erase(0, 1);
+					draw = true;
+				}
+
+				// caso di ridirezionamento
 				if (Polynomial == L".") {
 					argc = Random;
 					HT = {};
@@ -8032,8 +8169,9 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 
 		null(Variables.size());
 		null[0] = -1;
-		if (HT == polynomial<>{ factor<>{} }) Polynomial = L"0";
-		else if (HT == 1) Polynomial = HT[0].str();
+		if (HT == polynomial<>({ factor<>({}) })) Polynomial = L"0";
+		else if (HT == 1)
+			Polynomial = L"[1/" + LCM.c_str(0).str() + L"][" + HT[0].str() + L']';
 		else Polynomial = HT.str();
 		if (BOOLALPHA) ElabExponents(Polynomial);
 
@@ -8210,9 +8348,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			wcout << L'\n';
 		}
 
-		if (input) {
-			AddrOfMinLenghts->X *= 2;
-			AddrOfMinLenghts->Y *= 2;
+		if (input and draw) {
 
 			// controllo dimensione console
 			if (Variables.size() != 1) continue;
