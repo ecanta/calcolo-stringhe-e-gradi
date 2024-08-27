@@ -59,7 +59,7 @@
 #pragma optimize("on", on);
 #endif // BUGS
 
-// inclusioni
+// file header
 #include <algorithm>
 #include <atomic>
 #include <chrono> // per le misurazioni di tempo
@@ -147,7 +147,8 @@ struct coord {
 	coord(double _x, double _y) : X(_x), Y(_y) {}
 	coord(COORD _coord) : X(_coord.X), Y(_coord.Y) {}
 
-	operator COORD() const {
+	operator COORD() const
+	{
 		COORD result;
 		result.X = static_cast<SHORT>(X);
 		result.Y = static_cast<SHORT>(Y);
@@ -5400,7 +5401,8 @@ static polynomial<big> GetMonomialsAssister(wstring pol)
 			wstring start{ pol }, first{ pol }, last{ pol }, end{ pol };
 			if (AssignedEnd) end.erase(0, endIndex + (pol.at(endIndex) == L')'));
 			else end.clear();
-			if (AssignedStart) start.erase(startIndex + (pol.at(startIndex) != L'('));
+			if (AssignedStart)
+				start.erase(startIndex + (pol.at(startIndex) != L'('));
 			else start.clear();
 			if (AssignedEnd) last.erase(endIndex);
 			last.erase(0, index + 1);
@@ -5409,7 +5411,8 @@ static polynomial<big> GetMonomialsAssister(wstring pol)
 
 			pol = start + L'(' + first + L")(" + last + L')' + end;
 		}
-	for (int i = pol.size() - 1; i >= 0; --i) if (pol.at(i) == L'*') pol.erase(i, 1);
+	for (int i = pol.size() - 1; i >= 0; --i)
+		if (pol.at(i) == L'*') pol.erase(i, 1);
 	ret GetMonomialsDirector(pol);
 }
 
@@ -5456,9 +5459,9 @@ static polynomial<big> GetMonomialsDirector(wstring pol, bool changx)
 	tensor<int> null(Variables.size(), 0);
 
 	tensor<polynomial<big>> Union;
-	tensor<long double> ExpPos, ExpVal;
 	for (auto adder : fact) {
 		polynomial<big> UnionElement(adder.size());
+		tensor<long double> ExpPos, ExpVal;
 		for (int i = 0; i < adder; ++i) {
 
 			// esponente
@@ -5483,7 +5486,8 @@ static polynomial<big> GetMonomialsDirector(wstring pol, bool changx)
 
 	// aggiunta di spazio
 	for (int i = 0; i < Union; ++i) for (int j = 0; j < Union[i]; ++j) {
-		for (int k = 0; k < Union[i][j]; ++k) Union[i][j][k].exp(Variables.size(), 0);
+		for (int k = 0; k < Union[i][j]; ++k)
+			Union[i][j][k].exp(Variables.size(), 0);
 		Union[i][j] = PolynomialSum(Union[i][j]);
 	}
 
@@ -5504,7 +5508,7 @@ static polynomial<big> GetMonomialsDirector(wstring pol, bool changx)
 		}
 
 		// calcolo coefficiente
-		big Coeff( sign );
+		big Coeff(sign);
 		for (int j = Union[i].size() - 1; j >= 0; --j) if (Union[i][j] == 1)
 		{
 			bool IsACoefficient{ true };
@@ -5517,14 +5521,11 @@ static polynomial<big> GetMonomialsDirector(wstring pol, bool changx)
 		}
 
 		// push coefficiente
-		Union[i] >> factor<big>({ monomial<big>({Coeff, null}) });
+		Union[i] >> factor<big>({ monomial<big>({ Coeff, null }) });
 		numbers << Coeff;
 	}
-	auto gcd{ Gcd(numbers) };
-	if (gcd == -1)
-		for (int i = 0; i < Union; ++i) Union[i][0][0].coefficient.invert();
-	else if (gcd != 1)
-		for (int i = 0; i < Union; ++i) Union[i][0][0].coefficient /= gcd;
+	auto gcd{ Gcd(numbers).fabs() };
+	if (gcd != 1) for (int i = 0; i < Union; ++i) Union[i][0][0].coefficient /= gcd;
 
 	// ricerca fattori in comune
 	auto ListCommonFactors{ Union[0] };
@@ -5543,17 +5544,17 @@ static polynomial<big> GetMonomialsDirector(wstring pol, bool changx)
 			}
 		}
 
+		// rimozione fattore non in comune dalla lista
 		if (!IsCommon) ListCommonFactors.erase(ListCommonFactors.begin() + i);
-	}
 
-	// rimozione fattori in comune
-	for (int i = 0; i < Union; ++i)
-		for (int k = 0; k < ListCommonFactors; ++k)
-			for (int j = Union[i].size() - 1; j >= 0; --j)
-				if (Union[i][j] == ListCommonFactors[k]) {
-					Union[i].erase(Union[i].begin() + j);
+		// rimozione fattore in comune dall'insieme
+		else for (int j = 0; j < Union; ++j)
+			for (int k = Union[j].size() - 1; k >= 0; --k)
+				if (Union[j][k] == ListCommonFactors[i]) {
+					Union[j].erase(Union[j].begin() + k);
 					break;
 				}
+	}
 	ListCommonFactors >> factor<big>{ monomial<big>{ gcd, null } };
 	
 	// calcolo prodotti
@@ -8066,11 +8067,12 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			// raccoglimento parziale
 			pol = Polynomial;
 			auto polydata{ HT.last() };
+			polydata.SortByDegree();
 			HT--;
 			HT += Partial(polydata);
 			HT.close();
 			Polynomial = HT.str();
-			if (Back_T % HT and Polynomial != pol and input) {
+			if (Back_T % HT and Polynomial != pol and !Xout and input) {
 				SetConsoleTextAttribute(hConsole, 4);
 				wcout << L"raccoglimento parziale: " << Polynomial << L'\n';
 				empty = false;
@@ -8940,5 +8942,5 @@ RETURN:
 
 #pragma endregion
 
-// file natvis 56 righe
+// file natvis 54 righe
 // fine del codice
