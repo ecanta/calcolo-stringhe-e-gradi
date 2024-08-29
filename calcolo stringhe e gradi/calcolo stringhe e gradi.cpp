@@ -26,7 +26,7 @@
 
 // Descrizione programma ::
 	/*                                                          |
-	*  Strings ZP[0.9.1].cpp: il programma calcola singola e\o  |
+	*  Strings ZP[0.9.2].cpp: il programma calcola singola e\o  |
 	*  doppia scomposizione di alcuni interi in una stringa o   |
 	*  il contrario, i numeri primi, cifre e divisori, scompone |
 	*  anche i polinomi, le frazioni algebriche e le matrici    |
@@ -1115,7 +1115,8 @@ public:
 			// correzione
 			int quotient = 0;
 			current.Integer << This.Integer[i];
-			while (current.Integer > 1 and current.Integer[0] == 0) --current.Integer;
+			while (current.Integer > 1 and current.Integer[0] == 0)
+				--current.Integer;
 
 			// divisione
 			while (current >= value.fabs()) {
@@ -1164,6 +1165,26 @@ public:
 	big& operator%=(const big& value)
 	{
 		*this = *this % value;
+		ret *this;
+	}
+
+	// potenza
+	big operator^(const big& exp) const
+	{
+		big power = 1;
+		big NewExp = exp + 1;
+		big NewBase = *this;
+		if (*this < 0) NewBase.invert();
+		while (--NewExp > 0) {
+			power *= NewBase;
+			if (power < 0) ret -1;
+		}
+		if (exp % 2 == 1 and *this < 0) power.invert();
+		ret power;
+	}
+	big& operator^=(const big& exp)
+	{
+		*this = *this ^ exp;
 		ret *this;
 	}
 
@@ -1557,7 +1578,8 @@ static FACTOR<> To1V(factor<> vect)
 
 // polinomi completi
 static void ElabExponents(wstring& str);
-template<typename T_int = long double>class polynomial : public tensor<factor<T_int>>
+template<typename T_int = long double>class polynomial
+	: public tensor<factor<T_int>>
 {
 public:
 	polynomial() {}
@@ -1661,21 +1683,32 @@ public:
 		}
 
 		// aggiunta del denominatore
+		if (output != L"1") output = L'[' + output + L']';
+		else if (LCM != 1) output.clear();
+		else ret L"1";
 		if (LCM != 1) {
 			if constexpr (is_same_v<T_int, long double>)
-				output = L"[1/" + LCM.c_str(0).str() + L"][" + output + L']';
+				output = L"[1/" + LCM.c_str(0).str() + L']' + output;
 			else if constexpr (is_same_v<T_int, big>)
-				output = L'[' + output + L"]/[" + LCM.c_str(0).str() + L']';
+				output = output + L'[' + LCM.c_str(0).str() + L']';
 		}
 
 		// caso nullo
 		if (output.empty()) ret L"0";
 
+		// eliminazioni parentesi quadre se non necessarie
+		output.erase(0, 1);
+		output.erase(output.size() - 1);
+		if (output.find(L'[') != wstring::npos and
+			output.find(L']') != wstring::npos)
+			output = L'[' + output + L']';
+
 		if (BOOLALPHA) ElabExponents(output);
 		ret output;
 	}
 };
-template<typename T_int = long double>class POLYNOMIAL : public tensor<FACTOR<T_int>>
+template<typename T_int = long double>class POLYNOMIAL
+	: public tensor<FACTOR<T_int>>
 {
 public:
 	POLYNOMIAL() {}
@@ -2203,7 +2236,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"0.9.1 ";
+			wcout << L"0.9.2 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -3857,17 +3890,21 @@ static void SendCtrlPlusMinus(bool plus)
 // funzione che riduce lo zoom se la console è piccola
 static void MonitorConsoleSize(COORD min, atomic_bool& runMonitor)
 {
+	int time{ 50 };
 	unique_lock<mutex> lk(MonitorMTX);
-	while (RunMonitor) while (true) {
+	while (RunMonitor) {
 
 		// gestione del tempo
-		MonitorCV.wait_for(lk, milliseconds(100), [&] { ret !RunMonitor; });
+		MonitorCV.wait_for(lk, milliseconds(time), [&] { ret !RunMonitor; });
 		if (!RunMonitor) ret;
 			
 		// prima della riduzione dello zoom
 		_GetCursorPos();
 		auto oldLength{ csbi.dwSize.X };
-		if (oldLength >= min.X and csbi.dwSize.Y >= min.Y) break;
+		if (oldLength >= min.X and csbi.dwSize.Y >= min.Y) {
+			time = 50;
+			continue;
+		}
 			
 		// dopo la riduzione dello zoom
 		SendCtrlPlusMinus(false);
@@ -3880,6 +3917,7 @@ static void MonitorConsoleSize(COORD min, atomic_bool& runMonitor)
 			runMonitor = false;
 			ret;
 		}
+		time /= 2;
 	}
 }
 
@@ -4046,48 +4084,45 @@ static tensor<compost> DecomposeNumber(ptrdiff_t input)
 }
 
 // divide una scomposizione singola
-static tensor<int> DecomposeStrings(wstring Terminal)
+static tensor<int> DecomposeStrings(wstring terminal)
 {
 	int pass{};
 	int CiphresElement;
 	tensor<int> ciphres;
-	for (int i = 0; i < Terminal.size(); ++i) {
+	for (int i = 0; i < terminal.size(); ++i) {
 
 		// salta se pass è vero
-		while (pass != 0) {
-			i++;
-			pass--;
-		}
+		while (pass-- != 0) i++;
 
 		// eccezioni
-		if (i >= Terminal.size()) ret ciphres;
-		if (i == Terminal.size() - 1) CiphresElement = Terminal.at(i) - L'0';
+		if (i >= terminal.size()) ret ciphres;
+		if (i == terminal.size() - 1) CiphresElement = terminal.at(i) - L'0';
 
 		// caso di seconda eccezione
-		else if (i > Terminal.size() - 3) {
-			if (Terminal.at(i + 1) == L'0') {
-				CiphresElement = 10 * (Terminal.at(i) - L'0');
+		else if (i > terminal.size() - 3) {
+			if (terminal.at(i + 1) == L'0') {
+				CiphresElement = 10 * (terminal.at(i) - L'0');
 				pass = 1;
 			}
-			else CiphresElement = Terminal.at(i) - L'0';
+			else CiphresElement = terminal.at(i) - L'0';
 		}
 
 		// caso con L'.'
-		else if (Terminal.at(i) == L'.') {
-			CiphresElement = 10 * (Terminal.at(i + 1) - L'0')
-				+ (Terminal.at(i + 2) - L'0');
+		else if (terminal.at(i) == L'.') {
+			CiphresElement = 10 * (terminal.at(i + 1) - L'0')
+				+ (terminal.at(i + 2) - L'0');
 			pass = 2;
 		}
 
 		// caso con gli zeri
 		else {
-			if (Terminal.at(i + 1) == L'0') {
-				CiphresElement = 10 * (Terminal.at(i) - L'0');
+			if (terminal.at(i + 1) == L'0') {
+				CiphresElement = 10 * (terminal.at(i) - L'0');
 				pass = 1;
 			}
 
 			// caso comune
-			else CiphresElement = Terminal.at(i) - L'0';
+			else CiphresElement = terminal.at(i) - L'0';
 		}
 
 		// aggiunta
@@ -4262,11 +4297,11 @@ static wstring Cript(ptrdiff_t input)
 
 				// riduzione dell'argomento
 				ptrdiff_t position{ -1 };
-				for (int a = 1; ; ++a) if (PrimeNumbers.list_primes[a - 1] == WhatFactor)
-				{
-					position = a;
-					break;
-				}
+				for (int i = 1; ; ++i)
+					if (PrimeNumbers.list_primes[i - 1] == WhatFactor) {
+						position = i;
+						break;
+					}
 
 				WhatFactor = position;
 				WhatFactorString = to_wstring(WhatFactor);
@@ -4276,7 +4311,8 @@ static wstring Cript(ptrdiff_t input)
 				// temporanea eliminazione dell'esponente normale
 				switch (presence) {
 				case 1:
-					ExpString = wstring(1, OutputString.at(OutputString.size() - 1));
+					ExpString =
+						wstring(1, OutputString.at(OutputString.size() - 1));
 					OutputString.erase(OutputString.size() - 1);
 					break;
 				case 2:
@@ -4288,7 +4324,8 @@ static wstring Cript(ptrdiff_t input)
 
 				// aggiunta dell'esponente primo
 				if (repeat) {
-					PrimeExp_String = wstring(1, OutputString.at(OutputString.size() - 1));
+					PrimeExp_String =
+						wstring(1, OutputString.at(OutputString.size() - 1));
 					OutputString.erase(OutputString.size() - 1);
 					prime_exp = stoi(PrimeExp_String) + 1;
 					PrimeExp_String = to_wstring(prime_exp);
@@ -4301,6 +4338,7 @@ static wstring Cript(ptrdiff_t input)
 				if (presence > 0) OutputString.append(ExpString);
 				repeat = true;
 			}
+
 			// caso con argomento composto
 			if (WhatFactor != 1 and !Prime(WhatFactor)) {
 				WhatFactorString = Cript(WhatFactor);
@@ -4316,10 +4354,12 @@ static wstring Cript(ptrdiff_t input)
 
 	// rimozione basi
 	int position[12], j{};
-	for (int i = 0; i < (result.size() - 2); ++i)
-		if ((result.at(i) == L'(') and (result.at(i + 1) == L'1')
-			and (result.at(i + 2) == L')')) position[j++] = i;
-		
+	for (int i = 0; i < result.size() - 2; ++i)
+		if (
+			result.at(i) == L'('
+			and result.at(i + 1) == L'1'
+			and result.at(i + 2) == L')'
+			) position[j++] = i;
 	for (int k = j - 1; k >= 0; --k) result.erase(position[k], 3);
 
 	// eliminazione parentesi in più
@@ -5599,7 +5639,15 @@ static polynomial<big> GetMonomialsDirector(wstring pol)
 					break;
 				}
 	}
-	ListCommonFactors >> factor<big>{ monomial<big>{ gcd, null } };
+	ListCommonFactors >> factor<big>({ monomial<big>({ gcd, null }) });
+
+	// correzione numeratori
+	int sizemax{};
+	for (auto P : Union) if (P > sizemax) sizemax = P.size();
+	for (auto& P : Union) {
+		big NewLcm = LCM ^ (sizemax - (int)P.size());
+		for (auto& mon : P[0]) mon.coefficient *= NewLcm;
+	}
 	
 	// calcolo prodotti
 	tensor<factor<big>> products;
@@ -5611,7 +5659,7 @@ static polynomial<big> GetMonomialsDirector(wstring pol)
 	ListCommonFactors << PolynomialSum(Sum);
 
 	// correzione termine polinomio
-	if (ListCommonFactors.last() == factor<big>({ monomial<big>({1, null}) }))
+	if (ListCommonFactors.last() == factor<big>({ monomial<big>({ 1, null }) }))
 		ListCommonFactors--;
 	for (int i = 0; i < ListCommonFactors; ++i)
 		if (ListCommonFactors[i] == 1) if (ListCommonFactors[i][0].coefficient < 0)
@@ -5621,22 +5669,26 @@ static polynomial<big> GetMonomialsDirector(wstring pol)
 		}
 
 	// aggiustamento coefficiente
-	if (ListCommonFactors[0] == factor<big>{ {1, null} } and ListCommonFactors > 1)
+	if (ListCommonFactors[0] == factor<big>{ { 1, null } } and
+		ListCommonFactors > 1)
 		--ListCommonFactors;
-	else if (ListCommonFactors[0] == factor<big>{ {-1, null} } and
+	else if (ListCommonFactors[0] == factor<big>{ { -1, null } } and
 		ListCommonFactors > 1)
 	{
 		--ListCommonFactors;
 		for (int i = 0; i < ListCommonFactors[0]; ++i)
 			ListCommonFactors[0][i].coefficient.invert();
 	}
+	if (ListCommonFactors.last() == factor<big>{ { 1, null } } and
+		ListCommonFactors > 1)
+		ListCommonFactors--;
 
+	LCM ^= sizemax;
 	ListCommonFactors.close();
 	ret ListCommonFactors;
 }
 
-// modifica gli asterischi trasformandoli in parentesi
-// e poi traduce il polinomio in una struttura
+// porta il polinomio in una forma più semplice per la traduzione
 static polynomial<big> GetMonomialsAssister(wstring pol)
 {
 	for (int index = pol.size() - 2; index > 0; --index)
@@ -5696,89 +5748,26 @@ static polynomial<big> GetMonomialsAssister(wstring pol)
 	}
 	if (Variables.empty()) Variables = L"x";
 
-	// aggiustamento segni e parentesi
-	auto Pol{ pol };
-	for (int i = Pol.size() - 1; i >= 0; --i) if (issign(Pol.at(i)))
-		Pol.erase(i, 1);
-	for (int i = Pol.size() - 2; i > 0; --i) {
-		if (
-			Pol.at(i) == L'(' and
-			Pol.at(i - 1) != L'(' and
-			Pol.at(i - 1) != L')'
-			)
-			Pol.insert(Pol.begin() + i, L')');
-		else if (
-			Pol.at(i) == L')' and 
-			Pol.at(i + 1) != L'(' and 
-			Pol.at(i + 1) != L')'
-			)
-			Pol.insert(Pol.begin() + i + 1, L'(');
-	}
-
 	// calcolo minimo comune multiplo
-	while (true) {
-		big sub = 1;
+	LCM = 1;
+	for (int i = 0; i < pol.size(); ++i) if (pol.at(i) == L'/') {
 
-		int Balance{}, startIndex{};
-		bool active{ false };
-		for (int i = Pol.size() - 1; i >= 0; --i) {
-
-			active = false;
-			switch (Pol.at(i)) {
-			case L'(': Balance = 0;
-				startIndex = i;
-				break;
-			case L')': Balance++;
-				active = true;
+		// ritaglio stringa
+		auto bigger{ pol };
+		int J{ -1 };
+		if (i < bigger.size() - 2) for (int j = i; j < bigger.size(); ++j) {
+			auto ch{ bigger.at(j) };
+			if (issign(ch) or ch == L'(' or ch == L')') {
+				J = j;
 				break;
 			}
-
-			// sostituzione
-			if (Balance == 1 and active) {
-				auto NewPol{ Pol };
-				NewPol.erase(i);
-				NewPol.erase(0, startIndex + 1);
-				sub = 1;
-				for (int i = 0; i < NewPol.size(); ++i)
-					if (NewPol.at(i) == L'/')
-					{
-
-						// ritaglio stringa
-						auto bigger{ NewPol };
-						int J{ -1 };
-						if (i < bigger.size() - 2)
-							for (int j = 0; j < bigger.size(); ++j) {
-								auto ch{ bigger.at(j) };
-								if (issign(ch) or ch == L'(' or ch == L')')
-								{
-									J = j;
-									break;
-								}
-							}
-						bigger.erase(0, i + 1);
-						if (J >= 0) bigger.erase(J + 1);
-
-						// calcolo
-						big second = bigger;
-						sub = (sub * second).fabs() / Gcd(sub, second);
-					}
-
-				// ricomposizione
-				auto first{ Pol };
-				auto last{ Pol };
-				first.erase(startIndex);
-				last.erase(0, i + 1);
-				Pol = first;
-				if (sub != 1) Pol += L"+1/" + sub.c_str(0).str();
-				Pol += last;
-			}
 		}
-		
-		// salvataggio dati
-		if (Pol.find(L'(') != wstring::npos) {
-			LCM = sub;
-			break;
-		}
+		if (J >= 0) bigger.erase(J);
+		bigger.erase(0, i + 1);
+
+		// calcolo
+		big second = bigger;
+		LCM = (LCM * second).fabs() / Gcd(LCM, second);
 	}
 
 	ret GetMonomialsDirector(pol);
@@ -5917,6 +5906,16 @@ static tensor<tensor<long double>> FromPolynomialToPos(
 template<typename T_int = long double>
 static factor<T_int> PolynomialSum(factor<T_int> vect)
 {
+
+	// correzione esponenti dei numeri complessi
+	int ImgUnitPos = Variables.find(L'i');
+	if (ImgUnitPos != wstring::npos) for (auto& mon : vect) {
+		mon.exp[ImgUnitPos] %= 4;
+		if (mon.exp[ImgUnitPos] > 1) {
+			mon.coefficient *= -1;
+			mon.exp[ImgUnitPos] -= 2;
+		}
+	}
 
 	// ricerca di monomi simili
 	for (int i = vect.size() - 1; i >= 0; --i) for (int j = i - 1; j >= 0; --j)
@@ -8147,35 +8146,58 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			if (Polynomial == L"0") break;
 		}
 
-		// somma
+		// traduzione dell'input utente
 		polynomial<> BackT, Back_T{ HT };
 		tensor<int> null;
 		int size;
 		auto bigHT{ GetMonomialsAssister(Polynomial) };
+
+		// semplificazione numeratore denominatore
+		tensor<big> ListOfCoefficients;
+		for (auto fact : bigHT) for (auto mon : fact) if (mon.exp[0] >= 0)
+			ListOfCoefficients << mon.coefficient;
+		big G{ Gcd(ListOfCoefficients + tensor<big>{ LCM }) };
+		for (auto& fact : bigHT) for (auto& mon : fact) if (mon.exp[0] >= 0)
+			mon.coefficient /= G;
+		LCM /= G;
+
 		if (input) charVariable = Variables.at(0);
 		HT = FromBigToDefault(bigHT);
+
+		// polinomio troppo grande
+		ptrdiff_t Coeff{ 1 }; 
 		if (HT >= 1) if (HT[0] >= 1) if (HT[0][0].exp[0] == -2) {
 			if (input) {
 				SetConsoleTextAttribute(hConsole, 2);
 				wcout << L"questo è il polinomio: " << bigHT.str() << L'\n';
+			overflow:
 				SetConsoleTextAttribute(hConsole, 64);
 				wcout << L"il polinomio è troppo grande.";
 				ResetAttribute();
 				wcout << L'\n';
 				goto EndOfDecomposition;
 			}
-			else ret {};
+			else ret{};
 		}
 
+		// coefficienti complessi
+		if (Variables.find(L'i') != wstring::npos) {
+			if (!input) ret{};
+
+			SetConsoleTextAttribute(hConsole, 2);
+			wcout << L"questo è il polinomio: " << bigHT.str() << L'\n';
+			SetConsoleTextAttribute(hConsole, 64);
+			wcout << L"il polinomio contiene dei numeri complessi.";
+			ResetAttribute();
+			wcout << L'\n';
+			goto EndOfDecomposition;
+		}
+
+		// risultato della somma
 		null(Variables.size());
 		null[0] = -1;
 		if (HT == polynomial<>({ factor<>({}) })) Polynomial = L"0";
-		else if (HT == 1)
-			Polynomial = L"[1/" + LCM.c_str(0).str() + L"][" + HT[0].str() + L']';
 		else Polynomial = HT.str();
-		if (BOOLALPHA) ElabExponents(Polynomial);
-
-		// risultato della somma
 		if (input) {
 			SetConsoleTextAttribute(hConsole, 2);
 			if (Polynomial.empty()) Polynomial = L"0";
@@ -8194,15 +8216,36 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		Back_T = HT;
 		HT.clear();
 		for (auto polydata : Back_T) HT += Total(polydata);
+		for (int i = HT.size() - 1; i >= 0; --i)
+			if (HT[i] == 1) if (HT[i][0].exp == tensor<int>(Variables.size(), 0))
+			{
+				Coeff *= HT[i][0].coefficient;
+				HT.erase(HT.begin() + i);
+				if (Coeff >= 2'147'483'647 or Coeff <= -2'147'483'647) {
+					if (!input) ret{};
+					goto overflow;
+				}
+			}
+		if (abs(Coeff) != 1) HT >> factor<>({
+				monomial<>({
+					(long double)Coeff, tensor<int>(Variables.size(), 0)
+				})
+			});
+		else if (Coeff == -1) for (auto& mon : HT[0]) mon.coefficient *= -1;
+
+		// output raccoglimento totale
+		HT.close();
 		Polynomial = HT.str();
 		if (HT != size and input) {
 			SetConsoleTextAttribute(hConsole, 12);
 			wcout << L"raccoglimento totale: " << Polynomial << L'\n';
 			empty = false;
 		}
+
 		do {
 
 			// raccoglimento parziale
+			Back_T = HT;
 			pol = Polynomial;
 			auto polydata{ HT.last() };
 			polydata.SortByDegree();
@@ -8210,7 +8253,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			HT += Partial(polydata);
 			HT.close();
 			Polynomial = HT.str();
-			if (Back_T % HT and Polynomial != pol and !Xout and input) {
+			if (Back_T % HT and !Xout and input) {
 				SetConsoleTextAttribute(hConsole, 4);
 				wcout << L"raccoglimento parziale: " << Polynomial << L'\n';
 				empty = false;
@@ -8472,10 +8515,17 @@ static void DecompFraction(switchcase& argc)
 		switchcase use;
 		CORRECTION_RATIO = 1;
 		auto N_{ DecompPolynomial(use, numerator) };
+		big DenMultiplier = LCM;
 		auto savx{ Variables };
 		auto D_{ DecompPolynomial(use, denominator) };
+		big NumMultiplier = LCM;
+		big GCD{ Gcd(NumMultiplier, DenMultiplier) };
+		NumMultiplier /= GCD;
+		DenMultiplier /= GCD;
+		auto nummultiplier{ NumMultiplier.Number() };
+		auto denmultiplier{ DenMultiplier.Number() };
 		
-		if (!(N_ and D_)) {
+		if (!(N_ and D_) or isnan(nummultiplier) or isnan(denmultiplier)) {
 			wcout << L'\n';
 			SetConsoleTextAttribute(hConsole, 64);
 			wcout << L"input overflow: prova a inserire valori più piccoli";
@@ -8507,6 +8557,9 @@ static void DecompFraction(switchcase& argc)
 		Simplify(N_, D_, NCOEFF, DCOEFF);
 		if (N_ != NumBackup) _Nchangx = true;
 		if (D_ != DenBackup) _Dchangx = true;
+		NCOEFF *= nummultiplier;
+		DCOEFF *= denmultiplier;
+		LCM = 1;
 
 		// aggiornamento dati globali
 		auto test{ N_ };
@@ -8772,7 +8825,6 @@ static void DecompFraction(switchcase& argc)
 				wcout << L' ';
 				HasMoreVariables ? wcout << N_.str() : wcout << NScomp.str();
 			}
-				
 		}
 
 		// reset cursore
