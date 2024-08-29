@@ -1224,11 +1224,11 @@ public:
 	}
 
 	// output
-	wostringstream c_str(int precision)
+	wostringstream c_str(int precision) const
 	{
 		wostringstream oss, result;
 		if (sign) wcout << L'-';
-		for (auto intg : Integer) result << intg;
+		for (int i = 0; i < Integer; ++i) result << Integer[i];
 		oss << setprecision(precision) << decimal;
 		auto str{ oss.str() };
 		str.erase(0, 1);
@@ -1655,7 +1655,9 @@ public:
 
 	_NODISCARD wstring str(int size = Variables.size()) override
 	{
-		wstring output, exp;
+		if (this->empty()) ret L"0";
+
+		wstring output, exp, coeffstr{ L"1" };
 		bool IsAModifier{ false };
 		for (auto T : *this) {
 
@@ -1674,34 +1676,49 @@ public:
 			if (IsAModifier) {
 				xout = L"(" + xout + L")^" + exp;
 				IsAModifier = false;
+				continue;
+			}
+
+			// caso coefficiente
+			if (T == 1) {
+				coeffstr = xout;
+				continue;
 			}
 
 			// caso comune
-			else if (T > 1) xout = L"(" + xout + L")";
-
+			else if ((int)this->size() - (coeffstr != L"1") > 1)
+				xout = L"(" + xout + L")";
 			output += xout;
 		}
-
+		
 		// aggiunta del denominatore
-		if (output != L"1") output = L'[' + output + L']';
+		if (!output.empty()) output = L'[' + output + L']';
 		else if (LCM != 1) output.clear();
 		else ret L"1";
-		if (LCM != 1) {
-			if constexpr (is_same_v<T_int, long double>)
-				output = L"[1/" + LCM.c_str(0).str() + L']' + output;
-			else if constexpr (is_same_v<T_int, big>)
+		if (LCM != 1 or coeffstr != L"1") {
+
+			// polinomio piccolo
+			if constexpr (is_same_v<T_int, long double>) {
+				if (LCM != 1) output = L'/' + LCM.c_str(0).str() + L']' + output;
+				output = coeffstr + output;
+				if (LCM != 1) output = L'[' + output;
+			}
+
+			// polinomio grande
+			else if constexpr (is_same_v<T_int, big>) {
+				if (!output.empty()) output += L'/';
 				output = output + L'[' + LCM.c_str(0).str() + L']';
+			}
 		}
 
-		// caso nullo
-		if (output.empty()) ret L"0";
-
-		// eliminazioni parentesi quadre se non necessarie
-		output.erase(0, 1);
-		output.erase(output.size() - 1);
-		if (output.find(L'[') != wstring::npos and
-			output.find(L']') != wstring::npos)
-			output = L'[' + output + L']';
+		// eliminazioni parentesi quadre se non sono necessarie
+		if (output.at(0) == L'[' and output.at(output.size() - 1) == L']') {
+			output.erase(0, 1);
+			output.erase(output.size() - 1);
+			if (output.find(L'[') != wstring::npos and
+				output.find(L']') != wstring::npos)
+				output = L'[' + output + L']';
+		}
 
 		if (BOOLALPHA) ElabExponents(output);
 		ret output;
@@ -5575,6 +5592,14 @@ static polynomial<big> GetMonomialsDirector(wstring pol)
 		Union[i][j] = PolynomialSum(Union[i][j]);
 	}
 
+	// correzione numeratori
+	int sizemax{};
+	for (auto P : Union) if (P > sizemax) sizemax = P.size();
+	for (auto& P : Union) {
+		big NewLcm = LCM ^ (sizemax - (int)P.size());
+		for (auto& mon : P[0]) mon.coefficient *= NewLcm;
+	}
+
 	// aggiustamento segni
 	tensor<big> numbers;
 	for (int i = 0; i < Union; ++i) {
@@ -5592,7 +5617,7 @@ static polynomial<big> GetMonomialsDirector(wstring pol)
 		}
 
 		// calcolo coefficiente
-		big Coeff(sign);
+		big Coeff = sign;
 		for (int j = Union[i].size() - 1; j >= 0; --j) if (Union[i][j] == 1)
 		{
 			bool IsACoefficient{ true };
@@ -5640,14 +5665,6 @@ static polynomial<big> GetMonomialsDirector(wstring pol)
 				}
 	}
 	ListCommonFactors >> factor<big>({ monomial<big>({ gcd, null }) });
-
-	// correzione numeratori
-	int sizemax{};
-	for (auto P : Union) if (P > sizemax) sizemax = P.size();
-	for (auto& P : Union) {
-		big NewLcm = LCM ^ (sizemax - (int)P.size());
-		for (auto& mon : P[0]) mon.coefficient *= NewLcm;
-	}
 	
 	// calcolo prodotti
 	tensor<factor<big>> products;
@@ -6975,7 +6992,8 @@ static void PrintFraction
 	NC /= gcd;
 	DC /= gcd;
 	int Gcd{ 1 };
-	if (root == 0) Gcd = ::Gcd(numerator[0][0].coefficient, denominator[0][0].coefficient);
+	if (root == 0)
+		Gcd = ::Gcd(numerator[0][0].coefficient, denominator[0][0].coefficient);
 	else Gcd = ::Gcd(Root, denominator[0][0].coefficient);
 	denominator[0][0].coefficient /= Gcd;
 	if (root != 0) Root /= Gcd;
@@ -6992,32 +7010,27 @@ static void PrintFraction
 	// calcolo numeratore
 	if (root == 0) {
 		num_ = numerator.str();
-		if (numerator == 1 and NC == 1 and num_.size() >= 2)
-			if (num_.at(0) == L'(' and num_.at(num_.size() - 1) == L')')
-			{
-				num_.erase(num_.size() - 1);
-				num_.erase(0, 1);
-			}
+
+		if (abs(NC) != 1 and !numerator.empty()) num_ = L'(' + num_ + L')';
+
 		if (num_ == L"0") num_.clear();
 		if (abs(NC) != 1) num_ = to_wstring(NC) + num_;
 		if (num_.empty()) num_ = L"1";
 		if (NC == -1) num_ = L'-' + num_;
 	}
 
-	// calcolo denominatore
+	// // calcolo denominatore
 	den_.clear();
 	auto tempden{ denominator.str() };
 	if (tempden != L"1") den_ = tempden;
-	if (denominator == 1 and DC == 1 and den_.size() >= 2)
-		if (den_.at(0) == L'(' and den_.at(den_.size() - 1) == L')')
-		{
-			den_.erase(den_.size() - 1);
-			den_.erase(0, 1);
-		}
+
+	if (abs(DC) != 1 and !denominator.empty()) den_ = L'(' + den_ + L')';
+
 	if (den_ == L"0") den_.clear();
 	if (abs(DC) != 1) den_ = to_wstring(DC) + den_;
 	if (den_.empty()) den_ = L"1";
 	if (DC == -1) den_ = L'-' + den_;
+	// //
 
 	// aggiustamento segni
 	bool both{ true };
@@ -7349,6 +7362,14 @@ static tensor<tensor<double>> InputMatrix()
 
 			// casi che modificano la matrice
 			switch (c) {
+
+				// L'r' azzera il determinante
+			case L'r':
+				TheMatrix[TheMatrix.size() - 1] = TheMatrix[TheMatrix.size() - 2];
+				MatrixAtIndex = to_wstring(
+					(int)TheMatrix[IndexAccesser.Y][IndexAccesser.X]
+				);
+				break;
 
 				// L'\b' cancella un carattere
 			case L'\b':
@@ -8164,13 +8185,13 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		if (input) charVariable = Variables.at(0);
 		HT = FromBigToDefault(bigHT);
 
-		// polinomio troppo grande
+		// se il polinomio troppo grande
 		ptrdiff_t Coeff{ 1 }; 
 		if (HT >= 1) if (HT[0] >= 1) if (HT[0][0].exp[0] == -2) {
 			if (input) {
+			overflow:
 				SetConsoleTextAttribute(hConsole, 2);
 				wcout << L"questo è il polinomio: " << bigHT.str() << L'\n';
-			overflow:
 				SetConsoleTextAttribute(hConsole, 64);
 				wcout << L"il polinomio è troppo grande.";
 				ResetAttribute();
@@ -8180,7 +8201,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			else ret{};
 		}
 
-		// coefficienti complessi
+		// se sono presenti dei coefficienti complessi
 		if (Variables.find(L'i') != wstring::npos) {
 			if (!input) ret{};
 
@@ -8226,12 +8247,21 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 					goto overflow;
 				}
 			}
+
+		// aggiunta del coefficiente corretto
 		if (abs(Coeff) != 1) HT >> factor<>({
 				monomial<>({
 					(long double)Coeff, tensor<int>(Variables.size(), 0)
 				})
 			});
 		else if (Coeff == -1) for (auto& mon : HT[0]) mon.coefficient *= -1;
+		if (HT.empty()) HT = polynomial<>({
+				factor<>({
+					monomial<>({
+						(long double)Coeff, tensor<int>(Variables.size(), 0)
+					})
+				})
+			});
 
 		// output raccoglimento totale
 		HT.close();
@@ -8931,7 +8961,8 @@ static void DecompMatrices(switchcase& argc)
 	wcout << L"il PROGRAMMA scompone le matrici\n";
 	wcout << L"e calcola determiante, autovalori e autovettori\n\n";
 	SetConsoleTextAttribute(hConsole, 12);
-	wcout << L"sono ammesse solo matrici quadrate da 2x2 a 7x7\n\n";
+	wcout << L"sono ammesse solo matrici quadrate da 2x2 a 7x7\n";
+	wcout << L"premi r per copiare la penultima riga (azzera il determinante)\n\n";
 	ResetAttribute();
 	tensor<tensor<double>> matrix, Mx;
 
@@ -9105,13 +9136,41 @@ static void DecompMatrices(switchcase& argc)
 		}
 
 		// output dati della matrice
-		wcout << L"Determinante: " << Determinant(matrix) << L'\n';
+		auto maindet{ Determinant(matrix) };
+		wcout << L"Determinante: " << maindet << L'\n';
 		auto eigenvalues{ EigenValues(matrix) };
 		wcout << L"Autovalori reali: " << eigenvalues.str() << L'\n';
 		auto eigenvectors{ EigenVectors(matrix, eigenvalues) };
 		if (eigenvectors == size) {
 			wcout << L"Autovettori reali: \n";
 			for (auto vector : eigenvectors) wcout << vector.str() << L'\n';
+			wcout << L'\n';
+		}
+
+		// risoluzione sistema lineare
+		if (maindet == 0) {
+
+			// calcolo nuovo determinante
+			wstring varlist{ L"xyzwuv" };
+			tensor<double> solutionList;
+			auto NewMatrix{ matrix };
+			for (auto& row : NewMatrix) row--;
+			NewMatrix--;
+			auto newdet{ Determinant(NewMatrix) };
+			if (newdet == 0) continue;
+
+			// calcolo soluzioni
+			for (int i = 0; i < size - 1; ++i) {
+				Mx = NewMatrix;
+				for (int j = 0; j < size - 1; ++j)
+					Mx[j][i] = matrix[j][matrix.size() - 1];
+				solutionList << Determinant(Mx) / newdet;
+			}
+
+			// output risultati
+			wcout << L"soluzioni del sistema lineare: \n";
+			for (int i = 0; i < size - 1; ++i)
+				wcout << varlist[i] << L" = " << solutionList[i] << L'\n';
 			wcout << L'\n';
 		}
 	}
