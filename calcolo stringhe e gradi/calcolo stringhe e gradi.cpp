@@ -24,15 +24,7 @@
 #pragma message("COMPILAZIONE IN CORSO")
 #pragma message("COMPILAZIONE IN CORSO")
 
-// Descrizione programma ::
-	/*                                                          |
-	*  Strings ZP[0.9.2].cpp: il programma calcola singola e\o  |
-	*  doppia scomposizione di alcuni interi in una stringa o   |
-	*  il contrario, i numeri primi, cifre e divisori, scompone |
-	*  anche i polinomi, le frazioni algebriche e le matrici    |
-	*///                                                        |
-
-	// macro di definizione
+// macro di definizione
 #define BUGS
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
@@ -52,6 +44,7 @@
 #define ResetAttribute() SetConsoleTextAttribute(hConsole, 15)
 #define integer(x) (_STD fabs(x - _STD round(x)) < 1e-9)
 #define issign(x) (x == L'+' or x == L'-')
+#define Last(x) x.at(x.size() - 1)
 #define V1converter(func, param) To1V(func(ToXV(param)))
 #define VXconverter(func, param) ToXV(func(To1V(param)))
 
@@ -176,6 +169,7 @@ enum switchcase
 	DebugDigitsAndFactor,
 	DebugComplete,
 	ConvertCodeInverse,
+	SeriesExpansion,
 	FactorPolynomial,
 	FactorFraction,
 	FactorMatrix,
@@ -200,6 +194,7 @@ unordered_map<wstring, switchcase> stringToEnumMap{
 	{L"drf", switchcase::DebugDigitsAndFactor},
 	{L"drt", switchcase::DebugComplete       },
 	{L"ctn", switchcase::ConvertCodeInverse  },
+	{L"cod", switchcase::SeriesExpansion     },
 	{L"pol", switchcase::FactorPolynomial    },
 	{L"alg", switchcase::FactorFraction      },
 	{L"mtx", switchcase::FactorMatrix        },
@@ -223,6 +218,7 @@ unordered_map<switchcase, wstring> enumToStringMap{
 	{switchcase::DebugDigitsAndFactor, L"drf"},
 	{switchcase::DebugComplete       , L"drt"},
 	{switchcase::ConvertCodeInverse  , L"ctn"},
+	{switchcase::SeriesExpansion     , L"cod"},
 	{switchcase::FactorPolynomial    , L"pol"},
 	{switchcase::FactorFraction      , L"alg"},
 	{switchcase::FactorMatrix        , L"mtx"},
@@ -1222,6 +1218,13 @@ public:
 		sign = !sign;
 		ret *this;
 	}
+	int log(int base)
+	{
+		for (int i = 0;; ++i) {
+			if (*this < base) ret i;
+			*this /= base;
+		}
+	}
 
 	// output
 	wostringstream c_str(int precision) const
@@ -1602,7 +1605,7 @@ public:
 
 	void open()
 	{
-		for (int i = 0; i < this->size(); ++i) if ((*this)[i][0].exp[0] == -1)
+		for (int i = 0; i < this->count; ++i) if ((*this)[i][0].exp[0] == -1)
 		{
 			auto repeat = (*this)[i][0].coefficient;
 			this->erase(this->begin() + i);
@@ -1615,8 +1618,8 @@ public:
 		tensor<int> modifier(Variables.size());
 		modifier[0] = -1;
 		factor<T_int> CommonFactor;
-		if (!this->empty()) for (int i = 0; i < this->size(); ++i)
-			for (int j = this->size() - 1; j > i; --j)
+		if (this->count != 0) for (int i = 0; i < this->count; ++i)
+			for (int j = this->count - 1; j > i; --j)
 				if ((*this)[i] == (*this)[j] and (*this)[i][0].exp[0] >= 0)
 				{
 					CommonFactor = (*this)[i];
@@ -1655,7 +1658,7 @@ public:
 
 	_NODISCARD wstring str(int size = Variables.size()) override
 	{
-		if (this->empty()) ret L"0";
+		if (this->count == 0) ret L"0";
 
 		wstring output, exp, coeffstr{ L"1" };
 		bool IsAModifier{ false };
@@ -1694,7 +1697,7 @@ public:
 		// aggiunta del denominatore
 		if (!output.empty()) output = L'[' + output + L']';
 		else if (LCM != 1) output.clear();
-		else ret L"1";
+		else ret coeffstr;
 		if (LCM != 1 or coeffstr != L"1") {
 
 			// polinomio piccolo
@@ -1712,12 +1715,11 @@ public:
 		}
 
 		// eliminazioni parentesi quadre se non sono necessarie
-		if (output.at(0) == L'[' and output.at(output.size() - 1) == L']') {
+		if (output.at(0) == L'[' and Last(output) == L']') {
 			output.erase(0, 1);
 			output.erase(output.size() - 1);
 			if (output.find(L'[') != wstring::npos and
-				output.find(L']') != wstring::npos)
-				output = L'[' + output + L']';
+				output.find(L']') != wstring::npos) output = L'[' + output + L']';
 		}
 
 		if (BOOLALPHA) ElabExponents(output);
@@ -1749,20 +1751,18 @@ public:
 	void open()
 	{
 		polynomial<T_int> NewClass;
-		for (int i = 0; i < this->size(); ++i) NewClass << ToXV((*this)[i]);
+		for (int i = 0; i < this->count; ++i) NewClass << ToXV((*this)[i]);
 		NewClass.open();
 		this->clear();
-		for (int i = 0; i < NewClass.size(); ++i)
-			this->push_back(To1V(NewClass[i]));
+		for (int i = 0; i < NewClass; ++i) this->push_back(To1V(NewClass[i]));
 	}
 	void close()
 	{
 		polynomial<T_int> NewClass;
-		for (int i = 0; i < this->size(); ++i) NewClass.push_back(ToXV((*this)[i]));
+		for (int i = 0; i < this->count; ++i) NewClass.push_back(ToXV((*this)[i]));
 		NewClass.close();
 		this->clear();
-		for (int i = 0; i < NewClass.size(); ++i)
-			this->push_back(To1V(NewClass[i]));
+		for (int i = 0; i < NewClass; ++i) this->push_back(To1V(NewClass[i]));
 	}
 
 	_NODISCARD wstring str(int size = Variables.size()) override
@@ -2040,6 +2040,7 @@ tensor<wstring> commands{
 	L"drf",
 	L"drt",
 	L"ctn",
+	L"cod",
 	L"pol",
 	L"alg",
 	L"mtx",
@@ -2181,6 +2182,8 @@ static tensor<double> EigenValues(tensor<tensor<double>> mx);
 static tensor<tensor<double>> EigenVectors
 (tensor<tensor<double>> mx, tensor<double> EigenV = {});
 static void CodeToNumber(switchcase& argc);
+static wstring ExpandNumber
+(switchcase& argc, big Number = big(), int Base = 0, bool access = true);
 static void Repeater(
 	switchcase& argc,
 	wstring message,
@@ -2217,14 +2220,14 @@ int main()
 	wstring desimpledeg{ L"il PROGRAMMA calcola solo la codifica di una serie" };
 	wstring desimplefact{ L"il PROGRAMMA calcola solo la fattorizzazione di una serie" };
 	wstring defact_message{ L"il PROGRAMMA calcola la fattorizzazione di una serie" };
-	defact_message.append(L"\ne numero, somma e prodotto dei divisori");
+	defact_message += L"\ne numero, somma e prodotto dei divisori";
 	wstring deg_message{ L"il PROGRAMMA calcola codice, sequenza e grado di una serie" };
 	wstring fact_message{ L"il PROGRAMMA calcola la fattorizzazione di un intero" };
-	fact_message.append(L"\ne numero, somma e prodotto dei divisori");
+	fact_message += L"\ne numero, somma e prodotto dei divisori";
 	wstring message{ L"il PROGRAMMA calcola codice, sequenza e grado di un intero" };
 	wstring AllMessage{ L"il PROGRAMMA calcola \"tutti\" i dati di alcuni interi" };
 	wstring de_digit{ L"il PROGRAMMA ricerca numeri con particolari" };
-	de_digit.append(L" occorrenze di somma e prodotto cifre");
+	de_digit += L" occorrenze di somma e prodotto cifre";
 	wstring deg_digit{ L"il PROGRAMMA calcola cifre, codice, sequenza e grado" };
 	wstring fact_digit{ L"il PROGRAMMA calcola cifre, fattorizzazione, e divisori" };
 	wstring defact_digit{ L"il PROGRAMMA calcola tutti i dati, cifre comprese" };
@@ -2253,7 +2256,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"0.9.2 ";
+			wcout << L"0.9.3 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -2336,6 +2339,7 @@ int main()
 		wcout << L"altrimenti:\n";
 		wcout << L"\t\"rnd\" = casuale\n";
 		wcout << L"\t\"ctn\" = da codice a numero\n";
+		wcout << L"\t\"cod\" = da numero a espansione in serie e viceversa";
 		wcout << L"\t\"pol\" = scomposizione polinomi\n";
 		wcout << L"\t\"alg\" = scomposizione frazioni algebriche\n";
 		wcout << L"\t\"mtx\" = scomposizione matrici\n";
@@ -2467,8 +2471,9 @@ int main()
 			case DebugComplete:
 				Loop(option, defact_digit, ExecuteAll, true);
 				break;
-			case ConvertCodeInverse:
-				CodeToNumber(option);
+			case ConvertCodeInverse: CodeToNumber(option);
+				break;
+			case SeriesExpansion: ExpandNumber(option);
 				break;
 
 			case FactorPolynomial: Threading = true;
@@ -2679,71 +2684,52 @@ static void ReassigneEnum(switchcase& option)
 	if (option != Random) ret;
 	random_device rng;
 	mt19937 gen(rng());
-	uniform_int_distribution<> dis(0, 20);
+	uniform_int_distribution<> dis(0, commands.size() - 1);
 	switch (dis(gen)) {
-	case 0:
-		option = DoSimpleCode;
-		break;
-	case 1:
-		option = DoComplexCode;
-		break;
-	case 2:
-		option = DoSimpleFactor;
-		break;
-	case 3:
-		option = DoComplexFactor;
-		break;
-	case 4:
-		option = DoCodeFactor;
-		break;
-	case 5:
-		option = DebugCodeFactor;
-		break;
-	case 6:
-		option = DoAll;
-		break;
-	case 7:
-		option = DebugSimpleCode;
-		break;
-	case 8:
-		option = DebugComplexCode;
-		break;
-	case 9:
-		option = DebugSimpleFactor;
-		break;
-	case 10:
-		option = DebugComplexFactor;
-		break;
-	case 11:
-		option = DebugComplexFactor;
-		break;
-	case 12:
-		option = DebugAll;
-		break;
-	case 13:
-		option = DebugDigits;
-		break;
-	case 14:
-		option = DebugDigitsAndCode;
-		break;
-	case 15:
-		option = DebugDigitsAndCode;
-		break;
-	case 16:
-		option = DebugDigitsAndFactor;
-		break;
-	case 17:
-		option = ConvertCodeInverse;
-		break;
-	case 18:
-		option = FactorPolynomial;
-		break;
-	case 19:
-		option = FactorFraction;
-		break;
-	case 20:
-		option = FactorMatrix;
-		break;
+	case 0: option = DoSimpleCode;
+		ret;
+	case 1: option = DoComplexCode;
+		ret;
+	case 2: option = DoSimpleFactor;
+		ret;
+	case 3: option = DoComplexFactor;
+		ret;
+	case 4: option = DoCodeFactor;
+		ret;
+	case 5: option = DebugCodeFactor;
+		ret;
+	case 6: option = DoAll;
+		ret;
+	case 7: option = DebugSimpleCode;
+		ret;
+	case 8: option = DebugComplexCode;
+		ret;
+	case 9: option = DebugSimpleFactor;
+		ret;
+	case 10: option = DebugComplexFactor;
+		ret;
+	case 11: option = DebugComplexFactor;
+		ret;
+	case 12: option = DebugAll;
+		ret;
+	case 13: option = DebugDigits;
+		ret;
+	case 14: option = DebugDigitsAndCode;
+		ret;
+	case 15: option = DebugDigitsAndCode;
+		ret;
+	case 16: option = DebugDigitsAndFactor;
+		ret;
+	case 17: option = ConvertCodeInverse;
+		ret;
+	case 18: option = SeriesExpansion;
+		ret;
+	case 19: option = FactorPolynomial;
+		ret;
+	case 20: option = FactorFraction;
+		ret;
+	case 21: option = FactorMatrix;
+		ret;
 	}
 }
 
@@ -4070,10 +4056,6 @@ static void PrimeNCalculator(ptrdiff_t max, ptrdiff_t min)
 static tensor<compost> DecomposeNumber(ptrdiff_t input)
 {
 
-	// correzione intervallo di PrimeNumbers
-	if (input > PrimeNumbers.list_primes.last())	
-		PrimeNCalculator(input + 1'000, PrimeNumbers.is_prime.size() - 1);
-
 	// scomposizione
 	int index{};
 	tensor<compost> output(12, compost{ 0, 1 });
@@ -4109,7 +4091,10 @@ static tensor<int> DecomposeStrings(wstring terminal)
 	for (int i = 0; i < terminal.size(); ++i) {
 
 		// salta se pass è vero
-		while (pass-- != 0) i++;
+		while (pass != 0) {
+			pass--;
+			i++;
+		}
 
 		// eccezioni
 		if (i >= terminal.size()) ret ciphres;
@@ -4191,7 +4176,7 @@ static tensor<tensor<wstring>> FractPolynomial(wstring pol)
 {
 
 	// controllo estremi
-	while (issign(pol.at(pol.size() - 1))) pol.erase(pol.size() - 1);
+	while (issign(Last(pol))) pol.erase(pol.size() - 1);
 	if (!issign(pol.at(0))) pol = L'+' + pol;
 
 	// suddivisione in parti
@@ -4293,14 +4278,14 @@ static wstring Cript(ptrdiff_t input)
 		if (expfactors[FactorIndexAccesser].exp != 1 and
 			expfactors[FactorIndexAccesser].exp < 11)
 		{
-			end.append(ExpVerify);
+			end += ExpVerify;
 			presence = 1;
 		}
 
 		// se l'esponente ha due cifre,
 		else if (expfactors[FactorIndexAccesser].exp > 10) {
-			end.append(L".");
-			end.append(ExpVerify);
+			end += L".";
+			end += ExpVerify;
 			presence = 2;
 		}
 
@@ -4314,7 +4299,7 @@ static wstring Cript(ptrdiff_t input)
 
 				// riduzione dell'argomento
 				ptrdiff_t position{ -1 };
-				for (int i = 1; ; ++i)
+				for (int i = 1;; ++i)
 					if (PrimeNumbers.list_primes[i - 1] == WhatFactor) {
 						position = i;
 						break;
@@ -4328,37 +4313,38 @@ static wstring Cript(ptrdiff_t input)
 				// temporanea eliminazione dell'esponente normale
 				switch (presence) {
 				case 1:
-					ExpString =
-						wstring(1, OutputString.at(OutputString.size() - 1));
+					ExpString = wstring(1, Last(OutputString));
 					OutputString.erase(OutputString.size() - 1);
 					break;
 				case 2:
 					ExpString = L'.' + OutputString.at(OutputString.size() - 2)
-						+ OutputString.at(OutputString.size() - 1);
+						+ Last(OutputString);
 					OutputString.erase(OutputString.size() - 3);
 					break;
 				}
 
 				// aggiunta dell'esponente primo
 				if (repeat) {
-					PrimeExp_String =
-						wstring(1, OutputString.at(OutputString.size() - 1));
+					PrimeExp_String = wstring(1, Last(OutputString));
 					OutputString.erase(OutputString.size() - 1);
 					prime_exp = stoi(PrimeExp_String) + 1;
 					PrimeExp_String = to_wstring(prime_exp);
+
 					if (prime_exp > 10) PrimeExp_String = L'.' + PrimeExp_String;
-					OutputString.append(PrimeExp_String);
+					OutputString += PrimeExp_String;
 				}
 
 				// riaggiunta dell'esponente normale
-				else OutputString.append(L"1");
-				if (presence > 0) OutputString.append(ExpString);
+				else OutputString += L"1";
+				if (presence > 0) OutputString += ExpString;
 				repeat = true;
 			}
 
 			// caso con argomento composto
 			if (WhatFactor != 1 and !Prime(WhatFactor)) {
+
 				WhatFactorString = Cript(WhatFactor);
+
 				OutputString.erase(0, OutputString.find(L')'));
 				OutputString = start + WhatFactorString + OutputString;
 				WhatFactor = 1;
@@ -4472,13 +4458,13 @@ static divisor DivisorCalculator(wstring factor)
 	{
 		auto backup{ factor };
 		backup.erase(0, i + 2);
-		if (backup.at(backup.size() - 1) == L' ') backup.erase(backup.size() - 1);
+		if (Last(backup) == L' ') backup.erase(backup.size() - 1);
 		parts << backup;
 		factor.erase(i);
 	}
 
 	// eccezione
-	if (factor.at(factor.size() - 1) == L' ') factor.erase(factor.size() - 1);
+	if (Last(factor) == L' ') factor.erase(factor.size() - 1);
 	parts << factor;
 
 	// ricavo della scomposizione
@@ -4769,8 +4755,7 @@ static wstring PolynomialSyntax(wstring pol)
 		if (issign(pol.at(i)) and issign(pol.at(i - 1)))
 			ret L"manca un monomio";
 	if (!issign(pol.at(0))) pol = L'+' + pol;
-	if (issign(pol.at(pol.size() - 1)))
-		ret L"manca un monomio";
+	if (issign(Last(pol))) ret L"manca un monomio";
 
 	// controllo esponenti in forma di numero
 	for (int i = 0; i < pol.size() - 1; ++i)
@@ -4797,16 +4782,16 @@ static wstring PolynomialSyntax(wstring pol)
 		// controllo del denominatore
 		if (part.find(L'/') != wstring::npos) {
 			if (part.at(0) == L'/') ret L"manca un numeratore";
-			if (part.at(part.size() - 1) == L'/') ret L"manca un denominatore";
-			if (!isdigit(part.at(part.size() - 1))) ret L"denominatore non valido";
-			while (isdigit(part.at(part.size() - 1))) {
+			if (Last(part) == L'/') ret L"manca un denominatore";
+			if (!isdigit(Last(part))) ret L"denominatore non valido";
+			while (isdigit(Last(part))) {
 				if (part.empty()) break;
 				part.erase(part.size() - 1);
-				if (part.at(part.size() - 1) == L'/') {
+				if (Last(part) == L'/') {
 					part.erase(part.size() - 1);
 					break;
 				}
-				if (!isdigit(part.at(part.size() - 1))) ret L"denominatore non valido";
+				if (!isdigit(Last(part))) ret L"denominatore non valido";
 			}
 		}
 		if (part.empty()) continue;
@@ -4819,7 +4804,7 @@ static wstring PolynomialSyntax(wstring pol)
 		if (part.empty()) continue;
 
 		// controllo estremi
-		if (part.at(0) == L'^' or part.at(part.size() - 1) == L'^')
+		if (part.at(0) == L'^' or Last(part) == L'^')
 			ret L"manca la base rispetto al relativo esponente";
 
 		// controllo variabili ripetute
@@ -4853,7 +4838,7 @@ static wstring PolynomialSyntaxDirector(wstring pol)
 {
 	
 	// controllo asterischi
-	if (pol.at(0) == L'*' or pol.at(pol.size() - 1) == L'*')
+	if (pol.at(0) == L'*' or Last(pol) == L'*')
 		ret L"manca un termine";
 	for (int i = pol.size() - 2; i > 0; --i) if (pol.at(i) == L'*') {
 		if (pol.at(i - 1) == '(' or pol.at(i + 1) == ')')
@@ -4877,7 +4862,7 @@ static wstring PolynomialSyntaxDirector(wstring pol)
 	auto copy{ pol };
 	if (copy.size() >= 2) {
 		if (copy.at(0) == L'(') copy.erase(0, 1);
-		if (copy.at(copy.size() - 1) == L')') copy.erase(copy.size() - 1);
+		if (Last(copy) == L')') copy.erase(copy.size() - 1);
 	}
 	if (copy.find(L'(') == wstring::npos and copy.find(L')') == wstring::npos)
 		ret PolynomialSyntax(copy);
@@ -4980,7 +4965,7 @@ static wstring UpdateString(wstring& ToEvaluate)
 	// controllo parentesi
 	for (auto piece : pieces) {
 		if (piece.empty()) continue;
-		if (piece.at(0) == L'<' and piece.at(piece.size() - 1) == L'>') {
+		if (piece.at(0) == L'<' and Last(piece) == L'>') {
 			piece.erase(piece.size() - 1);
 			piece.erase(0, 1);
 		}
@@ -5048,8 +5033,7 @@ static wstring NumberCodeSyntax(wstring ToEvaluate)
 	if (ToEvaluate.at(0) == L'+') ret L"manca un monomio a inizio stringa";
 	if (ToEvaluate.at(0) == L'0') ret L"un monomio non può essere null";
 	if (ToEvaluate.at(0) == L')') ret L"le parentesi sono al contrario";
-	if (ToEvaluate.at(ToEvaluate.size() - 1) == L'+')
-		ret L"manca un monomio alla fine della stringa";
+	if (Last(ToEvaluate) == L'+') ret L"manca un monomio alla fine della stringa";
 
 	// controllo sulla non consecutività dei L'+'
 	wregex no_monomial_(L"\\+{2,}");
@@ -5180,10 +5164,8 @@ static wstring NumberCodeSyntax(wstring ToEvaluate)
 			FindIndex = i;
 			break;
 		}
-		if (stack.at(stack.size() - 1) == L')')
-			ret L"manca l'esponente di fianco a una parentesi";
-		if (stack.at(stack.size() - 1) == L'(')
-			ret L"le parentesi sono al contrario";
+		if (Last(stack) == L')') ret L"manca l'esponente di fianco a una parentesi";
+		if (Last(stack) == L'(') ret L"le parentesi sono al contrario";
 		if (stack.at(0) == L'(') {
 
 			// controllo sulla necessità delle parentesi
@@ -5537,7 +5519,7 @@ static polynomial<big> GetMonomialsDirector(wstring pol)
 	auto copy{ pol };
 	if (copy.size() >= 2) {
 		if (copy.at(0) == L'(') copy.erase(0, 1);
-		if (copy.at(copy.size() - 1) == L')') copy.erase(copy.size() - 1);
+		if (Last(copy) == L')') copy.erase(copy.size() - 1);
 	}
 	if (copy.find(L'(') == wstring::npos and copy.find(L')') == wstring::npos)
 		ret polynomial<big>({ PolynomialSum<big>(GetMonomials(copy)) });
@@ -7011,7 +6993,7 @@ static void PrintFraction
 	if (root == 0) {
 		num_ = numerator.str();
 
-		if (abs(NC) != 1 and !numerator.empty()) num_ = L'(' + num_ + L')';
+		if (abs(NC) != 1 and numerator > 1) num_ = L'(' + num_ + L')';
 
 		if (num_ == L"0") num_.clear();
 		if (abs(NC) != 1) num_ = to_wstring(NC) + num_;
@@ -7024,7 +7006,7 @@ static void PrintFraction
 	auto tempden{ denominator.str() };
 	if (tempden != L"1") den_ = tempden;
 
-	if (abs(DC) != 1 and !denominator.empty()) den_ = L'(' + den_ + L')';
+	if (abs(DC) != 1 and denominator > 1) den_ = L'(' + den_ + L')';
 
 	if (den_ == L"0") den_.clear();
 	if (abs(DC) != 1) den_ = to_wstring(DC) + den_;
@@ -7365,7 +7347,7 @@ static tensor<tensor<double>> InputMatrix()
 
 				// L'r' azzera il determinante
 			case L'r':
-				TheMatrix[TheMatrix.size() - 1] = TheMatrix[TheMatrix.size() - 2];
+				TheMatrix.last() = TheMatrix[TheMatrix.size() - 2];
 				MatrixAtIndex = to_wstring(
 					(int)TheMatrix[IndexAccesser.Y][IndexAccesser.X]
 				);
@@ -7686,20 +7668,19 @@ static tensor<tensor<double>> EigenVectors
 // programma per convertire un codice in un numero
 static void CodeToNumber(switchcase& argc)
 {
-
 	setlocale(LC_ALL, "");
 	SetConsoleOutputCP(CP_UTF8);
 	SetConsoleCP(CP_UTF8);
 	wcout.imbue(locale(""));
 
-	// scelta
+	// istruzioni
 	wstring to_evaluate, ToEvaluate, message;
 	bool ShowErrors{ true }, NecessaryBoundary{ true };
 	SetConsoleTextAttribute(hConsole, 14);
 	wcout << L"il PROGRAMMA traduce una stringa di codice\n\n";
 	SetConsoleTextAttribute(hConsole, 12);
 
-	wcout << L"il codice non deve avere errori o saranno segnalati\n";
+	wcout << L"il codice non deve avere errori o verranno segnalati\n";
 	wcout << L"il codice deve essere compreso tra <>\n";
 	wcout << L"se sono presenti piu' caratteri '<', '>',\n";
 	wcout << L"verranno considerati solo quelli che compaiono prima\n";
@@ -7720,6 +7701,10 @@ static void CodeToNumber(switchcase& argc)
 			wcout << L"inserire una stringa (f = fine input)\n";
 			wcout << L"per fermare il calcolo premere s\\S\n";
 			getline(wcin, ToEvaluate);
+			if (ToEvaluate == L"f") {
+				argc = NotAssigned;
+				ret;
+			}
 			argc = ConvertWStringToEnum(ToEvaluate);
 			ReassigneEnum(argc);
 			if (argc != NotAssigned) {
@@ -7753,12 +7738,6 @@ static void CodeToNumber(switchcase& argc)
 			}
 
 		} while (message.size() > 1);
-
-		// caso di fine input
-		if (ToEvaluate == L"f") {
-			argc = NotAssigned;
-			ret;
-		}
 
 		// eliminazione spazi
 		for (int space = ToEvaluate.size() - 1; space >= 0; --space)
@@ -7797,6 +7776,129 @@ static void CodeToNumber(switchcase& argc)
 		}
 		SetConsoleCursorInfo(hConsole, &cursor);
 	}
+}
+
+// programma per convertire un numero in un codice basato sull'espansione in serie
+tensor<tensor<wstring>> map(17);
+static wstring ExpandNumber(switchcase& argc, big Number, int Base, bool access)
+{
+	setlocale(LC_ALL, "");
+	SetConsoleOutputCP(CP_UTF8);
+	SetConsoleCP(CP_UTF8);
+	wcout.imbue(locale(""));
+
+	// istruzioni
+	bool code{ true };
+	wstring ToEvaluate, message;
+	if (access) {
+		SetConsoleTextAttribute(hConsole, 14);
+		wcout << L"il PROGRAMMA calcola la codifica in serie di un numero\n\n";
+		SetConsoleTextAttribute(hConsole, 12);
+		wcout << L"per codificare un numero inserire solo caratteri numerici\n";
+		wcout << L"il numero deve essere compreso tra 1 e 10^50 - 1\n";
+		wcout << L"per decodificare una stringa, aggiungere <>\n\n";
+		ResetAttribute();
+	}
+
+	while (true)
+	{
+		code = true;
+		if (access) do {
+
+			// input e controllo
+			wcout << L"inserire un numero o una stringa (f = fine input)\n";
+			getline(wcin, ToEvaluate);
+			if (ToEvaluate == L"f") {
+				argc = NotAssigned;
+				ret L"";
+			}
+			argc = ConvertWStringToEnum(ToEvaluate);
+			ReassigneEnum(argc);
+			if (argc != NotAssigned) {
+				system("cls");
+				SetConsoleTitle(ToEvaluate.c_str());
+				ret L"";
+			}
+			if (ToEvaluate == L".") {
+				argc = Random;
+				ret L"";
+			}
+
+			// modifiche
+			if (ToEvaluate.size() > 2)
+				if (ToEvaluate.at(0) == L'<' and Last(ToEvaluate) == L'>')
+				{
+					code = false;
+
+					ToEvaluate.erase(0, 1);
+					ToEvaluate.erase(ToEvaluate.size() - 1);
+					if (ToEvaluate.find(L'<') != wstring::npos and
+						ToEvaluate.find(L'>') != wstring::npos)
+					{
+						message = L"  ";
+						continue;
+					}
+
+					// convalidazione ...
+					message = L"  ";
+					continue;
+					// temporaneo
+				}
+			if (ToEvaluate.size() > 50 and code) {
+				message = L"  ";
+				continue;
+			}
+
+			if (code) Number = ToEvaluate;
+		} while (message.size() > 1);
+
+		for (int base = 2; base <= 16; ++base) {
+			if (!access and base != Base) continue;
+
+			wstring output;
+			big number = Number;
+
+			// calcolo logaritmo e coefficienti
+			tensor<int> coefficients;
+			for (int i = 0;; ++i) {
+				if (number < base) break;
+				big quotient = number / base;
+				coefficients << (number - quotient * base).Number();
+				number = quotient;
+			}
+			coefficients << number.Number();
+			map[base](max(map[base].size(), coefficients.size()), L"");
+			map[base][0] = L"0";
+
+			// calcolo esponenti
+			for (int i = coefficients.size() - 1; i >= 0; --i)
+				if (coefficients[i] > 0)
+				{
+				
+					wstring partial{ L"+" };
+					bool recursion{ coefficients[i] > 1 };
+					if (recursion) partial += to_wstring(coefficients[i]);
+					if (map[base][i].empty())
+						map[base][i] = ExpandNumber(argc, i, base, false);
+
+					if (!recursion) recursion =
+						map[base][i].find(L'+') != wstring::npos or
+						map[base][i].find(L'(') != wstring::npos;
+					if (recursion) partial += L'(' + map[base][i] + L')';
+					else partial += to_wstring(stoi(map[base][i]) + 1);
+
+					output += partial;
+				}
+			if (output.at(0) == L'+') output.erase(0, 1);
+			if (!access) ret output;
+
+			// output
+			wcout << L"espansione in base " << base << L": <" << output << L">\n";
+		}
+	}
+
+	argc = NotAssigned;
+	ret L"";
 }
 
 // programma per il calcolo
@@ -8731,9 +8833,8 @@ static void DecompFraction(switchcase& argc)
 			
 			// eliminazione cifre decimali nulle
 			if (I.find(L'.') != wstring::npos or I.find(L',') != wstring::npos)
-			while (I.at(I.size() - 1) == L'0') I.erase(I.size() - 1);
-			if (I.at(I.size() - 1) == L',' or I.at(I.size() - 1) == L'.')
-				I.erase(I.size() - 1);
+			while (Last(I) == L'0') I.erase(I.size() - 1);
+			if (Last(I) == L',' or Last(I) == L'.') I.erase(I.size() - 1);
 
 			// stampa
 			if (BOOLALPHA) ElabExponents(I);
@@ -8866,13 +8967,14 @@ static void DecompFraction(switchcase& argc)
 
 		// output polinomio di resto
 		if (!skip) for (auto a : Quotient) {
-			auto rest{ POLYNOMIAL<>({ FACTOR<>({a}) }) };
+			auto rest{ POLYNOMIAL<>({ FACTOR<>({ a }) }) };
 			if (a.coefficient == 0) continue;
 
 			// output normale
 			if (integer(a.coefficient / CORRECTION_RATIO)) {
 				rest[0][0].coefficient /= CORRECTION_RATIO;
 				auto pol{ rest.str() };
+				if (BOOLALPHA) ElabExponents(pol);
 				bool IsMinus{ false };
 
 				// correzione segno
@@ -8880,12 +8982,11 @@ static void DecompFraction(switchcase& argc)
 					pol.erase(0, 1);
 					IsMinus = true;
 				}
-				if (pol.size() >= 2)
-					if (pol.at(0) == '(' and pol.at(pol.size() - 1) == ')')
-					{
-						pol.erase(pol.size() - 1);
-						pol.erase(0, 1);
-					}
+				if (pol.size() >= 2) if (pol.at(0) == '(' and Last(pol) == ')')
+				{
+					pol.erase(pol.size() - 1);
+					pol.erase(0, 1);
+				}
 				if (pol.at(0) == L'-') {
 					pol.erase(0, 1);
 					IsMinus = true;
@@ -8930,7 +9031,7 @@ static void DecompFraction(switchcase& argc)
 				if (a.degree > 0) power += charVariable;
 				if (a.degree > 1) {
 					power += L'^' + to_wstring(a.degree);
-					ElabExponents(power);
+					if (BOOLALPHA) ElabExponents(power);
 				}
 				wcout << L' ' << power << L' ';
 			}
