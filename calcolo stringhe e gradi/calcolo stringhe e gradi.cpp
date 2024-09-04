@@ -42,11 +42,15 @@
 // funzioni macro
 #define _GetCursorPos() GetConsoleScreenBufferInfo(hConsole, &csbi)
 #define ResetAttribute() SetConsoleTextAttribute(hConsole, 15)
-#define integer(x) (_STD fabs(x - _STD round(x)) < 1e-9)
-#define issign(x) (x == L'+' or x == L'-')
-#define Last(x) x.at(x.size() - 1)
 #define V1converter(func, param) To1V(func(ToXV(param)))
 #define VXconverter(func, param) ToXV(func(To1V(param)))
+#define DECLARE_TIME_POINT(x) LARGE_INTEGER x; QueryPerformanceCounter(&(x))
+
+// funzioni macro importanti
+#define integer(x) (_STD fabs(x - _STD round(x)) < 1e-9)
+#define issign(x) (x == L'+' or x == L'-')
+#define Last(x) (x).at((x).size() - 1)
+#define _SQ(x) x * x
 
 #ifndef BUGS
 #pragma optimize("on", on);
@@ -97,7 +101,7 @@ CONSOLE_SCREEN_BUFFER_INFO csbi;
 
 // funzioni e variabili globali
 static wchar_t charVariable(L'x');
-ptrdiff_t GlobalMax(pow(10, 10));
+ptrdiff_t GlobalMax(0);
 const ptrdiff_t GLOBAL_CAP(1e10);
 bool BOOLALPHA(true);
 bool PRINTN(true);
@@ -112,11 +116,11 @@ atomic_bool RunMonitor(true);
 condition_variable cv, Cv, MonitorCV;
 mutex CoutMutex, mtx, MonitorMTX;
 COORD Min{ 25, 15 };
-COORD* AddrOfMinLenghts{ nullptr };
+LARGE_INTEGER ProgramFrequency;
 
 // strutture locali
 struct compost {
-	int factors;
+	ptrdiff_t factors;
 	int exp;
 };
 struct divisor {
@@ -373,17 +377,19 @@ public:
 	{
 		count = 0;
 	}
-	void erase(size_t pos)
+	tensor erase(size_t pos)
 	{
 		if (pos >= count) throw out_of_range("Index out of range");
 		count = pos;
+		ret *this;
 	}
-	void erase(size_t pos, size_t n)
+	tensor erase(size_t pos, size_t n)
 	{
 		if (pos >= count) throw out_of_range("Index out of range");
 		n = min(n, count - pos);
 		for (size_t i = pos; i < count - n; ++i) data[i] = move(data[i + n]);
 		count -= n;
+		ret *this;
 	}
 
 	// operatori di accesso agli elementi
@@ -395,7 +401,7 @@ public:
 	{
 		ret at(index);
 	}
-
+	
 	// operatori di modifica degli elementi e della dimensione
 	void push_back(const T& value)
 	{
@@ -464,12 +470,12 @@ public:
 		count = n;
 		ret *this;
 	}
-	constexpr tensor& operator<<(const T& value)
+	inline tensor& operator<<(const T& value)
 	{
 		push_back(value);
 		ret *this;
 	}
-	constexpr tensor& operator>>(const T& value)
+	inline tensor& operator>>(const T& value)
 	{
 		push_front(value);
 		ret *this;
@@ -483,7 +489,7 @@ public:
 			ret false;
 		ret true;
 	}
-	NO_DISCARD_CONST_EXPR bool operator!=(const tensor& other) const
+	_NODISCARD inline bool operator!=(const tensor& other) const
 	{
 		ret !(*this == other);
 	}
@@ -502,19 +508,19 @@ public:
 	}
 
 	// operatori di confronto tra tensori
-	NO_DISCARD_CONST_EXPR bool operator<(const tensor& other) const
+	_NODISCARD inline bool operator<(const tensor& other) const
 	{
 		ret count < other.count;
 	}
-	NO_DISCARD_CONST_EXPR bool operator<=(const tensor& other) const
+	_NODISCARD inline bool operator<=(const tensor& other) const
 	{
 		ret count <= other.count;
 	}
-	NO_DISCARD_CONST_EXPR bool operator>(const tensor& other) const
+	_NODISCARD inline bool operator>(const tensor& other) const
 	{
 		ret count > other.count;
 	}
-	NO_DISCARD_CONST_EXPR bool operator>=(const tensor& other) const
+	_NODISCARD inline bool operator>=(const tensor& other) const
 	{
 		ret count >= other.count;
 	}
@@ -584,15 +590,15 @@ public:
 	}
 
 	// operatori logici
-	NO_DISCARD_CONST_EXPR bool operator&&(const tensor& other) const
+	_NODISCARD inline bool operator&&(const tensor& other) const
 	{
 		ret !this->empty() and !other.empty();
 	}
-	NO_DISCARD_CONST_EXPR bool operator||(const tensor& other) const
+	_NODISCARD inline bool operator||(const tensor& other) const
 	{
 		ret !this->empty() or !other.empty();
 	}
-	NO_DISCARD_CONST_EXPR bool operator%(const tensor& other) const
+	_NODISCARD inline bool operator%(const tensor& other) const
 	{
 		ret this->size() xor other.size();
 	}
@@ -714,6 +720,14 @@ public:
 	{
 		ret iterator(data, count);
 	}
+	tensor(iterator first, iterator last) : data(nullptr), capacity(0), count(0)
+	{
+		size_t n = last - first;
+		if (n > count) resize(n);
+		count = n;
+
+		for (size_t i = 0; i < n; ++i, ++first) data[i] = *first;
+	}
 
 	// metodi con gli operatori
 	void erase(iterator it)
@@ -825,6 +839,56 @@ private: tensor<int> Integer;
 		}
 	}
 
+	big Multiply(const big& value) const
+	{
+		if ((value.Integer[0] == 0 and value.decimal == 0) or
+			(Integer[0] == 0 and decimal == 0)) ret 0;
+		big Val = value, This = *this;
+		Val.shift();
+		This.shift();
+		int decprecision = Val.Integer.size() - value.Integer.size()
+			+ This.Integer.size() - Integer.size();
+		This.sign = POS;
+		Val.sign = POS;
+
+		// moltiplicazione
+		tensor<big> add;
+		for (int a = 0; a < Val.Integer.size(); ++a) {
+
+			int factor{ Val.Integer.at(a) };
+			if (factor == 0) continue;
+			int carry{}, prod{};
+
+			auto _Number{ This.Integer };
+			for (int i = _Number.size() - 1; i >= 0; --i) {
+				prod = (_Number.at(i)) * factor + carry;
+				carry = prod / 10;
+				_Number.at(i) = prod % 10;
+			}
+			if (carry != 0) _Number >> carry;
+			for (int i = Val.Integer.size() - a - 2; i >= 0; --i) _Number << 0;
+			add << big(_Number);
+		}
+
+		// somma
+		This.Integer.clear();
+		for (auto big : add) This += big;
+
+		// cifre decimali
+		int dec{};
+		auto decdigits{ This.Integer };
+		while (decdigits.size() - decprecision < 0) decdigits >> 0;
+		This.Integer = decdigits;
+		if (decprecision > 0) This.Integer.erase(decdigits.size() - decprecision);
+		decdigits.erase(0, decdigits.size() - decprecision);
+		for (int i = 0; i < decdigits; ++i)
+			dec += decdigits[i] * pow(10, decdigits.size() - i - 1);
+		This.decimal = dec / pow(10, decprecision);
+
+		This.sign = sign xor value.sign;
+		ret This;
+	}
+
 public:
 
 	long double Number()
@@ -933,8 +997,7 @@ public:
 	// addizione
 	big operator+(const big& value) const
 	{
-		big Val = value;
-		big This = *this;
+		big Val = value, This = *this;
 		bool carry{ false };
 
 		// segni
@@ -984,8 +1047,7 @@ public:
 	// sottrazione
 	big operator-(const big& value) const
 	{
-		big Val = value;
-		big This = *this;
+		big Val = value, This = *this;
 		bool carry{ false }, neg{ false };
 
 		// segni
@@ -1040,54 +1102,30 @@ public:
 	}
 
 	// moltiplicazione
+	big operator<<(int shift) const
+	{
+		big result = *this;
+		for (int i = 0; i < shift; ++i) result.Integer << 0;
+		ret result;
+	}
 	big operator*(const big& value) const
 	{
-		if (*this == 0 or value == 0) ret 0;
-		big Val = value;
-		big This = *this;
-		Val.shift();
-		This.shift();
-		int decprecision = Val.Integer.size() - value.Integer.size()
-			+ This.Integer.size() - Integer.size();
-		This.sign = POS;
-		Val.sign = POS;
+		if (Integer.size() <= 2 or value.Integer.size() <= 2) ret Multiply(value);
+		int m = max(Integer.size(), value.Integer.size());
+		int m2 = _STD ceil((double)min(Integer.size(), value.Integer.size()) / 2);
 
-		// moltiplicazione
-		tensor<big> add;
-		for (int a = 0; a < Val.Integer.size(); ++a) {
+		// suddivisione
+		auto Int{ Integer }, valInt{ value.Integer };
+		big high1 = tensor<int>(Int.begin(), Int.begin() + m2);
+		big low1 = tensor<int>(Int.begin() + m2, Int.end());
+		big high2 = tensor<int>(valInt.begin(), valInt.begin() + m2);
+		big low2 = tensor<int>(valInt.begin() + m2, valInt.end());
 
-			int factor{ Val.Integer.at(a) };
-			if (factor == 0) continue;
-			int carry{}, prod{};
+		// ricorsione
+		big z1 = (low1 + high1) * (low2 + high2);
+		big z0 = low1 * low2, z2 = high1 * high2;
 
-			auto _Number{ This.Integer };
-			for (int i = _Number.size() - 1; i >= 0; --i) {
-				prod = (_Number.at(i)) * factor + carry;
-				carry = prod / 10;
-				_Number.at(i) = prod % 10;
-			}
-			if (carry != 0) _Number >> carry;
-			for (int i = Val.Integer.size() - a - 2; i >= 0; --i) _Number << 0;
-			add << big(_Number);
-		}
-
-		// somma
-		This.Integer.clear();
-		for (auto big : add) This += big;
-
-		// cifre decimali
-		int dec{};
-		auto decdigits{ This.Integer };
-		while (decdigits.size() - decprecision < 0) decdigits >> 0;
-		This.Integer = decdigits;
-		if (decprecision > 0) This.Integer.erase(decdigits.size() - decprecision);
-		decdigits.erase(0, decdigits.size() - decprecision);
-		for (int i = 0; i < decdigits; ++i)
-			dec += decdigits[i] * pow(10, decdigits.size() - i - 1);
-		This.decimal = dec / pow(10, decprecision);
-
-		This.sign = sign xor value.sign;
-		ret This;
+		ret (z2 << (2 * (m - m2))) + ((z1 - z2 - z0) << (m - m2)) + z0;
 	}
 	big& operator*=(const big& value)
 	{
@@ -1100,8 +1138,7 @@ public:
 	{
 		if (value == 0) throw invalid_argument("Division by zero!");
 
-		big This = *this;
-		big result, current;
+		big This = *this, result, current;
 		result.Integer.clear();
 		result.sign = This.sign != value.sign;
 
@@ -1139,15 +1176,13 @@ public:
 		if (value == 0) throw invalid_argument("Modulo by zero!");
 
 		// segni
-		big This = *this;
-		big Val = value;
+		big This = *this, Val = value;
 		This.sign = POS;
 		Val.sign = POS;
 
 		// calcolo
 		while (This >= Val) {
-			big temp = Val;
-			big factor = 1;
+			big temp = Val, factor = 1;
 
 			while (temp * 10 <= This) {
 				factor *= 10;
@@ -1167,9 +1202,7 @@ public:
 	// potenza
 	big operator^(const big& exp) const
 	{
-		big power = 1;
-		big NewExp = exp + 1;
-		big NewBase = *this;
+		big power = 1, NewExp = exp + 1, NewBase = *this;
 		if (*this < 0) NewBase.invert();
 		while (--NewExp > 0) {
 			power *= NewBase;
@@ -1679,6 +1712,7 @@ public:
 			if (IsAModifier) {
 				xout = L"(" + xout + L")^" + exp;
 				IsAModifier = false;
+				output += xout;
 				continue;
 			}
 
@@ -1697,7 +1731,10 @@ public:
 		// aggiunta del denominatore
 		if (!output.empty()) output = L'[' + output + L']';
 		else if (LCM != 1) output.clear();
-		else ret coeffstr;
+		else {
+			ElabExponents(coeffstr);
+			ret coeffstr;
+		}
 		if (LCM != 1 or coeffstr != L"1") {
 
 			// polinomio piccolo
@@ -1814,12 +1851,12 @@ class tensor_t
 {
 public:
 	tensor<bool> is_prime;
-	tensor<int> list_primes;
+	tensor<ptrdiff_t> list_primes;
 
 	tensor_t(){}	
 	tensor_t(
 		tensor<bool> is_prime_param, 
-		tensor<int> list_primes_param
+		tensor<ptrdiff_t> list_primes_param
 	): 
 		is_prime(move(is_prime_param)), 
 		list_primes(move(list_primes_param))
@@ -1842,26 +1879,27 @@ public:
 	}
 };
 tensor_t PrimeNumbers;
+wstring CalculatedData[1024];
 
 // altre classi
 class NumberData
 {
 public:
-	int number{};
+	ptrdiff_t number{};
 	wstring code;
 	int degree{};
 	wstring expression;
-	tensor<int> sequence;
+	tensor<ptrdiff_t> sequence;
 	divisor div;
 	digitRatio digit;
 
 	NumberData() = default;
 	NumberData(
-		int num,
+		ptrdiff_t num,
 		const wstring& c,
 		int deg,
 		const wstring& expr,
-		const tensor<int>& seq,
+		const tensor<ptrdiff_t>& seq,
 		const divisor& d,
 		const digitRatio& dr
 	) :
@@ -2052,7 +2090,7 @@ tensor<wstring> commands{
 
 static size_t Factorial(size_t n);
 static size_t BinomialCoeff(size_t n, size_t k);
-static int Gcd(int A, int B);
+static ptrdiff_t Gcd(ptrdiff_t A, ptrdiff_t B);
 template<typename T> static int Gcd(tensor<T> terms);
 static ptrdiff_t intpow(ptrdiff_t base, int exp);
 static wstring ConvertEnumToWString(switchcase Enum);
@@ -2210,8 +2248,10 @@ int main()
 	SetConsoleCP(CP_UTF8);
 	wcout.imbue(locale(""));
 	
-	Beep(1000, 50);
-	Beep(1000, 50);
+	// avvio
+	QueryPerformanceFrequency(&ProgramFrequency);
+	Beep(1'000, 50);
+	Beep(1'000, 50);
 
 	// dichiarazione stringhe
 	wstring simpledeg{ L"il PROGRAMMA calcola solo la codifica di un intero" };
@@ -2256,7 +2296,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"0.9.3 ";
+			wcout << L"0.9.4 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -2293,7 +2333,7 @@ int main()
 			if (G.empty()) global = 0;
 
 			// casi 0 e 1
-			else global = stoi(G);
+			else global = stoull(G);
 			if (global < 10'000'000) {
 				if (!start and global == 0) LockPrimeNumbersInput = true;
 				if (start) global = 10'000'000;
@@ -2301,18 +2341,21 @@ int main()
 			}
 			ResetAttribute();
 
-			// output del tempo
+			// output del tempo e calcolo primi
+			auto OldGlobalMax{ GlobalMax };
 			if (global != 0) {
-				steady_clock::time_point begin{ steady_clock::now() };
+				DECLARE_TIME_POINT(begin);
 				GlobalMax = global;
 #ifndef BUGS
 				SetConsoleCursorInfo(hConsole, &cursorInfo);
 #endif // BUGS
-				PrimeNCalculator(GlobalMax + 1'000);
+				PrimeNCalculator(GlobalMax + 1'000, OldGlobalMax);
 
-				steady_clock::time_point end{ steady_clock::now() };
-				ComputationTime = WaitingScreen(begin, end);
-				ResetAttribute();
+				DECLARE_TIME_POINT(end);
+				if (GlobalMax / (OldGlobalMax + 1) > 10)
+					ComputationTime = WaitingScreen(begin, end);
+				else WaitingScreen(begin, end);
+
 				SetConsoleCursorInfo(hConsole, &cursor);
 				start = false;
 			}
@@ -2419,7 +2462,6 @@ int main()
 			Beep(500, 200);
 			bool Threading{ false };
 			COORD MinLenght{ 50, 20 };
-			AddrOfMinLenghts = &MinLenght;
 
 			switch (option)
 			{
@@ -2522,12 +2564,12 @@ MB:
 	ErrorCode = 0;
 	ErrMessage = MessageBox(
 		NULL,
-		L"\t\tDEBUG ERROR\
-		\n\n sei sicuro di voler terminare il programma?\
-		\n\n [riprova] per tornare all'inizio del programma\
+		L"\t\t DEBUG ERROR\
+		\n\n   sei sicuro di voler terminare il programma?\
+		\n\n   [riprova] per tornare all'inizio del programma\
 		\n\n",
 		L"Microsoft Visual C++ Runtime Library",
-		MB_ABORTRETRYIGNORE
+		MB_ABORTRETRYIGNORE | MB_ICONWARNING
 	);
 
 	// se l'utente clicca su [riprova]
@@ -2574,7 +2616,7 @@ static size_t BinomialCoeff(size_t n, size_t k)
 }
 
 // massimo comune divisore tra due interi
-static int Gcd(int A, int B)
+static ptrdiff_t Gcd(ptrdiff_t  A, ptrdiff_t  B)
 {
 	if (A < B) swap(A, B);
 	while (B != 0) {
@@ -3023,7 +3065,7 @@ static void DrawGraphFrame(
 #pragma region Print
 
 // stampa poligono e cerchio al centro della finestra
-static void CS_CenterPrinter()
+inline static void CS_CenterPrinter()
 {
 
 	// assegnazione delle coordinate del centro
@@ -3040,7 +3082,7 @@ static void CS_CenterPrinter()
 }
 
 // stampa poligono e cerchio in un angolo della finestra
-static void CS_CornerPrinter()
+inline static void CS_CornerPrinter()
 {
 
 	// lettura coordinate
@@ -3072,7 +3114,7 @@ static void ProgressBar(double ratio, double barWidth)
 
 	// calcolo della percentuale
 	ratio *= 100.0;
-	wstringstream stream;
+	wostringstream stream;
 	stream << fixed << setprecision(1) << ratio;
 	wcout << L"]] " << stream.str() << L"%\r";
 }
@@ -3083,30 +3125,31 @@ static long double WaitingScreen(auto begin, auto end)
 	system("cls");
 
 	// calcolo dati
-	long double delta = duration_cast<microseconds> (end - begin).count();
-	long double ExceptDelta = duration_cast<nanoseconds> (end - begin).count();
-	wstringstream output;
+	long double delta = 1'000 *
+		static_cast<double>(end.QuadPart - begin.QuadPart)
+		/ (ProgramFrequency.QuadPart);
+	wostringstream output;
 	output << fixed << setprecision(1) << L"tempo di calcolo numeri primi = ";
 
 	// calcolo output
-	if (delta <= 10'000)
+	if (delta <= 10)
 	{
-		output << ExceptDelta / 1'000;
+		output << delta * 1'000;
 		output << L" microsecondi\n\n";
 	}
-	else if (delta <= 10'000'000)
+	else if (delta <= 10'000)
 	{
-		output << delta / 1'000;
+		output << delta;
 		output << L" millisecondi\n\n";
 	}
-	else if (delta <= 600'000'000)
+	else if (delta <= 600'000)
 	{
-		output << delta / 1'000'000;
+		output << delta / 1'000;
 		output << L" secondi\n\n";
 	}
 	else
 	{
-		output << delta / 60'000'000;
+		output << delta / 60'000;
 		output << L" minuti\n\n";
 	}
 	_GetCursorPos();
@@ -3120,7 +3163,8 @@ static long double WaitingScreen(auto begin, auto end)
 	wcout << output.str();
 	sleep_for(seconds(1));
 
-	ret ExceptDelta;
+	ResetAttribute();
+	ret delta * 1'000'000;
 }
 
 // crea una finestra con dei comandi per ridimensionare il grafico
@@ -3973,82 +4017,76 @@ static void PrimeNCalculator(ptrdiff_t max, ptrdiff_t min)
 	const int BARWIDTH{ csbi.dwSize.X - 11 };
 
 	// calcolo tensori
-	tensor<int> primes{ PrimeNumbers.list_primes };
+	tensor<ptrdiff_t> primes{ PrimeNumbers.list_primes };
 	tensor<bool> is_prime(max + 1, true);
 	if (PrimeNumbers.is_prime.empty()) PrimeNumbers.is_prime = is_prime;
 	else {
 		is_prime = PrimeNumbers.is_prime;
 		is_prime(max + 1);
 	}
-	int SPEED{ 50 };
+	int speed{ 50 }, iter{};
 	const double COEFF{ 0.3 };
 	const int SQUARE{ (int)sqrt(max) + 2 };
-	int iter{};
-	bool PrintProgressBar = min == 0;
-	if (PrintProgressBar) {
-		system("cls");
-		SetConsoleTextAttribute(hConsole, 4);
-		wstring warning{
-			L"ATTENIONE: il tempo rimanente non è accurato all'inizio"
-		};
-		if (BARWIDTH + 11 > warning.size()) wcout << warning;
-	}
 
-	auto begin{ steady_clock::now() };
+	// inizio
+	system("cls");
+	SetConsoleTextAttribute(hConsole, 4);
+	wstring warning{
+		L"ATTENIONE: il tempo rimanente non è accurato all'inizio"
+	};
+	if (BARWIDTH + 11 > warning.size()) wcout << warning;
+	DECLARE_TIME_POINT(begin);
 	ResetAttribute();
+
 	for (int p = 2; p < SQUARE; ++p) {
+		if (!is_prime[p]) continue;
 
 		// calcolo numeri primi
-		if (is_prime[p]) for (int i = min - min % p + p; i <= max; i += p)
+		for (ptrdiff_t i = min - min % p + p; i <= max; i += p)
 			if (i >= p * p) is_prime[i] = 0;
 
 		// stampa barra di avanzamento
-		if (iter % SPEED == 0 and PrintProgressBar) {
-			auto stop{ steady_clock::now() };
+		if (iter % speed == 0) {
+			DECLARE_TIME_POINT(stop);
 
 			// stampa della barra di avanzamento
 			long double progress{ (long double)p / SQUARE };
-			if (progress > 0.5) SPEED = 15;
 			if (progress > 1) progress = 1;
+			else if (progress > 0.5) speed = 15;
 			ProgressBar(progress, BARWIDTH);
 
 			// calcolo tempo rimanente
-			int time = duration_cast<milliseconds> (stop - begin).count();
+			int time = 1'000 * static_cast<double>(stop.QuadPart - begin.QuadPart)
+				/ (ProgramFrequency.QuadPart);
 			long double time_rem{ (time / progress) * (1 - progress) };
 			long double time_seconds{ (long double)time_rem / 1'000 };
 
 			// calcolo cifre decimali
-			wstringstream stream;
+			wostringstream stream;
 			stream << fixed << setprecision(1) << time_seconds;
 			wcout << L"\ntempo rimanente: " << stream.str() << L" [secondi]  ";
-			if (SPEED < 75) SPEED += 5;
+			if (speed < 75) speed += 5;
 		}
 		iter++;
 	}
 
 	// rimozione barra di avanzamento
-	if (PrintProgressBar) {
-		SetConsoleCursorPosition(hConsole, { 0, 0 });
-		wcout << wstring(BARWIDTH + 11, L'\\') << L"\n\n\r";
-		wcout << wstring(BARWIDTH + 11, L' ') << L"attendere\r";
-	}
-
+	SetConsoleCursorPosition(hConsole, { 0, 0 });
+	wcout << wstring(BARWIDTH + 11, L'\\') << L"\n\n\r";
+	wcout << wstring(BARWIDTH + 11, L' ') << L"attendere\r";
+	
 	// multithreading
-	if (PrintProgressBar) {
-		thread t1([&]() {
-			for (ptrdiff_t p = 2; p < max + 1; ++p) if (is_prime[p]) primes << p;
-			lock_guard<mutex> lock(mtx);
-			IsDone = true;
-			cv.notify_one();
-			}
-		);
-		thread t2(CS_CenterPrinter);
-		if (t1.joinable()) t1.join();
-		if (t2.joinable()) t2.join();
-	}
+	thread t1([&]() {
+		for (ptrdiff_t p = 2; p < max + 1; ++p) if (is_prime[p]) primes << p;
+		lock_guard<mutex> lock(mtx);
+		IsDone = true;
+		cv.notify_one();
+		}
+	);
+	thread t2(CS_CenterPrinter);
+	if (t1.joinable()) t1.join();
+	if (t2.joinable()) t2.join();
 
-	// push numeri primi
-	else for (ptrdiff_t p = 2; p < max + 1; ++p) if (is_prime[p]) primes << p;
 	PrimeNumbers = { is_prime, primes };
 }
 
@@ -4233,8 +4271,9 @@ static tensor<tensor<wstring>> FractPolynomial(wstring pol)
 	}
 
 	// rimozione elementi nulli
-	for (int i = 0; i < factors; ++i) for (int j = factors[i].size() - 1; j >= 0; --j)
-		if (factors[i][j].empty()) factors[i].erase(factors[i].begin() + j);
+	for (int i = 0; i < factors; ++i)
+		for (int j = factors[i].size() - 1; j >= 0; --j)
+			if (factors[i][j].empty()) factors[i].erase(factors[i].begin() + j);
 	for (int i = factors.size() - 1; i >= 0; --i)
 		if (factors[i].empty()) factors.erase(factors.begin() + i);
 
@@ -4250,13 +4289,16 @@ static tensor<tensor<wstring>> FractPolynomial(wstring pol)
 static wstring Cript(ptrdiff_t input)
 {
 
+	// calcolo già eseguito
+	if (input < 1024) if (!CalculatedData[input].empty()) ret CalculatedData[input];
+
+	// scomposizione
 	auto expfactors{ DecomposeNumber(input) };
 	while (expfactors.last().factors == 0) expfactors--;
-	wstring OutputString, ExpVerify, ExpString, PrimeExp_String;
-	int prime_exp, sizestring, presence;
-	ptrdiff_t WhatFactor;
+	wstring OutputString, ExpVerify, ExpString, PrimeExp_String, result;
+	ptrdiff_t WhatFactor, prime_exp;
+	int sizestring, presence;
 	bool repeat;
-	wstring result;
 
 	// itera sui fattori primi
 	for (
@@ -4274,7 +4316,7 @@ static wstring Cript(ptrdiff_t input)
 		wstring start{ L"(" };
 		wstring end{ L")" };
 
-		// se l'esponente ha una cifra ed è maggiore di 1,
+		// se l'esponente ha una cifra ed è maggiore di 1
 		if (expfactors[FactorIndexAccesser].exp != 1 and
 			expfactors[FactorIndexAccesser].exp < 11)
 		{
@@ -4282,10 +4324,9 @@ static wstring Cript(ptrdiff_t input)
 			presence = 1;
 		}
 
-		// se l'esponente ha due cifre,
+		// se l'esponente ha due cifre
 		else if (expfactors[FactorIndexAccesser].exp > 10) {
-			end += L".";
-			end += ExpVerify;
+			end += L"." + ExpVerify;
 			presence = 2;
 		}
 
@@ -4297,13 +4338,22 @@ static wstring Cript(ptrdiff_t input)
 			// caso con argomento primo
 			while (Prime(WhatFactor)) {
 
-				// riduzione dell'argomento
+				// ricerca binaria
 				ptrdiff_t position{ -1 };
-				for (int i = 1;; ++i)
-					if (PrimeNumbers.list_primes[i - 1] == WhatFactor) {
-						position = i;
+				ptrdiff_t index = PrimeNumbers.list_primes.size() / 2;
+				ptrdiff_t incr{ index };
+				while (true) {
+					incr /= 2;
+					if (incr == 0) incr = 1;
+					if (PrimeNumbers.list_primes[index] > WhatFactor)
+						index -= incr;
+					else if (PrimeNumbers.list_primes[index] < WhatFactor)
+						index += incr;
+					else {
+						position = index + 1;
 						break;
 					}
+				}
 
 				WhatFactor = position;
 				WhatFactorString = to_wstring(WhatFactor);
@@ -4317,8 +4367,10 @@ static wstring Cript(ptrdiff_t input)
 					OutputString.erase(OutputString.size() - 1);
 					break;
 				case 2:
-					ExpString = L'.' + OutputString.at(OutputString.size() - 2)
-						+ Last(OutputString);
+					ExpString =
+						L'.' +
+						wstring(1, OutputString.at(OutputString.size() - 2)) +
+						wstring(1, Last(OutputString));
 					OutputString.erase(OutputString.size() - 3);
 					break;
 				}
@@ -4327,7 +4379,7 @@ static wstring Cript(ptrdiff_t input)
 				if (repeat) {
 					PrimeExp_String = wstring(1, Last(OutputString));
 					OutputString.erase(OutputString.size() - 1);
-					prime_exp = stoi(PrimeExp_String) + 1;
+					prime_exp = stoull(PrimeExp_String) + 1;
 					PrimeExp_String = to_wstring(prime_exp);
 
 					if (prime_exp > 10) PrimeExp_String = L'.' + PrimeExp_String;
@@ -4380,6 +4432,7 @@ static wstring Cript(ptrdiff_t input)
 		}
 	}
 
+	if (input < 1024) CalculatedData[input] = result;
 	ret result;
 }
 
@@ -4399,17 +4452,15 @@ static wstring FactNumber(ptrdiff_t input)
 
 	// rimozione della fine
 	output.erase(output.size() - 3);
-
+	
 	ret output;
 }
 
 // calcola il valore aritmetico di un'espressione
 static int ExeStrings(wstring input)
 {
-	int output{};
-	int location{};
 	bool presence{ true };
-	int values[12];
+	int output{}, location{}, values[12];
 	for (int i = 0; i < input.size(); ++i) if (input.at(i) == L'.') input.erase(i, 1);
 	tensor<wstring> parts{ Fractioner(input) };
 
@@ -4478,11 +4529,11 @@ static divisor DivisorCalculator(wstring factor)
 				auto second{ parts[i] };
 				first.erase(j);
 				second.erase(0, j + 1);
-				value = stoi(first);
-				exp = stoi(second);
+				value = stoull(first);
+				exp = stoull(second);
 				ExpPresence = true;
 			}
-		if (!ExpPresence) value = stoi(parts[i]);
+		if (!ExpPresence) value = stoull(parts[i]);
 		values << value;
 		exponents << exp;
 	}
@@ -4585,7 +4636,7 @@ static tensor<int> DivisorCounter(int num)
 
 	// creazione dei tensori con i principali fattori
 	tensor<int> vec;
-	tensor<compost> expfact{ DecomposeNumber(num) };
+	auto expfact{ DecomposeNumber(num) };
 	while (expfact.last().factors == 0) expfact--;
 
 	tensor<tensor<int>> MainDiv;
@@ -4629,7 +4680,8 @@ static NumberData ExecuteDegree(ptrdiff_t input)
 	NumberData output;
 	output.number = input;
 	output.code = Cript(input);
-	int counter{}, copy = input;
+	ptrdiff_t copy = input;
+	int counter{};
 
 	// iterazione per ottenere grado e sequenza
 	do {
@@ -4659,7 +4711,7 @@ static NumberData ExecuteFactor(ptrdiff_t input)
 	NumberData output;
 	output.number = input;
 	output.expression = FactNumber(input);
-	divisor D{ DivisorCalculator(output.expression) };
+	auto D{ DivisorCalculator(output.expression) };
 	output.div = D;
 	ret output;
 }
@@ -4678,7 +4730,7 @@ static NumberData ExecuteSimpleDF(ptrdiff_t input)
 static NumberData ExecuteDigit(ptrdiff_t input)
 {
 	NumberData output;
-	digitRatio D{ DigitRationalizer(input) };
+	auto D{ DigitRationalizer(input) };
 	output.number = input;
 	output.digit = D;
 	ret output;
@@ -4687,8 +4739,8 @@ static NumberData ExecuteDigit(ptrdiff_t input)
 // calcola codice, grado, sequenza, fattorizzazione e divisori
 static NumberData ExecuteDegFactor(ptrdiff_t input)
 {
-	NumberData A{ ExecuteDegree(input) };
-	NumberData B{ ExecuteFactor(input) };
+	auto A{ ExecuteDegree(input) };
+	auto B{ ExecuteFactor(input) };
 	A.expression = B.expression;
 	A.div = B.div;
 	ret A;
@@ -4697,11 +4749,11 @@ static NumberData ExecuteDegFactor(ptrdiff_t input)
 // calcola codice, grado, sequenza e cifre
 static NumberData ExecuteDegDigit(ptrdiff_t input)
 {
-	NumberData B{ ExecuteDigit(input) };
+	auto B{ ExecuteDigit(input) };
 	if (B.digit.digitSumRatioNum == 0 and
 		B.digit.digitProductRatioNum == 0) ret B;
 
-	NumberData A{ ExecuteDegree(input) };
+	auto A{ ExecuteDegree(input) };
 	A.digit = B.digit;
 	ret A;
 }
@@ -4709,11 +4761,11 @@ static NumberData ExecuteDegDigit(ptrdiff_t input)
 // calcola fattorizzazione, divisori e cifre
 static NumberData ExecuteFactDigit(ptrdiff_t input)
 {
-	NumberData B{ ExecuteDigit(input) };
+	auto B{ ExecuteDigit(input) };
 	if (B.digit.digitSumRatioNum == 0 and
 		B.digit.digitProductRatioNum == 0) ret B;
 
-	NumberData A{ ExecuteFactor(input) };
+	auto A{ ExecuteFactor(input) };
 	A.digit = B.digit;
 	ret A;
 }
@@ -4721,12 +4773,12 @@ static NumberData ExecuteFactDigit(ptrdiff_t input)
 // calcola codice, grado, sequenza, fattorizzazione, divisori e cifre
 static NumberData ExecuteAll(ptrdiff_t input)
 {
-	NumberData C{ ExecuteDigit(input) };
+	auto C{ ExecuteDigit(input) };
 	if (C.digit.digitSumRatioNum == 0 and
 		C.digit.digitProductRatioNum == 0) ret C;
 
-	NumberData A{ ExecuteDegree(input) };
-	NumberData B{ ExecuteFactor(input) };
+	auto A{ ExecuteDegree(input) };
+	auto B{ ExecuteFactor(input) };
 	A.expression = B.expression;
 	A.div = B.div;
 	A.digit = C.digit;
@@ -6719,7 +6771,7 @@ static void Simplify(
 	}
 
 	// semplificazione coefficienti
-	int GCD{ Gcd(abs(ncoeff), abs(dcoeff)) };
+	int GCD = Gcd(abs(ncoeff), abs(dcoeff));
 	ncoeff /= GCD;
 	dcoeff /= GCD;
 	if (FindN >= 0) num[FindN][0].coefficient = 1;
@@ -6970,12 +7022,12 @@ static void PrintFraction
 	else denominator >> factor<>{ monomial<>{CORRECTION_RATIO, null} };
 
 	// calcolo GCD e segni
-	int gcd{ Gcd(NC, DC) };
+	int gcd = Gcd(NC, DC);
 	NC /= gcd;
 	DC /= gcd;
 	int Gcd{ 1 };
-	if (root == 0)
-		Gcd = ::Gcd(numerator[0][0].coefficient, denominator[0][0].coefficient);
+	if (root == 0) Gcd =
+		::Gcd((int)numerator[0][0].coefficient, (int)denominator[0][0].coefficient);
 	else Gcd = ::Gcd(Root, denominator[0][0].coefficient);
 	denominator[0][0].coefficient /= Gcd;
 	if (root != 0) Root /= Gcd;
@@ -7948,7 +8000,7 @@ static void Repeater(
 		else {
 			random_device rng;
 			mt19937 gen(rng());
-			uniform_int_distribution<> dis(2, GlobalMax);
+			uniform_int_distribution<size_t> dis(2, GlobalMax);
 			input = dis(gen);
 		}
 
@@ -8082,10 +8134,10 @@ static void Loop(
 #ifndef BUGS
 	SetConsoleCursorInfo(hConsole, &cursorInfo);
 #endif // BUGS
-	if (datalenght >= 1000) {
+	if (datalenght >= 1'000) {
 		int iter{};
 		atomic<long double> Progress{};
-		auto begin{ steady_clock::now() };
+		DECLARE_TIME_POINT(begin);
 		parallel_for(ptrdiff_t(LowerBound), UpperBound, 
 			[&](ptrdiff_t set) {
 
@@ -8095,19 +8147,22 @@ static void Loop(
 				if (iter % 200 == 0) {
 
 					// stampa della barra di avanzamento
-					auto stop{ steady_clock::now() };
+					DECLARE_TIME_POINT(stop);
 					SetConsoleTextAttribute(hConsole, 112);
 					Progress = (long double)data.size() / datalenght;
 					ProgressBar(Progress, Barwidth);
 
 					// calcolo del tempo rimanente
-					int time = duration_cast <milliseconds> (stop - begin).count();
+					
+					int time = 1'000 *
+						static_cast<double>(stop.QuadPart - begin.QuadPart)
+						/ (ProgramFrequency.QuadPart);
 					ResetAttribute();
 					long double time_rem{ (time / Progress) * (1 - Progress) };
-					long double time_seconds{ (long double)time_rem / 1000 };
+					long double time_seconds{ (long double)time_rem / 1'000 };
 
 					// calcolo cifre decimali
-					wstringstream stream;
+					wostringstream stream;
 					stream << fixed << setprecision(1) << time_seconds;
 					wcout << L"\ntempo rimanente: " << stream.str() << L" [secondi] ";
 				}
@@ -8135,22 +8190,24 @@ static void Loop(
 		// stampa risultati
 		SetConsoleCursorInfo(hConsole, &cursor);
 		data.printf();
-		auto end{ steady_clock::now() };
+		DECLARE_TIME_POINT(end);
 		wcout << L"\ntempo di calcolo = ";
-		wcout << duration_cast<milliseconds> (end - begin).count();
+		wcout << 1'000 * static_cast<double>(end.QuadPart - begin.QuadPart)
+			/ (ProgramFrequency.QuadPart);
 		wcout << L"[ms]\n\n";
 	}
 
 	// caso con intervallo di dimensioni minori
 	else {
 		SetConsoleCursorInfo(hConsole, &cursor);
-		auto begin{ steady_clock::now() };
+		DECLARE_TIME_POINT(begin);
 		for (ptrdiff_t set = LowerBound; set < UpperBound; ++set)
 			data << NumberData{ CPU(set) };
 		data.printf();
 		wcout << L"\ntempo di calcolo = ";
-		auto end{ steady_clock::now() };
-		wcout << duration_cast<milliseconds> (end - begin).count();
+		DECLARE_TIME_POINT(end);
+		wcout << 1'000 * static_cast<double>(end.QuadPart - begin.QuadPart)
+			/ (ProgramFrequency.QuadPart);
 		wcout << L"[ms]\n\n\n";
 	}
 
@@ -8161,9 +8218,7 @@ static void Loop(
 	Beep(650, 75);
 	Beep(550, 50);
 	wcout << L"premi un tasto per continuare\t\t";
-	do null = _getwch();
-	while ((null > 64 and null < 91) or null < 32);
-	argc = null == L'.' ? Random : NotAssigned;
+	argc = _getch() == L'.' ? Random : NotAssigned;
 	ret;
 }
 
@@ -8410,7 +8465,6 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			HT.clear();
 			for (auto a : Back_T) HT += Trinomial(a);
 			HT.close();
-			Polynomial = HT.str();
 			if (Back_T % HT and !Xout and input) {
 				SetConsoleTextAttribute(hConsole, 9);
 				wcout << L"trinomio speciale scomposto: ";
