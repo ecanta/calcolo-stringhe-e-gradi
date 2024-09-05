@@ -1271,6 +1271,10 @@ public:
 		if (!str.empty()) result << L'.' << str;
 		ret result;
 	}
+	wstring str() const
+	{
+		ret c_str(0).str();
+	}
 };
 big LCM(1);
 
@@ -1505,7 +1509,7 @@ public:
 				if constexpr (is_same_v<T_int, long double>)
 					Monomial += to_wstring((int)fabs(data.coefficient));
 				else if constexpr (is_same_v<T_int, big>)
-					Monomial += data.coefficient.fabs().c_str(0).str();
+					Monomial += data.coefficient.fabs().str();
 			}
 
 			// aggiunta variabili ed esponenti
@@ -1702,7 +1706,7 @@ public:
 				if constexpr (is_same_v<T_int, long double>)
 					exp = to_wstring((int)T[0].coefficient);
 				else if constexpr (is_same_v<T_int, big>)
-					exp = T[0].coefficient.c_str(0).str();
+					exp = T[0].coefficient.str();
 				IsAModifier = true;
 				continue;
 			}
@@ -1739,7 +1743,7 @@ public:
 
 			// polinomio piccolo
 			if constexpr (is_same_v<T_int, long double>) {
-				if (LCM != 1) output = L'/' + LCM.c_str(0).str() + L']' + output;
+				if (LCM != 1) output = L'/' + LCM.str() + L']' + output;
 				output = coeffstr + output;
 				if (LCM != 1) output = L'[' + output;
 			}
@@ -1747,7 +1751,7 @@ public:
 			// polinomio grande
 			else if constexpr (is_same_v<T_int, big>) {
 				if (!output.empty()) output += L'/';
-				output = output + L'[' + LCM.c_str(0).str() + L']';
+				output = output + L'[' + LCM.str() + L']';
 			}
 		}
 
@@ -2311,7 +2315,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"0.9.4 ";
+			wcout << L"0.9.5 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -3860,8 +3864,7 @@ static wstring GetUserNum
 		if (option != NotAssigned) ret ConvertEnumToWString(option);
 
 		// controllo
-		wregex CheckDigits(L"\\D");
-		if (regex_search(check, CheckDigits)) UserNum = 0;
+		if (regex_search(check, wregex(L"\\D"))) UserNum = 0;
 		else UserNum = stoull(check);
 
 		if (UserNum < low or UserNum > high) {
@@ -5101,8 +5104,7 @@ static wstring NumberCodeSyntax(wstring ToEvaluate)
 	if (ToEvaluate.empty()) ret L"la stringa è vuota";
 
 	// se la stringa contiene caratteri non ammessi
-	wregex unallowed_chars(L"[^\\d+()._]");
-	if (regex_search(ToEvaluate, unallowed_chars))
+	if (regex_search(ToEvaluate, wregex(L"[^\\d+()._]")))
 		ret L"sono presenti dei caratteri non ammessi";
 
 	// controllo sugli estremi
@@ -5112,21 +5114,16 @@ static wstring NumberCodeSyntax(wstring ToEvaluate)
 	if (Last(ToEvaluate) == L'+') ret L"manca un monomio alla fine della stringa";
 
 	// controllo sulla non consecutività dei L'+'
-	wregex no_monomial_(L"\\+{2,}");
-	if (regex_search(ToEvaluate, no_monomial_))
+	if (regex_search(ToEvaluate, wregex((L"\\+{2,}"))))
 		ret L"manca un monomio al centro della stringa";
 
 	// controlli sugli zeri
-	wregex cons_null_digits(L"0{2,}");
-	if (regex_search(ToEvaluate, cons_null_digits))
+	if (regex_search(ToEvaluate, wregex(L"0{2,}")))
 		ret L"le cifre null non possono essere consecutive";
-	wregex excep_no_digits(L"\\.");
-	wregex no_digits(L"[_\\d]\\.[_1-9][_\\d]");
-	if (regex_search(ToEvaluate, excep_no_digits))
-		if (!regex_search(ToEvaluate, no_digits))
+	if (regex_search(ToEvaluate, wregex(L"\\.")))
+		if (!regex_search(ToEvaluate, wregex(L"[_\\d]\\.[_1-9][_\\d]")))
 			ret L"esponente a due cifre impostato in modo errato";
-	wregex s_null_digits(L"[\\r\\D]0");
-	if (regex_search(ToEvaluate, s_null_digits))
+	if (regex_search(ToEvaluate, wregex(L"[\\r\\D]0")))
 		ret L"un monomio non può essere null";
 
 	mono = Fractioner(ToEvaluate);
@@ -7865,25 +7862,30 @@ static wstring ExpandNumber(switchcase& argc, big Number, int Base, bool access)
 
 	// istruzioni
 	bool code{ true };
-	wstring ToEvaluate, message;
+	wstring ToEvaluate;
 	if (access) {
 		SetConsoleTextAttribute(hConsole, 14);
 		wcout << L"il PROGRAMMA calcola la codifica in serie di un numero\n\n";
 		SetConsoleTextAttribute(hConsole, 12);
 		wcout << L"per codificare un numero inserire solo caratteri numerici\n";
 		wcout << L"il numero deve essere compreso tra 1 e 10^50 - 1\n";
-		wcout << L"per decodificare una stringa, aggiungere <>\n\n";
+		wcout << L"per decodificare una stringa, aggiungere <> e ricordarsi\n";
+		wcout << L"di aggiungere la base di decodifica rispettiva all'inizio\n\n";
 		ResetAttribute();
 	}
 
 	while (true)
 	{
 		code = true;
-		if (access) do {
+		if (access) {
+		input:
 
 			// input e controllo
 			wcout << L"inserire un numero o una stringa (f = fine input)\n";
 			getline(wcin, ToEvaluate);
+			for (int i = ToEvaluate.size() - 1; i >= 0; --i)
+				if (ToEvaluate.at(i) == L' ' or ToEvaluate.at(i) == L'\t')
+					ToEvaluate.erase(i, 1);
 			if (ToEvaluate == L"f") {
 				argc = NotAssigned;
 				ret L"";
@@ -7900,35 +7902,80 @@ static wstring ExpandNumber(switchcase& argc, big Number, int Base, bool access)
 				ret L"";
 			}
 
-			// modifiche
-			if (ToEvaluate.size() > 2)
-				if (ToEvaluate.at(0) == L'<' and Last(ToEvaluate) == L'>')
-				{
-					code = false;
+			// modifiche e validazione
+			if (ToEvaluate.size() > 2 and (
+					ToEvaluate.find(L'<') != wstring::npos and
+					ToEvaluate.find(L'>') != wstring::npos
+				))
+			{
+				code = false;
 
-					ToEvaluate.erase(0, 1);
-					ToEvaluate.erase(ToEvaluate.size() - 1);
-					if (ToEvaluate.find(L'<') != wstring::npos and
-						ToEvaluate.find(L'>') != wstring::npos)
-					{
-						message = L"  ";
-						continue;
-					}
-
-					// convalidazione ...
-					message = L"  ";
-					continue;
-					// temporaneo
+				// calcolo base
+				Base = 2;
+				if (Last(ToEvaluate) != L'>') goto input;
+				int pos = ToEvaluate.find(L'<');
+				switch (pos) {
+				case 1:
+					if (!isdigit(ToEvaluate.at(0))) goto input;
+					Base = ToEvaluate.at(0) - L'0';
+					break;
+				case 2:
+					if (!isdigit(ToEvaluate.at(0)) or
+						!isdigit(ToEvaluate.at(1))) goto input;
+					Base = (ToEvaluate.at(0) - L'0') * 10 +
+						ToEvaluate.at(1) - L'0';
+					break;
+				default: goto input;
 				}
-			if (ToEvaluate.size() > 50 and code) {
-				message = L"  ";
-				continue;
+				if (Base < 2 or Base > 16) goto input;
+
+				// estrazione stringa
+				ToEvaluate.erase(0, pos + 1);
+				ToEvaluate.erase(ToEvaluate.size() - 1);
+				if (ToEvaluate.find(L'<') != wstring::npos and
+					ToEvaluate.find(L'>') != wstring::npos) goto input;
+
+				// controllo caratteri non ammessi
+				if (regex_search(ToEvaluate, wregex(L"[^\\(\\)+\\d]")))
+					goto input;
+
+				// controllo sui segni
+				if (ToEvaluate.at(0) == L'+' or Last(ToEvaluate) == L'+')
+					goto input;
+				for (int i = 1; i < ToEvaluate.size(); ++i)
+					if (ToEvaluate.at(i - 1) == L'+' and ToEvaluate.at(i) == L'+')
+						goto input;
+
+				// controllo sulle parentesi
+				int Parenthesis{};
+				for (auto ch : ToEvaluate) {
+					switch (ch) {
+					case L'(': Parenthesis++;
+						break;
+					case L')': Parenthesis--;
+						break;
+					}
+					if (Parenthesis < 0 or Parenthesis > 5) goto input;
+				}
+				if (regex_search(ToEvaluate, wregex(L"\\)\\("))) goto input;
+				if (regex_search(ToEvaluate, wregex(L"\\(\\)"))) goto input;
+
+				// controllo lunghezza numeri
+				if (ToEvaluate.size() >= 2)
+					if (
+						isdigit(Last(ToEvaluate)) and
+						isdigit(ToEvaluate.at(ToEvaluate.size() - 2))
+						) goto input;
+				if (regex_search(ToEvaluate, wregex(L"\\d\\d[^\\(]")))
+					goto input;
 			}
+			if (ToEvaluate.size() > 50 and code) goto input;
 
 			if (code) Number = ToEvaluate;
-		} while (message.size() > 1);
+			if (Number == 0) goto input;
+		}
 
-		for (int base = 2; base <= 16; ++base) {
+		if (code) for (int base = 2; base <= 16; ++base) {
 			if (!access and base != Base) continue;
 
 			wstring output;
@@ -7971,6 +8018,102 @@ static wstring ExpandNumber(switchcase& argc, big Number, int Base, bool access)
 			// output
 			wcout << L"espansione in base " << base << L": <" << output << L">\n";
 		}
+		else {
+
+			// calcolo delle tetrazioni
+			tensor<big> tetration{ 0, 1, Base };
+			big last = Base;
+			while (true) {
+				if (last * log2(Base) >= 256) break;
+				last = big(Base) ^ last;
+				tetration << last;
+			}
+
+			// sostituzione cifre pure
+			for (int i = ToEvaluate.size() - 1; i >= 0; --i)
+				if (isdigit(ToEvaluate.at(i))) {
+
+					// controlli
+					if (i != ToEvaluate.size() - 1)
+						if (ToEvaluate.at(i + 1) == L'(') continue;
+					int dim = ToEvaluate.at(i) - L'0';
+					if (dim < 2) continue;
+					if (dim >= tetration) goto overflow;
+
+					// suddivisione e sostituzione
+					auto first{ ToEvaluate };
+					auto second{ ToEvaluate };
+					first.erase(i);
+					second.erase(0, i + 1);
+					ToEvaluate = first + tetration[dim].str() + second;
+				}
+
+			// iterazione principale
+			while (ToEvaluate.find(L'(') != wstring::npos)
+				for (int i = ToEvaluate.size() - 1; i >= 0; --i)
+					if (ToEvaluate.at(i) == L'(')
+					{
+
+						// estrazione
+						int j{ i };
+						for (; j < ToEvaluate.size(); ++j)
+							if (ToEvaluate.at(j) == L')') break;
+						auto part{ ToEvaluate };
+						part.erase(j);
+						part.erase(0, i + 1);
+
+						// somma
+						tensor<big> add;
+						for (int j = part.size() - 1; j >= 0; --j)
+							if (part.at(j) == L'+') {
+								auto NewPart{ part };
+								part.erase(j);
+								NewPart.erase(0, j + 1);
+								add << NewPart;
+							}
+						add << part;
+						big sum = 0;
+						for (auto num : add) sum += num;
+
+						// calcolo coefficiente
+						int coefficient{ 1 }, size{};
+						if (i > 0) if (isdigit(ToEvaluate.at(i - 1))) {
+							coefficient = ToEvaluate.at(i - 1) - L'0';
+							size = 1;
+						}
+						if (i > 1) if (isdigit(ToEvaluate.at(i - 2))) {
+							coefficient = coefficient * 10 + 
+							ToEvaluate.at(i - 1) - L'0';
+							size = 2;
+						}
+
+						// calcolo risultato parziale
+						if (coefficient >= Base) goto underflow;
+						if (sum * log2(Base) >= 256) goto overflow;
+						big result = (big(Base) ^ sum) * coefficient;
+
+						// ricomposizione
+						auto first{ ToEvaluate };
+						auto second{ ToEvaluate };
+						first.erase(i);
+						second.erase(0, j - size + 1);
+						ToEvaluate = first + result.str() + second;
+					}
+		}
+		continue;
+
+		// input troppo grande
+	overflow:
+		SetConsoleTextAttribute(hConsole, 4);
+		wcout << L"input out of range\n";
+		ResetAttribute();
+		continue;
+
+		// coefficienti troppo grandi
+	underflow:
+		SetConsoleTextAttribute(hConsole, 4);
+		wcout << L"coefficients out of range\n";
+		ResetAttribute();
 	}
 
 	argc = NotAssigned;
