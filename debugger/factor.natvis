@@ -4,7 +4,7 @@
 		<DisplayString Condition="count == 0">
 			VOID
 		</DisplayString>
-		<DisplayString Condition="count > 2147483647">
+		<DisplayString Condition="count > 140737488355327">
 			§§§§§§§§§§§§§§§§§§§§
 		</DisplayString>
 		<DisplayString Condition="data[0].exp[0] == -1">

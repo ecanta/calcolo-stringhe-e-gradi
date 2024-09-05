@@ -25,7 +25,7 @@
 #pragma message("COMPILAZIONE IN CORSO")
 
 // macro di definizione
-#define BUGS
+// #define BUGS
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #define _USE_MATH_DEFINES
@@ -2253,32 +2253,47 @@ int main()
 	Beep(1'000, 50);
 	Beep(1'000, 50);
 
-	// dichiarazione stringhe
+	// // dichiarazione stringhe
 	wstring simpledeg{ L"il PROGRAMMA calcola solo la codifica di un intero" };
+
 	wstring simplefact{ L"il PROGRAMMA calcola solo la fattorizzazione di un intero" };
+
 	wstring def_sct{ L"il PROGRAMMA calcola solo codifica e fattorizzazione" };
+
 	wstring desimpledeg{ L"il PROGRAMMA calcola solo la codifica di una serie" };
+
 	wstring desimplefact{ L"il PROGRAMMA calcola solo la fattorizzazione di una serie" };
+
 	wstring defact_message{ L"il PROGRAMMA calcola la fattorizzazione di una serie" };
 	defact_message += L"\ne numero, somma e prodotto dei divisori";
+
 	wstring deg_message{ L"il PROGRAMMA calcola codice, sequenza e grado di una serie" };
+
 	wstring fact_message{ L"il PROGRAMMA calcola la fattorizzazione di un intero" };
 	fact_message += L"\ne numero, somma e prodotto dei divisori";
+
 	wstring message{ L"il PROGRAMMA calcola codice, sequenza e grado di un intero" };
+
 	wstring AllMessage{ L"il PROGRAMMA calcola \"tutti\" i dati di alcuni interi" };
+
 	wstring de_digit{ L"il PROGRAMMA ricerca numeri con particolari" };
 	de_digit += L" occorrenze di somma e prodotto cifre";
+
 	wstring deg_digit{ L"il PROGRAMMA calcola cifre, codice, sequenza e grado" };
+
 	wstring fact_digit{ L"il PROGRAMMA calcola cifre, fattorizzazione, e divisori" };
+
 	wstring defact_digit{ L"il PROGRAMMA calcola tutti i dati, cifre comprese" };
-	wstring vel, text;
+
+	wstring vel;
 	switchcase option;
+	// //
 
 	bool start{ true };
 	bool LockPrimeNumbersInput{ false };
 	ptrdiff_t global{ 1 };
 	long double ComputationTime;
-	size_t Timer{ 2'400'000'000 };
+	size_t Timer{ 3'000'000'000 };
 	while (true)
 	{
 		if (!LockPrimeNumbersInput) {
@@ -2322,10 +2337,10 @@ int main()
 			wstring Timer_t{ to_wstring(Timer) };
 			for (int i = Timer_t.size() - 3; i > 0; i -= 3)
 				Timer_t.insert(Timer_t.begin() + i, L'.');
+			wcout << L"ESEMPIO: " << Timer_t << L" = ~1 minuto di attesa\n";
 
 			// input controllato
-			text = L"ESEMPIO: " + Timer_t + L" = ~1 minuto di attesa\n";
-			wstring G{ GetUserNum(text, 0, GLOBAL_CAP, false) };
+			wstring G{ GetUserNum(L"", 0, GLOBAL_CAP, false) };
 			if (G == L".") {
 				ErrorCode = 3;
 				goto End;
@@ -2359,7 +2374,9 @@ int main()
 				SetConsoleCursorInfo(hConsole, &cursor);
 				start = false;
 			}
-			if (GlobalMax > 9'000 and global > 1) {
+			if (GlobalMax > 9'000 and global > 1 and
+				GlobalMax / (OldGlobalMax + 1) > 10)
+			{
 				ComputationTime /= 1'000'000;
 				Timer = (GlobalMax + 1'000) * 60'000 / ComputationTime;
 			}
@@ -2382,7 +2399,7 @@ int main()
 		wcout << L"altrimenti:\n";
 		wcout << L"\t\"rnd\" = casuale\n";
 		wcout << L"\t\"ctn\" = da codice a numero\n";
-		wcout << L"\t\"cod\" = da numero a espansione in serie e viceversa";
+		wcout << L"\t\"cod\" = da numero a espansione in serie e viceversa\n";
 		wcout << L"\t\"pol\" = scomposizione polinomi\n";
 		wcout << L"\t\"alg\" = scomposizione frazioni algebriche\n";
 		wcout << L"\t\"mtx\" = scomposizione matrici\n";
@@ -2791,7 +2808,7 @@ const tensor<int> spectrum{ 9, 9, 9, 11, 11, 3, 3, 12, 4 };
 static void ClearArea(COORD WinCenter, COORD Dimensions)
 {
 	_GetCursorPos();
-	DWORD consoleSize = intpow(2 * Dimensions.X + 1, 2);
+	DWORD consoleSize = _SQ(2 * Dimensions.X + 1);
 	DWORD written;
 	COORD coord;
 
@@ -3833,8 +3850,10 @@ static wstring GetUserNum
 		bool error{ true };
 		bool retFalse{ false };
 		wcout << txt;
-		check = GetLine(ShowSuggestions, 10);
+		check = GetLine(ShowSuggestions, 14);
 		wcout << L'\n';
+		for (int i = check.size() - 1; i >= 0; --i) if (check.at(i) == L'\'')
+			check.erase(i, 1);
 		if (check == L"." or check.empty()) ret check;
 		option = ConvertWStringToEnum(check);
 		ReassigneEnum(option);
@@ -3845,7 +3864,20 @@ static wstring GetUserNum
 		if (regex_search(check, CheckDigits)) UserNum = 0;
 		else UserNum = stoull(check);
 
-		if (UserNum < low or UserNum > high) wcout << L'\a';
+		if (UserNum < low or UserNum > high) {
+			wcout << L'\a';
+			if (txt.empty()) {
+				_GetCursorPos();
+				SetConsoleCursorPosition(
+					hConsole,
+					{
+						csbi.dwCursorPosition.X,
+						(short)(csbi.dwCursorPosition.Y - 1)
+					}
+				);
+				wcout << wstring(14, L' ') << L'\r';
+			}
+		}
 	} while (UserNum < low or UserNum > high);
 	ret to_wstring(UserNum);
 }
@@ -4014,16 +4046,9 @@ static bool Prime(ptrdiff_t number)
 static void PrimeNCalculator(ptrdiff_t max, ptrdiff_t min)
 {
 	_GetCursorPos();
-	const int BARWIDTH{ csbi.dwSize.X - 11 };
+	PrimeNumbers.is_prime(max + 1, true);
 
-	// calcolo tensori
-	tensor<ptrdiff_t> primes{ PrimeNumbers.list_primes };
-	tensor<bool> is_prime(max + 1, true);
-	if (PrimeNumbers.is_prime.empty()) PrimeNumbers.is_prime = is_prime;
-	else {
-		is_prime = PrimeNumbers.is_prime;
-		is_prime(max + 1);
-	}
+	const int BARWIDTH{ csbi.dwSize.X - 11 };
 	int speed{ 50 }, iter{};
 	const double COEFF{ 0.3 };
 	const int SQUARE{ (int)sqrt(max) + 2 };
@@ -4038,12 +4063,12 @@ static void PrimeNCalculator(ptrdiff_t max, ptrdiff_t min)
 	DECLARE_TIME_POINT(begin);
 	ResetAttribute();
 
-	for (int p = 2; p < SQUARE; ++p) {
-		if (!is_prime[p]) continue;
+	for (ptrdiff_t p = 2; p < SQUARE; ++p) {
+		if (!PrimeNumbers.is_prime[p]) continue;
 
 		// calcolo numeri primi
 		for (ptrdiff_t i = min - min % p + p; i <= max; i += p)
-			if (i >= p * p) is_prime[i] = 0;
+			if (i >= p * p) PrimeNumbers.is_prime[i] = false;
 
 		// stampa barra di avanzamento
 		if (iter % speed == 0) {
@@ -4077,7 +4102,8 @@ static void PrimeNCalculator(ptrdiff_t max, ptrdiff_t min)
 	
 	// multithreading
 	thread t1([&]() {
-		for (ptrdiff_t p = 2; p < max + 1; ++p) if (is_prime[p]) primes << p;
+		for (ptrdiff_t p = min == 0 ? 2 : min + 1001; p < max + 1; ++p)
+			if (PrimeNumbers.is_prime[p]) PrimeNumbers.list_primes << p;
 		lock_guard<mutex> lock(mtx);
 		IsDone = true;
 		cv.notify_one();
@@ -4086,8 +4112,6 @@ static void PrimeNCalculator(ptrdiff_t max, ptrdiff_t min)
 	thread t2(CS_CenterPrinter);
 	if (t1.joinable()) t1.join();
 	if (t2.joinable()) t2.join();
-
-	PrimeNumbers = { is_prime, primes };
 }
 
 // scompone un numero nei suoi fattori sottoforma di struttura
@@ -4097,7 +4121,7 @@ static tensor<compost> DecomposeNumber(ptrdiff_t input)
 	// scomposizione
 	int index{};
 	tensor<compost> output(12, compost{ 0, 1 });
-	for (int i = 0; intpow(PrimeNumbers.list_primes[i], 2) <= input; ++i)
+	for (int i = 0; _SQ(PrimeNumbers.list_primes[i]) <= input; ++i)
 		if (input != 1) if (input % PrimeNumbers.list_primes[i] == 0)
 		{
 			// se un fattore è gia presente, incrementa l'esponente
