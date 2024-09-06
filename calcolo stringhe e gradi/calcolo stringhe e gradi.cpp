@@ -2224,8 +2224,12 @@ static tensor<double> EigenValues(tensor<tensor<double>> mx);
 static tensor<tensor<double>> EigenVectors
 (tensor<tensor<double>> mx, tensor<double> EigenV = {});
 static void CodeToNumber(switchcase& argc);
-static wstring ExpandNumber
-(switchcase& argc, big Number = big(), int Base = 0, bool access = true);
+static wstring ExpandNumber(
+	switchcase& argc,
+	big Number = big(),
+	int Base = 0,
+	bool access = true
+);
 static void Repeater(
 	switchcase& argc,
 	wstring message,
@@ -2315,7 +2319,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"0.9.5 ";
+			wcout << L"0.9.6 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -7853,7 +7857,12 @@ static void CodeToNumber(switchcase& argc)
 
 // programma per convertire un numero in un codice basato sull'espansione in serie
 tensor<tensor<wstring>> map(17);
-static wstring ExpandNumber(switchcase& argc, big Number, int Base, bool access)
+static wstring ExpandNumber(
+	switchcase& argc,
+	big Number,		/*  attivato se bisogna codificare ricorsivamente un numero  */
+	int Base,		/*  base della codifica                                      */
+	bool access		/*  stabilisce se è possibile accedere a determinate parti   */
+)
 {
 	setlocale(LC_ALL, "");
 	SetConsoleOutputCP(CP_UTF8);
@@ -7863,29 +7872,38 @@ static wstring ExpandNumber(switchcase& argc, big Number, int Base, bool access)
 	// istruzioni
 	bool code{ true };
 	wstring ToEvaluate;
-	if (access) {
+	bool RetAccess{ false };
+	if (access)
+	{
 		SetConsoleTextAttribute(hConsole, 14);
 		wcout << L"il PROGRAMMA calcola la codifica in serie di un numero\n\n";
 		SetConsoleTextAttribute(hConsole, 12);
 		wcout << L"per codificare un numero inserire solo caratteri numerici\n";
 		wcout << L"il numero deve essere compreso tra 1 e 10^50 - 1\n";
 		wcout << L"per decodificare una stringa, aggiungere <> e ricordarsi\n";
-		wcout << L"di aggiungere la base di decodifica rispettiva all'inizio\n\n";
+		wcout << L"di aggiungere la base di decodifica rispettiva all'inizio\n";
+		wcout << L"se non si aggiunge la base, la decodifica verrà effettuata per\n";
+		wcout << L"tutte le basi da 2 a 16\n";
 		ResetAttribute();
 	}
 
 	while (true)
 	{
-		code = true;
-		if (access) {
+		if (!RetAccess) code = true;
+		if (access)
+		{
 		input:
 
-			// input e controllo
-			wcout << L"inserire un numero o una stringa (f = fine input)\n";
+			// input
+			SetConsoleTextAttribute(hConsole, 11);
+			wcout << L"\ninserire un numero o una stringa (f = fine input)\n";
+			ResetAttribute();
 			getline(wcin, ToEvaluate);
 			for (int i = ToEvaluate.size() - 1; i >= 0; --i)
 				if (ToEvaluate.at(i) == L' ' or ToEvaluate.at(i) == L'\t')
 					ToEvaluate.erase(i, 1);
+
+			// casi particolari
 			if (ToEvaluate == L"f") {
 				argc = NotAssigned;
 				ret L"";
@@ -7903,6 +7921,7 @@ static wstring ExpandNumber(switchcase& argc, big Number, int Base, bool access)
 			}
 
 			// modifiche e validazione
+			if (regex_search(ToEvaluate, wregex(L"<>"))) goto input;
 			if (ToEvaluate.size() > 2 and (
 					ToEvaluate.find(L'<') != wstring::npos and
 					ToEvaluate.find(L'>') != wstring::npos
@@ -7915,6 +7934,8 @@ static wstring ExpandNumber(switchcase& argc, big Number, int Base, bool access)
 				if (Last(ToEvaluate) != L'>') goto input;
 				int pos = ToEvaluate.find(L'<');
 				switch (pos) {
+				case 0: Base = -1;
+					break;
 				case 1:
 					if (!isdigit(ToEvaluate.at(0))) goto input;
 					Base = ToEvaluate.at(0) - L'0';
@@ -7927,7 +7948,7 @@ static wstring ExpandNumber(switchcase& argc, big Number, int Base, bool access)
 					break;
 				default: goto input;
 				}
-				if (Base < 2 or Base > 16) goto input;
+				if ((Base < 2 or Base > 16) and Base >= 0) goto input;
 
 				// estrazione stringa
 				ToEvaluate.erase(0, pos + 1);
@@ -7957,9 +7978,16 @@ static wstring ExpandNumber(switchcase& argc, big Number, int Base, bool access)
 					}
 					if (Parenthesis < 0 or Parenthesis > 5) goto input;
 				}
+
+				// controllo riguardante segni e parentesi
 				if (regex_search(ToEvaluate, wregex(L"\\)\\("))) goto input;
 				if (regex_search(ToEvaluate, wregex(L"\\(\\)"))) goto input;
-
+				for (int i = 1; i < ToEvaluate.size() - 1; ++i)
+					if (ToEvaluate.at(i) == L'+' and (
+						ToEvaluate.at(i - 1) == L'(' or
+						ToEvaluate.at(i + 1) == L')')
+						) goto input;
+					
 				// controllo lunghezza numeri
 				if (ToEvaluate.size() >= 2)
 					if (
@@ -7971,10 +7999,29 @@ static wstring ExpandNumber(switchcase& argc, big Number, int Base, bool access)
 			}
 			if (ToEvaluate.size() > 50 and code) goto input;
 
-			if (code) Number = ToEvaluate;
+			// calcolo numero e controllo aggiuntivo
+			if (code) {
+				if (regex_search(ToEvaluate, wregex(L"\\D"))) goto input;
+				Number = ToEvaluate;
+			}
 			if (Number == 0) goto input;
+
+			// setup della decodifica di debug
+			if (!code and Base == -1) {
+				access = false;
+				RetAccess = true;
+				Base = 1;
+			}
+		}
+		if (RetAccess) Base++;
+		if (Base == 17) {
+			access = true;
+			RetAccess = false;
+			Base = 2;
+			continue;
 		}
 
+		// codifica
 		if (code) for (int base = 2; base <= 16; ++base) {
 			if (!access and base != Base) continue;
 
@@ -8016,9 +8063,15 @@ static wstring ExpandNumber(switchcase& argc, big Number, int Base, bool access)
 			if (!access) ret output;
 
 			// output
-			wcout << L"espansione in base " << base << L": <" << output << L">\n";
+			SetConsoleTextAttribute(hConsole, 6);
+			wcout << L"espansione in base " << base << L": ";
+			ResetAttribute();
+			wcout << L'<' << output << L">\n";
 		}
+
+		// decodifica
 		else {
+			auto toevaluate{ ToEvaluate };
 
 			// calcolo delle tetrazioni
 			tensor<big> tetration{ 0, 1, Base };
@@ -8030,35 +8083,35 @@ static wstring ExpandNumber(switchcase& argc, big Number, int Base, bool access)
 			}
 
 			// sostituzione cifre pure
-			for (int i = ToEvaluate.size() - 1; i >= 0; --i)
-				if (isdigit(ToEvaluate.at(i))) {
+			for (int i = toevaluate.size() - 1; i >= 0; --i)
+				if (isdigit(toevaluate.at(i))) {
 
 					// controlli
-					if (i != ToEvaluate.size() - 1)
-						if (ToEvaluate.at(i + 1) == L'(') continue;
-					int dim = ToEvaluate.at(i) - L'0';
+					if (i != toevaluate.size() - 1)
+						if (toevaluate.at(i + 1) == L'(') continue;
+					int dim = toevaluate.at(i) - L'0';
 					if (dim < 2) continue;
 					if (dim >= tetration) goto overflow;
 
 					// suddivisione e sostituzione
-					auto first{ ToEvaluate };
-					auto second{ ToEvaluate };
+					auto first{ toevaluate };
+					auto second{ toevaluate };
 					first.erase(i);
 					second.erase(0, i + 1);
-					ToEvaluate = first + tetration[dim].str() + second;
+					toevaluate = first + tetration[dim].str() + second;
 				}
 
 			// iterazione principale
-			while (ToEvaluate.find(L'(') != wstring::npos)
-				for (int i = ToEvaluate.size() - 1; i >= 0; --i)
-					if (ToEvaluate.at(i) == L'(')
+			while (toevaluate.find(L'(') != wstring::npos)
+				for (int i = toevaluate.size() - 1; i >= 0; --i)
+					if (toevaluate.at(i) == L'(')
 					{
 
 						// estrazione
-						int j{ i };
-						for (; j < ToEvaluate.size(); ++j)
-							if (ToEvaluate.at(j) == L')') break;
-						auto part{ ToEvaluate };
+						int j{ i }; 
+						for (; j < toevaluate.size(); ++j)
+							if (toevaluate.at(j) == L')') break;
+						auto part{ toevaluate };
 						part.erase(j);
 						part.erase(0, i + 1);
 
@@ -8077,43 +8130,61 @@ static wstring ExpandNumber(switchcase& argc, big Number, int Base, bool access)
 
 						// calcolo coefficiente
 						int coefficient{ 1 }, size{};
-						if (i > 0) if (isdigit(ToEvaluate.at(i - 1))) {
-							coefficient = ToEvaluate.at(i - 1) - L'0';
+						if (i > 0) if (isdigit(toevaluate.at(i - 1))) {
+							coefficient = toevaluate.at(i - 1) - L'0';
 							size = 1;
 						}
-						if (i > 1) if (isdigit(ToEvaluate.at(i - 2))) {
+						if (i > 1) if (
+							isdigit(toevaluate.at(i - 1)) and
+							isdigit(toevaluate.at(i - 2))
+							)
+						{
 							coefficient = coefficient * 10 + 
-							ToEvaluate.at(i - 1) - L'0';
+								toevaluate.at(i - 1) - L'0';
 							size = 2;
 						}
 
 						// calcolo risultato parziale
-						if (coefficient >= Base) goto underflow;
 						if (sum * log2(Base) >= 256) goto overflow;
 						big result = (big(Base) ^ sum) * coefficient;
 
 						// ricomposizione
-						auto first{ ToEvaluate };
-						auto second{ ToEvaluate };
-						first.erase(i);
-						second.erase(0, j - size + 1);
-						ToEvaluate = first + result.str() + second;
+						auto first{ toevaluate };
+						auto second{ toevaluate };
+						first.erase(i - size);
+						second.erase(0, j + 1);
+						toevaluate = first + result.str() + second;
 					}
+
+			// ultima somma
+			tensor<big> add;
+			for (int j = toevaluate.size() - 1; j >= 0; --j)
+				if (toevaluate.at(j) == L'+') {
+					auto part{ toevaluate };
+					toevaluate.erase(j);
+					part.erase(0, j + 1);
+					add << part;
+				}
+			add << toevaluate;
+			big LastSum = 0;
+			for (auto num : add) LastSum += num;
+
+			// output finale
+			SetConsoleTextAttribute(hConsole, 2);
+			wcout << L"base: " << Base << L", la decodifica è: ";
+			wcout << LastSum.str() << L'\n';
+			ResetAttribute();
 		}
 		continue;
 
 		// input troppo grande
 	overflow:
-		SetConsoleTextAttribute(hConsole, 4);
-		wcout << L"input out of range\n";
-		ResetAttribute();
+		if (!RetAccess) {
+			SetConsoleTextAttribute(hConsole, 4);
+			wcout << L"input out of range\n";
+			ResetAttribute();
+		}
 		continue;
-
-		// coefficienti troppo grandi
-	underflow:
-		SetConsoleTextAttribute(hConsole, 4);
-		wcout << L"coefficients out of range\n";
-		ResetAttribute();
 	}
 
 	argc = NotAssigned;
