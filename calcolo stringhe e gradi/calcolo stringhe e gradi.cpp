@@ -53,7 +53,7 @@
 #define _SQ(x) x * x
 
 #ifndef BUGS
-#pragma optimize("on", on);
+#pragma optimize("on", on)
 #endif // BUGS
 
 // file header
