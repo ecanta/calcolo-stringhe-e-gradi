@@ -25,7 +25,7 @@
 #pragma message("COMPILAZIONE IN CORSO")
 
 // macro di definizione
-// #define BUGS
+#define BUGS
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #define _USE_MATH_DEFINES
@@ -1739,13 +1739,13 @@ public:
 			ElabExponents(coeffstr);
 			ret coeffstr;
 		}
-		if (LCM != 1 or coeffstr != L"1") {
+		if (LCM.fabs() != 1 or coeffstr != L"1") {
 
 			// polinomio piccolo
 			if constexpr (is_same_v<T_int, long double>) {
-				if (LCM != 1) output = L'/' + LCM.str() + L']' + output;
+				if (LCM.fabs() != 1) output = L'/' + LCM.str() + L']' + output;
 				output = coeffstr + output;
-				if (LCM != 1) output = L'[' + output;
+				if (LCM.fabs() != 1) output = L'[' + output;
 			}
 
 			// polinomio grande
@@ -1754,9 +1754,10 @@ public:
 				output = output + L'[' + LCM.str() + L']';
 			}
 		}
+		if (LCM < 0) output = L'-' + output;
 
 		// eliminazioni parentesi quadre se non sono necessarie
-		if (output.at(0) == L'[' and Last(output) == L']') {
+		else if (output.at(0) == L'[' and Last(output) == L']') {
 			output.erase(0, 1);
 			output.erase(output.size() - 1);
 			if (output.find(L'[') != wstring::npos and
@@ -4104,7 +4105,7 @@ static void PrimeNCalculator(ptrdiff_t max, ptrdiff_t min)
 
 	// rimozione barra di avanzamento
 	SetConsoleCursorPosition(hConsole, { 0, 0 });
-	wcout << wstring(BARWIDTH + 11, L'\\') << L"\n\n\r";
+	wcout << wstring(BARWIDTH + 11, L'§') << L"\n\n\r";
 	wcout << wstring(BARWIDTH + 11, L' ') << L"attendere\r";
 	
 	// multithreading
@@ -5067,7 +5068,7 @@ static wstring UpdateString(wstring& ToEvaluate)
 		}
 		else {
 			for (int i = piece.size() - 1; i >= 0; --i)
-				if (!isdigit(piece.at(i))) piece.erase(i, 1);
+				if (!isdigit(piece.at(i)) or piece.at(i) > 127) piece.erase(i, 1);
 			if (piece.empty()) continue;
 			int number = stoi(piece);
 			if (number > GlobalMax or number <= 0) ret L"XRANGE";
