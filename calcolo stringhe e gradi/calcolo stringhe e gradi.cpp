@@ -19,9 +19,6 @@
 #define _USE_MATH_DEFINES
 
 // macro di rinominazione
-#define and &&
-#define or ||
-#define xor !=
 #define POS false
 #define NEG true
 #define ret return
@@ -37,9 +34,9 @@ template<typename U, typename = enable_if_t<is_integral_v<U>>> friend bool opera
 
 // funzioni macro importanti
 #define integer(x) (::std::fabs(x - ::std::round(x)) < 1e-9)
-#define issign(x) (x == L'+' || x == L'-')
-#define Last(x) (x).at((x).size() - 1)
-#define _SQ(x) x * x
+#define issign(x)  (x == L'+' || x == L'-')
+#define Last(x)    (x).at((x).size() - 1)
+#define _SQ(x)     x * x
 
 // pragma warning
 #ifndef BUGS
@@ -68,29 +65,30 @@ IMPROVE OPT
 // file header
 #include <algorithm>
 #include <atomic>
-#include <chrono> // per le misurazioni di tempo
-#include <cmath> // per i calcoli
-#include <condition_variable> // per il multithreading
-#include <conio.h> // per l'input avanzato
+#include <chrono>
+#include <cmath>
+#include <condition_variable>
+#include <conio.h>
 #include <iomanip>
-#include <iostream> // per l'output
-#include <io.h> // per unicode
-#include <initializer_list> // per le classi template
+#include <iostream>
+#include <io.h>
+#include <initializer_list>
 #include <iterator>
-#include <locale> // per unicode
+#include <locale>
+#include <map>
 #include <memory>
-#include <new> // per nothrow
-#include <ppl.h> // per la parallelizzazione
-#include <random> // per i generatori casuali
-#include <regex> // per la convalidazione
+#include <new>
+#include <ppl.h>
+#include <random>
+#include <regex>
 #include <sstream>
-#include <stdexcept> // per le eccezioni
-#include <string> // per le stringhe e i metodi
-#include <thread> // per il multithreading
+#include <stdexcept>
+#include <string>
+#include <thread>
 #include <type_traits>
-#include <unordered_map> // per la conversione degli enum
+#include <unordered_map>
 #include <utility>
-#include <Windows.h> // per hConsole e la posizione del cursore
+#include <Windows.h>
 
 // namespace globali
 using namespace std;
@@ -255,6 +253,7 @@ unordered_map<wstring, wstring> ConvertFromSuperScript{
 
 namespace std_tensor
 {
+	wstring Variables;
 
 	// tensor, una variante ottimizzata di ::std::vector
 	template<class T>class tensor
@@ -851,7 +850,7 @@ namespace std_tensor
 
 };
 #define _TENSOR ::std_tensor::
-using _TENSOR tensor, _TENSOR tensor_t;
+using _TENSOR Variables, _TENSOR tensor, _TENSOR tensor_t;
 
 // numeri grandi con precisione di long double
 class big
@@ -1456,7 +1455,6 @@ public:
 };
 
 // monomi
-wstring Variables;
 template<typename T_int = long double>struct MONOMIAL {
 	int degree;
 	T_int coefficient;
@@ -1812,7 +1810,7 @@ public:
 		// eliminazioni parentesi quadre se non sono necessarie
 		else if (output.at(0) == L'[' and Last(output) == L']') {
 			output.erase(0, 1);
-			output.erase(output.size() - 1);
+			output.pop_back();
 			if (output.find(L'[') != wstring::npos and
 				output.find(L']') != wstring::npos) output = L'[' + output + L']';
 		}
@@ -1904,7 +1902,7 @@ static polynomial<> FromBigToDefault(polynomial<big> BigPolynomial)
 }
 
 tensor_t PrimeNumbers;
-wstring CalculatedData[1024];
+_STD map<int, wstring> CalculatedData;
 
 // altre classi
 class NumberData
@@ -3169,7 +3167,7 @@ static void ProgressBar(long double ratio, double barWidth)
 
 	// stampa della barra principale
 	wcout << L"[[";
-	int pos{ (int)(barWidth * ratio) };
+	int pos{ int(barWidth * ratio) };
 	for (int i = 0; i < barWidth; ++i) {
 		if (i < pos) wcout << L'=';
 		else i == pos ? wcout << L'>' : wcout << L' ';
@@ -3416,11 +3414,8 @@ static void DeduceFromExponents(wstring& str)
 	for (ptrdiff_t i = str.size() - 1; i >= 0; --i) {
 		auto script{ wstring(1, str.at(i)) };
 		auto unscript{ CFSuperScript(script) };
-		if (unscript != script) {
-			str.erase(i, 1);
-			str.insert(str.begin() + i, unscript.at(0));
-			str.insert(str.begin() + i, L'^');
-		}
+		if (unscript != script)
+			str.replace(i, i + 1, L"^" + unscript.at(0));
 	}
 }
 
@@ -3551,7 +3546,8 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 					first.erase(new_diff);
 					second.erase(0, new_diff);
 					first += c;
-					vel = first + second;
+					vel = vel.substr(0, new_diff) + wstring(1, c)
+						+ vel.substr(new_diff, vel.size() - 1);
 
 					if (IsTheCursorAtStart) numerator = vel;
 					else denominator = vel;
@@ -3787,12 +3783,8 @@ static wstring GetLine(bool ShowSuggestions, int sizemax)
 				// aggiunta carattere
 				if (!arrow) {
 					if (new_diff < 0) new_diff = 0;
-					auto first{ vel };
-					auto last{ vel };
-					first.erase(new_diff);
-					last.erase(0, new_diff);
-					first += c;
-					vel = first + last;
+					vel = vel.substr(0, new_diff) + wstring(1, c)
+						+ vel.substr(new_diff, vel.size() - 1);
 					break;
 				}
 
@@ -4284,7 +4276,7 @@ static tensor<tensor<wstring>> FractPolynomial(wstring pol)
 {
 
 	// controllo estremi
-	while (issign(Last(pol))) pol.erase(pol.size() - 1);
+	while (issign(Last(pol))) pol.pop_back();
 	if (!issign(pol.at(0))) pol = L'+' + pol;
 
 	// suddivisione in parti
@@ -4361,7 +4353,8 @@ static wstring Cript(ptrdiff_t input)
 {
 
 	// calcolo già eseguito
-	if (input < 1024) if (!CalculatedData[input].empty()) ret CalculatedData[input];
+	if (CalculatedData.find(input) != CalculatedData.end())
+		ret CalculatedData[input];
 
 	// scomposizione
 	auto expfactors{ DecomposeNumber(input) };
@@ -4501,7 +4494,7 @@ static wstring Cript(ptrdiff_t input)
 		}
 	}
 
-	if (input < 1024) CalculatedData[input] = result;
+	CalculatedData[input] = result;
 	ret result;
 }
 
@@ -4551,7 +4544,7 @@ static int ExeStrings(wstring input)
 			temp.erase(location);
 			temp.erase(0, 1);
 			parts[i].erase(0, location + 1);
-			values[i] = ExeStrings(temp) * (stoi(parts[i]));
+			values[i] = ExeStrings(temp) * stoi(parts[i]);
 		}
 
 		// caso senza parentesi
@@ -4579,13 +4572,13 @@ static divisor DivisorCalculator(wstring factor)
 	{
 		auto backup{ factor };
 		backup.erase(0, i + 2);
-		if (Last(backup) == L' ') backup.erase(backup.size() - 1);
+		if (Last(backup) == L' ') backup.pop_back();
 		parts << backup;
 		factor.erase(i);
 	}
 
 	// eccezione
-	if (Last(factor) == L' ') factor.erase(factor.size() - 1);
+	if (Last(factor) == L' ') factor.pop_back();
 	parts << factor;
 
 	// ricavo della scomposizione
@@ -4594,12 +4587,8 @@ static divisor DivisorCalculator(wstring factor)
 		ExpPresence = false;
 		for (size_t j = 1; j < parts[i].size(); ++j)
 			if (parts[i].at(j) == L'^') {
-				auto first{ parts[i] };
-				auto second{ parts[i] };
-				first.erase(j);
-				second.erase(0, j + 1);
-				value = stoull(first);
-				exp = stoull(second);
+				value = stoull(parts[i].substr(0, j));
+				exp = stoull(parts[i].substr(j + 1, parts[i].size() - 1));
 				ExpPresence = true;
 			}
 		if (!ExpPresence) value = stoull(parts[i]);
@@ -4907,9 +4896,9 @@ static wstring PolynomialSyntax(wstring pol)
 			if (!isdigit(Last(part))) ret L"denominatore non valido";
 			while (isdigit(Last(part))) {
 				if (part.empty()) break;
-				part.erase(part.size() - 1);
+				part.pop_back();
 				if (Last(part) == L'/') {
-					part.erase(part.size() - 1);
+					part.pop_back();
 					break;
 				}
 				if (!isdigit(Last(part))) ret L"denominatore non valido";
@@ -4983,7 +4972,7 @@ static wstring PolynomialSyntaxDirector(wstring pol)
 	auto copy{ pol };
 	if (copy.size() >= 2) {
 		if (copy.at(0) == L'(') copy.erase(0, 1);
-		if (Last(copy) == L')') copy.erase(copy.size() - 1);
+		if (Last(copy) == L')') copy.pop_back();
 	}
 	if (copy.find(L'(') == wstring::npos and copy.find(L')') == wstring::npos)
 		ret PolynomialSyntax(copy);
@@ -5088,7 +5077,7 @@ static wstring UpdateString(wstring& ToEvaluate)
 	for (auto piece : pieces) {
 		if (piece.empty()) continue;
 		if (piece.at(0) == L'<' and Last(piece) == L'>') {
-			piece.erase(piece.size() - 1);
+			piece.pop_back();
 			piece.erase(0, 1);
 		}
 		if (piece.find(L'<') != wstring::npos or piece.find(L'>') != wstring::npos)
@@ -5100,7 +5089,7 @@ static wstring UpdateString(wstring& ToEvaluate)
 	for (auto piece : pieces) {
 		if (piece.empty()) continue;
 		if (piece.at(0) == L'<') {
-			piece.erase(piece.size() - 1);
+			piece.pop_back();
 			piece.erase(0, 1);
 			ToEvaluate = piece + ToEvaluate;
 		}
@@ -5375,17 +5364,13 @@ static ptrdiff_t StringConverter(wstring ToEvaluate)
 		bool WhichWay{ false };
 
 		if (M.at(0) != L'(') root = NumberConverter(1, M);
-		else {
+		
+		// calcolo valori
+		else root = NumberConverter(
+			StringConverter(M.substr(1, FindIndex)),
+			M.substr(FindIndex + 1, M.size() - 1)
+		);
 
-			// calcolo valori
-			auto first{ M };
-			auto second{ M };
-			second.erase(0, FindIndex + 1);
-			first.erase(FindIndex);
-			first.erase(0, 1);
-			root = NumberConverter(StringConverter(first), second);
-
-		}
 		if (root < 0) ret root; // eccezione
 		else integer *= root; // caso comune
 	}
@@ -5628,7 +5613,7 @@ static polynomial<big> GetMonomialsRedirector(wstring pol)
 	auto copy{ pol };
 	if (copy.size() >= 2) {
 		if (copy.at(0) == L'(') copy.erase(0, 1);
-		if (Last(copy) == L')') copy.erase(copy.size() - 1);
+		if (Last(copy) == L')') copy.pop_back();
 	}
 	if (copy.find(L'(') == wstring::npos and copy.find(L')') == wstring::npos)
 		ret polynomial<big>({ PolynomialSum<big>(GetMonomials(copy)) });
@@ -5686,7 +5671,7 @@ static polynomial<big> GetMonomialsRedirector(wstring pol)
 	size_t sizemax{};
 	for (auto P : Union) if (P > sizemax) sizemax = P.size();
 	for (auto& P : Union) {
-		big NewLcm = LCM ^ (int)(sizemax - P.size());
+		big NewLcm = LCM ^ int(sizemax - P.size());
 		for (auto& mon : P[0]) mon.coefficient *= NewLcm;
 	}
 
@@ -7245,7 +7230,7 @@ static int OutputMatrix(
 		else {
 
 			// elemento sottoforma di frazione
-			StrMatrix[i] << to_wstring((int)(element * I));
+			StrMatrix[i] << to_wstring(int(element * I));
 			StrDenominators[i] << to_wstring(I);
 		}
 	}
@@ -7487,7 +7472,7 @@ static tensor<tensor<double>> InputMatrix()
 					MatrixAtIndex = L"0";
 					break;
 				}
-				MatrixAtIndex.erase(MatrixAtIndex.size() - 1);
+				MatrixAtIndex.pop_back();
 				break;
 
 				// ctrl + L'\b' cancella tutto
@@ -7843,7 +7828,8 @@ static void CodeToNumber(switchcase& argc)
 
 			// ammissione errori
 			if (!ToEvaluate.empty()) {
-				NecessaryBoundary = ToEvaluate.at(0) != L'\\' and ToEvaluate.at(0) != L'/';
+				NecessaryBoundary =
+					ToEvaluate.at(0) != L'\\' and ToEvaluate.at(0) != L'/';
 				ShowErrors = ToEvaluate.at(0) != L'$' and NecessaryBoundary;
 				if (!NecessaryBoundary) ToEvaluate.erase(0, 1);
 			}
@@ -7903,7 +7889,7 @@ static void CodeToNumber(switchcase& argc)
 }
 
 // programma per convertire un numero in un codice basato sull'espansione in serie
-tensor<tensor<wstring>> map(17);
+tensor<tensor<wstring>> Map(17);
 static wstring ExpandNumber(
 	switchcase& argc,
 	big Number,		/*  attivato se bisogna codificare ricorsivamente un numero  */
@@ -7999,7 +7985,7 @@ static wstring ExpandNumber(
 
 				// estrazione stringa
 				ToEvaluate.erase(0, pos + 1);
-				ToEvaluate.erase(ToEvaluate.size() - 1);
+				ToEvaluate.pop_back();
 				if (ToEvaluate.find(L'<') != wstring::npos and
 					ToEvaluate.find(L'>') != wstring::npos) goto input;
 
@@ -8084,8 +8070,8 @@ static wstring ExpandNumber(
 				number = quotient;
 			}
 			coefficients << number.Number();
-			map[base](max(map[base].size(), coefficients.size()), L"");
-			map[base][0] = L"0";
+			Map[base](max(Map[base].size(), coefficients.size()), L"");
+			Map[base][0] = L"0";
 
 			// calcolo esponenti
 			for (ptrdiff_t i = coefficients.size() - 1; i >= 0; --i)
@@ -8095,14 +8081,14 @@ static wstring ExpandNumber(
 					wstring partial{ L"+" };
 					bool recursion{ coefficients[i] > 1 };
 					if (recursion) partial += to_wstring(coefficients[i]);
-					if (map[base][i].empty())
-						map[base][i] = ExpandNumber(argc, i, base, false);
+					if (Map[base][i].empty())
+						Map[base][i] = ExpandNumber(argc, i, base, false);
 
 					if (!recursion) recursion =
-						map[base][i].find(L'+') != wstring::npos or
-						map[base][i].find(L'(') != wstring::npos;
-					if (recursion) partial += L'(' + map[base][i] + L')';
-					else partial += to_wstring(stoi(map[base][i]) + 1);
+						Map[base][i].find(L'+') != wstring::npos or
+						Map[base][i].find(L'(') != wstring::npos;
+					if (recursion) partial += L'(' + Map[base][i] + L')';
+					else partial += to_wstring(stoi(Map[base][i]) + 1);
 
 					output += partial;
 				}
@@ -8145,7 +8131,9 @@ static wstring ExpandNumber(
 					auto second{ toevaluate };
 					first.erase(i);
 					second.erase(0, i + 1);
-					toevaluate = first + tetration[dim].str() + second;
+					toevaluate = toevaluate.substr(0, i)
+						+ tetration[dim].str()
+						+ toevaluate.substr(i + 1, toevaluate.size() - 1);
 				}
 
 			// iterazione principale
@@ -8200,7 +8188,9 @@ static wstring ExpandNumber(
 						auto second{ toevaluate };
 						first.erase(i - size);
 						second.erase(0, j + 1);
-						toevaluate = first + result.str() + second;
+						toevaluate = toevaluate.substr(0, i - size)
+							+ result.str()
+							+ toevaluate.substr(j + 1, toevaluate.size() - 1);
 					}
 
 			// ultima somma
@@ -9097,7 +9087,7 @@ static void DecompFraction(switchcase& argc)
 					index++;
 					auto NewScomp{ DScomp };
 					NewScomp.erase(NewScomp.begin() + i);
-					NewScomp.insert(NewScomp.begin() + i, { {1, 1} });
+					NewScomp.insert(NewScomp.begin() + i, { { 1, 1 } });
 					NewScomp.insert(NewScomp.begin() + i, {
 						{ -1, (long double)DScomp[i][0].degree }
 						});
@@ -9178,8 +9168,8 @@ static void DecompFraction(switchcase& argc)
 			
 			// eliminazione cifre decimali nulle
 			if (I.find(L'.') != wstring::npos or I.find(L',') != wstring::npos)
-			while (Last(I) == L'0') I.erase(I.size() - 1);
-			if (Last(I) == L',' or Last(I) == L'.') I.erase(I.size() - 1);
+			while (Last(I) == L'0') I.pop_back();
+			if (Last(I) == L',' or Last(I) == L'.') I.pop_back();
 
 			// stampa
 			if (BOOLALPHA) ElabExponents(I);
@@ -9329,7 +9319,7 @@ static void DecompFraction(switchcase& argc)
 				}
 				if (pol.size() >= 2) if (pol.at(0) == '(' and Last(pol) == ')')
 				{
-					pol.erase(pol.size() - 1);
+					pol.pop_back();
 					pol.erase(0, 1);
 				}
 				if (pol.at(0) == L'-') {
