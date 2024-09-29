@@ -497,7 +497,8 @@ namespace std_tensor
 		_NODISCARD bool operator==(const tensor& other) const
 		{
 			if (count != other.count) ret false;
-			for (size_t i = 0; i < count; ++i) if (data[i] != other.data[i]) ret false;
+			for (size_t i = 0; i < count; ++i) if (data[i] != other.data[i])
+				ret false;
 			ret true;
 		}
 		_NODISCARD inline bool operator!=(const tensor& other) const
@@ -7082,7 +7083,7 @@ static void PrintFraction
 	if (denominator >= 1) if (denominator[0] == 1)
 		if (denominator[0][0].exp == null) HasACoefficient = true;
 	if (HasACoefficient) denominator[0][0].coefficient *= CORRECTION_RATIO;
-	else denominator >> factor<>{ monomial<>{CORRECTION_RATIO, null} };
+	else denominator >> factor<>{ monomial<>{ CORRECTION_RATIO, null } };
 
 	// calcolo GCD e segni
 	int gcd = Gcd(NC, DC);
@@ -7095,20 +7096,20 @@ static void PrintFraction
 	denominator[0][0].coefficient /= Gcd;
 	if (root != 0) Root /= Gcd;
 	else numerator[0][0].coefficient /= Gcd;
-	if (denominator[0][0] == monomial<>{1, null}) --denominator;
-	else if (denominator[0][0] == monomial<>{-1, null}) {
+	if (denominator[0][0] == monomial<>{ 1, null }) --denominator;
+	else if (denominator[0][0] == monomial<>{ -1, null }) {
 		--denominator;
 		if (root == 0) numerator[0][0].coefficient *= -1;
 		else Root *= -1;
 	}
-	if (root == 0) if (numerator[0][0] == monomial<>{1, null}) --numerator;
+	if (root == 0) if (numerator[0][0] == monomial<>{ 1, null }) --numerator;
 	if (root != 0) num_ = to_wstring(NC * Root);
 
 	// calcolo numeratore
 	if (root == 0) {
 		num_ = numerator.str();
 
-		if (abs(NC) != 1 and numerator > 1) num_ = L'(' + num_ + L')';
+		if (abs(NC) != 1 or numerator > 1) num_ = L'(' + num_ + L')';
 
 		if (num_ == L"0") num_.clear();
 		if (abs(NC) != 1) num_ = to_wstring(NC) + num_;
@@ -7121,7 +7122,7 @@ static void PrintFraction
 	auto tempden{ denominator.str() };
 	if (tempden != L"1") den_ = tempden;
 
-	if (abs(DC) != 1 and denominator > 1) den_ = L'(' + den_ + L')';
+	if (abs(DC) != 1 or denominator > 1) den_ = L'(' + den_ + L')';
 
 	if (den_ == L"0") den_.clear();
 	if (abs(DC) != 1) den_ = to_wstring(DC) + den_;
