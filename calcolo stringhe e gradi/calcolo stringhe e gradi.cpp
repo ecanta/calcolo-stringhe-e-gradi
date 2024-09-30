@@ -188,64 +188,64 @@ enum switchcase
 	NotAssigned
 };
 unordered_map<wstring, switchcase> stringToEnumMap{
-	{L"cc" , switchcase::DoSimpleCode        },
-	{L"ccc", switchcase::DoComplexCode       },
-	{L"cf" , switchcase::DoSimpleFactor      },
-	{L"cff", switchcase::DoComplexFactor     },
-	{L"ccf", switchcase::DoCodeFactor        },
-	{L"ct" , switchcase::DoAll               },
-	{L"dc" , switchcase::DebugSimpleCode     },
-	{L"dcc", switchcase::DebugComplexCode    },
-	{L"df" , switchcase::DebugSimpleFactor   },
-	{L"dff", switchcase::DebugComplexFactor  },
-	{L"dcf", switchcase::DebugCodeFactor     },
-	{L"dt" , switchcase::DebugAll            },
-	{L"dr" , switchcase::DebugDigits         },
-	{L"drc", switchcase::DebugDigitsAndCode  },
-	{L"drf", switchcase::DebugDigitsAndFactor},
-	{L"drt", switchcase::DebugComplete       },
-	{L"ctn", switchcase::ConvertCodeInverse  },
-	{L"cod", switchcase::SeriesExpansion     },
-	{L"pol", switchcase::FactorPolynomial    },
-	{L"alg", switchcase::FactorFraction      },
-	{L"mtx", switchcase::FactorMatrix        },
-	{L"rnd", switchcase::Random              }
+	{ L"cc" , switchcase::DoSimpleCode         },
+	{ L"ccc", switchcase::DoComplexCode        },
+	{ L"cf" , switchcase::DoSimpleFactor       },
+	{ L"cff", switchcase::DoComplexFactor      },
+	{ L"ccf", switchcase::DoCodeFactor         },
+	{ L"ct" , switchcase::DoAll                },
+	{ L"dc" , switchcase::DebugSimpleCode      },
+	{ L"dcc", switchcase::DebugComplexCode     },
+	{ L"df" , switchcase::DebugSimpleFactor    },
+	{ L"dff", switchcase::DebugComplexFactor   },
+	{ L"dcf", switchcase::DebugCodeFactor      },
+	{ L"dt" , switchcase::DebugAll             },
+	{ L"dr" , switchcase::DebugDigits          },
+	{ L"drc", switchcase::DebugDigitsAndCode   },
+	{ L"drf", switchcase::DebugDigitsAndFactor },
+	{ L"drt", switchcase::DebugComplete        },
+	{ L"ctn", switchcase::ConvertCodeInverse   },
+	{ L"cod", switchcase::SeriesExpansion      },
+	{ L"pol", switchcase::FactorPolynomial     },
+	{ L"alg", switchcase::FactorFraction       },
+	{ L"mtx", switchcase::FactorMatrix         },
+	{ L"rnd", switchcase::Random               }
 };
 unordered_map<switchcase, wstring> enumToStringMap{
-	{switchcase::DoSimpleCode        , L"cc" },
-	{switchcase::DoComplexCode       , L"ccc"},
-	{switchcase::DoSimpleFactor      , L"cf" },
-	{switchcase::DoComplexFactor     , L"cff"},
-	{switchcase::DoCodeFactor        , L"ccf"},
-	{switchcase::DoAll               , L"ct" },
-	{switchcase::DebugSimpleCode     , L"dc" },
-	{switchcase::DebugComplexCode    , L"dcc"},
-	{switchcase::DebugSimpleFactor   , L"df" },
-	{switchcase::DebugComplexFactor  , L"dff"},
-	{switchcase::DebugCodeFactor     , L"dcf"},
-	{switchcase::DebugAll            , L"dt" },
-	{switchcase::DebugDigits         , L"dr" },
-	{switchcase::DebugDigitsAndCode  , L"drc"},
-	{switchcase::DebugDigitsAndFactor, L"drf"},
-	{switchcase::DebugComplete       , L"drt"},
-	{switchcase::ConvertCodeInverse  , L"ctn"},
-	{switchcase::SeriesExpansion     , L"cod"},
-	{switchcase::FactorPolynomial    , L"pol"},
-	{switchcase::FactorFraction      , L"alg"},
-	{switchcase::FactorMatrix        , L"mtx"},
-	{switchcase::Random              , L"rnd"}
+	{ switchcase::DoSimpleCode        , L"cc"  },
+	{ switchcase::DoComplexCode       , L"ccc" },
+	{ switchcase::DoSimpleFactor      , L"cf"  },
+	{ switchcase::DoComplexFactor     , L"cff" },
+	{ switchcase::DoCodeFactor        , L"ccf" },
+	{ switchcase::DoAll               , L"ct"  },
+	{ switchcase::DebugSimpleCode     , L"dc"  },
+	{ switchcase::DebugComplexCode    , L"dcc" },
+	{ switchcase::DebugSimpleFactor   , L"df"  },
+	{ switchcase::DebugComplexFactor  , L"dff" },
+	{ switchcase::DebugCodeFactor     , L"dcf" },
+	{ switchcase::DebugAll            , L"dt"  },
+	{ switchcase::DebugDigits         , L"dr"  },
+	{ switchcase::DebugDigitsAndCode  , L"drc" },
+	{ switchcase::DebugDigitsAndFactor, L"drf" },
+	{ switchcase::DebugComplete       , L"drt" },
+	{ switchcase::ConvertCodeInverse  , L"ctn" },
+	{ switchcase::SeriesExpansion     , L"cod" },
+	{ switchcase::FactorPolynomial    , L"pol" },
+	{ switchcase::FactorFraction      , L"alg" },
+	{ switchcase::FactorMatrix        , L"mtx" },
+	{ switchcase::Random              , L"rnd" }
 };
 unordered_map<wstring, wstring> ConvertFromSuperScript{
-	{L"⁰", L"0"},
-	{L"¹", L"1"},
-	{L"²", L"2"},
-	{L"³", L"3"},
-	{L"⁴", L"4"},
-	{L"⁵", L"5"},
-	{L"⁶", L"6"},
-	{L"⁷", L"7"},
-	{L"⁸", L"8"},
-	{L"9", L"9"},
+	{ L"⁰", L"0" },
+	{ L"¹", L"1" },
+	{ L"²", L"2" },
+	{ L"³", L"3" },
+	{ L"⁴", L"4" },
+	{ L"⁵", L"5" },
+	{ L"⁶", L"6" },
+	{ L"⁷", L"7" },
+	{ L"⁸", L"8" },
+	{ L"9", L"9" },
 };
 
 #pragma endregion
@@ -7024,12 +7024,14 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 static wstring DisequationSolver
 (polynomial<> Num, polynomial<> Den, bool ExpectedSign, bool CanBeNull)
 {
-	if (Variables != L"x") return L"";
-	tensor<long double> roots;
-	tensor<bool> ItsFromDenominator;
 
+	// casi illegali
+	if (Variables != L"x" or Num.empty() or Den.empty()) return L"";
+	
 	// calcolo delle radici
 	bool repeat{ false };
+	tensor<long double> roots;
+	tensor<bool> ItsFromDenominator;
 	for (const auto& fact : Num) {
 		if (fact[0].exp[0] < 0) {
 			repeat = true;
@@ -7208,9 +7210,9 @@ static void PrintFraction
 	if (root == 0) {
 		num_ = numerator.str();
 
-		if (abs(NC) != 1 or numerator > 1) num_ = L'(' + num_ + L')';
-
 		if (num_ == L"0") num_.clear();
+		else if (abs(NC) != 1 or numerator > 1) num_ = L'(' + num_ + L')';
+
 		if (abs(NC) != 1) num_ = to_wstring(NC) + num_;
 		if (num_.empty()) num_ = L"1";
 		if (NC == -1) num_ = L'-' + num_;
@@ -7220,10 +7222,10 @@ static void PrintFraction
 	den_.clear();
 	auto tempden{ denominator.str() };
 	if (tempden != L"1") den_ = tempden;
-
-	if (abs(DC) != 1 or denominator > 1) den_ = L'(' + den_ + L')';
-
+	
 	if (den_ == L"0") den_.clear();
+	else if (abs(DC) != 1 or denominator > 1) den_ = L'(' + den_ + L')';
+
 	if (abs(DC) != 1) den_ = to_wstring(DC) + den_;
 	if (den_.empty()) den_ = L"1";
 	if (DC == -1) den_ = L'-' + den_;
@@ -9733,5 +9735,3 @@ RETURN:
 
 // file natvis 54 righe
 // fine del codice
-
-// attenzione ai bug: parentesi nella stampa di frazioni.
