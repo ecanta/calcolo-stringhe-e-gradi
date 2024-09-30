@@ -1887,12 +1887,8 @@ static polynomial<> FromBigToDefault(polynomial<big> BigPolynomial)
 			monomial<> unity;
 			unity.coefficient = mon.coefficient.Number();
 
-			if (isnan(unity.coefficient)) ret
-				polynomial<>({ factor<>({ monomial<>({
-					1,
-					tensor<int>(1, -2)
-				}) }) });
-
+			if (isnan(unity.coefficient))
+				ret polynomial<>{ { { 1, tensor<int>(1, -2) } } };
 			unity.exp = mon.exp;
 			element << unity;
 		}
@@ -2126,6 +2122,7 @@ tensor<wstring> commands{
 #pragma endregion
 #pragma region Declarations
 
+static wstring Handler(wstring test);
 static size_t Factorial(size_t n);
 static size_t BinomialCoeff(size_t n, size_t k);
 static ptrdiff_t Gcd(ptrdiff_t A, ptrdiff_t B);
@@ -2229,6 +2226,8 @@ static void Simplify(
 );
 static void Approximator(tensor<long double>& Equation, long double& root);
 static tensor<wstring> EquationSolver(factor<> equation);
+static wstring DisequationSolver
+(polynomial<> Num, polynomial<> Den, bool ExpectedSign, bool CanBeNull = false);
 static void PrintFraction
 (
 	int NC, int DC, int& LINE, bool WritePlus,
@@ -2353,7 +2352,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"0.9.7 ";
+			wcout << L"0.9.8 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -2654,6 +2653,15 @@ End:
 
 // funzioni matematiche
 #pragma region Math
+
+static wstring Handler(wstring test)
+{
+	if (test.find(L'.') != wstring::npos or test.find(L',') != wstring::npos)
+		while (Last(test) == L'0') test.pop_back();
+	if (Last(test) == L',' or Last(test) == L'.') test.pop_back();
+	if (BOOLALPHA) ElabExponents(test);
+	return test;
+}
 
 // fattoriale x! = x*(x-1)*...*2*1
 static size_t Factorial(size_t n)
@@ -5616,7 +5624,7 @@ static polynomial<big> GetMonomialsRedirector(wstring pol)
 		if (Last(copy) == L')') copy.pop_back();
 	}
 	if (copy.find(L'(') == wstring::npos and copy.find(L')') == wstring::npos)
-		ret polynomial<big>({ PolynomialSum<big>(GetMonomials(copy)) });
+		ret polynomial<big>{ PolynomialSum<big>(GetMonomials(copy)) };
 
 	// eliminazione parentesi in più
 	int ParenthesisBalance{};
@@ -5705,7 +5713,7 @@ static polynomial<big> GetMonomialsRedirector(wstring pol)
 		}
 
 		// push coefficiente
-		Union[i] >> factor<big>({ monomial<big>({ Coeff, null }) });
+		Union[i] >> factor<big>{ { Coeff, null } };
 		numbers << Coeff;
 	}
 	auto gcd{ Gcd(numbers).fabs() };
@@ -6945,31 +6953,33 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 
 			// radici reali
 			if (delta_4 >= 0) {
-				_push = factor<>({ monomial<>({ 1, VDirectorSeq[0] }) }).str() + L" != "
+				_push = factor<>{ { 1, VDirectorSeq[0] } }.str() + L" != "
 					+ to_wstring(half_root_sum + sqrt(delta_4));
+
 				if (VKnownSeq[0] != tensor<int>(Variables.size(), 0))
-					_push += factor<>({ monomial<>({ 1, VKnownSeq[0] }) }).str();
+					_push += factor<>{ { 1, VKnownSeq[0] } }.str();
 				answer << _push;
 
-				_push = factor<>({ monomial<>({ 1, VDirectorSeq[0] }) }).str() + L" != "
+				_push = factor<>{ { 1, VDirectorSeq[0] } }.str() + L" != "
 					+ to_wstring(half_root_sum - sqrt(delta_4));
+
 				if (VKnownSeq[0] != tensor<int>(Variables.size(), 0))
-					_push += factor<>({ monomial<>({ 1, VKnownSeq[0] }) }).str();
+					_push += factor<>{ { 1, VKnownSeq[0] } }.str();
 				answer << _push;
 			}
 
 			// radici complesse
 			else {
-				_push = factor<>({ monomial<>({ 1, VDirectorSeq[0] }) }).str() + L" != "
+				_push = factor<>{ { 1, VDirectorSeq[0] } }.str() + L" != "
 					+ complex(half_root_sum, sqrt(-delta_4)).c_str();
 				if (VKnownSeq[0] != tensor<int>(Variables.size(), 0))
-					_push += factor<>({ monomial<>({ 1, VKnownSeq[0] }) }).str();
+					_push += factor<>{ { 1, VKnownSeq[0] } }.str();
 				answer << _push;
 
-				_push = factor<>({ monomial<>({ 1, VDirectorSeq[0] }) }).str() + L" != "
+				_push = factor<>{ { 1, VDirectorSeq[0] } }.str() + L" != "
 					+ complex(half_root_sum, -sqrt(-delta_4)).c_str();
 				if (VKnownSeq[0] != tensor<int>(Variables.size(), 0))
-					_push += factor<>({ monomial<>({ 1, VKnownSeq[0] }) }).str();
+					_push += factor<>{ { 1, VKnownSeq[0] } }.str();
 				answer << _push;
 			}
 			ret answer;
@@ -6979,11 +6989,10 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 		long double root{};
 		Approximator(equation[0], root);
 		auto push{
-			factor<>({ monomial<>({ 1, VDirectorSeq[0] }) }).str()
-			+ L" != " + to_wstring(root)
+			factor<>{ { 1, VDirectorSeq[0] } }.str() + L" != " + to_wstring(root)
 		};
 		if (VKnownSeq[0] != tensor<int>(Variables.size(), 0))
-			push += factor<>({ monomial<>({ 1, VKnownSeq[0] }) }).str();
+			push += factor<>{ { 1, VKnownSeq[0] } }.str();
 		answer << push;
 	}
 
@@ -7009,6 +7018,113 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 		if (coeff != 1) push += L" / " + to_wstring(coeff);
 		ret { push };
 	}
+}
+
+// calcola i valori di x sui quali la frazione algebrica ha un certo segno
+static wstring DisequationSolver
+(polynomial<> Num, polynomial<> Den, bool ExpectedSign, bool CanBeNull)
+{
+	if (Variables != L"x") return L"";
+	tensor<long double> roots;
+	tensor<bool> ItsFromDenominator;
+
+	// calcolo delle radici
+	bool repeat{ false };
+	for (const auto& fact : Num) {
+		if (fact[0].exp[0] < 0) {
+			repeat = true;
+			continue;
+		}
+		auto solutions{ EquationSolver(fact) };
+
+		// aggiunta delle radici del numeratore
+		for (auto sol : solutions) if (sol.find(L'i') == wstring::npos)
+		{
+			sol.erase(0, 5);
+			roots << stold(sol);
+			ItsFromDenominator << false;
+			if (repeat) {
+				roots << stold(sol);
+				ItsFromDenominator << false;
+			}
+		}
+		repeat = false;
+	}
+	repeat = false;
+	for (const auto& fact : Den) {
+		if (fact[0].exp[0] < 0) {
+			repeat = true;
+			continue;
+		}
+		auto solutions{ EquationSolver(fact) };
+
+		// aggiunta delle radici del denominatore
+		for (auto sol : solutions) if (sol.find(L'i') == wstring::npos)
+		{
+			sol.erase(0, 5);
+			roots << stold(sol);
+			ItsFromDenominator << true;
+			if (repeat) {
+				roots << stold(sol);
+				ItsFromDenominator << true;
+			}
+		}
+		repeat = false;
+	}
+	
+	// ordinamento delle radici
+	for (size_t i = 0; i < roots; ++i) for (size_t j = i + 1; j < roots; ++j)
+		if (roots[i] > roots[j])
+		{
+			swap(roots[i], roots[j]);
+			swap(ItsFromDenominator[i], ItsFromDenominator[j]);
+		}
+
+	// calcolo segno
+	bool InitialSign{ POS };
+	for (auto& fact : Num) {
+		fact.SortByExponents();
+		if (fact[0].exp[0] < 0) InitialSign = !InitialSign;
+	}
+	for (auto& fact : Den) {
+		fact.SortByExponents();
+		if (fact[0].exp[0] < 0) InitialSign = !InitialSign;
+	}
+
+	// // costruzione risultato
+	wstring output;
+	bool condition{ ((InitialSign == (roots.size() % 2 == 0)) == ExpectedSign) };
+
+	// parte iniziale
+	if (condition) {
+		output = L"x";
+		CanBeNull and !ItsFromDenominator[0] ? output += L" <= " : output += L" < ";
+		output += Handler(to_wstring(roots[0]));
+		if (roots > 1) output += L" V ";
+	}
+
+	for (size_t i = condition; i < roots; i += 2) {
+
+		// parte finale
+		if (i + 1 == roots) {
+			CanBeNull and !ItsFromDenominator[i] ?
+				output += L"x >= " : output += L"x > ";
+			output += Handler(to_wstring(roots[i]));
+			break;
+		}
+
+		// parte centrale
+		output += Handler(to_wstring(roots[i]));
+		CanBeNull and !ItsFromDenominator[i] ?
+			output += L" <= x" : output += L" < x";
+		CanBeNull and !ItsFromDenominator[i + 1] ?
+			output += L" <= " : output += L" < ";
+		output += Handler(to_wstring(roots[i + 1]));
+		if (i + 2 < roots) output += L" V ";
+	}
+	// //
+
+	return output;
 }
 
 // stampa una frazione
@@ -7037,9 +7153,7 @@ static void PrintFraction
 	if (numerator == 1) if (numerator[0] == 1)
 		if (numerator[0][0].exp == null)
 			root = numerator[0][0].coefficient;
-	if (numerator.empty()) numerator = polynomial<>(
-		{ factor<>({ monomial<>({1, null}) }) }
-	);
+	if (numerator.empty()) numerator = polynomial<> { { { 1, null } } };
 
 	// calcolo coefficienti e correzione
 	if (root != 0) {
@@ -8649,7 +8763,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		// risultato della somma
 		null(Variables.size());
 		null[0] = -1;
-		if (HT == polynomial<>({ factor<>({}) })) Polynomial = L"0";
+		if (HT.empty()) Polynomial = L"0";
 		else Polynomial = HT.str();
 		if (input) {
 			SetConsoleTextAttribute(hConsole, 2);
@@ -8681,19 +8795,13 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			}
 
 		// aggiunta del coefficiente corretto
-		if (abs(Coeff) != 1) HT >> factor<>({
-				monomial<>({
-					(long double)Coeff, tensor<int>(Variables.size(), 0)
-				})
-			});
+		if (abs(Coeff) != 1) HT >> factor<>{ {
+			(long double)Coeff, tensor<int>(Variables.size(), 0)
+		} };
 		else if (Coeff == -1) for (auto& mon : HT[0]) mon.coefficient *= -1;
-		if (HT.empty()) HT = polynomial<>({
-				factor<>({
-					monomial<>({
-						(long double)Coeff, tensor<int>(Variables.size(), 0)
-					})
-				})
-			});
+		if (HT.empty()) HT = polynomial<>{ { {
+			(long double)Coeff, tensor<int>(Variables.size(), 0)
+		} } };
 
 		// output raccoglimento totale
 		HT.close();
@@ -8759,7 +8867,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 				}
 				BackT = SquareDifference(a);
 				for (const auto& b : BackT) {
-					if (extend > 1) HT << factor<>{ {(long double)extend, null} };
+					if (extend > 1) HT << factor<>{ { (long double)extend, null } };
 					HT << b;
 				}
 				extend = 1;
@@ -9165,17 +9273,8 @@ static void DecompFraction(switchcase& argc)
 
 		// output condizioni di esistenza
 		for (auto I : C_E_) {
-			
-			// eliminazione cifre decimali nulle
-			if (I.find(L'.') != wstring::npos or I.find(L',') != wstring::npos)
-			while (Last(I) == L'0') I.pop_back();
-			if (Last(I) == L',' or Last(I) == L'.') I.pop_back();
-
-			// stampa
-			if (BOOLALPHA) ElabExponents(I);
-			wcout << I << L"; ";
+			wcout << Handler(I) << L"; ";
 			HasBeenPrinted = true;
-
 		}
 		if (!HasBeenPrinted) wcout << L"\r      \r";
 		_GetCursorPos();
@@ -9187,6 +9286,13 @@ static void DecompFraction(switchcase& argc)
 		}
 		else wcout << L'\n';
 
+		// output del segno della frazione
+		auto DiseqSol{ DisequationSolver(N_, D_, POS, true) };
+		if (!DiseqSol.empty()) {
+			SetConsoleTextAttribute(hConsole, 11);
+			wcout << L"\nA(x) >= 0  ->  " << DiseqSol << L'\n';
+		}
+
 		// output frazioni
 		SetConsoleTextAttribute(hConsole, 10);
 		wcout << L"\nla scomposizione è: ";
@@ -9195,6 +9301,9 @@ static void DecompFraction(switchcase& argc)
 		int lines{};
 
 		// caso generale, frazione scomposta
+		polynomial<> TopPart = HasMoreVariables ? N_ : ToXV(NScomp);
+		polynomial<> BottomPart = HasMoreVariables ? D_ : ToXV(DScomp);
+		bool NewPrint{ false };
 		if (!skip) {
 			wcout << L"\n\n";
 			for (size_t i = 0; i < denominators; ++i) {
@@ -9203,43 +9312,20 @@ static void DecompFraction(switchcase& argc)
 					DCOEFF,
 					lines,
 					ShowPlus,
-					{ { { roots[i], tensor<int>(Variables.size(), 0) }}},
+					{ { { roots[i], tensor<int>(Variables.size(), 0) } } },
 					ToXV(denominators[i])
 				);
 				ShowPlus = true;
 			}
 			wcout << L"\n\n";
+			goto EndOfStatement;
 		}
 
-		else {
-
-			// caso di frazione semplificata ma non scomposta
-			bool NewPrint{ false };
-			polynomial<> TopPart = HasMoreVariables ? N_ : ToXV(NScomp);
-			polynomial<> BottomPart = HasMoreVariables ? D_ : ToXV(DScomp);
-			if (!BottomPart.empty()) {
-				if (BottomPart > 1 or BottomPart[0] > 1 or
-					BottomPart[0][0].exp != tensor<int>(Variables.size(), 0))
-				{
-					_GetCursorPos();
-					csbi.dwCursorPosition.Y--;
-					SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
-					PrintFraction(
-						NCOEFF,
-						DCOEFF,
-						lines,
-						false,
-						TopPart,
-						BottomPart
-					);
-					wcout << L"\n\n";
-				}
-				else NewPrint = true;
-			}
-			else NewPrint = true;
-
-			// caso di denominatore coefficiente
-			if (abs(DCOEFF) != 1 and !TopPart.empty() and NewPrint) {
+		// caso di frazione semplificata ma non scomposta
+		if (!BottomPart.empty()) {
+			if (BottomPart > 1 or BottomPart[0] > 1 or
+				BottomPart[0][0].exp != tensor<int>(Variables.size(), 0))
+			{
 				_GetCursorPos();
 				csbi.dwCursorPosition.Y--;
 				SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
@@ -9249,49 +9335,69 @@ static void DecompFraction(switchcase& argc)
 					lines,
 					false,
 					TopPart,
-					{ { monomial<>{ 1, tensor<int>(Variables.size(), 0) } } }
+					BottomPart
 				);
 				wcout << L"\n\n";
 			}
-
-			// caso di frazione normale
-			else if (abs(DCOEFF) != 1 and NScomp.empty() and NewPrint) {
-				_GetCursorPos();
-				csbi.dwCursorPosition.Y--;
-				SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
-				PrintFraction(
-					NCOEFF,
-					DCOEFF,
-					lines,
-					false,
-					{ { monomial<>{ 1, tensor<int>(Variables.size(), 0) } } },
-					{ { monomial<>{ 1, tensor<int>(Variables.size(), 0) } } }
-				);
-				wcout << L"\n\n";
-			}
-
-			// caso costante
-			else if (NScomp.empty() and NewPrint) {
-				if (DCOEFF == -1) NCOEFF *= -1;
-				wcout << L' ' << NCOEFF;
-			}
-
-			// caso fattore
-			else if (NScomp == 1 and NewPrint) {
-				auto output = HasMoreVariables ? N_[0].str() : NScomp[0].str();
-				if (BOOLALPHA) ElabExponents(output);
-				if (NScomp[0] > 1 and NCOEFF != 1) output = L'(' + output + L')';
-				if (abs(NCOEFF) != 1) output = to_wstring(NCOEFF) + output;
-				if (NCOEFF * DCOEFF == -1) output = L'-' + output;
-				wcout << L' ' << output;
-			}
-
-			// caso polinomio
-			else if (NewPrint) {
-				wcout << L' ';
-				HasMoreVariables ? wcout << N_.str() : wcout << NScomp.str();
-			}
+			else NewPrint = true;
 		}
+		else NewPrint = true;
+
+		// caso di denominatore coefficiente
+		if (abs(DCOEFF) != 1 and !TopPart.empty() and NewPrint) {
+			_GetCursorPos();
+			csbi.dwCursorPosition.Y--;
+			SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
+			PrintFraction(
+				NCOEFF,
+				DCOEFF,
+				lines,
+				false,
+				TopPart,
+				{ { monomial<>{ 1, tensor<int>(Variables.size(), 0) } } }
+			);
+			wcout << L"\n\n";
+		}
+
+		// caso di frazione normale
+		else if (abs(DCOEFF) != 1 and NScomp.empty() and NewPrint) {
+			_GetCursorPos();
+			csbi.dwCursorPosition.Y--;
+			SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
+			PrintFraction(
+				NCOEFF,
+				DCOEFF,
+				lines,
+				false,
+				{ { monomial<>{ 1, tensor<int>(Variables.size(), 0) } } },
+				{ { monomial<>{ 1, tensor<int>(Variables.size(), 0) } } }
+			);
+			wcout << L"\n\n";
+		}
+
+		// caso costante
+		else if (NScomp.empty() and NewPrint) {
+			if (DCOEFF == -1) NCOEFF *= -1;
+			wcout << L' ' << NCOEFF;
+		}
+
+		// caso fattore
+		else if (NScomp == 1 and NewPrint) {
+			auto output = HasMoreVariables ? N_[0].str() : NScomp[0].str();
+			if (BOOLALPHA) ElabExponents(output);
+			if (NScomp[0] > 1 and NCOEFF != 1) output = L'(' + output + L')';
+			if (abs(NCOEFF) != 1) output = to_wstring(NCOEFF) + output;
+			if (NCOEFF * DCOEFF == -1) output = L'-' + output;
+			wcout << L' ' << output;
+		}
+
+		// caso polinomio
+		else if (NewPrint) {
+			wcout << L' ';
+			HasMoreVariables ? wcout << N_.str() : wcout << NScomp.str();
+		}
+
+	EndOfStatement:
 
 		// reset cursore
 		_GetCursorPos();
@@ -9302,7 +9408,7 @@ static void DecompFraction(switchcase& argc)
 
 		// output polinomio di resto
 		if (!skip) for (const auto& a : Quotient) {
-			auto rest{ POLYNOMIAL<>({ FACTOR<>({ a }) }) };
+			auto rest{ POLYNOMIAL<>{ { a } } };
 			if (a.coefficient == 0) continue;
 
 			// output normale
@@ -9627,3 +9733,5 @@ RETURN:
 
 // file natvis 54 righe
 // fine del codice
+
+// attenzione ai bug: parentesi nella stampa di frazioni.
