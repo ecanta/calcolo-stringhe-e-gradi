@@ -2226,7 +2226,10 @@ static void Simplify(
 );
 static void Approximator(tensor<long double>& Equation, long double& root);
 static tensor<wstring> EquationSolver(factor<> equation);
+static tensor<long double> RootExtractor(polynomial<> vect);
 static wstring DisequationSolver
+(polynomial<> Num, polynomial<> Den, bool ExpectedSign, bool CanBeNull = false);
+static wstring FractParametricDisequationSolver
 (polynomial<> Num, polynomial<> Den, bool ExpectedSign, bool CanBeNull = false);
 static void PrintFraction
 (
@@ -7020,19 +7023,12 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 	}
 }
 
-// calcola i valori di x sui quali la frazione algebrica ha un certo segno
-static wstring DisequationSolver
-(polynomial<> Num, polynomial<> Den, bool ExpectedSign, bool CanBeNull)
+// estrae una lista di radici dalle C.E.
+static tensor<long double> RootExtractor(polynomial<> vect)
 {
-
-	// casi illegali
-	if (Variables != L"x" or Num.empty() or Den.empty()) return L"";
-	
-	// calcolo delle radici
 	bool repeat{ false };
 	tensor<long double> roots;
-	tensor<bool> ItsFromDenominator;
-	for (const auto& fact : Num) {
+	for (const auto& fact : vect) {
 		if (fact[0].exp[0] < 0) {
 			repeat = true;
 			continue;
@@ -7043,37 +7039,41 @@ static wstring DisequationSolver
 		for (auto sol : solutions) if (sol.find(L'i') == wstring::npos)
 		{
 			sol.erase(0, 5);
-			roots << stold(sol);
-			ItsFromDenominator << false;
-			if (repeat) {
-				roots << stold(sol);
-				ItsFromDenominator << false;
-			}
-		}
-		repeat = false;
-	}
-	repeat = false;
-	for (const auto& fact : Den) {
-		if (fact[0].exp[0] < 0) {
-			repeat = true;
-			continue;
-		}
-		auto solutions{ EquationSolver(fact) };
+			auto fden{ sol };
 
-		// aggiunta delle radici del denominatore
-		for (auto sol : solutions) if (sol.find(L'i') == wstring::npos)
-		{
-			sol.erase(0, 5);
-			roots << stold(sol);
-			ItsFromDenominator << true;
-			if (repeat) {
-				roots << stold(sol);
-				ItsFromDenominator << true;
+			if (sol.find(L'/') != wstring::npos) {
+				while (fden.at(0) != L'/') fden.erase(0, 1);
+				fden.erase(0, 1);
 			}
+			else fden = L"1";
+
+			auto root{ stold(sol) / stold(fden) };
+			roots << root;
+			if (repeat)	roots << root;
 		}
 		repeat = false;
 	}
+
+	return roots;
+}
+
+// calcola i valori di x sui quali la frazione algebrica ha un certo segno
+static wstring DisequationSolver
+(polynomial<> Num, polynomial<> Den, bool ExpectedSign, bool CanBeNull)
+{
+
+	// casi illegali
+	if (Variables != L"x" or Num.empty() or Den.empty()) return L"";
 	
+	// calcolo delle radici
+	bool repeat{ false };
+	auto roots{ RootExtractor(Num) };
+	auto ItsFromDenominator{ tensor<bool>(roots.size(), false) };
+	roots += RootExtractor(Den);
+	ItsFromDenominator += tensor<bool>(
+		roots.size() - ItsFromDenominator.size(), true
+	);
+
 	// ordinamento delle radici
 	for (size_t i = 0; i < roots; ++i) for (size_t j = i + 1; j < roots; ++j)
 		if (roots[i] > roots[j])
@@ -7128,6 +7128,73 @@ static wstring DisequationSolver
 
 	return output;
 }
+
+// risolve una disequazione fratta con un parametro
+static wstring FractParametricDisequationSolver
+(polynomial<> Num, polynomial<> Den, bool ExpectedSign, bool CanBeNull)
+{
+
+	// controlli iniziali
+	auto null{ tensor<int>(Variables.size(), 0) };
+	auto Vpos{ Variables.find(L'x') };
+	if (Variables.size() > 2 or Vpos == wstring::npos) return L"";
+	auto Un{ Num + Den };
+	for (auto fact : Un) for (const auto& mon : fact)
+		if (mon.exp[Vpos] > 1) return L"";
+
+	// calcolo polinomi in entrata
+	for (auto& fact : Num) if (fact[0].exp[0] < 0)
+		fact[0].coefficient = (int)fact[0].coefficient % 2;
+	for (auto& fact : Den) if (fact[0].exp[0] < 0)
+		fact[0].coefficient = (int)fact[0].coefficient % 2;
+	Num.open();
+	Den.open();
+	tensor<factor<>> tops(Un.size()), bottoms(Un.size());
+
+	// calcolo valori centrali
+	for (size_t i = 0; i < Un; ++i) {
+		auto fact{ Un[i] };
+		
+		// push
+		for (auto mon : fact) {
+			if (mon.exp[Vpos] == 1) {
+				mon.exp[Vpos] = 0;
+				bottoms[i] << mon;
+				continue;
+			}
+			mon.coefficient *= -1;
+			tops[i] << mon;
+		}
+		
+		// gestione dei coefficienti
+		if (tops[i].empty()) tops[i] = factor<>{ { 1, null } };
+		if (bottoms[i].empty()) bottoms[i] = factor<>{ { 1, null } };
+		if (tops[i] == 1 and tops[i][0].exp == null and
+			bottoms[i] == 1 and bottoms[i][0].exp == null)
+		{
+			ExpectedSign = ExpectedSign xor
+				((tops[i][0].coefficient < 0) xor (bottoms[i][0].coefficient < 0));
+			Un.erase(Un.begin() + i);
+			tops.erase(tops.begin() + i);
+			bottoms.erase(bottoms.begin() + i);
+			i--;
+		}
+	}
+
+	// itera su ogni intervallo con estremi le radici dei denominatori
+
+	// confronta ogni frazione
+
+	// per ogni intervallo su due iterazioni ordina le frazioni
+
+	wstring output;
+
+	// calcola le stringhe come nella funzione vecchia
+
+	return output;
+}
+
+// cambia la struttura di queste funzioni
 
 // stampa una frazione
 static void PrintFraction
