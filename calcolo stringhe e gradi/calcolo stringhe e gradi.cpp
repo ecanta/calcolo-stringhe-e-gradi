@@ -1020,9 +1020,9 @@ public:
 
 		if (integ % oth_integ) ret integ < oth_integ xor sign;
 		for (size_t i = 0; i < integ; ++i) if (integ[i] != oth_integ[i])
-			ret integ[i] < oth_integ[i] xor sign;
+			ret (integ[i] < oth_integ[i]) xor sign;
 
-		ret decimal < other.decimal xor sign;
+		ret (decimal < other.decimal) xor sign;
 	}
 	inline bool operator<=(const big& other) const
 	{
@@ -1326,7 +1326,7 @@ public:
 	friend wostream& operator<<(wostream& os, const big& Big)
 	{
 		os << Big.str();
-		return os;
+		ret os;
 	}
 };
 big LCM(1);
@@ -1541,6 +1541,29 @@ public:
 			}
 	}
 
+	T_int operator()(T_int x, int) const
+	{
+		T_int y{};
+		auto Vpos{ Variables.find(L'x') };
+		for (size_t i = 0; i < this->size(); ++i)
+			y += (*this)[i].coefficient * pow(x, (*this)[i].exp[Vpos]);
+		ret y;
+	}
+	bool operator()(T_int x, bool) const
+	{
+		big y{};
+		auto Vpos{ Variables.find(L'x') };
+		for (size_t i = 0; i < this->size(); ++i)
+			y += (*this)[i].coefficient * pow(x, (*this)[i].exp[Vpos]);
+		ret y >= 0;
+	}
+
+	factor neg() const;
+	factor operator-(const factor& other) const;
+	factor& operator-=(const factor& other);
+	factor operator*(const factor& other) const;
+	factor& operator*=(const factor& other);
+
 	_NODISCARD wstring str(int size = Variables.size()) override
 	{
 		wstring polynomial;
@@ -1688,7 +1711,7 @@ public:
 	}
 	polynomial(tensor<factor<T_int>> vect)
 	{
-		for (const auto& value : vect) push_back(value);
+		for (const auto& value : vect) this->push_back(value);
 	}
 
 	void open()
@@ -1895,6 +1918,38 @@ static polynomial<> FromBigToDefault(polynomial<big> BigPolynomial)
 		traduction << element;
 	}
 	ret traduction;
+}
+
+template<typename T_int = long double>
+static factor<T_int> PolynomialSum(factor<T_int> vect);
+template<typename T_int = long double>
+static factor<T_int> PolynomialMultiply(polynomial<T_int> Polynomial);
+
+template<class T_int> factor<T_int> factor<T_int>::neg() const
+{
+	auto This{ *this };
+	for (auto& mon : This) mon.coefficient *= -1;
+	ret This;
+}
+template<class T_int> factor<T_int>
+factor<T_int>::operator-(const factor& other) const
+{
+	ret PolynomialSum<T_int>(this->neg() + other);
+}
+template<class T_int> factor<T_int>
+factor<T_int>::operator*(const factor& other) const
+{
+	ret PolynomialMultiply<T_int>({ *this, other });
+}
+template<class T_int> factor<T_int>& factor<T_int>::operator-=(const factor& other)
+{
+	*this = *this - other;
+	ret* this;
+}
+template<class T_int> factor<T_int>& factor<T_int>::operator*=(const factor& other)
+{
+	*this = *this * other;
+	ret* this;
 }
 
 tensor_t PrimeNumbers;
@@ -2202,10 +2257,6 @@ static tensor<tensor<long double>> FromPolynomialToPos(
 	tensor<tensor<int>>& VDirectorSeq,
 	tensor<tensor<int>>& VKnownSeq
 );
-template<typename T_int = long double>
-static factor<T_int> PolynomialSum(factor<T_int> vect);
-template<typename T_int = long double>
-static factor<T_int> PolynomialMultiply(polynomial<T_int> Polynomial);
 static void PolynomialDivide
 (
 	FACTOR<> dividend, FACTOR<> divisor,
@@ -2355,7 +2406,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"0.9.8 ";
+			wcout << L"0.9.9 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -2663,7 +2714,7 @@ static wstring Handler(wstring test)
 		while (Last(test) == L'0') test.pop_back();
 	if (Last(test) == L',' or Last(test) == L'.') test.pop_back();
 	if (BOOLALPHA) ElabExponents(test);
-	return test;
+	ret test;
 }
 
 // fattoriale x! = x*(x-1)*...*2*1
@@ -6179,14 +6230,13 @@ static polynomial<> Partial(factor<> vect)
 	tensor<int> null(Variables.size(), 0);
 
 	// riassegnazione e dichiarazioni
-	factor<> part_1{ vect[0], vect[1] };
-	factor<> part_2{ vect[2], vect[3] };
+	factor<> part_1{ vect[0], vect[1] }, part_2{ vect[2], vect[3] };
 	auto Part1{ Total(part_1) };
 	auto Part2{ Total(part_2) };
-	if (PolynomialSum<long double>(Part1.last() + Part2.last()).empty()) {
+	if ((Part1.last() - Part2.last().neg()).empty()) {
 		if (Part1 == 1) swap(Part1, Part2);
 		Part2 >> factor<>{ { -1, null } };
-		for (size_t i = 0; i < Part2[1]; ++i) Part2[1][i].coefficient *= -1;
+		Part2[1] = Part2[1].neg();
 	}
 	part_1 = Part1.last();
 	part_2 = Part2.last();
@@ -6194,11 +6244,10 @@ static polynomial<> Partial(factor<> vect)
 	outp.clear();
 
 	// riordinamento del totale
-	polynomial<> mon_1;
-	polynomial<> mon_2;
-	if (Part1 == 1) mon_1 << factor<>{ monomial<>{1, null} };
+	polynomial<> mon_1, mon_2;
+	if (Part1 == 1) mon_1 << factor<>{ { 1, null } };
 	else mon_1 << Part1[0];
-	if (Part2 == 1) mon_2 << factor<>{ monomial<>{1, null} };
+	if (Part2 == 1) mon_2 << factor<>{ { 1, null } };
 	else mon_2 << Part2[0];
 	mon_1 << part_1;
 	mon_2 << part_2;
@@ -6885,7 +6934,6 @@ static void Approximator(tensor<long double>& Equation, long double& root)
 			break;
 		}
 		root = next;
-
 	}
 
 	// divisione del polinomio
@@ -7023,7 +7071,7 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 	}
 }
 
-// estrae una lista di radici dalle C.E.
+// converte le soluzioni di un'equazione da stringa a numero
 static tensor<long double> RootExtractor(polynomial<> vect)
 {
 	bool repeat{ false };
@@ -7054,7 +7102,7 @@ static tensor<long double> RootExtractor(polynomial<> vect)
 		repeat = false;
 	}
 
-	return roots;
+	ret roots;
 }
 
 // calcola i valori di x sui quali la frazione algebrica ha un certo segno
@@ -7126,7 +7174,7 @@ static wstring DisequationSolver
 	}
 	// //
 
-	return output;
+	ret output;
 }
 
 // risolve una disequazione fratta con un parametro
@@ -7180,18 +7228,58 @@ static wstring FractParametricDisequationSolver
 			i--;
 		}
 	}
+	
+	// calcolo intervalli
+	auto RootSet{ tensor<long double>{ RootExtractor(bottoms) } };
+	long double RepeatedValue{ RootSet.last() };
+	for (size_t i = 0; i < RootSet; ++i)
+		for (size_t j = i + 1; j < RootSet; ++j)
+			if (RootSet[i] > RootSet[j])
+				swap(RootSet[i], RootSet[j]);
+	for (ptrdiff_t i = RootSet.size() - 2; i >= 0; --i) {
+		if (RootSet[i] == RepeatedValue) {
+			RootSet.erase(RootSet.begin() + i);
+			continue;
+		}
+		RepeatedValue = RootSet[i];
+	}
+	tensor<long double> RootExamples{ RootSet[0] - 1 };
+	for (ptrdiff_t i = 0; i < RootSet.size() - 1; ++i)
+		RootExamples << (RootSet[i] + RootSet[i + 1]) / 2.0;
+	RootExamples << RootSet.last() + 1;
 
-	// itera su ogni intervallo con estremi le radici dei denominatori
+	// calcolo delle disequazioni principali
+	tensor<tensor<factor<>>> TableOfMains(
+		bottoms.size(), tensor<factor<>>(bottoms.size())
+	);
+	for (int first = 0; first < TableOfMains; ++first)
+		for (int second = first + 1; second < TableOfMains; ++second)
+			TableOfMains[first][second] =
+				tops[first] * bottoms[second] - tops[second] * bottoms[first];
 
-	// confronta ogni frazione
+	// iterazione su ogni intervallo
+	for (const auto& interval : RootExamples) {
 
-	// per ogni intervallo su due iterazioni ordina le frazioni
+		// confronto dei segni
+		tensor<tensor<bool>> TableOfGEQValues(
+			bottoms.size(), tensor<bool>(bottoms.size())
+		);
+		for (int first = 0; first < TableOfGEQValues; ++first)
+			for (int second = first + 1; second < TableOfGEQValues; ++second)
+				TableOfGEQValues[first][second] =
+					(TableOfMains[first][second](interval, true))
+						== (bottoms[first](interval, true) ==
+							bottoms[second](interval, true));
+
+		// continua
+
+	}
 
 	wstring output;
 
 	// calcola le stringhe come nella funzione vecchia
 
-	return output;
+	ret output;
 }
 
 // cambia la struttura di queste funzioni
@@ -7838,17 +7926,13 @@ FACTOR<> PolynomialMatrixDeterminant(tensor<tensor<FACTOR<>>> PolynomialMatrix)
 	if (s == 1) ret PolynomialMatrix[0][0];
 	if (s == 2) {
 		auto addend1{
-			PolynomialMultiply(
-				{ ToXV(PolynomialMatrix[0][0]), ToXV(PolynomialMatrix[1][1]) }
-			)
+			ToXV(PolynomialMatrix[0][0]) * ToXV(PolynomialMatrix[1][1])
 		};
 		auto addend2{
-			PolynomialMultiply(
-				{ ToXV(PolynomialMatrix[0][1]), ToXV(PolynomialMatrix[1][0]) }
-			)
+			ToXV(PolynomialMatrix[0][1]) * ToXV(PolynomialMatrix[1][0])
 		};
 		for (auto& mon : addend2) mon.coefficient *= -1;
-		ret To1V(PolynomialSum<long double>(addend1 + addend2));
+		ret To1V(addend1 - addend2.neg());
 	}
 
 	// caso generale del calcolo del determinante
@@ -7863,14 +7947,9 @@ FACTOR<> PolynomialMatrixDeterminant(tensor<tensor<FACTOR<>>> PolynomialMatrix)
 
 		auto MiddleDet{ ToXV(PolynomialMatrixDeterminant(MX)) };
 		if (MiddleDet != 0) {
-			auto adder{
-				PolynomialMultiply<long double>({
-					ToXV(PolynomialMatrix[0][i]),
-					MiddleDet
-					})
-			};
+			auto adder{ ToXV(PolynomialMatrix[0][i]) * MiddleDet };
 			for (auto& mon : adder) mon.coefficient *= -1;
-			det = To1V(PolynomialSum<long double>(ToXV(det) + adder));
+			det = To1V(ToXV(det) - adder.neg());
 		}
 	}
 
