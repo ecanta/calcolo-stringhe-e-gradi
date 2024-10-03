@@ -1541,18 +1541,16 @@ public:
 			}
 	}
 
-	T_int operator()(T_int x, int) const
+	T_int operator()(T_int x, size_t Vpos, int) const
 	{
 		T_int y{};
-		auto Vpos{ Variables.find(L'x') };
 		for (size_t i = 0; i < this->size(); ++i)
 			y += (*this)[i].coefficient * pow(x, (*this)[i].exp[Vpos]);
 		ret y;
 	}
-	bool operator()(T_int x, bool) const
+	bool operator()(T_int x, size_t Vpos, bool) const
 	{
 		big X = x, y;
-		auto Vpos{ Variables.find(L'x') };
 		for (size_t i = 0; i < this->size(); ++i)
 			y += (X ^ (*this)[i].exp[Vpos]) * (*this)[i].coefficient;
 		ret y >= 0;
@@ -6006,8 +6004,7 @@ static tensor<tensor<long double>> FromPolynomialToPos(
 			if (FirstDiv == -1) FirstDiv = 0;
 			if (SecondDiv == -1) SecondDiv = 0;
 
-			if (FirstDiv + SecondDiv != size and KnownSeq != null)
-			{
+			if (FirstDiv + SecondDiv != size) {
 				keep = true;
 				break;
 			}
@@ -7255,6 +7252,20 @@ static wstring DisequationSolver
 		}
 	}
 	
+	// caso di un fattore
+	if (Un == 1) {
+		tensor<wstring> vals{ EquationSolver(Un[0]) };
+		for (auto& val : vals) val.erase(0, 5);
+
+		ret GetAlgebricSolution(
+			vals,
+			tensor<bool>(vals.size(), true),
+			InitialSign,
+			ExpectedSign,
+			CanBeNull
+		);
+	}
+
 	// calcolo delle disequazioni principali
 	tensor<tensor<factor<>>> TableOfMains(
 		bottoms.size(), tensor<factor<>>(bottoms.size())
@@ -7301,12 +7312,12 @@ static wstring DisequationSolver
 			for (size_t second = first + 1; second < SumOfGEQValues; ++second)
 			{
 				bool value{
-					(TableOfMains[first][second](interval, true))
+					(TableOfMains[first][second](interval, 1 - Vpos, true))
 						==
 					(
-						bottoms[first](interval, true)
+						bottoms[first](interval, 1 - Vpos, true)
 						==
-						bottoms[second](interval, true)
+						bottoms[second](interval, 1 - Vpos, true)
 					)
 				};
 
@@ -9975,3 +9986,17 @@ RETURN:
 
 // file natvis 54 righe
 // fine del codice
+
+/*
+
+elenco bug \ modifiche
+
+	frompolynomialtopos non funziona, usare formule nuove
+	il code to number non va
+	l'input è strano
+	il buffer si blocca con le lettere accentate
+
+	coefficienti parametrici
+	accuratezza dei segni
+
+*/
