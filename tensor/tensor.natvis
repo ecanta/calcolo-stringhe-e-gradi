@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
-	<Type Name="tensor&lt;*&gt;" Inheritable="true">
+	<Type Name="std_tensor::tensor&lt;*&gt;" Inheritable="true">
 		<DisplayString Condition="count == 0">
 			VOID
 		</DisplayString>
@@ -8,7 +8,7 @@
 			§§§§§§§§§§§§§§§§§§§§
 		</DisplayString>
 		<DisplayString>
-			{{size == {count}}}, ElementAt(0) == {data[0]}
+			{{size == {count}}}, start == {data[0]}
 		</DisplayString>
 		<Expand>
 			<ArrayItems>
