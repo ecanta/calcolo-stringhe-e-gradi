@@ -5426,7 +5426,7 @@ static ptrdiff_t StringConverter(wstring ToEvaluate)
 		
 		// calcolo valori
 		else root = NumberConverter(
-			StringConverter(M.substr(1, FindIndex)),
+			StringConverter(M.substr(1, FindIndex - 1)),
 			M.substr(FindIndex + 1, M.size() - 1)
 		);
 
@@ -5980,34 +5980,31 @@ static tensor<tensor<long double>> FromPolynomialToPos(
 
 		// controllo esponenti centrali
 		for (size_t i = 1; i + 1 < vect; ++i) {
-			int FirstDiv{ -1 }, SecondDiv{ -1 };
+			double Dquot{ -1 }, Kquot{ -1 };
 
 			for (size_t j = 0; j < Variables.size(); ++j) {
-				int FD{ -1 }, SD{ -1 };
+				double vexp = vect[i].exp[j];
+				if (!DirectorSeq[j] and !KnownSeq[j] and vexp) ret {};
+				bool primary = DirectorSeq[j];
 
-				if (DirectorSeq[j] > 0) FD = vect[i].exp[j] / DirectorSeq[j];
-				if (KnownSeq[j] > 0) SD = vect[i].exp[j] / KnownSeq[j];
-
-				if (FirstDiv == -1) FirstDiv = FD;
-				else if (FirstDiv != FD and FD != -1) {
+				double quot =
+					primary ? vexp / DirectorSeq[j] : vexp / KnownSeq[j];
+				if (!integer(quot)) {
 					keep = true;
 					break;
 				}
 
-				if (SecondDiv == -1) SecondDiv = SD;
-				else if (SecondDiv != SD and SD != -1) {
-					keep = true;
-					break;
+				if (primary) {
+					if (Dquot == -1) Dquot = quot;
+					else if (Dquot != quot) keep = true;
+				}
+				else {
+					if (Kquot == -1) Kquot = quot;
+					else if (Kquot != quot) keep = true;
 				}
 			}
+
 			if (keep) break;
-			if (FirstDiv == -1) FirstDiv = 0;
-			if (SecondDiv == -1) SecondDiv = 0;
-
-			if (FirstDiv + SecondDiv != size) {
-				keep = true;
-				break;
-			}
 		}
 		if (keep) continue;
 
@@ -7066,6 +7063,46 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 		if (coeff != 1) push += L" / " + to_wstring(coeff);
 		ret { push };
 	}
+
+	// caso con variabile e parametri
+	factor<> top, bottom;
+	size_t Vpos{ Variables.find(L'x') };
+	for (const auto& mon : Equation) if (mon.exp[Vpos] > 1) ret {};
+	for (auto mon : Equation) {
+		if (mon.exp[Vpos] == 1) {
+			mon.exp[Vpos] = 0;
+			bottom << mon;
+			continue;
+		}
+		mon.coefficient *= -1;
+		top << mon;
+	}
+
+	// calcolo stringhe
+	auto N{ top.str() };
+	auto D{ bottom.str() };
+	auto NN{ N };
+	auto DD{ D };
+	if (issign(NN.at(0))) NN.erase(0, 1);
+	if (issign(DD.at(0))) DD.erase(0, 1);
+
+	// concatenazione stringhe
+	if (NN.find(L'+') != wstring::npos or NN.find(L'-') != wstring::npos)
+		N = L'(' + N + L')';
+	if (DD.find(L'+') != wstring::npos or DD.find(L'-') != wstring::npos)
+		D = L'(' + D + L')';
+	auto str{ N };
+
+	// controllo denominatore
+	if (D == L"-1") {
+		if (str.at(0) == L'(') str.erase(0, 1);
+		if (str.find(L'(') == wstring::npos) str.pop_back();
+		else str = L'(' + str;
+		str.at(0) == L'-' ? str.erase(0, 1) : str = L'-' + str;
+	}
+	if (D != L"1") str += L'/' + D;
+
+	ret { L"x != " + str };
 }
 
 // converte le soluzioni di un'equazione da stringa a numero
@@ -7341,7 +7378,7 @@ static wstring DisequationSolver
 			if (issign(NN.at(0))) NN.erase(0, 1);
 			if (issign(DD.at(0))) DD.erase(0, 1);
 
-			if ((NN.find(L'+') != wstring::npos or NN.find(L'-') != wstring::npos))
+			if (NN.find(L'+') != wstring::npos or NN.find(L'-') != wstring::npos)
 				N = L'(' + N + L')';
 			if (DD.find(L'+') != wstring::npos or DD.find(L'-') != wstring::npos)
 				D = L'(' + D + L')';
