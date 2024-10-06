@@ -899,7 +899,7 @@ private: tensor<int> Integer;
 			for (ptrdiff_t i = _Number.size() - 1; i >= 0; --i) {
 				prod = (_Number.at(i)) * factor + carry;
 				carry = prod / 10;
-				_Number.at(i) = prod % 10;
+				_Number[i] = prod % 10;
 			}
 			if (carry != 0) _Number >> carry;
 			for (ptrdiff_t i = Val.Integer.size() - a - 2; i >= 0; --i)
@@ -920,8 +920,9 @@ private: tensor<int> Integer;
 		decdigits.erase(0, decdigits.size() - decprecision);
 		for (size_t i = 0; i < decdigits; ++i)
 			dec += decdigits[i] * pow(10, decdigits.size() - i - 1);
-		This.decimal = dec / pow(10, decprecision);
 
+		if (This.Integer.empty()) This.Integer = { 0 };
+		This.decimal = dec / pow(10, decprecision);
 		This.sign = sign xor value.sign;
 		ret This;
 	}
@@ -1018,7 +1019,7 @@ public:
 			--oth_integ;
 		}
 
-		if (integ % oth_integ) ret integ < oth_integ xor sign;
+		if (integ % oth_integ) ret (integ < oth_integ) xor sign;
 		for (size_t i = 0; i < integ; ++i) if (integ[i] != oth_integ[i])
 			ret (integ[i] < oth_integ[i]) xor sign;
 
@@ -1528,10 +1529,12 @@ public:
 	}
 	void SortByExponents()
 	{
+		if (this->empty()) ret;
+		size_t size{ Variables.size() };
 		for (size_t i = 0; i < this->size(); ++i)
 			for (size_t j = i + 1; j < this->size(); ++j) {
 				bool swap{ false };
-				for (size_t k = 0; k < Variables.size(); ++k) {
+				for (size_t k = 0; k < size; ++k) {
 					if (this->at(i).exp[k] > this->at(j).exp[k]) break;
 					if (this->at(i).exp[k] == this->at(j).exp[k]) continue;
 					swap = true;
@@ -1541,13 +1544,7 @@ public:
 			}
 	}
 
-	T_int operator()(T_int x, size_t Vpos, int) const
-	{
-		T_int y{};
-		for (size_t i = 0; i < this->size(); ++i)
-			y += (*this)[i].coefficient * pow(x, (*this)[i].exp[Vpos]);
-		ret y;
-	}
+	factor operator()(T_int x, size_t Vpos, int) const;
 	bool operator()(T_int x, size_t Vpos, bool) const
 	{
 		big X = x, y;
@@ -1689,7 +1686,7 @@ static FACTOR<> To1V(factor<> vect)
 }
 
 // polinomi completi
-static void ElabExponents(wstring& str);
+static wstring ElabExponents(wstring& str);
 template<typename T_int = long double>class polynomial
 	: public tensor<factor<T_int>>
 {
@@ -1807,10 +1804,7 @@ public:
 		// aggiunta del denominatore
 		if (!output.empty()) output = L'[' + output + L']';
 		else if (LCM != 1) output.clear();
-		else {
-			ElabExponents(coeffstr);
-			ret coeffstr;
-		}
+		else ret ElabExponents(coeffstr);
 		if (LCM.fabs() != 1 or coeffstr != L"1") {
 
 			// polinomio piccolo
@@ -1836,8 +1830,7 @@ public:
 				output.find(L']') != wstring::npos) output = L'[' + output + L']';
 		}
 
-		if (BOOLALPHA) ElabExponents(output);
-		ret output;
+		ret ElabExponents(output);
 	}
 };
 template<typename T_int = long double>class POLYNOMIAL
@@ -1923,6 +1916,17 @@ template<typename T_int = long double>
 static factor<T_int> PolynomialSum(factor<T_int> vect);
 template<typename T_int = long double>
 static factor<T_int> PolynomialMultiply(polynomial<T_int> Polynomial);
+
+template <class T_int>
+factor<T_int> factor<T_int>::operator()(T_int x, size_t Vpos, int) const
+{
+	auto This{ *this };
+	for (size_t i = 0; i < this->size(); ++i) {
+		This[i].coefficient *= pow(x, This[i].exp[Vpos]);
+		This[i].exp[Vpos] = 0;
+	}
+	ret PolynomialSum<T_int>(This);
+}
 
 template<class T_int> factor<T_int> factor<T_int>::neg() const
 {
@@ -2140,11 +2144,22 @@ public:
 struct Console {
 	wstring Text;
 	WORD Attribute{ 15 };
-	void print() const
+	void log() const
 	{
 		SetConsoleTextAttribute(hConsole, Attribute);
 		wcout << Text;
 		ResetAttribute();
+	}
+	bool operator!=(const Console& other)
+	{
+		ret Text != other.Text and Attribute != other.Attribute;
+	}
+	friend wostream& operator<<(wostream& os, const Console& T)
+	{
+		SetConsoleTextAttribute(hConsole, T.Attribute);
+		os << T.Text;
+		ResetAttribute();
+		ret os;
 	}
 };
 tensor<Console> ConsoleText;
@@ -2277,7 +2292,14 @@ static void Simplify(
 static void Approximator(tensor<long double>& Equation, long double& root);
 static tensor<wstring> EquationSolver(factor<> equation);
 static tensor<long double> RootExtractor(polynomial<> vect);
-static wstring DisequationSolver
+static tensor<Console> GetAlgebricSolution(
+	tensor<wstring> roots,
+	tensor<bool> ItsFromDenominator,
+	bool InitialSign,
+	bool ExpectedSign,
+	bool CanBeNull = false
+);
+static tensor<Console> DisequationSolver
 (polynomial<> Num, polynomial<> Den, bool ExpectedSign, bool CanBeNull = false);
 static void PrintFraction
 (
@@ -2403,7 +2425,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.0.0 ";
+			wcout << L"1.0.2 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -2710,8 +2732,7 @@ static wstring Handler(wstring test)
 	if (test.find(L'.') != wstring::npos or test.find(L',') != wstring::npos)
 		while (Last(test) == L'0') test.pop_back();
 	if (Last(test) == L',' or Last(test) == L'.') test.pop_back();
-	if (BOOLALPHA) ElabExponents(test);
-	ret test;
+	ret ElabExponents(test);
 }
 
 // fattoriale x! = x*(x-1)*...*2*1
@@ -3436,8 +3457,9 @@ static wstring CFSuperScript(wstring script)
 }
 
 // cambia una stringa da formato numeri a formato esponenti
-static void ElabExponents(wstring& str)
+static wstring ElabExponents(wstring& str)
 {
+	if (!BOOLALPHA) ret str;
 	int J{ 1 };
 	bool dobreak{ false };
 	for (size_t I = 0; I < str.size(); ++I) {
@@ -3465,6 +3487,7 @@ static void ElabExponents(wstring& str)
 			J = 1;
 		}
 	}
+	ret str;
 }
 
 // calcola la stringa originaria da quella con gli esponenti
@@ -5523,7 +5546,7 @@ static void LongComputation
 	if (counter == 0) {
 		lock_guard<mutex> lock(CoutMutex);
 		CodeConverter(ToEvaluate, message, ShowErrors, NecBoundary);
-		for (auto& text : ConsoleText) text.print();
+		for (auto& text : ConsoleText) text.log();
 		ConsoleText.clear();
 	}
 
@@ -5573,7 +5596,7 @@ static void LongComputation
 		if (output_thread.joinable()) output_thread.join();
 
 		// output errori
-		for (auto& text : ConsoleText) text.print();
+		for (auto& text : ConsoleText) text.log();
 		ConsoleText.clear();
 
 		// uscita
@@ -7058,8 +7081,10 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 		if (coeff < 0) coeff *= -1;
 		else Equation[1].coefficient *= -1;
 
-		wstring push{ factor<>{ Equation[0] }.str() + L" != " };
-		push += factor<>{ Equation[1] }.str();
+		wstring push{
+			factor<>{ Equation[0] }.str(Equation[0].exp.size()) + L" != "
+		};
+		push += factor<>{ Equation[1] }.str(Equation[1].exp.size());
 		if (coeff != 1) push += L" / " + to_wstring(coeff);
 		ret { push };
 	}
@@ -7079,10 +7104,14 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 	}
 
 	// calcolo stringhe
-	auto N{ top.str() };
-	auto D{ bottom.str() };
-	auto NN{ N };
+	auto D = bottom.empty() ? L"1" : bottom.str();
 	auto DD{ D };
+	if (D == L"-1") {
+		D = L"1";
+		for (auto& mon : top) mon.coefficient *= -1;
+	}
+	auto N = top.empty() ? L"1" : top.str();
+	auto NN{ N };
 	if (issign(NN.at(0))) NN.erase(0, 1);
 	if (issign(DD.at(0))) DD.erase(0, 1);
 
@@ -7143,7 +7172,7 @@ static tensor<long double> RootExtractor(polynomial<> vect)
 	ret roots;
 }
 
-static wstring GetAlgebricSolution(
+static tensor<Console> GetAlgebricSolution(
 	tensor<wstring> roots,
 	tensor<bool> ItsFromDenominator,
 	bool InitialSign,
@@ -7151,15 +7180,36 @@ static wstring GetAlgebricSolution(
 	bool CanBeNull
 )
 {
-	wstring output;
+	// correzione dei segni
+	for (ptrdiff_t i = roots.size() - 1; i >= 0; --i)
+		for (ptrdiff_t j = roots.size() - 1; j > i; --j)
+			if (roots[i] == roots[j] and CanBeNull)
+			{
+				if (!(ItsFromDenominator[i] or ItsFromDenominator[j])) {
+					roots.erase(roots.begin() + j);
+					roots.erase(roots.begin() + i);
+					ItsFromDenominator.erase(ItsFromDenominator.begin() + j);
+					ItsFromDenominator.erase(ItsFromDenominator.begin() + i);
+					continue;
+				}
+				if (ItsFromDenominator[i] or ItsFromDenominator[j]) {
+					ItsFromDenominator[i] = true;
+					ItsFromDenominator[j] = true;
+				}
+			}
+
+	// inizio
+	if (roots.empty()) ret { Console(L"per ogni x appartenente a R", 11) };
+	tensor<Console> text;
 	bool condition{ ((InitialSign == (roots.size() % 2 == 0)) == ExpectedSign) };
 
 	// parte iniziale
 	if (condition) {
-		output = L"x";
-		CanBeNull and !ItsFromDenominator[0] ? output += L" <= " : output += L" < ";
-		output += roots[0];
-		if (roots > 1) output += L" V ";
+		text = { Console(L"x") };
+		CanBeNull and !ItsFromDenominator[0] ?
+			text << Console(L" <= ") : text << Console(L" < ");
+		text << Console(roots[0]);
+		if (roots > 1) text << Console(L" V ", 8);
 	}
 
 	for (size_t i = condition; i < roots; i += 2) {
@@ -7167,31 +7217,32 @@ static wstring GetAlgebricSolution(
 		// parte finale
 		if (i + 1 == roots) {
 			CanBeNull and !ItsFromDenominator[i] ?
-				output += L"x >= " : output += L"x > ";
-			output += roots[i];
+				text << Console(L"x >= ") : text << Console(L"x > ");
+			text << Console(roots[i]);
 			break;
 		}
 
 		// parte centrale
-		output += roots[i];
+		text << Console(roots[i]);
 		CanBeNull and !ItsFromDenominator[i] ?
-			output += L" <= x" : output += L" < x";
+			text << Console(L" <= x") : text << Console(L" < x");
 		CanBeNull and !ItsFromDenominator[i + 1] ?
-			output += L" <= " : output += L" < ";
-		output += roots[i + 1];
-		if (i + 2 < roots) output += L" V ";
+			text << Console(L" <= ") : text << Console(L" < ");
+		text << Console(roots[i + 1]);
+		if (i + 2 < roots) text << Console(L" V ", 8);
 	}
 	// //
 
-	ret output;
+	for (auto& cons : text) ElabExponents(cons.Text);
+	ret text;
 }
 
 // risolve una disequazione fratta con un parametro
-static wstring DisequationSolver
+static tensor<Console> DisequationSolver
 (polynomial<> Num, polynomial<> Den, bool ExpectedSign, bool CanBeNull)
 {
-	wstring output;
-	if (Num.empty() and Den.empty()) ret L"";
+	tensor<Console> text;
+	if (Num.empty() and Den.empty()) ret {};
 
 	// disequazione
 	if (Variables == L"x") {
@@ -7238,11 +7289,16 @@ static wstring DisequationSolver
 
 	// controlli iniziali
 	auto Vpos{ Variables.find(L'x') };
+	if (Variables.size() != 2 or Vpos == wstring::npos) ret {};
 	wchar_t parameter{ Variables.at(1 - Vpos) };
-	if (Variables.size() != 2 or Vpos == wstring::npos) ret L"";
+
+	// tensori
 	polynomial<> Un = Num + Den;
 	for (auto fact : Un) for (const auto& mon : fact)
-		if (mon.exp[Vpos] > 1) ret L"";
+		if (mon.exp[Vpos] > 1) ret {};
+	tensor<bool> TermsFromDenominator{
+		tensor<bool>(Num.size(), false) + tensor<bool>(Den.size(), false)
+	};
 
 	// calcolo polinomi in entrata
 	for (auto& fact : Num) if (fact[0].exp[0] < 0)
@@ -7296,7 +7352,7 @@ static wstring DisequationSolver
 
 		ret GetAlgebricSolution(
 			vals,
-			tensor<bool>(vals.size(), true),
+			tensor<bool>(vals.size(), TermsFromDenominator[0]),
 			InitialSign,
 			ExpectedSign,
 			CanBeNull
@@ -7337,11 +7393,13 @@ static wstring DisequationSolver
 	for (ptrdiff_t i = 0; i < RootSet.size() - 1; ++i)
 		RootExamples << (RootSet[i] + RootSet[i + 1]) / 2.0;
 	RootExamples << RootSet.last() + 1;
-
+	
 	// iterazione su ogni intervallo
+	tensor<wstring> ParameterIntervals;
+	tensor<tensor<Console>> UnknownIntervals;
 	for (size_t index = 0; index < RootExamples; ++index) {
 		auto interval{ RootExamples[index] };
-		wstring line;
+		tensor<Console> line;
 
 		// calcolo dei segni
 		tensor<int> SumOfGEQValues(bottoms.size(), 0);
@@ -7366,15 +7424,20 @@ static wstring DisequationSolver
 		for (size_t i = 0; i < SumOfGEQValues; ++i)
 			for (size_t j = i + 1; j < SumOfGEQValues; ++j)
 				if (SumOfGEQValues[i] == SumOfGEQValues[j])
-					line = L"  ->  impossibile";
+					line = { Console(L"  ->  ", 8), Console(L"impossibile", 11) };
 
 		// confronto
 		tensor<wstring> values;
 		for (size_t i = 0; i < SumOfGEQValues; ++i) {
-			auto N{ tops[i].str() };
-			auto D{ bottoms[i].str() };
-			auto NN{ N };
+			auto D = bottoms[i].empty() ? L"1" : bottoms[i].str();
 			auto DD{ D };
+			if (D == L"-1") {
+				D = L"1";
+				for (auto& mon : tops[i]) mon.coefficient *= -1;
+			}
+
+			auto N = tops[i].empty() ? L"1" : tops[i].str();
+			auto NN{ N };
 			if (issign(NN.at(0))) NN.erase(0, 1);
 			if (issign(DD.at(0))) DD.erase(0, 1);
 
@@ -7395,8 +7458,12 @@ static wstring DisequationSolver
 				}
 
 		// output intervallo della variabile
-		if (line != L"  ->  impossibile") {
-			line = L"  ->  ";
+		if (
+			line != tensor<Console>{
+				Console(L"  ->  ", 8), Console(L"impossibile", 11)
+			}
+		) {
+			line = { Console(L"  ->  ", 8) };
 			
 			line += GetAlgebricSolution(
 				values,
@@ -7407,23 +7474,67 @@ static wstring DisequationSolver
 			);
 		}
 		
-		// output intervallo della costante
+		// output intervallo iniziale
 		if (index == 0) {
-			output += wstring(1, parameter) + L" < ";
-			output += Handler(to_wstring(RootSet[0])) + line + L'\n';
+			ParameterIntervals << wstring(1, parameter);
+			CanBeNull and index < bottoms ?
+				ParameterIntervals[0] += L" <= " : ParameterIntervals[0] += L" < ";
+			ParameterIntervals[0] += Handler(to_wstring(RootSet[0]));
+			UnknownIntervals << line + tensor<Console>{ Console(L"\n") };
+			goto ParameterValue;
+		}
+
+		// output intervallo finale
+		if (index == RootSet.size()) {
+			ParameterIntervals << wstring(1, parameter);
+			CanBeNull and index < bottoms ?
+				ParameterIntervals.last() += L" >= " :
+				ParameterIntervals.last() += L" > ";
+			ParameterIntervals.last() += Handler(to_wstring(RootSet.last()));
+			UnknownIntervals << line + tensor<Console>{ Console(L"\n") };
 			continue;
 		}
-		if (index == RootExamples.size() - 1) {
-			output += wstring(1, parameter) + L" > ";
-			output += Handler(to_wstring(RootSet.last())) + line + L'\n';
-			continue;
-		}
-		output += Handler(to_wstring(RootSet[index])) + L" < ";
-		output += Handler(to_wstring(RootSet[index + 1]));
-		output += line + L'\n';
+
+		// output intervalli centrali
+		ParameterIntervals << Handler(to_wstring(RootSet[index - 1]));
+		CanBeNull and index - 1 < bottoms ?
+		ParameterIntervals.last() += L" <= " : ParameterIntervals.last() += L" < ";
+		ParameterIntervals.last() += wstring(1, parameter);
+		CanBeNull and index < bottoms ?
+			ParameterIntervals.last() += L" <= " :
+			ParameterIntervals.last() += L" < ";
+		ParameterIntervals.last() += Handler(to_wstring(RootSet[index]));
+		UnknownIntervals << line + tensor<Console>{ Console(L"\n") };
+
+		// output dell'equazione quando il parametro è pari al valore speciale
+	ParameterValue:
+		ParameterIntervals << wstring(1, parameter) + L" = ";
+		ParameterIntervals.last() += Handler(to_wstring(RootSet[index]));
+		for (auto& fact : Num) fact = fact(RootSet[index], 1 - Vpos, 1);
+		for (auto& fact : Den) fact = fact(RootSet[index], 1 - Vpos, 1);
+		auto save{ Variables };
+		Variables = L"x";
+		UnknownIntervals << tensor<Console>{ Console(L"  ->  ", 8) }
+			+ DisequationSolver(Num, Den, ExpectedSign, CanBeNull)
+			+ tensor<Console>{ Console(L"\n") };
+		Variables = save;
 	}
 
-	ret output;
+	// riorganizzazione del risultato finale
+	size_t sizemax{ ParameterIntervals[0].size() };
+	for (size_t i = 1; i < ParameterIntervals; ++i)
+		if (sizemax < ParameterIntervals[i].size())
+			sizemax = ParameterIntervals[i].size();
+	for (auto& word : ParameterIntervals) if (word.size() < sizemax)
+		word += wstring(sizemax - word.size(), L' ');
+	for (size_t i = 0; i < ParameterIntervals; ++i) {
+		text << Console(ParameterIntervals[i]);
+		for (size_t j = 0; j < UnknownIntervals[i]; ++j)
+			text << UnknownIntervals[i][j];
+	}
+
+	for (auto& cons : text) ElabExponents(cons.Text);
+	ret text;
 }
 
 // stampa una frazione
@@ -7508,7 +7619,7 @@ static void PrintFraction
 		num_ = numerator.str();
 
 		if (num_ == L"0") num_.clear();
-		else if (abs(NC) != 1 or numerator > 1) num_ = L'(' + num_ + L')';
+		else if (abs(NC) != 1 or numerator[0] > 1) num_ = L'(' + num_ + L')';
 
 		if (abs(NC) != 1) num_ = to_wstring(NC) + num_;
 		if (num_.empty()) num_ = L"1";
@@ -7521,7 +7632,7 @@ static void PrintFraction
 	if (tempden != L"1") den_ = tempden;
 	
 	if (den_ == L"0") den_.clear();
-	else if (abs(DC) != 1 or denominator > 1) den_ = L'(' + den_ + L')';
+	else if (abs(DC) != 1 and denominator[0] > 1) den_ = L'(' + den_ + L')';
 
 	if (abs(DC) != 1) den_ = to_wstring(DC) + den_;
 	if (den_.empty()) den_ = L"1";
@@ -9309,9 +9420,10 @@ static void DecompFraction(switchcase& argc)
 		do {
 
 			// input
-			ResetAttribute();
+			SetConsoleTextAttribute(hConsole, 7);
 			bool wrong{ true };
 			wcout << L"\ninserisci una frazione algebrica (0 = fine input)\n\n";
+			ResetAttribute();
 			GetFraction(numerator, denominator);
 			if (numerator.empty()) numerator = L"0";
 			if (denominator.empty()) denominator = L"1";
@@ -9579,8 +9691,9 @@ static void DecompFraction(switchcase& argc)
 		// output del segno della frazione
 		auto DiseqSol{ DisequationSolver(N_, D_, POS, true) };
 		if (!DiseqSol.empty()) {
-			SetConsoleTextAttribute(hConsole, 11);
-			wcout << DiseqSol << L'\n';
+			wcout << L'\n';
+			for (const auto& text : DiseqSol) text.log();
+			wcout << L'\n';
 		}
 
 		// output frazioni
@@ -9674,7 +9787,7 @@ static void DecompFraction(switchcase& argc)
 		// caso fattore
 		else if (NScomp == 1 and NewPrint) {
 			auto output = HasMoreVariables ? N_[0].str() : NScomp[0].str();
-			if (BOOLALPHA) ElabExponents(output);
+			ElabExponents(output);
 			if (NScomp[0] > 1 and NCOEFF != 1) output = L'(' + output + L')';
 			if (abs(NCOEFF) != 1) output = to_wstring(NCOEFF) + output;
 			if (NCOEFF * DCOEFF == -1) output = L'-' + output;
@@ -9705,7 +9818,7 @@ static void DecompFraction(switchcase& argc)
 			if (integer(a.coefficient / CORRECTION_RATIO)) {
 				rest[0][0].coefficient /= CORRECTION_RATIO;
 				auto pol{ rest.str() };
-				if (BOOLALPHA) ElabExponents(pol);
+				ElabExponents(pol);
 				bool IsMinus{ false };
 
 				// correzione segno
@@ -9762,7 +9875,7 @@ static void DecompFraction(switchcase& argc)
 				if (a.degree > 0) power += charVariable;
 				if (a.degree > 1) {
 					power += L'^' + to_wstring(a.degree);
-					if (BOOLALPHA) ElabExponents(power);
+					ElabExponents(power);
 				}
 				wcout << L' ' << power << L' ';
 			}
@@ -10023,17 +10136,3 @@ RETURN:
 
 // file natvis 54 righe
 // fine del codice
-
-/*
-
-elenco bug \ modifiche
-
-	frompolynomialtopos non funziona, usare formule nuove
-	il code to number non va
-	l'input è strano
-	il buffer si blocca con le lettere accentate
-
-	coefficienti parametrici
-	accuratezza dei segni
-
-*/
