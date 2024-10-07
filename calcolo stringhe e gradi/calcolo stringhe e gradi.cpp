@@ -2753,7 +2753,7 @@ static size_t BinomialCoeff(size_t n, size_t k)
 	else for (size_t j = 1; j <= n - k; ++j)
 		coeff *= (static_cast<long double>(k) + j) / j;
 
-	ret (size_t)coeff;
+	ret static_cast<size_t>(coeff);
 }
 
 // massimo comune divisore tra due interi
@@ -2761,7 +2761,7 @@ static ptrdiff_t Gcd(ptrdiff_t  A, ptrdiff_t  B)
 {
 	if (A < B) swap(A, B);
 	while (B != 0) {
-		int temp = B;
+		auto temp{ B };
 		B = A % B;
 		A = temp;
 	}
@@ -3497,7 +3497,7 @@ static void DeduceFromExponents(wstring& str)
 		auto script{ wstring(1, str.at(i)) };
 		auto unscript{ CFSuperScript(script) };
 		if (unscript != script)
-			str.replace(i, i + 1, L"^" + unscript.at(0));
+			str.replace(i, i, L"^" + wstring(1, unscript.at(0)));
 	}
 }
 
@@ -7131,7 +7131,8 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 	}
 	if (D != L"1") str += L'/' + D;
 
-	ret { L"x != " + str };
+	ret Variables.size() > 2 ?
+		tensor<wstring>{ str + L" != 0" } : tensor<wstring>{ L"x != " + str };
 }
 
 // converte le soluzioni di un'equazione da stringa a numero
@@ -7348,6 +7349,10 @@ static tensor<Console> DisequationSolver
 	// caso di un fattore
 	if (Un == 1) {
 		tensor<wstring> vals{ EquationSolver(Un[0]) };
+		if (vals == 1) if (isalpha(vals[0].at(0)) and isalpha(vals[0].at(1))) {
+			if (vals[0].find(L'/') == wstring::npos) vals[0] += L'/';
+			vals[0] += parameter;
+		}
 		for (auto& val : vals) val.erase(0, 5);
 
 		ret GetAlgebricSolution(
@@ -7619,11 +7624,16 @@ static void PrintFraction
 		num_ = numerator.str();
 
 		if (num_ == L"0") num_.clear();
-		else if (abs(NC) != 1 or numerator[0] > 1) num_ = L'(' + num_ + L')';
+		else if (abs(NC) != 1 and (numerator[0] > 1 and numerator == 1))
+			num_ = L'(' + num_ + L')';
 
 		if (abs(NC) != 1) num_ = to_wstring(NC) + num_;
 		if (num_.empty()) num_ = L"1";
-		if (NC == -1) num_ = L'-' + num_;
+
+		if (NC == -1 and num_.find(L'+') == wstring::npos
+			and num_.find(L'-') == wstring::npos
+			and num_.find(L'(') == wstring::npos) num_ = L'-' + num_;
+		else if (NC == -1) num_ = L"-(" + num_ + L')';
 	}
 
 	// // calcolo denominatore
@@ -7632,12 +7642,17 @@ static void PrintFraction
 	if (tempden != L"1") den_ = tempden;
 	
 	if (den_ == L"0") den_.clear();
-	else if (abs(DC) != 1 and denominator[0] > 1) den_ = L'(' + den_ + L')';
+	else if (abs(DC) != 1 and (denominator[0] > 1 and denominator == 1))
+		den_ = L'(' + den_ + L')';
 
 	if (abs(DC) != 1) den_ = to_wstring(DC) + den_;
 	if (den_.empty()) den_ = L"1";
-	if (DC == -1) den_ = L'-' + den_;
-	// //
+
+	if (DC == -1 and den_.find(L'+') == wstring::npos
+		and den_.find(L'-') == wstring::npos
+		and den_.find(L'(') == wstring::npos) den_ = L'-' + den_;
+	else if (DC == -1) den_ = L"-(" + den_ + L')';
+	// /
 
 	// aggiustamento segni
 	bool both{ true };
