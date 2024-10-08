@@ -2144,12 +2144,14 @@ public:
 struct Console {
 	wstring Text;
 	WORD Attribute{ 15 };
+
 	void log() const
 	{
 		SetConsoleTextAttribute(hConsole, Attribute);
 		wcout << Text;
 		ResetAttribute();
 	}
+
 	bool operator!=(const Console& other)
 	{
 		ret Text != other.Text and Attribute != other.Attribute;
@@ -7076,7 +7078,7 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 		}
 		Equation.SortByExponents();
 
-		int coeff = Equation[0].coefficient;
+		auto coeff{ Equation[0].coefficient };
 		Equation[0].coefficient = 1;
 		if (coeff < 0) coeff *= -1;
 		else Equation[1].coefficient *= -1;
@@ -7089,10 +7091,13 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 		ret { push };
 	}
 
-	// caso con variabile e parametri
+	// caso molto generico
 	factor<> top, bottom;
 	size_t Vpos{ Variables.find(L'x') };
-	for (const auto& mon : Equation) if (mon.exp[Vpos] > 1) ret {};
+	for (const auto& mon : Equation) if (mon.exp[Vpos] > 1)
+		ret { Equation.str() + L"!= 0" };
+
+	// caso con variabile e parametri
 	for (auto mon : Equation) {
 		if (mon.exp[Vpos] == 1) {
 			mon.exp[Vpos] = 0;
@@ -7103,6 +7108,12 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 		top << mon;
 	}
 
+	// ricerca variabili
+	auto Used{ tensor<bool>(Variables.size(), false) };
+	for (const auto& mon : Equation)
+		for (size_t i = 0; i < Variables.size(); ++i) if (mon.exp[i] > 0)
+			Used[i] = true;
+		
 	// calcolo stringhe
 	auto D = bottom.empty() ? L"1" : bottom.str();
 	auto DD{ D };
@@ -7131,8 +7142,8 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 	}
 	if (D != L"1") str += L'/' + D;
 
-	ret Variables.size() > 2 ?
-		tensor<wstring>{ str + L" != 0" } : tensor<wstring>{ L"x != " + str };
+	ret Used[Vpos] ?
+		tensor<wstring>{ L"x != " + str } : tensor<wstring>{ str + L" != 0" };
 }
 
 // converte le soluzioni di un'equazione da stringa a numero
@@ -7193,7 +7204,7 @@ static tensor<Console> GetAlgebricSolution(
 					ItsFromDenominator.erase(ItsFromDenominator.begin() + i);
 					continue;
 				}
-				if (ItsFromDenominator[i] or ItsFromDenominator[j]) {
+				if (ItsFromDenominator[i] xor ItsFromDenominator[j]) {
 					ItsFromDenominator[i] = true;
 					ItsFromDenominator[j] = true;
 				}
@@ -7256,6 +7267,9 @@ static tensor<Console> DisequationSolver
 		ItsFromDenominator += tensor<bool>(
 			roots.size() - ItsFromDenominator.size(), true
 		);
+		for (ptrdiff_t i = roots.size() - 1; i >= 0; --i)
+			if (roots[i] <= -2'147'483'647 or roots[i] >= 2'147'483'647)
+				roots.erase(roots.begin() + i);
 
 		// ordinamento delle radici
 		for (size_t i = 0; i < roots; ++i) for (size_t j = i + 1; j < roots; ++j)
@@ -7268,10 +7282,12 @@ static tensor<Console> DisequationSolver
 		// calcolo segno
 		bool InitialSign{ POS };
 		for (auto& fact : Num) {
+			if (fact.empty()) continue;
 			fact.SortByExponents();
 			if (fact[0].exp[0] < 0) InitialSign = !InitialSign;
 		}
 		for (auto& fact : Den) {
+			if (fact.empty()) continue;
 			fact.SortByExponents();
 			if (fact[0].exp[0] < 0) InitialSign = !InitialSign;
 		}
@@ -7298,7 +7314,7 @@ static tensor<Console> DisequationSolver
 	for (auto fact : Un) for (const auto& mon : fact)
 		if (mon.exp[Vpos] > 1) ret {};
 	tensor<bool> TermsFromDenominator{
-		tensor<bool>(Num.size(), false) + tensor<bool>(Den.size(), false)
+		tensor<bool>(Num.size(), false) + tensor<bool>(Den.size(), true)
 	};
 
 	// calcolo polinomi in entrata
@@ -7308,7 +7324,6 @@ static tensor<Console> DisequationSolver
 		fact[0].coefficient = (int)fact[0].coefficient % 2;
 	Num.open();
 	Den.open();
-	tensor<factor<>> tops(Un.size()), bottoms(Un.size());
 
 	// calcolo segno iniziale
 	bool InitialSign{ POS };
@@ -7317,7 +7332,25 @@ static tensor<Console> DisequationSolver
 		if (fact[0].exp[0] < 0) InitialSign = !InitialSign;
 	}
 
-	// calcolo valori centrali
+	// calcolo dei termini parametrici
+	tensor<factor<>> Parametrics;
+	for (ptrdiff_t i = Un.size() - 1; i >= 0; --i) {
+		bool IsACoefficient{ true };
+		for (const auto& mon : Un[i]) if (mon.exp[Vpos] > 0) {
+			IsACoefficient = false;
+			break;
+		}
+		if (IsACoefficient) {
+			Parametrics << Un[i];
+			Un.erase(Un.begin() + i);
+			if (Un.empty()) ret {};
+		}
+	}
+	tensor<factor<>> tops(Un.size()), bottoms(Un.size());
+	auto AdditionalsRoots{ RootExtractor(Parametrics) };
+	factor<> Parametric{ PolynomialMultiply<long double>(Parametrics) };
+
+	// calcolo zeri dei fattori
 	for (size_t i = 0; i < Un; ++i) {
 		auto fact{ Un[i] };
 		
@@ -7347,7 +7380,7 @@ static tensor<Console> DisequationSolver
 	}
 	
 	// caso di un fattore
-	if (Un == 1) {
+	if (Un == 1 and Parametric == factor<>{ { 1, { 0, 0 } } }) {
 		tensor<wstring> vals{ EquationSolver(Un[0]) };
 		if (vals == 1) if (isalpha(vals[0].at(0)) and isalpha(vals[0].at(1))) {
 			if (vals[0].find(L'/') == wstring::npos) vals[0] += L'/';
@@ -7368,14 +7401,16 @@ static tensor<Console> DisequationSolver
 	tensor<tensor<factor<>>> TableOfMains(
 		bottoms.size(), tensor<factor<>>(bottoms.size())
 	);
-	for (int first = 0; first < TableOfMains; ++first)
+	if (Un > 1) for (int first = 0; first < TableOfMains; ++first)
 		for (int second = first + 1; second < TableOfMains; ++second)
 			TableOfMains[first][second] =
 				(tops[first] * bottoms[second]) - (tops[second] * bottoms[first]);
 
 	// calcolo radici
 	auto RootSet{ tensor<long double>{ RootExtractor(bottoms) } };
-	for (auto& F : TableOfMains) for (auto& S : F) RootSet += RootExtractor({ S });
+	if (Un > 1) for (auto& F : TableOfMains) for (auto& S : F)
+		RootSet += RootExtractor({ S });
+	RootSet += AdditionalsRoots;
 
 	// ordinamento radici
 	long double RepeatedValue{ RootSet.last() };
@@ -7399,15 +7434,71 @@ static tensor<Console> DisequationSolver
 		RootExamples << (RootSet[i] + RootSet[i + 1]) / 2.0;
 	RootExamples << RootSet.last() + 1;
 	
+	// calcolo valori
+	tensor<wstring> values;
+	for (size_t i = 0; i < Un; ++i) {
+		auto D = bottoms[i].empty() ? L"1" : bottoms[i].str();
+		auto DD{ D };
+		auto top{ tops[i] };
+		if (D == L"-1") {
+			D = L"1";
+			for (auto& mon : top) mon.coefficient *= -1;
+		}
+
+		auto N = top.empty() ? L"1" : top.str();
+		auto NN{ N };
+		if (issign(NN.at(0))) NN.erase(0, 1);
+		if (issign(DD.at(0))) DD.erase(0, 1);
+
+		if (NN.find(L'+') != wstring::npos or NN.find(L'-') != wstring::npos)
+			N = L'(' + N + L')';
+		if (DD.find(L'+') != wstring::npos or DD.find(L'-') != wstring::npos)
+			D = L'(' + D + L')';
+		auto str{ N };
+		if (D != L"1") str += L'/' + D;
+		values << str;
+	}
+
 	// iterazione su ogni intervallo
 	tensor<wstring> ParameterIntervals;
 	tensor<tensor<Console>> UnknownIntervals;
 	for (size_t index = 0; index < RootExamples; ++index) {
 		auto interval{ RootExamples[index] };
 		tensor<Console> line;
+		tensor<int> SumOfGEQValues(bottoms.size(), 0);
+
+		// output intervallo iniziale
+		if (index == 0) {
+			ParameterIntervals << wstring(1, parameter);
+			ParameterIntervals[0] += L" < " + Handler(to_wstring(RootSet[0]));
+			UnknownIntervals << tensor<Console>{ Console(L"\n") };
+			goto comparison;
+		}
+
+		// output intervallo finale
+		if (index == RootSet.size()) {
+			ParameterIntervals << wstring(1, parameter);
+			ParameterIntervals.last() += L" > " + Handler(to_wstring(RootSet.last()));
+			UnknownIntervals << tensor<Console>{ Console(L"\n") };
+			goto comparison;
+		}
+
+		// output intervalli centrali
+		ParameterIntervals << Handler(to_wstring(RootSet[index - 1]));
+		CanBeNull and index - 1 < bottoms ?
+			ParameterIntervals.last() += L" <= " :
+			ParameterIntervals.last() += L" < ";
+		ParameterIntervals.last() += wstring(1, parameter);
+		CanBeNull and index < bottoms ?
+			ParameterIntervals.last() += L" <= " :
+			ParameterIntervals.last() += L" < ";
+		ParameterIntervals.last() += Handler(to_wstring(RootSet[index]));
+		UnknownIntervals << tensor<Console>{ Console(L"\n") };
+
+		if (Un == 1) goto add_line;
+	comparison:
 
 		// calcolo dei segni
-		tensor<int> SumOfGEQValues(bottoms.size(), 0);
 		for (size_t first = 0; first < SumOfGEQValues; ++first)
 			for (size_t second = first + 1; second < SumOfGEQValues; ++second)
 			{
@@ -7431,29 +7522,7 @@ static tensor<Console> DisequationSolver
 				if (SumOfGEQValues[i] == SumOfGEQValues[j])
 					line = { Console(L"  ->  ", 8), Console(L"impossibile", 11) };
 
-		// confronto
-		tensor<wstring> values;
-		for (size_t i = 0; i < SumOfGEQValues; ++i) {
-			auto D = bottoms[i].empty() ? L"1" : bottoms[i].str();
-			auto DD{ D };
-			if (D == L"-1") {
-				D = L"1";
-				for (auto& mon : tops[i]) mon.coefficient *= -1;
-			}
-
-			auto N = tops[i].empty() ? L"1" : tops[i].str();
-			auto NN{ N };
-			if (issign(NN.at(0))) NN.erase(0, 1);
-			if (issign(DD.at(0))) DD.erase(0, 1);
-
-			if (NN.find(L'+') != wstring::npos or NN.find(L'-') != wstring::npos)
-				N = L'(' + N + L')';
-			if (DD.find(L'+') != wstring::npos or DD.find(L'-') != wstring::npos)
-				D = L'(' + D + L')';
-			auto str{ N };
-			if (D != L"1") str += L'/' + D;
-			values << str;
-		}
+		// confronto valori
 		for (size_t i = 0; i < SumOfGEQValues; ++i)
 			for (size_t j = i + 1; j < SumOfGEQValues; ++j)
 				if (SumOfGEQValues[i] > SumOfGEQValues[j])
@@ -7463,65 +7532,36 @@ static tensor<Console> DisequationSolver
 				}
 
 		// output intervallo della variabile
-		if (
-			line != tensor<Console>{
-				Console(L"  ->  ", 8), Console(L"impossibile", 11)
-			}
-		) {
-			line = { Console(L"  ->  ", 8) };
-			
-			line += GetAlgebricSolution(
-				values,
-				tensor<bool>(values.size(), true),
-				InitialSign,
-				ExpectedSign,
-				CanBeNull
-			);
-		}
-		
-		// output intervallo iniziale
-		if (index == 0) {
-			ParameterIntervals << wstring(1, parameter);
-			CanBeNull and index < bottoms ?
-				ParameterIntervals[0] += L" <= " : ParameterIntervals[0] += L" < ";
-			ParameterIntervals[0] += Handler(to_wstring(RootSet[0]));
-			UnknownIntervals << line + tensor<Console>{ Console(L"\n") };
-			goto ParameterValue;
-		}
+	add_line:
+		line = tensor<Console>{ Console(L"  ->  ", 8) } + GetAlgebricSolution(
+			values,
+			TermsFromDenominator,
+			InitialSign,
+			ExpectedSign == Parametric(interval, 1 - Vpos, true),
+			CanBeNull
+		);
+		UnknownIntervals.last() = line + UnknownIntervals.last();
+		if (index == RootSet) break;
 
-		// output intervallo finale
-		if (index == RootSet.size()) {
-			ParameterIntervals << wstring(1, parameter);
-			CanBeNull and index < bottoms ?
-				ParameterIntervals.last() += L" >= " :
-				ParameterIntervals.last() += L" > ";
-			ParameterIntervals.last() += Handler(to_wstring(RootSet.last()));
-			UnknownIntervals << line + tensor<Console>{ Console(L"\n") };
-			continue;
-		}
-
-		// output intervalli centrali
-		ParameterIntervals << Handler(to_wstring(RootSet[index - 1]));
-		CanBeNull and index - 1 < bottoms ?
-		ParameterIntervals.last() += L" <= " : ParameterIntervals.last() += L" < ";
-		ParameterIntervals.last() += wstring(1, parameter);
-		CanBeNull and index < bottoms ?
-			ParameterIntervals.last() += L" <= " :
-			ParameterIntervals.last() += L" < ";
-		ParameterIntervals.last() += Handler(to_wstring(RootSet[index]));
-		UnknownIntervals << line + tensor<Console>{ Console(L"\n") };
-
-		// output dell'equazione quando il parametro è pari al valore speciale
-	ParameterValue:
+		// valori speciali
 		ParameterIntervals << wstring(1, parameter) + L" = ";
 		ParameterIntervals.last() += Handler(to_wstring(RootSet[index]));
 		for (auto& fact : Num) fact = fact(RootSet[index], 1 - Vpos, 1);
 		for (auto& fact : Den) fact = fact(RootSet[index], 1 - Vpos, 1);
 		auto save{ Variables };
 		Variables = L"x";
-		UnknownIntervals << tensor<Console>{ Console(L"  ->  ", 8) }
-			+ DisequationSolver(Num, Den, ExpectedSign, CanBeNull)
-			+ tensor<Console>{ Console(L"\n") };
+
+		// aggiunta dei casi particolari
+		UnknownIntervals << tensor<Console>{ Console(L"  ->  ", 8) };
+		if (Num.empty()) Num = polynomial<>{ { { 0, { 0 } } } };
+		if (Den.empty()) UnknownIntervals <<
+			tensor<Console>{ Console(L"perde significato", 11) };
+		else UnknownIntervals << DisequationSolver(
+				Num,
+				Den,
+				ExpectedSign == Parametric(interval, 1 - Vpos, true),
+				CanBeNull
+			) + tensor<Console>{ Console(L"\n") };
 		Variables = save;
 	}
 
@@ -7556,7 +7596,7 @@ static void PrintFraction
 	auto start{ csbi.dwCursorPosition };
 	wcout << wstring(10, L'\n');
 	_GetCursorPos();
-	if (csbi.dwCursorPosition.Y > start.Y)
+	if (csbi.dwCursorPosition.Y >= start.Y)
 		start.Y -= 10 - csbi.dwCursorPosition.Y + start.Y;
 	SetConsoleCursorPosition(hConsole, start);
 
@@ -7630,9 +7670,9 @@ static void PrintFraction
 		if (abs(NC) != 1) num_ = to_wstring(NC) + num_;
 		if (num_.empty()) num_ = L"1";
 
-		if (NC == -1 and num_.find(L'+') == wstring::npos
-			and num_.find(L'-') == wstring::npos
-			and num_.find(L'(') == wstring::npos) num_ = L'-' + num_;
+		if (NC == -1 and
+			(num_.find(L'+') == wstring::npos and num_.find(L'-') == wstring::npos)
+			or num_.find(L'(') != wstring::npos) num_ = L'-' + num_;
 		else if (NC == -1) num_ = L"-(" + num_ + L')';
 	}
 
@@ -7648,9 +7688,9 @@ static void PrintFraction
 	if (abs(DC) != 1) den_ = to_wstring(DC) + den_;
 	if (den_.empty()) den_ = L"1";
 
-	if (DC == -1 and den_.find(L'+') == wstring::npos
-		and den_.find(L'-') == wstring::npos
-		and den_.find(L'(') == wstring::npos) den_ = L'-' + den_;
+	if (DC == -1 and
+		(den_.find(L'+') == wstring::npos and den_.find(L'-') == wstring::npos)
+		and den_.find(L'(') != wstring::npos) den_ = L'-' + den_;
 	else if (DC == -1) den_ = L"-(" + den_ + L')';
 	// /
 
