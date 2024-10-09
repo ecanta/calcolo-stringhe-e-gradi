@@ -2296,9 +2296,18 @@ static tensor<long double> RootExtractor(polynomial<> vect);
 static tensor<Console> GetAlgebricSolution(
 	tensor<wstring> roots,
 	tensor<bool> ItsFromDenominator,
+
 	bool InitialSign,
 	bool ExpectedSign,
 	bool CanBeNull = false
+);
+static void FractDisequationMain(
+	polynomial<> Num, polynomial<> Den,
+
+	tensor<wstring>& Roots,
+	tensor<bool>& ItsFromDenominator,
+
+	bool& InitSign, bool& Invert
 );
 static tensor<Console> DisequationSolver
 (polynomial<> Num, polynomial<> Den, bool ExpectedSign, bool CanBeNull = false);
@@ -6915,6 +6924,186 @@ static void Simplify(
 		den.erase(den.begin() + i);
 }
 
+// stampa una frazione
+static void PrintFraction
+(
+	int NC, int DC, int& LINE, bool WritePlus,
+	polynomial<> numerator, polynomial<> denominator
+)
+{
+
+	// aggiunta di spazio
+	tensor<int> null(Variables.size(), 0);
+	_GetCursorPos();
+	auto start{ csbi.dwCursorPosition };
+	wcout << wstring(10, L'\n');
+	_GetCursorPos();
+	if (csbi.dwCursorPosition.Y >= start.Y)
+		start.Y -= 10 - csbi.dwCursorPosition.Y + start.Y;
+	SetConsoleCursorPosition(hConsole, start);
+
+	// calcolo numeratore
+	long double root{};
+	int I{ 1 }, Root;
+	bool IsMinus{ false };
+	wstring den_, num_;
+	if (numerator == 1) if (numerator[0] == 1)
+		if (numerator[0][0].exp == null)
+			root = numerator[0][0].coefficient;
+	if (numerator.empty()) numerator = polynomial<> { { { 1, null } } };
+
+	// calcolo coefficienti e correzione
+	if (root != 0) {
+		while (true) {
+			if (integer(I * root)) break;
+			I++;
+		}
+		Root = root * I;
+		DC *= I;
+		if (NC * Root < 0 and DC < 0) {
+			NC = -NC;
+			DC = -DC;
+		}
+		else if (NC * Root < 0) {
+			NC = -NC;
+			IsMinus = true;
+		}
+		else if (DC < 0) {
+			DC = -DC;
+			IsMinus = true;
+		}
+	}
+
+	// aggiustamento denominatore
+	bool HasACoefficient{ false };
+	if (denominator >= 1) if (denominator[0] == 1)
+		if (denominator[0][0].exp == null) HasACoefficient = true;
+	if (HasACoefficient) denominator[0][0].coefficient *= CORRECTION_RATIO;
+	else denominator >> factor<>{ monomial<>{ CORRECTION_RATIO, null } };
+
+	// calcolo GCD e segni
+	int gcd = Gcd(NC, DC);
+	NC /= gcd;
+	DC /= gcd;
+	int Gcd{ 1 };
+	if (root == 0) Gcd =
+		::Gcd((int)numerator[0][0].coefficient, (int)denominator[0][0].coefficient);
+	else Gcd = ::Gcd(Root, denominator[0][0].coefficient);
+	denominator[0][0].coefficient /= Gcd;
+	if (root != 0) Root /= Gcd;
+	else numerator[0][0].coefficient /= Gcd;
+	if (denominator[0][0] == monomial<>{ 1, null }) --denominator;
+	else if (denominator[0][0] == monomial<>{ -1, null }) {
+		--denominator;
+		if (root == 0) numerator[0][0].coefficient *= -1;
+		else Root *= -1;
+	}
+	if (root == 0) if (numerator[0][0] == monomial<>{ 1, null }) --numerator;
+	if (root != 0) num_ = to_wstring(NC * Root);
+
+	// calcolo numeratore
+	if (root == 0) {
+		num_ = numerator.str();
+
+		if (num_ == L"0") num_.clear();
+		else if (abs(NC) != 1 and (numerator[0] > 1 and numerator == 1))
+			num_ = L'(' + num_ + L')';
+
+		if (abs(NC) != 1) num_ = to_wstring(NC) + num_;
+		if (num_.empty()) num_ = L"1";
+
+		if (NC == -1 and
+			(num_.find(L'+') == wstring::npos and num_.find(L'-') == wstring::npos)
+			or num_.find(L'(') != wstring::npos) num_ = L'-' + num_;
+		else if (NC == -1) num_ = L"-(" + num_ + L')';
+	}
+
+	// // calcolo denominatore
+	den_.clear();
+	auto tempden{ denominator.str() };
+	if (tempden != L"1") den_ = tempden;
+	
+	if (den_ == L"0") den_.clear();
+	else if (abs(DC) != 1 and (denominator[0] > 1 and denominator == 1))
+		den_ = L'(' + den_ + L')';
+
+	if (abs(DC) != 1) den_ = to_wstring(DC) + den_;
+	if (den_.empty()) den_ = L"1";
+
+	if (DC == -1 and
+		(den_.find(L'+') == wstring::npos and den_.find(L'-') == wstring::npos)
+		and den_.find(L'(') != wstring::npos) den_ = L'-' + den_;
+	else if (DC == -1) den_ = L"-(" + den_ + L')';
+	// /
+
+	// aggiustamento segni
+	bool both{ true };
+	if (num_.at(0) == L'-' and den_.at(0) == L'-' and
+		numerator == 1 and denominator == 1)
+		if (numerator[0] == 1 and denominator[0] == 1)
+		{
+			num_.erase(0, 1);
+			den_.erase(0, 1);
+			both = false;
+		}
+	if (num_.at(0) == L'-' and numerator == 1 and both) if (numerator[0] == 1)
+	{
+		num_.erase(0, 1);
+		IsMinus = !IsMinus;
+		both = false;
+	}
+	if (den_.at(0) == L'-' and denominator == 1 and both) if (denominator[0] == 1)
+	{
+		den_.erase(0, 1);
+		IsMinus = !IsMinus;
+	}
+
+	// calcolo dati
+	int sizemax = max(num_.size(), den_.size());
+	int spacing = num_.size() - den_.size();
+	spacing = abs(spacing) / 2;
+	if (num_.size() > den_.size()) den_ = wstring(spacing, L' ') + den_;
+	else num_ = wstring(spacing, L' ') + num_;
+
+	// caso di fine riga
+	if (LINE + spacing + WritePlus * 2 > csbi.dwSize.X) {
+		LINE = 0;
+		start.Y += 4;
+		SetConsoleCursorPosition(hConsole, start);
+	}
+
+	// output segno
+	if (WritePlus or IsMinus) {
+		if (WritePlus) start.X++;
+		start.Y++;
+		SetConsoleCursorPosition(hConsole, start);
+		IsMinus ? wcout << L'-' : wcout << L'+';
+		start.X += 2;
+		LINE += 2;
+		start.Y--;
+	}
+
+	// output frazione
+	SetConsoleCursorPosition(hConsole, start);
+	wcout << num_;
+	start.Y++;
+	SetConsoleCursorPosition(hConsole, start);
+	wcout << wstring(sizemax, L'-');
+	start.Y++;
+	SetConsoleCursorPosition(hConsole, start);
+	wcout << den_;
+	start.Y -= 2;
+	start.X += sizemax;
+	SetConsoleCursorPosition(hConsole, start);
+
+	// aggiornamento linea
+	LINE += sizemax + 1;
+}
+
+#pragma endregion
+
+#pragma region Disequations
+
 // calcola una soluzione di un equazione con il metodo di newton-raphson
 static void Approximator(tensor<long double>& Equation, long double& root)
 {
@@ -7184,6 +7373,7 @@ static tensor<long double> RootExtractor(polynomial<> vect)
 static tensor<Console> GetAlgebricSolution(
 	tensor<wstring> roots,
 	tensor<bool> ItsFromDenominator,
+
 	bool InitialSign,
 	bool ExpectedSign,
 	bool CanBeNull
@@ -7251,71 +7441,73 @@ static tensor<Console> GetAlgebricSolution(
 	ret text;
 }
 
-// risolve una disequazione fratta con un parametro
-static tensor<Console> DisequationSolver
-(polynomial<> Num, polynomial<> Den, bool ExpectedSign, bool CanBeNull)
+static void FractDisequationMain(
+	polynomial<> Num, polynomial<> Den,
+	
+	tensor<wstring>& Roots,
+	tensor<bool>& ItsFromDenominator,
+
+	bool& InitSign, bool& Invert
+)
 {
-	tensor<Console> text;
-	if (Num.empty() and Den.empty()) ret{};
+	// calcolo del segno dei coefficienti
+	polynomial<> Un{ Num + Den };
+	long double Coeff{ 1 };
+	for (size_t i = 0; i < Un; ++i)
+		if (Un[i] == 1 and Un[i][0].exp == tensor<int>{ 0 })
+			Coeff *= Un[i][0].coefficient;
+	Invert = Coeff < 0;
 
-	// disequazione
-	if (Variables == L"x") {
+	// calcolo delle radici
+	auto roots{ RootExtractor(Num) };
+	ItsFromDenominator = tensor<bool>(roots.size(), false);
+	roots += RootExtractor(Den);
+	ItsFromDenominator += tensor<bool>(
+		roots.size() - ItsFromDenominator.size(), true
+	);
+	for (ptrdiff_t i = roots.size() - 1; i >= 0; --i)
+		if (roots[i] <= -2'147'483'647 or roots[i] >= 2'147'483'647)
+			roots.erase(roots.begin() + i);
 
-		polynomial<> Un{ Num + Den };
-		long double Coeff{ 1 };
-		for (size_t i = 0; i < Un; ++i)
-			if (Un[i] == 1 and Un[i][0].exp == tensor<int>{ 0 })
-				Coeff *= Un[i][0].coefficient;
-		if (Coeff < 0) ExpectedSign = !ExpectedSign;
-
-		// calcolo delle radici
-		auto roots{ RootExtractor(Num) };
-		auto ItsFromDenominator{ tensor<bool>(roots.size(), false) };
-		roots += RootExtractor(Den);
-		ItsFromDenominator += tensor<bool>(
-			roots.size() - ItsFromDenominator.size(), true
-		);
-		for (ptrdiff_t i = roots.size() - 1; i >= 0; --i)
-			if (roots[i] <= -2'147'483'647 or roots[i] >= 2'147'483'647)
-				roots.erase(roots.begin() + i);
-
-		// ordinamento delle radici
-		for (size_t i = 0; i < roots; ++i) for (size_t j = i + 1; j < roots; ++j)
-			if (roots[i] > roots[j])
-			{
-				swap(roots[i], roots[j]);
-				swap(ItsFromDenominator[i], ItsFromDenominator[j]);
-			}
-
-		// calcolo segno
-		bool InitialSign{ POS };
-		for (auto& fact : Num) {
-			if (fact.empty()) continue;
-			fact.SortByExponents();
-			if (fact[0].exp[0] < 0) InitialSign = !InitialSign;
-		}
-		for (auto& fact : Den) {
-			if (fact.empty()) continue;
-			fact.SortByExponents();
-			if (fact[0].exp[0] < 0) InitialSign = !InitialSign;
+	// ordinamento delle radici
+	for (size_t i = 0; i < roots; ++i) for (size_t j = i + 1; j < roots; ++j)
+		if (roots[i] > roots[j])
+		{
+			swap(roots[i], roots[j]);
+			swap(ItsFromDenominator[i], ItsFromDenominator[j]);
 		}
 
-		tensor<wstring> Roots;
-		for (const auto& root : roots) Roots << Handler(to_wstring(root));
-		ret GetAlgebricSolution(
-			Roots,
-			ItsFromDenominator,
-			InitialSign,
-			ExpectedSign,
-			CanBeNull
-		);
+	// calcolo segno
+	InitSign = POS;
+	for (auto& fact : Num) {
+		if (fact.empty()) continue;
+		fact.SortByExponents();
+		if (fact[0].coefficient < 0) InitSign = !InitSign;
 	}
-	// disequazione parametrica
+	for (auto& fact : Den) {
+		if (fact.empty()) continue;
+		fact.SortByExponents();
+		if (fact[0].coefficient < 0) InitSign = !InitSign;
+	}
 
-	// controlli iniziali
+	for (const auto& root : roots) Roots << Handler(to_wstring(root));
+}
+
+static bool ParamDisequationSetup(
+	polynomial<>& Num, polynomial<>& Den, polynomial<>& Sum,
+
+	tensor<bool>& FromDenominator,
+	tensor<long double> AdditionalRoots,
+	factor<> Parametric,
+
+	tensor<factor<>>& tops,
+	tensor<factor<>>& bottoms,
+
+	bool& InitSign,
+	bool& InvertSign
+)
+{
 	auto Vpos{ Variables.find(L'x') };
-	if (Variables.size() != 2 or Vpos == wstring::npos) ret{};
-	wchar_t parameter{ Variables.at(1 - Vpos) };
 
 	// calcolo polinomi in entrata
 	for (auto& fact : Num) if (fact[0].exp[0] < 0 and fact[0].coefficient > 2)
@@ -7324,42 +7516,41 @@ static tensor<Console> DisequationSolver
 		fact[0].coefficient = (int)fact[0].coefficient % 2;
 	Num.open();
 	Den.open();
-	polynomial<> Un = Num + Den;
-	for (auto fact : Un) for (const auto& mon : fact)
-		if (mon.exp[Vpos] > 1) ret{};
-	tensor<bool> TermsFromDenominator{
-		tensor<bool>(Num.size(), false) + tensor<bool>(Den.size(), true)
-	};
+	Sum = Num + Den;
+	for (auto& fact : Sum) for (const auto& mon : fact)
+		if (mon.exp[Vpos] > 1) ret false;
+	FromDenominator =
+		tensor<bool>(Num.size(), false) + tensor<bool>(Den.size(), true);
 
 	// calcolo segno iniziale
-	bool InitialSign{ POS };
-	for (auto& fact : Un) {
+	InitSign = POS;
+	for (auto& fact : Sum) {
 		fact.SortByExponents();
-		if (fact[0].coefficient < 0) InitialSign = !InitialSign;
+		if (fact[0].coefficient < 0) InitSign = !InitSign;
 	}
 
 	// calcolo dei termini parametrici
 	tensor<factor<>> Parametrics;
-	for (ptrdiff_t i = Un.size() - 1; i >= 0; --i) {
+	for (ptrdiff_t i = Sum.size() - 1; i >= 0; --i) {
 		bool IsACoefficient{ true };
-		for (const auto& mon : Un[i]) if (mon.exp[Vpos] != 0) {
+		for (const auto& mon : Sum[i]) if (mon.exp[Vpos] != 0) {
 			IsACoefficient = false;
 			break;
 		}
 		if (IsACoefficient) {
-			Parametrics << Un[i];
-			Un.erase(Un.begin() + i);
-			TermsFromDenominator.erase(TermsFromDenominator.begin() + i);
-			if (Un.empty()) ret {};
+			Parametrics << Sum[i];
+			Sum.erase(Sum.begin() + i);
+			FromDenominator.erase(FromDenominator.begin() + i);
+			if (Sum.empty()) ret false;
 		}
 	}
-	tensor<factor<>> tops(Un.size()), bottoms(Un.size());
-	auto AdditionalsRoots{ RootExtractor(Parametrics) };
-	factor<> Parametric{ PolynomialMultiply<long double>(Parametrics) };
+	AdditionalRoots = RootExtractor(Parametrics);
+	Parametric = PolynomialMultiply<long double>(Parametrics);
 
 	// calcolo zeri dei fattori
-	for (size_t i = 0; i < Un; ++i) {
-		auto fact{ Un[i] };
+	tops(Sum.size()), bottoms(Sum.size());
+	for (size_t i = 0; i < Sum; ++i) {
+		auto fact{ Sum[i] };
 
 		// push
 		for (auto mon : fact) {
@@ -7377,14 +7568,85 @@ static tensor<Console> DisequationSolver
 		if (bottoms[i].empty()) bottoms[i] = factor<>{ { 1, { 0, 0 } } };
 		if (fact == 1 and fact[0].exp == tensor<int>{ 0, 0 })
 		{
-			ExpectedSign = ExpectedSign xor
+			InvertSign =
 				((tops[i][0].coefficient < 0) xor (bottoms[i][0].coefficient < 0));
-			Un.erase(Un.begin() + i);
+			Sum.erase(Sum.begin() + i);
 			tops.erase(tops.begin() + i);
 			bottoms.erase(bottoms.begin() + i);
 			i--;
 		}
 	}
+
+	ret true;
+}
+
+static void o()
+{
+
+}
+
+// risolve una disequazione fratta con un parametro
+static tensor<Console> DisequationSolver
+(polynomial<> Num, polynomial<> Den, bool ExpectedSign, bool CanBeNull)
+{
+	tensor<Console> text;
+	if (Num.empty() and Den.empty()) ret{};
+
+	// disequazione normale
+	if (Variables == L"x") {
+		
+		// calcolo principale
+		tensor<wstring> roots;
+		tensor<bool> ItsFromTheDenominator;
+		bool InitialSign, InvertTheSign;
+		FractDisequationMain(
+			Num,
+			Den,
+			roots,
+			ItsFromTheDenominator,
+			InitialSign,
+			InvertTheSign
+		);
+
+		// calcolo specifico
+		ret GetAlgebricSolution(
+			roots,
+			ItsFromTheDenominator,
+			InitialSign,
+			ExpectedSign xor InvertTheSign,
+			CanBeNull
+		);
+	}
+
+	// disequazione parametrica
+
+	// controlli iniziali
+	auto Vpos{ Variables.find(L'x') };
+	if (Variables.size() != 2 or Vpos == wstring::npos) ret{};
+	wchar_t parameter{ Variables.at(1 - Vpos) };
+
+	// parte principale
+	polynomial<> Un;
+	tensor<bool> TermsFromDenominator;
+	tensor<long double> AdditionalsRoots;
+	factor<> Parametric;
+	tensor<factor<>> tops, bottoms;
+	bool InitialSign, InvertSign;
+	if (
+		!ParamDisequationSetup(
+			Num,
+			Den,
+			Un,
+			TermsFromDenominator,
+			AdditionalsRoots,
+			Parametric,
+			tops,
+			bottoms,
+			InitialSign,
+			InvertSign
+		)
+	) ret {};
+	ExpectedSign = ExpectedSign xor InvertSign;
 
 	// caso di un fattore
 	if (Un == 1 and Parametric == factor<>{ { 1, { 0, 0 } } }) {
@@ -7606,186 +7868,10 @@ static tensor<Console> DisequationSolver
 	ret text;
 }
 
-// stampa una frazione
-static void PrintFraction
-(
-	int NC, int DC, int& LINE, bool WritePlus,
-	polynomial<> numerator, polynomial<> denominator
-)
-{
-
-	// aggiunta di spazio
-	tensor<int> null(Variables.size(), 0);
-	_GetCursorPos();
-	auto start{ csbi.dwCursorPosition };
-	wcout << wstring(10, L'\n');
-	_GetCursorPos();
-	if (csbi.dwCursorPosition.Y >= start.Y)
-		start.Y -= 10 - csbi.dwCursorPosition.Y + start.Y;
-	SetConsoleCursorPosition(hConsole, start);
-
-	// calcolo numeratore
-	long double root{};
-	int I{ 1 }, Root;
-	bool IsMinus{ false };
-	wstring den_, num_;
-	if (numerator == 1) if (numerator[0] == 1)
-		if (numerator[0][0].exp == null)
-			root = numerator[0][0].coefficient;
-	if (numerator.empty()) numerator = polynomial<> { { { 1, null } } };
-
-	// calcolo coefficienti e correzione
-	if (root != 0) {
-		while (true) {
-			if (integer(I * root)) break;
-			I++;
-		}
-		Root = root * I;
-		DC *= I;
-		if (NC * Root < 0 and DC < 0) {
-			NC = -NC;
-			DC = -DC;
-		}
-		else if (NC * Root < 0) {
-			NC = -NC;
-			IsMinus = true;
-		}
-		else if (DC < 0) {
-			DC = -DC;
-			IsMinus = true;
-		}
-	}
-
-	// aggiustamento denominatore
-	bool HasACoefficient{ false };
-	if (denominator >= 1) if (denominator[0] == 1)
-		if (denominator[0][0].exp == null) HasACoefficient = true;
-	if (HasACoefficient) denominator[0][0].coefficient *= CORRECTION_RATIO;
-	else denominator >> factor<>{ monomial<>{ CORRECTION_RATIO, null } };
-
-	// calcolo GCD e segni
-	int gcd = Gcd(NC, DC);
-	NC /= gcd;
-	DC /= gcd;
-	int Gcd{ 1 };
-	if (root == 0) Gcd =
-		::Gcd((int)numerator[0][0].coefficient, (int)denominator[0][0].coefficient);
-	else Gcd = ::Gcd(Root, denominator[0][0].coefficient);
-	denominator[0][0].coefficient /= Gcd;
-	if (root != 0) Root /= Gcd;
-	else numerator[0][0].coefficient /= Gcd;
-	if (denominator[0][0] == monomial<>{ 1, null }) --denominator;
-	else if (denominator[0][0] == monomial<>{ -1, null }) {
-		--denominator;
-		if (root == 0) numerator[0][0].coefficient *= -1;
-		else Root *= -1;
-	}
-	if (root == 0) if (numerator[0][0] == monomial<>{ 1, null }) --numerator;
-	if (root != 0) num_ = to_wstring(NC * Root);
-
-	// calcolo numeratore
-	if (root == 0) {
-		num_ = numerator.str();
-
-		if (num_ == L"0") num_.clear();
-		else if (abs(NC) != 1 and (numerator[0] > 1 and numerator == 1))
-			num_ = L'(' + num_ + L')';
-
-		if (abs(NC) != 1) num_ = to_wstring(NC) + num_;
-		if (num_.empty()) num_ = L"1";
-
-		if (NC == -1 and
-			(num_.find(L'+') == wstring::npos and num_.find(L'-') == wstring::npos)
-			or num_.find(L'(') != wstring::npos) num_ = L'-' + num_;
-		else if (NC == -1) num_ = L"-(" + num_ + L')';
-	}
-
-	// // calcolo denominatore
-	den_.clear();
-	auto tempden{ denominator.str() };
-	if (tempden != L"1") den_ = tempden;
-	
-	if (den_ == L"0") den_.clear();
-	else if (abs(DC) != 1 and (denominator[0] > 1 and denominator == 1))
-		den_ = L'(' + den_ + L')';
-
-	if (abs(DC) != 1) den_ = to_wstring(DC) + den_;
-	if (den_.empty()) den_ = L"1";
-
-	if (DC == -1 and
-		(den_.find(L'+') == wstring::npos and den_.find(L'-') == wstring::npos)
-		and den_.find(L'(') != wstring::npos) den_ = L'-' + den_;
-	else if (DC == -1) den_ = L"-(" + den_ + L')';
-	// /
-
-	// aggiustamento segni
-	bool both{ true };
-	if (num_.at(0) == L'-' and den_.at(0) == L'-' and
-		numerator == 1 and denominator == 1)
-		if (numerator[0] == 1 and denominator[0] == 1)
-		{
-			num_.erase(0, 1);
-			den_.erase(0, 1);
-			both = false;
-		}
-	if (num_.at(0) == L'-' and numerator == 1 and both) if (numerator[0] == 1)
-	{
-		num_.erase(0, 1);
-		IsMinus = !IsMinus;
-		both = false;
-	}
-	if (den_.at(0) == L'-' and denominator == 1 and both) if (denominator[0] == 1)
-	{
-		den_.erase(0, 1);
-		IsMinus = !IsMinus;
-	}
-
-	// calcolo dati
-	int sizemax = max(num_.size(), den_.size());
-	int spacing = num_.size() - den_.size();
-	spacing = abs(spacing) / 2;
-	if (num_.size() > den_.size()) den_ = wstring(spacing, L' ') + den_;
-	else num_ = wstring(spacing, L' ') + num_;
-
-	// caso di fine riga
-	if (LINE + spacing + WritePlus * 2 > csbi.dwSize.X) {
-		LINE = 0;
-		start.Y += 4;
-		SetConsoleCursorPosition(hConsole, start);
-	}
-
-	// output segno
-	if (WritePlus or IsMinus) {
-		if (WritePlus) start.X++;
-		start.Y++;
-		SetConsoleCursorPosition(hConsole, start);
-		IsMinus ? wcout << L'-' : wcout << L'+';
-		start.X += 2;
-		LINE += 2;
-		start.Y--;
-	}
-
-	// output frazione
-	SetConsoleCursorPosition(hConsole, start);
-	wcout << num_;
-	start.Y++;
-	SetConsoleCursorPosition(hConsole, start);
-	wcout << wstring(sizemax, L'-');
-	start.Y++;
-	SetConsoleCursorPosition(hConsole, start);
-	wcout << den_;
-	start.Y -= 2;
-	start.X += sizemax;
-	SetConsoleCursorPosition(hConsole, start);
-
-	// aggiornamento linea
-	LINE += sizemax + 1;
-}
-
 #pragma endregion
 
 // funzioni relative alle matrici
-#pragma region matrices
+#pragma region Matrices
 
 // stampa una matrice quadrata e restituisce la posizione del cursore
 static int OutputMatrix(
