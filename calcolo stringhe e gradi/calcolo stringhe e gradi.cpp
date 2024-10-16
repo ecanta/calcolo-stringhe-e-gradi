@@ -2293,14 +2293,6 @@ static void Simplify(
 static void Approximator(tensor<long double>& Equation, long double& root);
 static tensor<wstring> EquationSolver(factor<> equation);
 static tensor<long double> RootExtractor(polynomial<> vect);
-static tensor<Console> GetAlgebricSolution(
-	tensor<wstring> roots,
-	tensor<bool> ItsFromDenominator,
-
-	bool InitialSign,
-	bool ExpectedSign,
-	bool CanBeNull = false
-);
 static void FractDisequationMain(
 	polynomial<> Num, polynomial<> Den,
 
@@ -2309,8 +2301,58 @@ static void FractDisequationMain(
 
 	bool& InitSign, bool& Invert
 );
-static tensor<Console> DisequationSolver
-(polynomial<> Num, polynomial<> Den, bool ExpectedSign, bool CanBeNull = false);
+static tensor<Console> GetAlgebricSolution(
+	tensor<wstring> roots,
+	tensor<bool> ItsFromDenominator,
+
+	bool InitialSign,
+	bool ExpectedSign,
+	bool CanBeNull = false
+);
+static bool ParamDisequationSetup(
+	polynomial<>& Num, polynomial<>& Den, polynomial<>& Sum,
+
+	tensor<bool>& FromDenominator,
+	tensor<long double>& AdditionalRoots,
+	factor<>& Parametric,
+
+	tensor<factor<>>& tops,
+	tensor<factor<>>& bottoms,
+
+	bool& InitSign,
+	bool& InvertSign
+);
+static void ParamDisequationMain(
+	polynomial<> Un,
+	tensor<factor<>> tops,
+	tensor<factor<>> bottoms,
+	tensor<long double> AdditionalRoots,
+
+	size_t& Unisize,
+	tensor<tensor<factor<>>>& TableOfMains,
+	tensor<long double>& RootSet,
+	tensor<long double>& RootExamples,
+	tensor<wstring>& vals
+);
+static tensor<Console> GetParametricSolution(
+	wchar_t parameter,
+	size_t Unisize, size_t Vpos,
+	bool InitialSign, bool ExpectedSign, bool CanBeNull,
+
+	tensor<bool> TermsFromDenominator,
+	polynomial<>& Num, polynomial<>& Den, factor<> Parametric,
+	tensor<factor<>> tops, tensor<factor<>> bottoms,
+
+	tensor<tensor<factor<>>> TableOfMains,
+	tensor<long double> RootSet, tensor<long double> RootExamples,
+	tensor<wstring> vals
+);
+#define LESS_THAN        1
+#define LESS_EQUAL_THAN (1 << 1)
+#define MORE_THAN       (1 << 2)
+#define MORE_EQUAL_THAN (1 << 3)
+static void DisequationSolutionPrinter
+(polynomial<> Num, polynomial<> Den, int behaviour);
 static void PrintFraction
 (
 	int NC, int DC, int& LINE, bool WritePlus,
@@ -7370,6 +7412,60 @@ static tensor<long double> RootExtractor(polynomial<> vect)
 	ret roots;
 }
 
+// parte indipendente dal segno di una disequazione normale
+static void FractDisequationMain(
+	polynomial<> Num, polynomial<> Den,
+	
+	tensor<wstring>& Roots,
+	tensor<bool>& ItsFromDenominator,
+
+	bool& InitSign, bool& Invert
+)
+{
+	// calcolo del segno dei coefficienti
+	polynomial<> Un{ Num + Den };
+	long double Coeff{ 1 };
+	for (size_t i = 0; i < Un; ++i)
+		if (Un[i] == 1 and Un[i][0].exp == tensor<int>{ 0 })
+			Coeff *= Un[i][0].coefficient;
+	Invert = Coeff < 0;
+
+	// calcolo delle radici
+	auto roots{ RootExtractor(Num) };
+	ItsFromDenominator = tensor<bool>(roots.size(), false);
+	roots += RootExtractor(Den);
+	ItsFromDenominator += tensor<bool>(
+		roots.size() - ItsFromDenominator.size(), true
+	);
+	for (ptrdiff_t i = roots.size() - 1; i >= 0; --i)
+		if (roots[i] <= -2'147'483'647 or roots[i] >= 2'147'483'647)
+			roots.erase(roots.begin() + i);
+
+	// ordinamento delle radici
+	for (size_t i = 0; i < roots; ++i) for (size_t j = i + 1; j < roots; ++j)
+		if (roots[i] > roots[j])
+		{
+			swap(roots[i], roots[j]);
+			swap(ItsFromDenominator[i], ItsFromDenominator[j]);
+		}
+
+	// calcolo segno
+	InitSign = POS;
+	for (auto& fact : Num) {
+		if (fact.empty()) continue;
+		fact.SortByExponents();
+		if (fact[0].coefficient < 0) InitSign = !InitSign;
+	}
+	for (auto& fact : Den) {
+		if (fact.empty()) continue;
+		fact.SortByExponents();
+		if (fact[0].coefficient < 0) InitSign = !InitSign;
+	}
+
+	for (const auto& root : roots) Roots << Handler(to_wstring(root));
+}
+
+// parte dipendente dal segno di una disequazione normale
 static tensor<Console> GetAlgebricSolution(
 	tensor<wstring> roots,
 	tensor<bool> ItsFromDenominator,
@@ -7441,64 +7537,13 @@ static tensor<Console> GetAlgebricSolution(
 	ret text;
 }
 
-static void FractDisequationMain(
-	polynomial<> Num, polynomial<> Den,
-	
-	tensor<wstring>& Roots,
-	tensor<bool>& ItsFromDenominator,
-
-	bool& InitSign, bool& Invert
-)
-{
-	// calcolo del segno dei coefficienti
-	polynomial<> Un{ Num + Den };
-	long double Coeff{ 1 };
-	for (size_t i = 0; i < Un; ++i)
-		if (Un[i] == 1 and Un[i][0].exp == tensor<int>{ 0 })
-			Coeff *= Un[i][0].coefficient;
-	Invert = Coeff < 0;
-
-	// calcolo delle radici
-	auto roots{ RootExtractor(Num) };
-	ItsFromDenominator = tensor<bool>(roots.size(), false);
-	roots += RootExtractor(Den);
-	ItsFromDenominator += tensor<bool>(
-		roots.size() - ItsFromDenominator.size(), true
-	);
-	for (ptrdiff_t i = roots.size() - 1; i >= 0; --i)
-		if (roots[i] <= -2'147'483'647 or roots[i] >= 2'147'483'647)
-			roots.erase(roots.begin() + i);
-
-	// ordinamento delle radici
-	for (size_t i = 0; i < roots; ++i) for (size_t j = i + 1; j < roots; ++j)
-		if (roots[i] > roots[j])
-		{
-			swap(roots[i], roots[j]);
-			swap(ItsFromDenominator[i], ItsFromDenominator[j]);
-		}
-
-	// calcolo segno
-	InitSign = POS;
-	for (auto& fact : Num) {
-		if (fact.empty()) continue;
-		fact.SortByExponents();
-		if (fact[0].coefficient < 0) InitSign = !InitSign;
-	}
-	for (auto& fact : Den) {
-		if (fact.empty()) continue;
-		fact.SortByExponents();
-		if (fact[0].coefficient < 0) InitSign = !InitSign;
-	}
-
-	for (const auto& root : roots) Roots << Handler(to_wstring(root));
-}
-
+// inizio di una disequazione parametrica
 static bool ParamDisequationSetup(
 	polynomial<>& Num, polynomial<>& Den, polynomial<>& Sum,
 
 	tensor<bool>& FromDenominator,
-	tensor<long double> AdditionalRoots,
-	factor<> Parametric,
+	tensor<long double>& AdditionalRoots,
+	factor<>& Parametric,
 
 	tensor<factor<>>& tops,
 	tensor<factor<>>& bottoms,
@@ -7580,109 +7625,37 @@ static bool ParamDisequationSetup(
 	ret true;
 }
 
-static void o()
+// parte indipendente dal segno di una disequazione parametrica
+static void ParamDisequationMain(
+	polynomial<> Un,
+	tensor<factor<>> tops,
+	tensor<factor<>> bottoms,
+	tensor<long double> AdditionalRoots,
+
+	size_t& Unisize,
+	tensor<tensor<factor<>>>& TableOfMains,
+	tensor<long double>& RootSet,
+	tensor<long double>& RootExamples,
+	tensor<wstring>& vals
+)
 {
-
-}
-
-// risolve una disequazione fratta con un parametro
-static tensor<Console> DisequationSolver
-(polynomial<> Num, polynomial<> Den, bool ExpectedSign, bool CanBeNull)
-{
-	tensor<Console> text;
-	if (Num.empty() and Den.empty()) ret{};
-
-	// disequazione normale
-	if (Variables == L"x") {
-		
-		// calcolo principale
-		tensor<wstring> roots;
-		tensor<bool> ItsFromTheDenominator;
-		bool InitialSign, InvertTheSign;
-		FractDisequationMain(
-			Num,
-			Den,
-			roots,
-			ItsFromTheDenominator,
-			InitialSign,
-			InvertTheSign
-		);
-
-		// calcolo specifico
-		ret GetAlgebricSolution(
-			roots,
-			ItsFromTheDenominator,
-			InitialSign,
-			ExpectedSign xor InvertTheSign,
-			CanBeNull
-		);
-	}
-
-	// disequazione parametrica
-
-	// controlli iniziali
-	auto Vpos{ Variables.find(L'x') };
-	if (Variables.size() != 2 or Vpos == wstring::npos) ret{};
-	wchar_t parameter{ Variables.at(1 - Vpos) };
-
-	// parte principale
-	polynomial<> Un;
-	tensor<bool> TermsFromDenominator;
-	tensor<long double> AdditionalsRoots;
-	factor<> Parametric;
-	tensor<factor<>> tops, bottoms;
-	bool InitialSign, InvertSign;
-	if (
-		!ParamDisequationSetup(
-			Num,
-			Den,
-			Un,
-			TermsFromDenominator,
-			AdditionalsRoots,
-			Parametric,
-			tops,
-			bottoms,
-			InitialSign,
-			InvertSign
-		)
-	) ret {};
-	ExpectedSign = ExpectedSign xor InvertSign;
-
-	// caso di un fattore
-	if (Un == 1 and Parametric == factor<>{ { 1, { 0, 0 } } }) {
-		tensor<wstring> vals{ EquationSolver(Un[0]) };
-		if (vals == 1) if (isalpha(vals[0].at(0)) and isalpha(vals[0].at(1))) {
-			if (vals[0].find(L'/') == wstring::npos) vals[0] += L'/';
-			vals[0] += parameter;
-		}
-		for (auto& val : vals) val.erase(0, 5);
-
-		ret GetAlgebricSolution(
-			vals,
-			tensor<bool>(vals.size(), TermsFromDenominator[0]),
-			InitialSign,
-			ExpectedSign,
-			CanBeNull
-		);
-	}
-
 	// calcolo delle disequazioni principali
-	size_t Unisize{ Un.size() };
+	Unisize = Un.size();
 	tensor<tensor<factor<>>> FirstTable(
 		bottoms.size(), tensor<factor<>>(bottoms.size())
 	);
-	auto TableOfMains{ FirstTable };
+	TableOfMains = FirstTable;
 	if (Unisize > 1) for (int first = 0; first < TableOfMains; ++first)
 		for (int second = first + 1; second < TableOfMains; ++second)
 			TableOfMains[first][second] =
-				(tops[first] * bottoms[second]) - (tops[second] * bottoms[first]);
+			(tops[first] * bottoms[second]) - (tops[second] * bottoms[first]);
 	if (FirstTable == TableOfMains) Unisize = 1;
 
 	// calcolo radici
-	auto RootSet{ tensor<long double>{ RootExtractor(bottoms) } };
+	RootSet = tensor<long double>{ RootExtractor(bottoms) };
 	if (Unisize > 1) for (auto& F : TableOfMains) for (auto& S : F)
 		RootSet += RootExtractor({ S });
-	RootSet += AdditionalsRoots;
+	RootSet += AdditionalRoots;
 
 	// ordinamento radici
 	long double RepeatedValue{ RootSet.last() };
@@ -7701,13 +7674,12 @@ static tensor<Console> DisequationSolver
 	}
 
 	// calcolo intervalli
-	tensor<long double> RootExamples{ RootSet[0] - 1 };
+	RootExamples = RootSet[0] - 1;
 	for (ptrdiff_t i = 0; i < RootSet.size() - 1; ++i)
 		RootExamples << (RootSet[i] + RootSet[i + 1]) / 2.0;
 	RootExamples << RootSet.last() + 1;
-	
+
 	// calcolo valori
-	tensor<wstring> vals;
 	for (size_t i = 0; i < Un; ++i) {
 		auto D = bottoms[i].empty() ? L"1" : bottoms[i].str();
 		auto DD{ D };
@@ -7730,6 +7702,24 @@ static tensor<Console> DisequationSolver
 		if (D != L"1") str += L'/' + D;
 		vals << str;
 	}
+}
+
+// parte dipendente dal segno di una disequazione parametrica
+static tensor<Console> GetParametricSolution(
+	wchar_t parameter,
+	size_t Unisize, size_t Vpos,
+	bool InitialSign, bool ExpectedSign, bool CanBeNull,
+
+	tensor<bool> TermsFromDenominator,
+	polynomial<>& Num, polynomial<>& Den, factor<> Parametric,
+	tensor<factor<>> tops, tensor<factor<>> bottoms,
+
+	tensor<tensor<factor<>>> TableOfMains,
+	tensor<long double> RootSet, tensor<long double> RootExamples,
+	tensor<wstring> vals
+)
+{
+	tensor<Console> text;
 
 	// iterazione su ogni intervallo
 	tensor<wstring> ParameterIntervals;
@@ -7750,7 +7740,7 @@ static tensor<Console> DisequationSolver
 		}
 
 		// output intervallo finale
-		if (index == RootSet.size()) {
+		if (index == RootSet) {
 			ParameterIntervals << wstring(1, parameter);
 			ParameterIntervals.last() +=
 				L" > " + Handler(to_wstring(RootSet.last()));
@@ -7843,11 +7833,11 @@ static tensor<Console> DisequationSolver
 		if (denominator.empty()) UnknownIntervals <<
 			tensor<Console>{ Console(L"perde significato", 11) };
 		else UnknownIntervals.last() += DisequationSolver(
-				numerator,
-				denominator,
-				ExpectedSign == Parametric(RootSet[index], 1 - Vpos, true),
-				CanBeNull
-			) + tensor<Console>{ Console(L"\n") };
+			numerator,
+			denominator,
+			ExpectedSign == Parametric(RootSet[index], 1 - Vpos, true),
+			CanBeNull
+		) + tensor<Console>{ Console(L"\n") };
 		Variables = save;
 	}
 
@@ -7866,6 +7856,153 @@ static tensor<Console> DisequationSolver
 
 	for (auto& cons : text) ElabExponents(cons.Text);
 	ret text;
+}
+
+// risolve una disequazione fratta con un parametro
+static void DisequationSolutionPrinter
+(polynomial<> Num, polynomial<> Den, int behaviour)
+{
+	if (Num.empty() and Den.empty()) ret;
+	tensor<Console> dir{
+		Console(L"SE A(x) < 0 ALLORA"),
+		Console(L"SE A(x) <= 0 ALLORA"),
+		Console(L"SE A(x) > 0 ALLORA"),
+		Console(L"SE A(x) >= 0 ALLORA")
+	};
+
+	// disequazione normale
+	if (Variables == L"x") {
+		
+		// calcolo principale
+		tensor<wstring> roots;
+		tensor<bool> ItsFromTheDenominator;
+		bool InitialSign, InvertTheSign;
+		FractDisequationMain(
+			Num,
+			Den,
+			roots,
+			ItsFromTheDenominator,
+			InitialSign,
+			InvertTheSign
+		);
+
+		// output
+		for (int i = 0; i < 4; ++i) if ((behaviour & (1 << i)) == behaviour) {
+			auto Output{
+				GetAlgebricSolution(
+					roots,
+					ItsFromTheDenominator,
+					InitialSign,
+					bool(i / 2) xor InvertTheSign,
+					i % 2 == 1
+				)
+			};
+
+			wcout << dir[i] << L'\n';
+			for (const auto& txt : Output) txt.log();
+		}
+		ret;
+	}
+	// disequazione parametrica
+
+	// controlli iniziali
+	auto Vpos{ Variables.find(L'x') };
+	if (Variables.size() != 2 or Vpos == wstring::npos) ret;
+	wchar_t parameter{ Variables.at(1 - Vpos) };
+
+	// parte principale
+	polynomial<> Un;
+	tensor<bool> TermsFromDenominator;
+	tensor<long double> AdditionalRoots;
+	factor<> Parametric;
+	tensor<factor<>> tops, bottoms;
+	bool InitialSign, InvertSign;
+	if (
+		!ParamDisequationSetup(
+			Num,
+			Den,
+			Un,
+			TermsFromDenominator,
+			AdditionalRoots,
+			Parametric,
+			tops,
+			bottoms,
+			InitialSign,
+			InvertSign
+		)
+	) ret;
+
+	// caso di un fattore
+	if (Un == 1 and Parametric == factor<>{ { 1, { 0, 0 } } }) {
+		tensor<wstring> vals{ EquationSolver(Un[0]) };
+		if (vals == 1) if (isalpha(vals[0].at(0)) and isalpha(vals[0].at(1))) {
+			if (vals[0].find(L'/') == wstring::npos) vals[0] += L'/';
+			vals[0] += parameter;
+		}
+		for (auto& val : vals) val.erase(0, 5);
+
+		// output
+		for (int i = 0; i < 4; ++i) if ((behaviour & (1 << i)) == behaviour) {
+			auto Output{
+				GetAlgebricSolution(
+					vals,
+					tensor<bool>(vals.size(), TermsFromDenominator[0]),
+					InitialSign,
+					bool(i / 2) xor InvertSign,
+					i % 2 == 1
+				)
+			};
+
+			wcout << dir[i] << L'\n';
+			for (const auto& txt : Output) txt.log();
+		}
+		ret;
+	}
+
+	// calcolo dei dati indipendenti dai segni
+	size_t Unisize;
+	tensor<tensor<factor<>>> TableOfMains;
+	tensor<long double> RootSet;
+	tensor<long double> RootExamples;
+	tensor<wstring> vals;
+	ParamDisequationMain(
+		Un,
+		tops,
+		bottoms,
+		AdditionalRoots,
+		Unisize,
+		TableOfMains,
+		RootSet,
+		RootExamples,
+		vals
+	);
+
+	// output
+	for (int i = 0; i < 4; ++i) if ((behaviour & (1 << i)) == behaviour) {
+		auto Output{
+			GetParametricSolution(
+				parameter,
+				Unisize,
+				Vpos,
+				InitialSign,
+				bool(i / 2) xor InvertSign,
+				i % 2 == 1,
+				TermsFromDenominator,
+				Num,
+				Den,
+				Parametric,
+				tops,
+				bottoms,
+				TableOfMains,
+				RootSet,
+				RootExamples,
+				vals
+			)
+		};
+
+		wcout << dir[i] << L'\n';
+		for (const auto& txt : Output) txt.log();
+	}
 }
 
 #pragma endregion
