@@ -2351,7 +2351,7 @@ static tensor<Console> GetParametricSolution(
 #define LESS_EQUAL_THAN (1 << 1)
 #define MORE_THAN       (1 << 2)
 #define MORE_EQUAL_THAN (1 << 3)
-static void DisequationSolutionPrinter
+static tensor<Console> DisequationSolutionPrinter
 (polynomial<> Num, polynomial<> Den, int behaviour);
 static void PrintFraction
 (
@@ -2477,7 +2477,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.0.2 ";
+			wcout << L"1.0.5 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -7832,11 +7832,13 @@ static tensor<Console> GetParametricSolution(
 		if (numerator.empty()) numerator = polynomial<>{ { { 0, { 0 } } } };
 		if (denominator.empty()) UnknownIntervals <<
 			tensor<Console>{ Console(L"perde significato", 11) };
-		else UnknownIntervals.last() += DisequationSolver(
+		else UnknownIntervals.last() += DisequationSolutionPrinter(
 			numerator,
 			denominator,
-			ExpectedSign == Parametric(RootSet[index], 1 - Vpos, true),
-			CanBeNull
+			1 << (
+				2 * (ExpectedSign == Parametric(RootSet[index], 1 - Vpos, true))
+				+ CanBeNull
+				)
 		) + tensor<Console>{ Console(L"\n") };
 		Variables = save;
 	}
@@ -7859,10 +7861,10 @@ static tensor<Console> GetParametricSolution(
 }
 
 // risolve una disequazione fratta con un parametro
-static void DisequationSolutionPrinter
+static tensor<Console> DisequationSolutionPrinter
 (polynomial<> Num, polynomial<> Den, int behaviour)
 {
-	if (Num.empty() and Den.empty()) ret;
+	if (Num.empty() and Den.empty()) ret {};
 	tensor<Console> dir{
 		Console(L"SE A(x) < 0 ALLORA"),
 		Console(L"SE A(x) <= 0 ALLORA"),
@@ -7887,27 +7889,24 @@ static void DisequationSolutionPrinter
 		);
 
 		// output
+		tensor<Console> Output;
 		for (int i = 0; i < 4; ++i) if ((behaviour & (1 << i)) == behaviour) {
-			auto Output{
-				GetAlgebricSolution(
-					roots,
-					ItsFromTheDenominator,
-					InitialSign,
-					bool(i / 2) xor InvertTheSign,
-					i % 2 == 1
-				)
-			};
-
-			wcout << dir[i] << L'\n';
-			for (const auto& txt : Output) txt.log();
+			Output += GetAlgebricSolution(
+				roots,
+				ItsFromTheDenominator,
+				InitialSign,
+				bool(i / 2) xor InvertTheSign,
+				i % 2 == 1
+			);
+			Output << dir[i] << Console(L"\n"); 
 		}
-		ret;
+		ret Output;
 	}
 	// disequazione parametrica
 
 	// controlli iniziali
 	auto Vpos{ Variables.find(L'x') };
-	if (Variables.size() != 2 or Vpos == wstring::npos) ret;
+	if (Variables.size() != 2 or Vpos == wstring::npos) ret {};
 	wchar_t parameter{ Variables.at(1 - Vpos) };
 
 	// parte principale
@@ -7930,10 +7929,11 @@ static void DisequationSolutionPrinter
 			InitialSign,
 			InvertSign
 		)
-	) ret;
+	) ret{};
 
 	// caso di un fattore
 	if (Un == 1 and Parametric == factor<>{ { 1, { 0, 0 } } }) {
+		tensor<Console> Output;
 		tensor<wstring> vals{ EquationSolver(Un[0]) };
 		if (vals == 1) if (isalpha(vals[0].at(0)) and isalpha(vals[0].at(1))) {
 			if (vals[0].find(L'/') == wstring::npos) vals[0] += L'/';
@@ -7943,20 +7943,17 @@ static void DisequationSolutionPrinter
 
 		// output
 		for (int i = 0; i < 4; ++i) if ((behaviour & (1 << i)) == behaviour) {
-			auto Output{
-				GetAlgebricSolution(
-					vals,
-					tensor<bool>(vals.size(), TermsFromDenominator[0]),
-					InitialSign,
-					bool(i / 2) xor InvertSign,
-					i % 2 == 1
-				)
-			};
+			Output += GetAlgebricSolution(
+				vals,
+				tensor<bool>(vals.size(), TermsFromDenominator[0]),
+				InitialSign,
+				bool(i / 2) xor InvertSign,
+				i % 2 == 1
+			);
 
-			wcout << dir[i] << L'\n';
-			for (const auto& txt : Output) txt.log();
+			Output << dir[i] << Console(L"\n");
 		}
-		ret;
+		ret Output;
 	}
 
 	// calcolo dei dati indipendenti dai segni
@@ -7978,31 +7975,30 @@ static void DisequationSolutionPrinter
 	);
 
 	// output
+	tensor<Console> Output;
 	for (int i = 0; i < 4; ++i) if ((behaviour & (1 << i)) == behaviour) {
-		auto Output{
-			GetParametricSolution(
-				parameter,
-				Unisize,
-				Vpos,
-				InitialSign,
-				bool(i / 2) xor InvertSign,
-				i % 2 == 1,
-				TermsFromDenominator,
-				Num,
-				Den,
-				Parametric,
-				tops,
-				bottoms,
-				TableOfMains,
-				RootSet,
-				RootExamples,
-				vals
-			)
-		};
+		Output += GetParametricSolution(
+			parameter,
+			Unisize,
+			Vpos,
+			InitialSign,
+			bool(i / 2) xor InvertSign,
+			i % 2 == 1,
+			TermsFromDenominator,
+			Num,
+			Den,
+			Parametric,
+			tops,
+			bottoms,
+			TableOfMains,
+			RootSet,
+			RootExamples,
+			vals
+		);
 
-		wcout << dir[i] << L'\n';
-		for (const auto& txt : Output) txt.log();
+		Output << dir[i] << Console(L"\n");
 	}
+	ret Output;
 }
 
 #pragma endregion
@@ -9998,7 +9994,7 @@ static void DecompFraction(switchcase& argc)
 		else wcout << L'\n';
 
 		// output del segno della frazione
-		auto DiseqSol{ DisequationSolver(N_, D_, POS, true) };
+		auto DiseqSol{ DisequationSolutionPrinter(N_, D_, 15) };
 		if (!DiseqSol.empty()) {
 			wcout << L'\n';
 			for (const auto& text : DiseqSol) text.log();
