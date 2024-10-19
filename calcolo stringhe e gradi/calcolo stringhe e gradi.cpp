@@ -506,13 +506,13 @@ namespace std_tensor
 		}
 
 		// operatori di concatenazione
-		_NODISCARD tensor operator+(const tensor& other) const
+		_NODISCARD tensor operator+(const tensor other) const
 		{
 			tensor result = *this;
 			result += other;
 			ret result;
 		}
-		tensor& operator+=(const tensor& other)
+		tensor& operator+=(const tensor other)
 		{
 			for (size_t i = 0; i < other.count; ++i) push_back(other.data[i]);
 			ret *this;
@@ -1085,7 +1085,7 @@ public:
 	inline big& operator++(int)
 	{
 		*this = *this + 1;
-		ret* this;
+		ret *this;
 	}
 
 	// sottrazione
@@ -1946,12 +1946,12 @@ factor<T_int>::operator*(const factor& other) const
 template<class T_int> factor<T_int>& factor<T_int>::operator-=(const factor& other)
 {
 	*this = *this - other;
-	ret* this;
+	ret *this;
 }
 template<class T_int> factor<T_int>& factor<T_int>::operator*=(const factor& other)
 {
 	*this = *this * other;
-	ret* this;
+	ret *this;
 }
 
 tensor_t PrimeNumbers;
@@ -2351,8 +2351,13 @@ static tensor<Console> GetParametricSolution(
 #define LESS_EQUAL_THAN (1 << 1)
 #define MORE_THAN       (1 << 2)
 #define MORE_EQUAL_THAN (1 << 3)
-static tensor<Console> DisequationSolutionPrinter
-(polynomial<> Num, polynomial<> Den, int behaviour);
+static tensor<Console> DisequationSolutionPrinter(
+	polynomial<> Num,
+	polynomial<> Den,
+	int behaviour,
+	bool ChangeSign,
+	bool PrintCondition = true
+);
 static void PrintFraction
 (
 	int NC, int DC, int& LINE, bool WritePlus,
@@ -7382,11 +7387,16 @@ static tensor<long double> RootExtractor(polynomial<> vect)
 	for (const auto& fact : vect) {
 		if (fact.empty()) continue;
 
+		// modificatore
 		if (fact[0].exp[0] < 0) {
 			repeat = true;
 			continue;
 		}
 		auto solutions{ EquationSolver(fact) };
+
+		// molteplicità delle soluzioni
+		if (fact == 1 and fact[0].exp[Variables.find(L'x')] == 2)
+			solutions += solutions;
 
 		// aggiunta delle radici del numeratore
 		for (auto sol : solutions) if (sol.find(L'i') == wstring::npos)
@@ -7479,11 +7489,19 @@ static tensor<Console> GetAlgebricSolution(
 	tensor<Console> text;
 	bool condition{ ((InitialSign == (roots.size() % 2 == 0)) == ExpectedSign) };
 	for (ptrdiff_t i = 0; i < roots.size() - 1; ++i) {
+		bool SamePart{ i % 2 == condition };
 		if (i >= roots) break;
 
-		if (roots[i] == roots[i + 1] and CanBeNull) {
-			if (!(ItsFromDenominator[i] or ItsFromDenominator[i + 1])
-				or i % 2 == condition)
+		if (roots[i] == roots[i + 1]) {
+			bool T0{ ItsFromDenominator[i] or !CanBeNull };
+			bool T1{ ItsFromDenominator[i + 1] or !CanBeNull };
+
+			// eliminazione zeri inutili
+			if (
+				(T0 and T1 and SamePart) or
+				!(T0 or T1 or SamePart) or
+				(!SamePart and (T0 xor T1))
+				)
 			{
 				roots.erase(roots.begin() + i + 1);
 				roots.erase(roots.begin() + i);
@@ -7492,9 +7510,12 @@ static tensor<Console> GetAlgebricSolution(
 				i--;
 				continue;
 			}
-			if (ItsFromDenominator[i] xor ItsFromDenominator[i + 1]) {
+
+			// correzione segni discordanti
+			if ((T0 xor T1) and SamePart)
+			{
 				ItsFromDenominator[i] = true;
-				ItsFromDenominator[i + 1] = true;
+				ItsFromDenominator[i] = false;
 			}
 		}
 	}
@@ -7674,7 +7695,7 @@ static void ParamDisequationMain(
 	}
 
 	// calcolo intervalli
-	RootExamples = RootSet[0] - 1;
+	RootExamples << RootSet[0] - 1;
 	for (ptrdiff_t i = 0; i < RootSet.size() - 1; ++i)
 		RootExamples << (RootSet[i] + RootSet[i + 1]) / 2.0;
 	RootExamples << RootSet.last() + 1;
@@ -7830,15 +7851,16 @@ static tensor<Console> GetParametricSolution(
 		// aggiunta dei casi particolari
 		UnknownIntervals << tensor<Console>{ Console(L"  ->  ", 8) };
 		if (numerator.empty()) numerator = polynomial<>{ { { 0, { 0 } } } };
-		if (denominator.empty()) UnknownIntervals <<
-			tensor<Console>{ Console(L"perde significato", 11) };
-		else UnknownIntervals.last() += DisequationSolutionPrinter(
+		if (denominator.empty()) denominator = polynomial<>{ { { 0, { 0 } } } };
+		UnknownIntervals.last() += DisequationSolutionPrinter(
 			numerator,
 			denominator,
 			1 << (
-				2 * (ExpectedSign == Parametric(RootSet[index], 1 - Vpos, true))
+				2 * (ExpectedSign xor Parametric(RootSet[index], 1 - Vpos, true))
 				+ CanBeNull
-				)
+				),
+			false,
+			false
 		) + tensor<Console>{ Console(L"\n") };
 		Variables = save;
 	}
@@ -7861,15 +7883,29 @@ static tensor<Console> GetParametricSolution(
 }
 
 // risolve una disequazione fratta con un parametro
-static tensor<Console> DisequationSolutionPrinter
-(polynomial<> Num, polynomial<> Den, int behaviour)
+static tensor<Console> DisequationSolutionPrinter(
+	polynomial<> Num,
+	polynomial<> Den,
+	int behaviour,
+	bool ChangeSign,
+	bool PrintCondition
+)
 {
+	// controlli iniziali
+	auto Vpos{ Variables.find(L'x') };
+	if (Variables.size() > 2 or Vpos == wstring::npos) ret {};
+
+	// calcolo frasi
 	if (Num.empty() and Den.empty()) ret {};
+	WORD wAttribute{ 6 };
+	wstring expr = Variables == L"x" ?
+		L"F(x)" : L"F(x, " + wstring(1, Variables.at(1 - Vpos)) + L")";
+	expr = L"SE  " + expr;
 	tensor<Console> dir{
-		Console(L"SE A(x) < 0 ALLORA"),
-		Console(L"SE A(x) <= 0 ALLORA"),
-		Console(L"SE A(x) > 0 ALLORA"),
-		Console(L"SE A(x) >= 0 ALLORA")
+		Console(expr + L" < 0   ALLORA", wAttribute),
+		Console(expr + L" <= 0  ALLORA", wAttribute),
+		Console(expr + L" > 0   ALLORA", wAttribute),
+		Console(expr + L" >= 0  ALLORA", wAttribute)
 	};
 
 	// disequazione normale
@@ -7890,32 +7926,37 @@ static tensor<Console> DisequationSolutionPrinter
 
 		// output
 		tensor<Console> Output;
-		for (int i = 0; i < 4; ++i) if ((behaviour & (1 << i)) == behaviour) {
+		for (int i = 0; i < 4; ++i) if ((behaviour | (1 << i)) == behaviour) {
+			bool positive = i / 2;
+			if (PrintCondition) Output << dir[i] << Console(L"\n\n");
+
 			Output += GetAlgebricSolution(
 				roots,
 				ItsFromTheDenominator,
 				InitialSign,
-				bool(i / 2) xor InvertTheSign,
+				(positive == InvertTheSign) xor ChangeSign,
 				i % 2 == 1
 			);
-			Output << dir[i] << Console(L"\n"); 
+
+			if (PrintCondition) Output << Console(L"\n\n");
+		}
+
+		if (PrintCondition) {
+			Output--;
+			Output << Console(L"\n----------");
 		}
 		ret Output;
 	}
 	// disequazione parametrica
 
-	// controlli iniziali
-	auto Vpos{ Variables.find(L'x') };
-	if (Variables.size() != 2 or Vpos == wstring::npos) ret {};
-	wchar_t parameter{ Variables.at(1 - Vpos) };
-
 	// parte principale
+	wchar_t parameter{ Variables.at(1 - Vpos) };
 	polynomial<> Un;
 	tensor<bool> TermsFromDenominator;
 	tensor<long double> AdditionalRoots;
 	factor<> Parametric;
 	tensor<factor<>> tops, bottoms;
-	bool InitialSign, InvertSign;
+	bool InitialSign, InvertSign{ true };
 	if (
 		!ParamDisequationSetup(
 			Num,
@@ -7929,7 +7970,7 @@ static tensor<Console> DisequationSolutionPrinter
 			InitialSign,
 			InvertSign
 		)
-	) ret{};
+	) ret {};
 
 	// caso di un fattore
 	if (Un == 1 and Parametric == factor<>{ { 1, { 0, 0 } } }) {
@@ -7942,16 +7983,24 @@ static tensor<Console> DisequationSolutionPrinter
 		for (auto& val : vals) val.erase(0, 5);
 
 		// output
-		for (int i = 0; i < 4; ++i) if ((behaviour & (1 << i)) == behaviour) {
+		for (int i = 0; i < 4; ++i) if ((behaviour | (1 << i)) == behaviour) {
+			bool positive = i / 2;
+			if (PrintCondition) Output << dir[i] << Console(L"\n\n");
+
 			Output += GetAlgebricSolution(
 				vals,
 				tensor<bool>(vals.size(), TermsFromDenominator[0]),
 				InitialSign,
-				bool(i / 2) xor InvertSign,
+				(positive == InvertSign) xor ChangeSign,
 				i % 2 == 1
 			);
 
-			Output << dir[i] << Console(L"\n");
+			if (PrintCondition) Output << Console(L"\n\n");
+		}
+
+		if (PrintCondition) {
+			Output--;
+			Output << Console(L"\n----------");
 		}
 		ret Output;
 	}
@@ -7976,13 +8025,16 @@ static tensor<Console> DisequationSolutionPrinter
 
 	// output
 	tensor<Console> Output;
-	for (int i = 0; i < 4; ++i) if ((behaviour & (1 << i)) == behaviour) {
+	for (int i = 0; i < 4; ++i) if ((behaviour | (1 << i)) == behaviour) {
+		bool positive = i / 2;
+		if (PrintCondition) Output << dir[i] << Console(L"\n\n");
+
 		Output += GetParametricSolution(
 			parameter,
 			Unisize,
 			Vpos,
 			InitialSign,
-			bool(i / 2) xor InvertSign,
+			(positive xor InvertSign) xor ChangeSign,
 			i % 2 == 1,
 			TermsFromDenominator,
 			Num,
@@ -7996,7 +8048,12 @@ static tensor<Console> DisequationSolutionPrinter
 			vals
 		);
 
-		Output << dir[i] << Console(L"\n");
+		if (PrintCondition) Output << Console(L"\n");
+	}
+
+	if (PrintCondition) {
+		Output--;
+		Output << Console(L"\n----------");
 	}
 	ret Output;
 }
@@ -9443,12 +9500,12 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 				wcout << L'\n';
 				goto EndOfDecomposition;
 			}
-			else ret{};
+			else ret {};
 		}
 
 		// se sono presenti dei coefficienti complessi
 		if (Variables.find(L'i') != wstring::npos) {
-			if (!input) ret{};
+			if (!input) ret {};
 
 			SetConsoleTextAttribute(hConsole, 2);
 			wcout << L"questo è il polinomio: " << bigHT.str() << L'\n';
@@ -9488,7 +9545,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 				Coeff *= HT[i][0].coefficient;
 				HT.erase(HT.begin() + i);
 				if (Coeff >= 2'147'483'647 or Coeff <= -2'147'483'647) {
-					if (!input) ret{};
+					if (!input) ret {};
 					goto overflow;
 				}
 			}
@@ -9994,7 +10051,9 @@ static void DecompFraction(switchcase& argc)
 		else wcout << L'\n';
 
 		// output del segno della frazione
-		auto DiseqSol{ DisequationSolutionPrinter(N_, D_, 15) };
+		auto DiseqSol{
+			DisequationSolutionPrinter(N_, D_, 15, NCOEFF < 0 or DCOEFF < 0)
+		};
 		if (!DiseqSol.empty()) {
 			wcout << L'\n';
 			for (const auto& text : DiseqSol) text.log();
