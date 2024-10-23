@@ -947,14 +947,14 @@ public:
 	}
 
 	// costruttori
-	big() : sign(POS), Integer(), decimal(0) {}
-	big(int param) : sign(param < 0), Integer(), decimal(0)
+	big() : sign(POS), Integer(0), decimal(0) {}
+	big(int param) : sign(param < 0), Integer(0), decimal(0)
 	{
 		wstring Param{ to_wstring(param) };
 		if (Param.at(0) == L'-') Param.erase(0, 1);
 		for (auto ch : Param) Integer << ch - '0';
 	}
-	big(ptrdiff_t param) : sign(param < 0), Integer(), decimal(0)
+	big(ptrdiff_t param) : sign(param < 0), Integer(0), decimal(0)
 	{
 		wstring Param{ to_wstring(param) };
 		if (Param.at(0) == L'-') Param.erase(0, 1);
@@ -1159,22 +1159,72 @@ public:
 	}
 	big operator*(const big& value) const
 	{
+		// casi particolari
+		if (value == 0 or *this == 0) {
+			big result;
+			result.sign = POS;
+			result.Integer = { 0 };
+			result.decimal = 0;
+			ret result;
+		}
 		if (Integer.size() <= 2 or value.Integer.size() <= 2) ret Multiply(value);
-		int m = max(Integer.size(), value.Integer.size());
-		int m2 = _STD ceil((double)min(Integer.size(), value.Integer.size()) / 2);
+		
+		// gestione decimali e segni
+		big This = *this, Value = value;
+		bool ResultSign = This.sign xor Value.sign;
+		This.sign = POS;
+		Value.sign = POS;
+		This.shift();
+		Value.shift();
+		size_t n = max(This.Integer.size(), Value.Integer.size()), m = n / 2;
 
-		// suddivisione
-		auto Int{ Integer }, valInt{ value.Integer };
-		big high1 = tensor<int>(Int.begin(), Int.begin() + m2);
-		big low1 = tensor<int>(Int.begin() + m2, Int.end());
-		big high2 = tensor<int>(valInt.begin(), valInt.begin() + m2);
-		big low2 = tensor<int>(valInt.begin() + m2, valInt.end());
+		// aggiunta di zeri a sinistra
+		int DecPrecision{};
+		while (This.Integer.size() < n) {
+			This.Integer >> 0;
+			DecPrecision--;
+		}
+		while (Value.Integer.size() < n) {
+			Value.Integer >> 0;
+			DecPrecision--;
+		}
 
-		// ricorsione
-		big z1 = (low1 + high1) * (low2 + high2);
-		big z0 = low1 * low2, z2 = high1 * high2;
+		// algoritmo di karatsuba
+		big a1 = tensor<int>(This.Integer.begin(), This.Integer.begin() + m);
+		big a0 = tensor<int>(This.Integer.begin() + m, This.Integer.end());
+		big b1 = tensor<int>(Value.Integer.begin(), Value.Integer.begin() + m);
+		big b0 = tensor<int>(Value.Integer.begin() + m, Value.Integer.end());
+		big p = a1 * b1, q = a0 * b0, s = (a1 + a0) * (b1 + b0);
+		big result = (p << (2 * (n - m))) + ((s - p - q) << (n - m)) + q;
 
-		ret (z2 << (2 * (m - m2))) + ((z1 - z2 - z0) << (m - m2)) + z0;
+		// ripristino segno e decimali
+		result.sign = ResultSign;
+		DecPrecision += This.Integer.size() - Integer.size() +
+			Value.Integer.size() - value.Integer.size();
+		if (DecPrecision > 0) {
+			tensor<int> DecPart;
+
+			// shift
+			for (
+				int i = 0;
+				i < DecPrecision and i < (int)result.Integer.size();
+				++i
+				) DecPart << result.Integer[result.Integer.size() - 1 - i];
+			result.Integer.erase(result.Integer.size() - DecPrecision);
+
+			// calcolo
+			long double dec = 0;
+			for (size_t i = 0; i < DecPart.size(); ++i)
+				dec += DecPart[i] * pow(10, -int(i + 1));
+			result.decimal = dec;
+		}
+
+		// rimozione zeri inutili
+		while (result.Integer.size() > 1 and result.Integer[0] == 0)
+			result.Integer.erase(0);
+		if (result.Integer.empty()) result.Integer = { 0 };
+
+		ret result;
 	}
 	inline big& operator*=(const big& value)
 	{
@@ -1583,10 +1633,8 @@ public:
 			for (size_t i = 0; i < Variables.size(); ++i) if (data.exp[i] != 0) {
 				Monomial += size == Variables.size() ?
 					Variables.at(i) : Variables.at(Variables.find(charVariable));
-				if (data.exp[i] > 1) {
-					Monomial += L'^';
-					Monomial += to_wstring((int)data.exp[i]);
-				}
+				if (data.exp[i] > 1)
+					Monomial += L"^" + to_wstring((int)data.exp[i]);
 			}
 
 			polynomial += Monomial;
@@ -2482,7 +2530,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.0.5 ";
+			wcout << L"1.0.6 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -5831,6 +5879,7 @@ static polynomial<big> GetMonomialsRedirector(wstring pol)
 		}
 
 		// calcolo coefficiente
+
 		big Coeff = sign;
 		for (ptrdiff_t j = Union[i].size() - 1; j >= 0; --j) if (Union[i][j] == 1)
 		{
