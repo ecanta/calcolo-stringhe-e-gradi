@@ -446,7 +446,7 @@ namespace std_tensor
 		}
 		inline tensor<T> operator++(int)
 		{
-			tensor temp = *this;
+			auto temp{ *this };
 			push_back(T());
 			ret temp;
 		}
@@ -457,7 +457,7 @@ namespace std_tensor
 		}
 		inline tensor<T> operator--(int)
 		{
-			tensor temp = *this;
+			auto temp{ *this };
 			pop_back();
 			ret temp;
 		}
@@ -506,9 +506,15 @@ namespace std_tensor
 		}
 
 		// operatori di concatenazione
+		_NODISCARD tensor operator+(const T value) const
+		{
+			auto result{ *this };
+			result.push_back(value);
+			ret result;
+		}
 		_NODISCARD tensor operator+(const tensor other) const
 		{
-			tensor result = *this;
+			auto result{ *this };
 			result += other;
 			ret result;
 		}
@@ -1362,9 +1368,9 @@ public:
 	wostringstream c_str(int precision) const
 	{
 		wostringstream oss, result;
-		if (sign) wcout << L'-';
+		if (sign) result << L'-'; 
 		for (size_t i = 0; i < Integer; ++i) result << Integer[i];
-		oss << setprecision(precision) << decimal;
+		if (precision > 0) oss << setprecision(precision) << decimal;
 		auto str{ oss.str() };
 		str.erase(0, 1);
 		if (!str.empty()) result << L'.' << str;
@@ -1639,6 +1645,7 @@ public:
 
 			polynomial += Monomial;
 		}
+		if (polynomial.empty()) ret L"0";
 		if (polynomial.at(0) == L'+') polynomial.erase(0, 1);
 
 		ret polynomial;
@@ -1863,11 +1870,15 @@ public:
 
 			// polinomio grande
 			else if constexpr (is_same_v<T_int, big>) {
-				if (!output.empty()) output += L'/';
-				output = output + L'[' + LCM.str() + L']';
+				if (LCM.fabs() != 1) {
+					if (!output.empty()) output += L'/';
+					output = output + L'[' + LCM.str() + L']';
+				}
+				output = coeffstr + output;
 			}
 		}
 		if (LCM < 0) output = L'-' + output;
+		if (output == L"-" and coeffstr == L"1") output = L"-1";
 
 		// eliminazioni parentesi quadre se non sono necessarie
 		else if (output.at(0) == L'[' and Last(output) == L']') {
@@ -3971,7 +3982,7 @@ static wstring GetLine(bool ShowSuggestions, int sizemax)
 				if (!arrow) {
 					if (new_diff < 0) new_diff = 0;
 					vel = vel.substr(0, new_diff) + wstring(1, c)
-						+ vel.substr(new_diff, vel.size() - 1);
+						+ vel.substr(new_diff, vel.size());
 					break;
 				}
 
@@ -6218,11 +6229,10 @@ static factor<T_int> PolynomialSum(factor<T_int> vect)
 					vect[j].coefficient = 0;
 				}
 			}
-	// marcamento dei monomi simili
+
+	// rimozione dei monomi simili
 	for (ptrdiff_t i = vect.size() - 1; i >= 0; --i)
 		if (vect[i].coefficient == 0) vect[i].exp.clear();
-
-	// rimozione
 	auto it = remove(vect.begin(), vect.end(), monomial<T_int>{ 0, {} });
 	vect.erase(it, vect.end());
 
@@ -6233,12 +6243,20 @@ static factor<T_int> PolynomialSum(factor<T_int> vect)
 template<typename T_int = long double>
 static factor<T_int> PolynomialMultiply(polynomial<T_int> Polynomial)
 {
-	if (Polynomial.empty()) ret { { 1, tensor<int>(Variables.size(), 0) } };
-	Polynomial.open();
-	while (Polynomial > 1) {
 
-		monomial<T_int> temp;
+	// polinomio nullo
+	bool Empty{ Polynomial.empty() };
+	if (!Empty) for (const auto& term : Polynomial) if (term.empty()) {
+		Empty = true;
+		break;
+	}
+	if (Empty) ret { { 0, tensor<int>(Variables.size(), 0) } };
+	Polynomial.open();
+
+	while (Polynomial > 1) {
 		factor<T_int> Temp;
+		monomial<T_int> temp;
+
 		for (auto A : Polynomial[0])
 			for (auto B : Polynomial[1]) {
 				temp.coefficient = A.coefficient * B.coefficient;
@@ -6324,7 +6342,7 @@ static polynomial<> Total(factor<> vect)
 	}
 	if (abs(GCD) != 1 or positive_min) {
 		output.clear();
-		output << factor<>{ {(long double)GCD, exponents} };
+		output << factor<>{ { (long double)GCD, exponents } };
 		for (size_t i = 0; i < vect; ++i) {
 			vect[i].coefficient /= GCD;
 			for (size_t j = 0; j < Variables.size(); ++j)
@@ -6335,7 +6353,7 @@ static polynomial<> Total(factor<> vect)
 	// totale
 	if (abs(GCD) != 1 or positive_min) {
 		output.clear();
-		output << factor<>{ {(long double)GCD, exponents} } << vect;
+		output << factor<>{ { (long double)GCD, exponents } } << vect;
 		ret output;
 	}
 	ret { vect };
@@ -6462,7 +6480,7 @@ static polynomial<> Binomial(factor<> vect)
 
 	// composizione della potenza di binomio
 	outp.clear();
-	outp << factor<>{ {(long double)exponent, modifier} };
+	outp << factor<>{ { (long double)exponent, modifier } };
 	outp++;
 	outp[1] << monomial<>{ Sq_A, Aexps } << monomial<>{ sign * Sq_B, Bexps };
 
@@ -6516,8 +6534,10 @@ static polynomial<> Trinomial(factor<> vect)
 
 	// composizione del trinomio scomposto
 	outp = { {}, {} };
-	outp[0] << monomial<>{ -I * firstX, Cexps } << monomial<>{ (long double)I, Aexps };
-	outp[1] << monomial<>{ -J * secondX, Cexps } << monomial<>{ (long double)J, Aexps };
+	outp[0] << monomial<>{ -I * firstX, Cexps };
+	outp[0] << monomial<>{ (long double)I, Aexps };
+	outp[1] << monomial<>{ -J * secondX, Cexps };
+	outp[1] << monomial<>{ (long double)J, Aexps };
 	outp[0].SortByExponents();
 	outp[1].SortByExponents();
 
@@ -6676,27 +6696,27 @@ static polynomial<> CompleteTheSquare(factor<> vect)
 {
 
 	// filtro per tensori con tre termini
-	polynomial<> output;
-	output << vect;
-	if (vect != 3) ret output;
+	polynomial<> outp;
+	outp << vect;
+	if (vect != 3) ret outp;
 	vect.SortByDegree();
 	auto A{ vect[0] };
 	auto B{ vect[2] };
 
 	// calcolo delle radici
-	if (A.coefficient < 0 or B.coefficient < 0) ret output;
+	if (A.coefficient < 0 or B.coefficient < 0) ret outp;
 	double Sq_A = sqrt(A.coefficient);
 	double Sq_B = sqrt(B.coefficient);
 
 	// controllo sui quadrati
-	if (!A.IsSquare()) ret output;
-	if (!B.IsSquare()) ret output;
-	for (size_t i = 0; i < Variables.size(); ++i) if (A.exp[i] % 4 != 0) ret output;
+	if (!A.IsSquare()) ret outp;
+	if (!B.IsSquare()) ret outp;
+	for (size_t i = 0; i < Variables.size(); ++i) if (A.exp[i] % 4 != 0) ret outp;
 	
 	// controllo sui gradi
 	for (size_t i = 0; i < Variables.size(); ++i) {
-		if (vect[1].exp[i] != A.exp[i] / 2 + B.exp[i] / 2) ret output;
-		if (!integer(A.exp[i] / 4 + B.exp[i] / 4)) ret output;
+		if (vect[1].exp[i] != A.exp[i] / 2 + B.exp[i] / 2) ret outp;
+		if (!integer(A.exp[i] / 4 + B.exp[i] / 4)) ret outp;
 	}
 
 	// dichiarazioni
@@ -6716,7 +6736,7 @@ static polynomial<> CompleteTheSquare(factor<> vect)
 		DiffSquare.coefficient = sqrt(CaseMinus);
 		sign = -1;
 	}
-	else ret output;
+	else ret outp;
 	Diffneg.coefficient = -DiffSquare.coefficient;
 	Diffneg.exp = DiffSquare.exp;
 
@@ -6727,14 +6747,14 @@ static polynomial<> CompleteTheSquare(factor<> vect)
 	}
 
 	// composizione di somma e differenza
-	output << vect;
-	output[0].clear();
-	output[1].clear();
+	outp << vect;
+	outp[0].clear();
+	outp[1].clear();
 
-	output[0] << monomial<>{ Sq_A, A.exp } << DiffSquare << monomial<>{ Sq_B, B.exp };
-	output[1] << monomial<>{ Sq_A, A.exp } << Diffneg << monomial<>{ Sq_B, B.exp };
+	outp[0] << monomial<>{ Sq_A, A.exp } << DiffSquare << monomial<>{ Sq_B, B.exp };
+	outp[1] << monomial<>{ Sq_A, A.exp } << Diffneg << monomial<>{ Sq_B, B.exp };
 
-	ret output;
+	ret outp;
 }
 
 // quadrato di trinomio
@@ -6817,12 +6837,10 @@ static polynomial<> TrinomialSquare(factor<> vect)
 
 			auto backup{ _pos };
 			for (int i = IndexAccesser; i < 3; ++i) backup[i]++;
-
 			if (backup.last() > squares) {
 				IndexAccesser--;
 				continue;
 			}
-
 			IndexAccesser = 2;
 			_pos = backup;
 
@@ -6859,8 +6877,11 @@ static polynomial<> TrinomialSquare(factor<> vect)
 				if (v2 == AC) ACterm = v;
 				if (v2 == BC) BCterm = v;
 			}
-			if (ABterm == monomial<>{} or ACterm == monomial<>{} or BCterm == monomial<>{})
-				continue;
+			if (
+				ABterm == monomial<>{} or
+				ACterm == monomial<>{} or
+				BCterm == monomial<>{}
+				) continue;
 			// //
 
 			// calcolo segni
@@ -7014,9 +7035,9 @@ static void Simplify(
 	// compressione polinomi
 	num.close();
 	den.close();
-	for (size_t i = 0; i < num.size(); ++i) if (num[i] == factor<>{ {1, null} })
+	for (size_t i = 0; i < num.size(); ++i) if (num[i] == factor<>{ { 1, null } })
 		num.erase(num.begin() + i);
-	for (size_t i = 0; i < den.size(); ++i) if (den[i] == factor<>{ {1, null} })
+	for (size_t i = 0; i < den.size(); ++i) if (den[i] == factor<>{ { 1, null } })
 		den.erase(den.begin() + i);
 }
 
@@ -9360,9 +9381,9 @@ static void Loop(
 					stream << fixed << setprecision(1) << time_seconds;
 					wcout << L"\ntempo rimanente: " << stream.str() << L" [secondi] ";
 				}
+
 				iter++;
 				mtx.unlock();
-
 			}
 		);
 		SetConsoleCursorPosition(hConsole, { 0, 0 });
@@ -9406,7 +9427,6 @@ static void Loop(
 	}
 
 	// termine
-	wchar_t null{};
 	PRINTN = true;
 	Beep(750, 100);
 	Beep(650, 75);
@@ -9528,7 +9548,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		tensor<big> ListOfCoefficients;
 		for (auto fact : bigHT) for (auto mon : fact) if (mon.exp[0] >= 0)
 			ListOfCoefficients << mon.coefficient;
-		big G{ Gcd(ListOfCoefficients + tensor<big>{ LCM }) };
+		big G{ Gcd(ListOfCoefficients + tensor<big>{ LCM }).fabs() };
 		for (auto& fact : bigHT) for (auto& mon : fact) if (mon.exp[0] >= 0)
 			mon.coefficient /= G;
 		LCM /= G;
@@ -9557,7 +9577,9 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			if (!input) ret {};
 
 			SetConsoleTextAttribute(hConsole, 2);
-			wcout << L"questo è il polinomio: " << bigHT.str() << L'\n';
+			wcout << L"questo è il polinomio: " ;
+			wcout << PolynomialMultiply<big>(bigHT).str() << L'\n';
+
 			SetConsoleTextAttribute(hConsole, 64);
 			wcout << L"il polinomio contiene dei numeri complessi.";
 			ResetAttribute();
@@ -10347,9 +10369,12 @@ static void DecompMatrices(switchcase& argc)
 		for (size_t i = 0; i + 1 < size; ++i) {
 
 			int max = Mx[size - 1][i], IndexofMax = size - 1;
-			for (ptrdiff_t j = size - 2; j >= i; --j) if (Mx[j][i] > max) {
-				max = Mx[j][i];
-				IndexofMax = j;
+			for (ptrdiff_t j = size - 2; j >= i; --j) {
+				if (j < 0) break;
+				if (Mx[j][i] > max) {
+					max = Mx[j][i];
+					IndexofMax = j;
+				}
 			}
 
 			if (IndexofMax != i) {
@@ -10521,7 +10546,7 @@ static void DecompMatrices(switchcase& argc)
 			for (size_t i = 0; i < size - 1; ++i) {
 				Mx = NewMatrix;
 				for (size_t j = 0; j < size - 1; ++j)
-					Mx[j][i] = matrix[j][matrix.size() - 1];
+					Mx[j][i] = matrix[j].last();
 				solutionList << Determinant(Mx) / newdet;
 			}
 
