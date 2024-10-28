@@ -74,6 +74,7 @@ IMPROVE OPT
 #include <io.h>
 #include <initializer_list>
 #include <iterator>
+#include <limits>
 #include <locale>
 #include <map>
 #include <memory>
@@ -99,9 +100,9 @@ using Concurrency::parallel_for, this_thread::sleep_for;
 #pragma region Globals
 
 // oggetti windows
-void* hConsole{
-	GetStdHandle(STD_OUTPUT_HANDLE)
-};
+HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+HANDLE hConsoleInput = GetStdHandle(STD_INPUT_HANDLE);
+
 CONSOLE_CURSOR_INFO cursorInfo{ 10, FALSE };
 CONSOLE_CURSOR_INFO cursor{ 10, TRUE };
 CONSOLE_SCREEN_BUFFER_INFO csbi;
@@ -935,20 +936,22 @@ private: tensor<int> Integer;
 
 public:
 
-	long double Number()
+	template<typename t> t Number()
 	{
+		if constexpr(is_same_v<t, size_t>) ret nan("");
 		ptrdiff_t val{};
 
 		// calcolo parte intera
 		for (size_t i = 0; i < Integer; ++i) {
 			val += Integer[i] * pow(10, Integer.size() - i - 1);
-			if (val <= -2'147'483'647 or val >= 2'147'483'647) ret nan("");
+			if (val <= numeric_limits<t>::min() or val >= numeric_limits<t>::max())
+				ret nan("");
 		}
-		long double res = val;
+		t res = val;
 		
 		// parte decimale e segno
-		res += decimal;
-		if (sign == NEG) res *= -1;
+		if constexpr (is_floating_point_v<t>) res += decimal;
+		if constexpr (is_signed_v<t>) if (sign == NEG) res *= -1;
 		ret res;
 	}
 
@@ -1958,7 +1961,7 @@ static polynomial<> FromBigToDefault(polynomial<big> BigPolynomial)
 		factor<> element;
 		for (auto mon : fact) {
 			monomial<> unity;
-			unity.coefficient = mon.coefficient.Number();
+			unity.coefficient = mon.coefficient.Number<long double>();
 
 			if (isnan(unity.coefficient))
 				ret polynomial<>{ { { 1, tensor<int>(1, -2) } } };
@@ -2279,9 +2282,9 @@ static wstring CTSuperScript(wchar_t input);
 static wstring CFSuperScript(wstring script);
 static void DeduceFromExponents(wstring& str);
 static void GetFraction(wstring& numerator, wstring& denominator);
-static wstring GetLine(bool ShowSuggestions = true, int sizemax = -1);
+static wstring GetLine(bool ShowSuggestions = true);
 static wstring GetUserNum
-(wstring txt, int low, ptrdiff_t high, bool ShowSuggestions);
+(wstring txt, ptrdiff_t low, ptrdiff_t high, bool ShowSuggestions);
 static void SetDebug(wstring message, switchcase& opt, bool& Return,
 	ptrdiff_t& LowerBound, ptrdiff_t& UpperBound, ptrdiff_t& datalenght
 );
@@ -2530,7 +2533,7 @@ int main()
 			Start:
 			system("cls");
 			SetConsoleTitle(L"schermata START");
-			
+
 			// // output
 			SetConsoleTextAttribute(hConsole, 2);
 			wcout << L"~~~~~.";
@@ -2656,7 +2659,7 @@ int main()
 		ResetAttribute();
 		wcout << L"selezionando più operazioni, il tempo di calcolo aumenta\n";
 
-		vel = GetLine(true, 10);
+		vel = GetLine();
 		option = ConvertWStringToEnum(vel);
 		
 		// gestione input numeri primi
@@ -2691,7 +2694,7 @@ int main()
 		option_choice:
 
 			wcout << L"\nscegli opzioni:: (...)\n";
-			vel = GetLine(true, 10);
+			vel = GetLine();
 			goto assigne;
 		}
 
@@ -3581,7 +3584,9 @@ static wstring ElabExponents(wstring& str)
 	for (size_t I = 0; I < str.size(); ++I) {
 		auto pointer{ I + 1 };
 		if (str.at(I) == L'^' and I != str.size() - 1) {
-			while (isdigit(str.at(pointer)))
+			auto pointed{ str.at(pointer) };
+
+			while (pointed < 128 and isdigit(pointed))
 			{
 				// scelta carattere
 				dobreak = false;
@@ -3630,6 +3635,7 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 	SetConsoleCP(CP_UTF8);
 	wcout.imbue(locale(""));
 
+	const int EscapeCode{ -32 };
 	int diff{};
 	size_t sizevel;
 	numerator.clear();
@@ -3670,7 +3676,7 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 				c == L'\b' or c == L'\t' or c == L'\r' or c == L' '
 				or c == L'K' or c == L'M' or c > 31 or c == -109
 			};
-			if (c == -32) arrow = true;
+			if (c == EscapeCode) arrow = true;
 			if (c == 0) {
 				Continue = true;
 				continue;
@@ -3889,15 +3895,20 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 }
 
 // inputa un polinomio
-static wstring GetLine(bool ShowSuggestions, int sizemax)
+static wstring GetLine(bool ShowSuggestions)
 {
+	using type = char;
+	int EscapeCode;
+	if constexpr (is_same_v<type, char>) EscapeCode = -32;
+	else EscapeCode = 224;
+
 	setlocale(LC_ALL, "");
 	SetConsoleOutputCP(CP_UTF8);
 	SetConsoleCP(CP_UTF8);
 	wcout.imbue(locale(""));
 
 	// variabili
-	int diff{}, maxsize{ sizemax };
+	int diff{}, maxsize;
 	wstring vel, E_Vel, command{ L"rnd" };
 	bool script{ true }, arrow{ false }, Continue{ false };
 
@@ -3905,38 +3916,40 @@ static wstring GetLine(bool ShowSuggestions, int sizemax)
 		if (_kbhit()) {
 
 			// controllo della dimensione della console
-			if (sizemax == -1) {
-				_GetCursorPos();
-				maxsize = csbi.dwSize.X;
+			_GetCursorPos();
+			maxsize = csbi.dwSize.X;
 
-				// overflow di caratteri nella console
-				if (vel.size() >= maxsize) {
-					short height = csbi.dwCursorPosition.Y -
-						(vel.size() - 1) / maxsize;
+			// overflow di caratteri nella console
+			if (vel.size() >= maxsize) {
+				short height = csbi.dwCursorPosition.Y -
+					(vel.size() - 1) / maxsize;
 					
-					SetConsoleCursorPosition(hConsole, { 0, height });
-					wcout << wstring(vel.size(), L' ');
-					SetConsoleCursorPosition(
-						hConsole, { (short)(maxsize - 1), height }
-					);
+				SetConsoleCursorPosition(hConsole, { 0, height });
+				wcout << wstring(vel.size(), L' ');
+				SetConsoleCursorPosition(
+					hConsole, { (short)(maxsize - 1), height }
+				);
 
-					vel.erase(maxsize - 1);
-					continue;
-				}
+				vel.erase(maxsize - 1);
+				continue;
 			}
+			
 
-			char c = _getch();
-			if (c != -32 and c != -109 and c < 0) continue;
-
+			// input
+			type c = _getch();
+			if (c != EscapeCode and c != -109 and c < 0) continue;
 			if (c == L'\r') break;
 			auto Test{ E_Vel };
-
+			
 			// ignora alcuni caratteri
 			bool cond{
+				(
 				c == L'\b' or c == L'\t' or c == L'K' or
 				c == L'M' or c == L' ' or c > 31 or c == -109
+				)
+				and c != EscapeCode
 			};
-			if (c == -32) arrow = true;
+			if (c == EscapeCode) arrow = true;
 			if (c == 0) {
 				Continue = true;
 				continue;
@@ -4026,21 +4039,25 @@ static wstring GetLine(bool ShowSuggestions, int sizemax)
 					ElabExponents(E_Vel);
 				}
 			}
+			
 			else if (E_Vel == Test) E_Vel = vel;
 			else vel = E_Vel;
 			auto Velpart{ E_Vel };
 			if (Velpart.size() - diff >= 0) Velpart.erase(Velpart.size() - diff);
 			else Velpart.clear();
 
-			// stampa dei caratteri immessi
 			if (vel.size() > maxsize) {
 				vel.clear();
 				E_Vel.clear();
 				Velpart.clear();
 				diff = 0;
-				wcout << L'\r' << wstring(maxsize, L' ');
 			}
-			script = true;
+
+			// stampa dei caratteri immessi
+			if (vel.size() > maxsize) {
+				wcout << L'\r' << wstring(maxsize, L' ');
+				script = true;
+			}
 #ifndef BUGS
 			SetConsoleCursorInfo(hConsole, &cursorInfo);
 #endif // BUGS
@@ -4076,7 +4093,7 @@ static wstring GetLine(bool ShowSuggestions, int sizemax)
 
 // inputa un numero dati valore minimo e valore massimo
 static wstring GetUserNum
-(wstring txt, int low, ptrdiff_t high, bool ShowSuggestions)
+(wstring txt, ptrdiff_t low, ptrdiff_t high, bool ShowSuggestions)
 {
 	setlocale(LC_ALL, "");
 	SetConsoleOutputCP(CP_UTF8);
@@ -4090,18 +4107,35 @@ static wstring GetUserNum
 
 		// input
 		wcout << txt;
-		check = GetLine(ShowSuggestions, 14);
+		check = GetLine(ShowSuggestions);
 		wcout << L'\n';
-		for (ptrdiff_t i = check.size() - 1; i >= 0; --i) if (check.at(i) == L'\'')
-			check.erase(i, 1);
+		for (ptrdiff_t i = check.size() - 1; i >= 0; --i)
+			if (check.at(i) == L'\'' or check.at(i) == L' ' or check.at(i) == L'\t')
+				check.erase(i, 1);
 		if (check == L"." or check.empty()) ret check;
 		option = ConvertWStringToEnum(check);
 		ReassigneEnum(option);
 		if (option != NotAssigned) ret ConvertEnumToWString(option);
 
 		// controllo
-		if (regex_search(check, wregex(L"\\D"))) UserNum = 0;
-		else UserNum = stoull(check);
+		if (regex_search(check, wregex(L"\\D"))) {
+			if (!PolynomialSyntaxDirector(check).empty()) {
+				UserNum = 0;
+				goto exit;
+			}
+			factor<big> operation{
+				PolynomialMultiply<big>(GetMonomialsAssister(check))
+			};
+			if (operation > 1 or operation.empty()) {
+				UserNum = 0;
+				goto exit;
+			}
+			UserNum = operation[0].coefficient.Number<ptrdiff_t>();
+		}
+		else UserNum = big(check).Number<ptrdiff_t>();
+		if (UserNum <= numeric_limits<ptrdiff_t>::min() or
+			UserNum >= numeric_limits<ptrdiff_t>::max()) UserNum = 0;
+	exit:
 
 		if (UserNum < low or UserNum > high) {
 			wcout << L'\a';
@@ -4295,8 +4329,9 @@ static void PrimeNCalculator(ptrdiff_t max, ptrdiff_t min)
 	system("cls");
 	SetConsoleTextAttribute(hConsole, 4);
 	wstring warning{
-		L"ATTENIONE: il tempo rimanente non è accurato all'inizio"
+		L"ATTENIONE: il tempo rimanente non è accurato all'inizio;"
 	};
+	warning.append(L" LIMITE DI CALCOLO = " + to_wstring(GlobalMax));
 	if (BARWIDTH + 11 > warning.size()) wcout << warning;
 	DECLARE_TIME_POINT(begin);
 	ResetAttribute();
@@ -8342,6 +8377,7 @@ static tensor<tensor<double>> InputMatrix()
 #endif // BUGS
 
 	// inizializzazione
+	const int EscapeCode{ -32 };
 	tensor<tensor<bool>> Signs(2);
 	tensor<tensor<double>> TheMatrix(2);
 	Signs[0](2, POS);
@@ -8358,7 +8394,7 @@ static tensor<tensor<double>> InputMatrix()
 			char c = tolower(_getch());
 
 			// casi speciali
-			if (c == -32) {
+			if (c == EscapeCode) {
 				arrow = true;
 				continue;
 			}
@@ -9006,10 +9042,10 @@ static wstring ExpandNumber(
 			for (int i = 0;; ++i) {
 				if (number < base) break;
 				big quotient = number / base;
-				coefficients << (number - quotient * base).Number();
+				coefficients << (number - quotient * base).Number<int>();
 				number = quotient;
 			}
-			coefficients << number.Number();
+			coefficients << number.Number<int>();
 			Map[base](max(Map[base].size(), coefficients.size()), L"");
 			Map[base][0] = L"0";
 
@@ -9268,7 +9304,7 @@ static void Loop(
 		bool exit{ false };
 		do {
 			wcout << L"\ninserire la stringa\n";
-			instr = GetLine(true, 20);
+			instr = GetLine();
 			if (instr == L".") {
 				argc = Random;
 				ret;
@@ -9920,8 +9956,8 @@ static void DecompFraction(switchcase& argc)
 		big GCD{ Gcd(NumMultiplier, DenMultiplier) };
 		NumMultiplier /= GCD;
 		DenMultiplier /= GCD;
-		auto nummultiplier{ NumMultiplier.Number() };
-		auto denmultiplier{ DenMultiplier.Number() };
+		auto nummultiplier{ NumMultiplier.Number<long double>() };
+		auto denmultiplier{ DenMultiplier.Number<long double>() };
 		
 		if (!(N_ and D_) or isnan(nummultiplier) or isnan(denmultiplier)) {
 			wcout << L'\n';
