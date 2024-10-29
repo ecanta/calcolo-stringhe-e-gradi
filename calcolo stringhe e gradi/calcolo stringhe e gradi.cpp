@@ -2201,7 +2201,7 @@ public:
 	}
 };
 
-// oggetti
+// stream
 struct Console {
 	wstring Text;
 	WORD Attribute{ 15 };
@@ -2213,19 +2213,51 @@ struct Console {
 		ResetAttribute();
 	}
 
-	bool operator!=(const Console& other)
+	bool operator!=(const Console& other) const
 	{
 		ret Text != other.Text and Attribute != other.Attribute;
 	}
-	friend wostream& operator<<(wostream& os, const Console& T)
+	friend wostream& operator<<(wostream& wos, const Console& T)
 	{
 		SetConsoleTextAttribute(hConsole, T.Attribute);
-		os << T.Text;
+		wos << T.Text;
 		ResetAttribute();
-		ret os;
+		ret wos;
 	}
 };
-tensor<Console> ConsoleText;
+class ConsoleStream : public tensor<Console>
+{
+public:
+
+	// costruttori e operatori
+	ConsoleStream() {}
+	ConsoleStream(initializer_list<Console> init)
+	{
+		for (const auto& item : init) (*this) << item;
+	}
+	ConsoleStream operator+(ConsoleStream other) const
+	{
+		auto This{ *this };
+		for (const auto& item : other) This << item;
+		ret This;
+	}
+
+	inline void output() const
+	{
+		for (int i = 0; i < this->size(); ++i) wcout << (*this)[i];
+	}
+	inline void log()
+	{
+		this->output();
+		this->clear();
+	}
+	friend wostream& operator<<(wostream& wos, const ConsoleStream& T)
+	{
+		for (int i = 0; i < T.size(); ++i) wos << T[i];
+		ret wos;
+	}
+};
+ConsoleStream ConsoleText;
 tensor<wstring> commands{
 	L"cc" ,
 	L"ccc",
@@ -2269,15 +2301,10 @@ static void PrintPFrame
 static void DrawFrame
 (int arc, double __i, int centerX, int centerY, double DIM);
 static void DrawCircleSquare(COORD CircleCenter);
-static void DrawGraphFrame(
-	FACTOR<> funct, coord shift, const COORD pos, double zoom,
-	const short WindowLenght, const short WindowWidth
-);
 static void CS_CenterPrinter();
 static void CS_CornerPrinter();
 static void ProgressBar(long double ratio, double barWidth);
 static long double WaitingScreen(auto begin, auto end);
-static void PrintGraph(FACTOR<> funct, const coord position);
 static wstring CTSuperScript(wchar_t input);
 static wstring CFSuperScript(wstring script);
 static void DeduceFromExponents(wstring& str);
@@ -2291,6 +2318,13 @@ static void SetDebug(wstring message, switchcase& opt, bool& Return,
 static void SendCtrlPlusMinus(bool plus);
 static void MonitorConsoleSize(COORD min, atomic_bool& runMonitor);
 static void UserInputThread();
+static LRESULT CALLBACK WindowProcessor(
+	HWND hwnd,
+	UINT uMsg,
+	WPARAM wParam,
+	LPARAM lParam
+);
+static void CreateGraph(FACTOR<> funct);
 static bool Prime(ptrdiff_t number);
 static void PrimeNCalculator(ptrdiff_t max, ptrdiff_t min = 0);
 static tensor<compost> DecomposeNumber(ptrdiff_t input);
@@ -2363,7 +2397,7 @@ static void FractDisequationMain(
 
 	bool& InitSign, bool& Invert
 );
-static tensor<Console> GetAlgebricSolution(
+static ConsoleStream GetAlgebricSolution(
 	tensor<wstring> roots,
 	tensor<bool> ItsFromDenominator,
 
@@ -2396,7 +2430,7 @@ static void ParamDisequationMain(
 	tensor<long double>& RootExamples,
 	tensor<wstring>& vals
 );
-static tensor<Console> GetParametricSolution(
+static ConsoleStream GetParametricSolution(
 	wchar_t parameter,
 	size_t Unisize, size_t Vpos,
 	bool InitialSign, bool ExpectedSign, bool CanBeNull,
@@ -2413,7 +2447,7 @@ static tensor<Console> GetParametricSolution(
 #define LESS_EQUAL_THAN (1 << 1)
 #define MORE_THAN       (1 << 2)
 #define MORE_EQUAL_THAN (1 << 3)
-static tensor<Console> DisequationSolutionPrinter(
+static ConsoleStream DisequationSolutionPrinter(
 	polynomial<> Num,
 	polynomial<> Den,
 	int behaviour,
@@ -2544,7 +2578,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.0.6 ";
+			wcout << L"1.0.7 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -3221,104 +3255,6 @@ static void DrawCircleSquare(COORD CircleCenter)
 	}
 }
 
-// stampa il grafico di un polinomio
-static void DrawGraphFrame(
-	FACTOR<> funct, coord shift, const COORD pos, double zoom,
-	const short WindowLenght, const short WindowWidth
-)
-{
-	const double DIM{ 1.9 };
-
-	COORD origin{
-		WindowLenght + shift.X + pos.X,
-		WindowWidth + shift.Y + pos.Y
-	};
-	ResetAttribute();
-
-	// asse x
-	if (origin.Y > pos.Y and origin.Y <= 2 * WindowWidth + pos.Y + 1) {
-		SetConsoleCursorPosition(hConsole, { (short)(pos.X + 1), origin.Y });
-		wcout << wstring(2 * WindowLenght + 1, L'-');
-	}
-	else origin.Y = -1;
-
-	// asse y
-	if (origin.X > pos.X and origin.X <= 2 * WindowLenght + pos.X + 1)
-		for (short i = 1; i <= 2 * WindowWidth + 1; ++i)
-		{
-			SetConsoleCursorPosition(hConsole, { origin.X, (short)(pos.Y + i) });
-			wcout << L'|';
-		}
-	else origin.X = -1;
-
-	// origine degli assi
-	if (origin.X != -1 and origin.Y != -1) {
-		SetConsoleCursorPosition(hConsole, origin);
-		wcout << L'+';
-	}
-
-	// output funzione
-	SetConsoleTextAttribute(hConsole, 4);
-	for (
-		double x = (-WindowLenght - shift.X) / zoom;
-		x <= (WindowLenght - shift.X) / zoom + 1;
-		x += 1 / zoom
-		)
-	{
-		// calcolo valori
-		double fx{};
-		for (size_t i = 0; i < funct; ++i)
-			fx -= funct[i].coefficient * pow(x, funct[i].degree);
-		fx /= DIM;
-
-		// calcolo valori con traslazione e zoom
-		short X{ (short)(x * zoom + shift.X + WindowLenght + pos.X) };
-		short Y{ (short)(fx * zoom + shift.Y + WindowWidth + pos.Y) };
-		
-		// output punto
-		if (Y > pos.Y and Y <= 2 * WindowWidth + pos.Y + 1 and
-			X > pos.X and X <= 2 * WindowLenght + pos.X + 1)
-		{
-			SetConsoleCursorPosition(hConsole, { X, Y });
-			wcout << L'*';
-		}
-	}
-	ResetAttribute();
-
-	// scrittura estremi asse y
-	SetConsoleCursorPosition(hConsole, { (short)(2 * WindowLenght + 3), 0 });
-	wcout << wstring(13, L' ');
-	SetConsoleCursorPosition(hConsole, { (short)(2 * WindowLenght + 3), 0 });
-	wcout << (WindowWidth + shift.Y) * DIM / zoom;
-	SetConsoleCursorPosition(
-		hConsole,
-		{ (short)(2 * WindowLenght + 3), (short)(2 * WindowWidth + 2) }
-	);
-	wcout << wstring(13, L' ');
-	SetConsoleCursorPosition(
-		hConsole,
-		{ (short)(2 * WindowLenght + 3), (short)(2 * WindowWidth + 2) }
-	);
-
-	wcout << (shift.Y - 2 - WindowWidth) * DIM / zoom;
-
-	// scrittura estremi asse x
-	SetConsoleCursorPosition(hConsole, { 0, (short)(2 * WindowWidth + 3) });
-	wcout << wstring(13, L' ');
-	SetConsoleCursorPosition(hConsole, { 0, (short)(2 * WindowWidth + 3) });
-	wcout << (-WindowLenght - shift.X) / zoom;
-	SetConsoleCursorPosition(
-		hConsole,
-		{ (short)(2 * WindowLenght), (short)(2 * WindowWidth + 3) }
-	);
-	wcout << wstring(13, L' ');
-	SetConsoleCursorPosition(
-		hConsole,
-		{ (short)(2 * WindowLenght), (short)(2 * WindowWidth + 3) }
-	);
-	wcout << (WindowLenght + 2 - shift.X) / zoom;
-}
-
 #pragma endregion
 
 // funzioni di stampa avanzate
@@ -3426,108 +3362,6 @@ static long double WaitingScreen(auto begin, auto end)
 
 	ResetAttribute();
 	ret delta * 1'000'000;
-}
-
-// crea una finestra con dei comandi per ridimensionare il grafico
-static void PrintGraph(FACTOR<> funct, const coord position)
-{
-
-	// variabili
-	double zoom{ 1 };
-	coord shift{ 0, 0 };
-	const short lenght{ 40 };
-	const short width{ 12 };
-#ifndef BUGS
-	SetConsoleCursorInfo(hConsole, &cursorInfo);
-#endif // BUGS
-
-	// // output margini finestra
-	SetConsoleTextAttribute(hConsole, 11);
-
-	// linee orizzontali
-	SetConsoleCursorPosition(hConsole, position);
-	wcout << wstring(2 * lenght + 3, L'-');
-	SetConsoleCursorPosition(
-		hConsole,
-		{ (short)position.X, (short)(2 * width + position.Y + 2) }
-	);
-	wcout << wstring(2 * lenght + 3, L'-');
-
-	// linee verticali
-	for (short i = 0; i <= 2 * width + 2; ++i)
-	{
-		SetConsoleCursorPosition(
-			hConsole,
-			{ (short)position.X, (short)(i + position.Y) }
-		);
-		wcout << L'|';
-		SetConsoleCursorPosition(
-			hConsole,
-			{ (short)(2 * lenght + position.X + 2), (short)(i + position.Y) }
-		);
-		wcout << L'|';
-	}
-	// //
-	DrawGraphFrame(funct, shift, position, zoom, lenght, width);
-
-	while (true) {
-		if (_kbhit()) {
-			char move;
-
-			// elaborazione input mosse
-			do {
-				move = tolower(_getch());
-				switch (move) {
-				case 'a': shift.X++;
-					break;
-				case 'd': shift.X--;
-					break;
-				case 'w': shift.Y++;
-					break;
-				case 's': shift.Y--;
-					break;
-				case 'r':
-					shift = { 0, 0 };
-					zoom = 1;
-					break;
-				case '+': zoom *= 1.3;
-					break;
-				case '-': zoom /= 1.3;
-					break;
-				case '\r':
-					SetConsoleCursorInfo(hConsole, &cursor);
-					SetConsoleCursorPosition(
-						hConsole,
-						{ 0, (short)(position.Y + width * 2 + 4) }
-					);
-					ret;
-				}
-			} while (
-				move != 'a' and
-				move != 'd' and
-				move != 's' and
-				move != 'w' and
-				move != 'r' and
-				move != '\r' and
-				!issign(move)
-				);
-
-			// grafico
-			ClearArea(
-				{ (short)(lenght + position.X + 1), (short)(width + position.Y + 1) },
-				{ lenght, width }
-			);
-			DrawGraphFrame(funct, shift, position, zoom, lenght, width);
-
-		}
-		if (!RunMonitor) {
-			SetConsoleCursorPosition(
-				hConsole,
-				{ 0, (short)(position.Y + width * 2 + 4) }
-			);
-			ret;
-		}
-	}
 }
 
 #pragma endregion
@@ -4295,6 +4129,210 @@ static void UserInputThread()
 				ret;
 			}
 		}
+	}
+}
+
+// funzione per elaborare gli input della finestra del grafico
+FACTOR<> Function;
+int shiftX{}, shiftY{};
+double Zoom{ 1 };
+static LRESULT CALLBACK WindowProcessor(
+	HWND hwnd,
+	UINT uMsg,
+	WPARAM wParam,
+	LPARAM lParam
+)
+{
+	switch (uMsg)
+	{
+
+		// finestra chiusa
+	case WM_DESTROY: PostQuitMessage(0);
+		ret 0;
+
+		// finestra ridimensionata
+	case WM_SIZE: InvalidateRect(hwnd, NULL, TRUE);
+		break;
+
+		// pressione dei pulsanti
+	case WM_COMMAND:
+		switch (LOWORD(wParam))
+		{
+		case 1: Zoom *= 2;
+			break;
+		case 2: Zoom /= 2;
+			break;
+		}
+		InvalidateRect(hwnd, NULL, TRUE);
+		SetFocus(hwnd);
+		break;
+
+		// tasto premuto
+	case WM_KEYDOWN:
+		switch (wParam)
+		{
+		case 'R':
+			Zoom = 1;
+			shiftX = 0;
+			shiftY = 0;
+			break;
+		case 'D': shiftX += 10;
+			break;
+		case 'A': shiftX -= 10;
+			break;
+		case 'W': shiftY += 10;
+			break;
+		case 'S': shiftY -= 10;
+			break;
+		case 187: Zoom *= 1.3;
+			break;
+		case 189: Zoom /= 1.3;
+			break;
+		}
+		InvalidateRect(hwnd, NULL, TRUE);
+	}
+
+	// inizio disegno
+	PAINTSTRUCT ps;
+	RECT client;
+	GetClientRect(hwnd, &client);
+	HDC hdc = BeginPaint(hwnd, &ps);
+
+	// calcolo punti della funzione
+	tensor<int> Xcoord, Ycoord;
+	for (
+		double x = (-client.right / 2 - shiftX) / Zoom;
+		x < (client.right / 2 - shiftX) / Zoom;
+		x += 0.1 / Zoom
+		)
+	{
+		double fx{};
+		for (size_t i = 0; i < Function; ++i)
+			fx += Function[i].coefficient * pow(x, Function[i].degree);
+
+		int X = client.right / 2 + shiftX + x * Zoom * 20;
+		int Y = client.bottom / 2 - shiftY - fx * Zoom * 20;
+
+		if (Y > 0 and Y <= client.bottom and X > 0 and X <= client.right)
+		{
+			Xcoord << X;
+			Ycoord << Y;
+		}
+	}
+
+	// output grafico della funzione
+	for (ptrdiff_t i = 0; i < (ptrdiff_t)Xcoord.size() - 1; ++i)
+	{
+		HPEN hpen = CreatePen(PS_SOLID, 2, RGB(0, 255, 128));
+		SelectObject(hdc, hpen);
+		MoveToEx(hdc, Xcoord[i], Ycoord[i], NULL);
+		LineTo(hdc, Xcoord[i + 1], Ycoord[i + 1]);
+		DeleteObject(hpen);
+	}
+
+	// asse y
+	HPEN hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
+	SelectObject(hdc, hPen);
+	MoveToEx(hdc, client.right / 2 + shiftX, 0, NULL);
+	LineTo(hdc, client.right / 2 + shiftX, client.bottom);
+	DeleteObject(hPen);
+
+	// asse x
+	hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
+	SelectObject(hdc, hPen);
+	MoveToEx(hdc, 0, client.bottom / 2 - shiftY, NULL);
+	LineTo(hdc, client.right, client.bottom / 2 - shiftY);
+	DeleteObject(hPen);
+
+	// estremi asse x
+	wchar_t XAxis[10];
+	swprintf(XAxis, 10, L"%lf", double(client.right / 2 - shiftX) / (20 * Zoom));
+	TextOut(
+		hdc,
+		client.right - 70,
+		client.bottom / 2 - shiftY,
+		XAxis,
+		lstrlenW(XAxis)
+	);
+
+	// estremi asse y
+	wchar_t YAxis[10];
+	swprintf(YAxis, 10, L"%lf", double(client.bottom / 2 - shiftY) / (20 * Zoom));
+	TextOut(
+		hdc,
+		client.right / 2 + shiftX,
+		0,
+		YAxis,
+		lstrlenW(YAxis)
+	);
+
+	// fine disegno
+	EndPaint(hwnd, &ps);
+	ret DefWindowProc(hwnd, uMsg, wParam, lParam);
+}
+
+// funzione per creare la finestra del grafico
+static void CreateGraph(FACTOR<> funct)
+{
+	// inizio
+	HINSTANCE hInstance = GetModuleHandle(0);
+	Function = funct;
+
+	// dati finestra
+	WNDCLASS wc{};
+	wc.lpfnWndProc = WindowProcessor;
+	wc.hInstance = hInstance;
+	wc.lpszClassName = L"ClasseDiProva";
+	wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
+	RegisterClass(&wc);
+
+	// creazione finestra
+	HWND hwnd = CreateWindowEx(
+		0,
+		L"ClasseDiProva", L"Grafico",
+		WS_OVERLAPPEDWINDOW,
+		CW_USEDEFAULT, CW_USEDEFAULT,
+		1200, 700,
+		NULL,
+		NULL,
+		hInstance,
+		NULL
+	);
+	if (!hwnd) ret;
+	ShowWindow(hwnd, SW_SHOW);
+
+	// pulsante +
+	HWND hwndPlus = CreateWindowEx(
+		0,
+		L"BUTTON", L"+",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+		50, 30,
+		30, 30,
+		hwnd,
+		HMENU(1),
+		hInstance,
+		NULL
+	);
+
+	// pulsante -
+	HWND hwndMinus = CreateWindowEx(
+		0,
+		L"BUTTON", L"-",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+		100, 30,
+		30, 30,
+		hwnd,
+		HMENU(2),
+		hInstance,
+		NULL
+	);
+
+	// ciclo dei messaggi
+	MSG msg{};
+	while (GetMessage(&msg, NULL, 0, 0))
+	{
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
 	}
 }
 
@@ -5697,8 +5735,7 @@ static void LongComputation
 	if (counter == 0) {
 		lock_guard<mutex> lock(CoutMutex);
 		CodeConverter(ToEvaluate, message, ShowErrors, NecBoundary);
-		for (auto& text : ConsoleText) text.log();
-		ConsoleText.clear();
+		ConsoleText.log();
 	}
 
 	// caso di stringa ripetuta
@@ -5746,9 +5783,7 @@ static void LongComputation
 		if (comp_thread.joinable()) comp_thread.join();
 		if (output_thread.joinable()) output_thread.join();
 
-		// output errori
-		for (auto& text : ConsoleText) text.log();
-		ConsoleText.clear();
+		ConsoleText.log();
 
 		// uscita
 		{
@@ -7581,7 +7616,7 @@ static void FractDisequationMain(
 }
 
 // parte dipendente dal segno di una disequazione normale
-static tensor<Console> GetAlgebricSolution(
+static ConsoleStream GetAlgebricSolution(
 	tensor<wstring> roots,
 	tensor<bool> ItsFromDenominator,
 
@@ -7591,7 +7626,7 @@ static tensor<Console> GetAlgebricSolution(
 )
 {
 	// correzione dei segni
-	tensor<Console> text;
+	ConsoleStream text;
 	bool condition{ ((InitialSign == (roots.size() % 2 == 0)) == ExpectedSign) };
 	for (ptrdiff_t i = 0; i < roots.size() - 1; ++i) {
 		bool SamePart{ i % 2 == condition };
@@ -7626,8 +7661,8 @@ static tensor<Console> GetAlgebricSolution(
 	}
 	if (roots.empty())
 		ret InitialSign == ExpectedSign ?
-			tensor<Console>{ Console(L"per ogni x appartenente a R", 11) } :
-			tensor<Console>{ Console(L"per nessun x", 11) };
+			ConsoleStream{ Console(L"per ogni x appartenente a R", 11) } :
+			ConsoleStream{ Console(L"per nessun x", 11) };
 
 	// parte iniziale
 	if (condition) {
@@ -7831,7 +7866,7 @@ static void ParamDisequationMain(
 }
 
 // parte dipendente dal segno di una disequazione parametrica
-static tensor<Console> GetParametricSolution(
+static ConsoleStream GetParametricSolution(
 	wchar_t parameter,
 	size_t Unisize, size_t Vpos,
 	bool InitialSign, bool ExpectedSign, bool CanBeNull,
@@ -7845,23 +7880,23 @@ static tensor<Console> GetParametricSolution(
 	tensor<wstring> vals
 )
 {
-	tensor<Console> text;
+	ConsoleStream text;
 
 	// iterazione su ogni intervallo
 	tensor<wstring> ParameterIntervals;
-	tensor<tensor<Console>> UnknownIntervals;
+	tensor<ConsoleStream> UnknownIntervals;
 	for (size_t index = 0; index < RootExamples; ++index) {
 		auto interval{ RootExamples[index] };
 		auto values{ vals };
 		auto ItsFromDenominator{ TermsFromDenominator };
-		tensor<Console> line;
+		ConsoleStream line;
 		tensor<int> SumOfGEQValues(bottoms.size(), 0);
 
 		// output intervallo iniziale
 		if (index == 0) {
 			ParameterIntervals << wstring(1, parameter);
 			ParameterIntervals[0] += L" < " + Handler(to_wstring(RootSet[0]));
-			UnknownIntervals << tensor<Console>{ Console(L"\n") };
+			UnknownIntervals << ConsoleStream{ Console(L"\n") };
 			goto comparison;
 		}
 
@@ -7870,7 +7905,7 @@ static tensor<Console> GetParametricSolution(
 			ParameterIntervals << wstring(1, parameter);
 			ParameterIntervals.last() +=
 				L" > " + Handler(to_wstring(RootSet.last()));
-			UnknownIntervals << tensor<Console>{ Console(L"\n") };
+			UnknownIntervals << ConsoleStream{ Console(L"\n") };
 			goto comparison;
 		}
 
@@ -7884,7 +7919,7 @@ static tensor<Console> GetParametricSolution(
 			ParameterIntervals.last() += L" <= " :
 			ParameterIntervals.last() += L" < ";
 		ParameterIntervals.last() += Handler(to_wstring(RootSet[index]));
-		UnknownIntervals << tensor<Console>{ Console(L"\n") };
+		UnknownIntervals << ConsoleStream{ Console(L"\n") };
 
 	comparison:
 		if (Unisize == 1) goto add_line;
@@ -7925,7 +7960,7 @@ static tensor<Console> GetParametricSolution(
 
 		// output intervallo della variabile
 	add_line:
-		line = tensor<Console>{ Console(L"  ->  ", 8) } + GetAlgebricSolution(
+		line = ConsoleStream{ Console(L"  ->  ", 8) } + GetAlgebricSolution(
 			values,
 			ItsFromDenominator,
 			InitialSign,
@@ -7954,7 +7989,7 @@ static tensor<Console> GetParametricSolution(
 		Variables = L"x";
 
 		// aggiunta dei casi particolari
-		UnknownIntervals << tensor<Console>{ Console(L"  ->  ", 8) };
+		UnknownIntervals << ConsoleStream{ Console(L"  ->  ", 8) };
 		if (numerator.empty()) numerator = polynomial<>{ { { 0, { 0 } } } };
 		if (denominator.empty()) denominator = polynomial<>{ { { 0, { 0 } } } };
 		UnknownIntervals.last() += DisequationSolutionPrinter(
@@ -7966,7 +8001,7 @@ static tensor<Console> GetParametricSolution(
 				),
 			false,
 			false
-		) + tensor<Console>{ Console(L"\n") };
+		) + ConsoleStream{ Console(L"\n") };
 		Variables = save;
 	}
 
@@ -7988,7 +8023,7 @@ static tensor<Console> GetParametricSolution(
 }
 
 // risolve una disequazione fratta con un parametro
-static tensor<Console> DisequationSolutionPrinter(
+static ConsoleStream DisequationSolutionPrinter(
 	polynomial<> Num,
 	polynomial<> Den,
 	int behaviour,
@@ -8006,7 +8041,7 @@ static tensor<Console> DisequationSolutionPrinter(
 	wstring expr = Variables == L"x" ?
 		L"F(x)" : L"F(x, " + wstring(1, Variables.at(1 - Vpos)) + L")";
 	expr = L"SE  " + expr;
-	tensor<Console> dir{
+	ConsoleStream dir{
 		Console(expr + L" < 0   ALLORA", wAttribute),
 		Console(expr + L" <= 0  ALLORA", wAttribute),
 		Console(expr + L" > 0   ALLORA", wAttribute),
@@ -8030,7 +8065,7 @@ static tensor<Console> DisequationSolutionPrinter(
 		);
 
 		// output
-		tensor<Console> Output;
+		ConsoleStream Output;
 		for (int i = 0; i < 4; ++i) if ((behaviour | (1 << i)) == behaviour) {
 			bool positive = i / 2;
 			if (PrintCondition) Output << dir[i] << Console(L"\n\n");
@@ -8079,7 +8114,7 @@ static tensor<Console> DisequationSolutionPrinter(
 
 	// caso di un fattore
 	if (Un == 1 and Parametric == factor<>{ { 1, { 0, 0 } } }) {
-		tensor<Console> Output;
+		ConsoleStream Output;
 		tensor<wstring> vals{ EquationSolver(Un[0]) };
 		if (vals == 1) if (isalpha(vals[0].at(0)) and isalpha(vals[0].at(1))) {
 			if (vals[0].find(L'/') == wstring::npos) vals[0] += L'/';
@@ -8127,9 +8162,9 @@ static tensor<Console> DisequationSolutionPrinter(
 		RootExamples,
 		vals
 	);
-
+	
 	// output
-	tensor<Console> Output;
+	ConsoleStream Output;
 	for (int i = 0; i < 4; ++i) if ((behaviour | (1 << i)) == behaviour) {
 		bool positive = i / 2;
 		if (PrintCondition) Output << dir[i] << Console(L"\n\n");
@@ -9824,18 +9859,8 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			wcout << L'\n';
 		}
 
-		if (input and draw) {
-
-			// controllo dimensione console
-			if (Variables.size() != 1) continue;
-			_GetCursorPos();
-			if (csbi.dwSize.X <= 94 or csbi.dwSize.Y <= 26) continue;
-
-			// aggiunta di spazio
-			wcout << wstring(csbi.dwSize.Y - 1, L'\n');
-			SetConsoleCursorPosition(hConsole, { 0, 0 });
-			PrintGraph(To1V(PolynomialMultiply(HT)), { 0, 0 });
-		}
+		// grafico del polinomio
+		if (input and draw) CreateGraph(To1V(PolynomialMultiply(HT)));
 
 	EndOfDecomposition: if (!input) break;
 
@@ -10161,11 +10186,7 @@ static void DecompFraction(switchcase& argc)
 		auto DiseqSol{
 			DisequationSolutionPrinter(N_, D_, 15, NCOEFF < 0 or DCOEFF < 0)
 		};
-		if (!DiseqSol.empty()) {
-			wcout << L'\n';
-			for (const auto& text : DiseqSol) text.log();
-			wcout << L'\n';
-		}
+		if (!DiseqSol.empty())  wcout << L'\n' << DiseqSol << L'\n';
 
 		// output frazioni
 		SetConsoleTextAttribute(hConsole, 10);
