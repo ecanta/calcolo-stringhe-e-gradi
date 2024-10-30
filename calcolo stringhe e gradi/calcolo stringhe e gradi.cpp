@@ -2613,6 +2613,7 @@ int main()
 				goto End;
 			}
 			if (G.empty()) global = 0;
+			else if (!isdigit(G.at(0))) global = 0;
 
 			// casi 0 e 1
 			else global = stoull(G);
@@ -3418,9 +3419,8 @@ static wstring ElabExponents(wstring& str)
 	for (size_t I = 0; I < str.size(); ++I) {
 		auto pointer{ I + 1 };
 		if (str.at(I) == L'^' and I != str.size() - 1) {
-			auto pointed{ str.at(pointer) };
-
-			while (pointed < 128 and isdigit(pointed))
+			
+			while (str.at(pointer) < 128 and isdigit(str.at(pointer)))
 			{
 				// scelta carattere
 				dobreak = false;
@@ -3744,10 +3744,11 @@ static wstring GetLine(bool ShowSuggestions)
 	// variabili
 	int diff{}, maxsize;
 	wstring vel, E_Vel, command{ L"rnd" };
-	bool script{ true }, arrow{ false }, Continue{ false };
+	bool script{ false }, arrow{ false }, Continue{ false };
 
 	while (true) {
 		if (_kbhit()) {
+			script = false;
 
 			// controllo della dimensione della console
 			_GetCursorPos();
@@ -3766,8 +3767,7 @@ static wstring GetLine(bool ShowSuggestions)
 
 				vel.erase(maxsize - 1);
 				continue;
-			}
-			
+			}	
 
 			// input
 			type c = _getch();
@@ -3901,7 +3901,7 @@ static wstring GetLine(bool ShowSuggestions)
 				for (const auto& comma : commands) {
 					command = comma;
 					auto back{ command };
-					if (back.size() == vel.size()) continue;
+					if (back.size() == vel.size() and back != vel) continue;
 					if (back.size() > vel.size()) back.erase(vel.size());
 					if (back == E_Vel) {
 						SetConsoleTextAttribute(hConsole, 6);
@@ -3910,11 +3910,11 @@ static wstring GetLine(bool ShowSuggestions)
 						ResetAttribute();
 
 						wcout << L'\r' << E_Vel << L'\r' << Velpart;
-						script = false;
+						script = true;
 						break;
 					}
 				}
-			if (script) {
+			if (!script) {
 				wcout << L'\r' << wstring(maxsize, L' ');
 				wcout << L'\r' << E_Vel << L'\r' << Velpart;
 			}
@@ -4147,24 +4147,29 @@ static LRESULT CALLBACK WindowProcessor(
 	{
 
 		// finestra chiusa
-	case WM_DESTROY: PostQuitMessage(0);
+	case WM_DESTROY:
+		Zoom = 1;
+		shiftX = 0;
+		shiftY = 0;
+		PostQuitMessage(0);
 		ret 0;
 
 		// finestra ridimensionata
 	case WM_SIZE: InvalidateRect(hwnd, NULL, TRUE);
 		break;
 
-		// pressione dei pulsanti
-	case WM_COMMAND:
-		switch (LOWORD(wParam))
-		{
-		case 1: Zoom *= 2;
-			break;
-		case 2: Zoom /= 2;
-			break;
+		// zoom
+	case WM_MOUSEWHEEL: {
+		int WheelData = GET_WHEEL_DELTA_WPARAM(wParam) / 120;
+		bool decrease{ WheelData < 0 };
+		double amount = (GetKeyState(VK_MENU) & 0x8000) != 0 ? 3 : 1.2;
+		WheelData = abs(WheelData);
+		for (int i = 0; i < WheelData; ++i) {
+			if (Zoom < 10000000 and decrease) Zoom /= amount;
+			if (Zoom > 0.0000001 and !decrease) Zoom *= amount;
 		}
+	}
 		InvalidateRect(hwnd, NULL, TRUE);
-		SetFocus(hwnd);
 		break;
 
 		// tasto premuto
@@ -4184,19 +4189,112 @@ static LRESULT CALLBACK WindowProcessor(
 			break;
 		case 'S': shiftY -= 10;
 			break;
-		case 187: Zoom *= 1.3;
+		case 187: if (Zoom < 10000000) Zoom *= 1.2;
 			break;
-		case 189: Zoom /= 1.3;
+		case 189: if (Zoom > 0.0000001) Zoom /= 1.2;
 			break;
 		}
 		InvalidateRect(hwnd, NULL, TRUE);
 	}
-
+	
 	// inizio disegno
 	PAINTSTRUCT ps;
 	RECT client;
 	GetClientRect(hwnd, &client);
 	HDC hdc = BeginPaint(hwnd, &ps);
+	int OriginX{ client.right / 2 + shiftX }, OriginY{ client.bottom / 2 - shiftY };
+	const int markLenght{ 3 };
+	HPEN hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
+	HPEN hpen = CreatePen(PS_SOLID, 1, RGB(64, 64, 64));
+
+	// impostazioni
+	SetTextColor(hdc, RGB(192, 255, 192));
+	SetBkMode(hdc, TRANSPARENT);
+	HFONT hFont = CreateFontW(
+		16, 0, 0, 0,
+		FW_BOLD,
+		FALSE, FALSE, FALSE,
+		DEFAULT_CHARSET,
+		OUT_DEFAULT_PRECIS,
+		CLIP_DEFAULT_PRECIS,
+		DEFAULT_QUALITY,
+		DEFAULT_PITCH | FF_SWISS,
+		L"Consolas"
+	);
+	HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+
+	// calcolo ordine di grandezza
+	bool less;
+	double comparator{ 1 }, amount{ Zoom };
+	do (less = comparator < amount) ? comparator *= 10 : comparator /= 10;
+	while (comparator < amount == less);
+	if (less) comparator /= 10;
+
+	// approssimazione
+	if (amount <= comparator) amount = 20 * comparator;
+	else if (amount <= 4 * comparator) amount = 40 * comparator;
+	else amount = 100 * comparator;
+	amount /= Zoom;
+
+	// output valori di riferimento asse x positivo
+	for (int pixel = OriginX; pixel < client.right; pixel += amount) {
+		hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
+		SelectObject(hdc, hPen);
+		MoveToEx(hdc, pixel, OriginY - markLenght, NULL);
+		LineTo(hdc, pixel, OriginY + markLenght);
+		DeleteObject(hPen);
+
+		hpen = CreatePen(PS_SOLID, 1, RGB(64, 64, 64));
+		SelectObject(hdc, hpen);
+		MoveToEx(hdc, pixel, 0, NULL);
+		LineTo(hdc, pixel, client.bottom);
+		DeleteObject(hpen);
+	}
+
+	// output valori di riferimento asse x negativo
+	for (int pixel = OriginX; pixel > 0; pixel -= amount) {
+		hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
+		SelectObject(hdc, hPen);
+		MoveToEx(hdc, pixel, OriginY - markLenght, NULL);
+		LineTo(hdc, pixel, OriginY + markLenght);
+		DeleteObject(hPen);
+
+		hpen = CreatePen(PS_SOLID, 1, RGB(64, 64, 64));
+		SelectObject(hdc, hpen);
+		MoveToEx(hdc, pixel, 0, NULL);
+		LineTo(hdc, pixel, client.bottom);
+		DeleteObject(hpen);
+	}
+
+	// output valori di riferimento asse y positivo
+	for (int pixel = OriginY; pixel < client.bottom; pixel += amount) {
+		hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
+		SelectObject(hdc, hPen);
+		MoveToEx(hdc, OriginX - markLenght, pixel, NULL);
+		LineTo(hdc, OriginX + markLenght, pixel);
+		DeleteObject(hPen);
+
+		hpen = CreatePen(PS_SOLID, 1, RGB(64, 64, 64));
+		SelectObject(hdc, hpen);
+		MoveToEx(hdc, 0, pixel, NULL);
+		LineTo(hdc, client.right, pixel);
+		DeleteObject(hpen);
+	}
+
+	// output valori di riferimento asse y negativo
+	for (int pixel = OriginY; pixel > 0; pixel -= amount) {
+		hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
+		SelectObject(hdc, hPen);
+		MoveToEx(hdc, OriginX - markLenght, pixel, NULL);
+		LineTo(hdc, OriginX + markLenght, pixel);
+		DeleteObject(hPen);
+
+		hpen = CreatePen(PS_SOLID, 1, RGB(64, 64, 64));
+		SelectObject(hdc, hpen);
+		MoveToEx(hdc, 0, pixel, NULL);
+		LineTo(hdc, client.right, pixel);
+		DeleteObject(hpen);
+	}
 
 	// calcolo punti della funzione
 	tensor<int> Xcoord, Ycoord;
@@ -4207,8 +4305,9 @@ static LRESULT CALLBACK WindowProcessor(
 		)
 	{
 		double fx{};
-		for (size_t i = 0; i < Function; ++i)
-			fx += Function[i].coefficient * pow(x, Function[i].degree);
+		for (size_t i = 0; i < Function; ++i) fx += (
+			Function[i].coefficient * pow(x, Function[i].degree)
+			) / LCM.Number<long double>();
 
 		int X = client.right / 2 + shiftX + x * Zoom * 20;
 		int Y = client.bottom / 2 - shiftY - fx * Zoom * 20;
@@ -4221,50 +4320,27 @@ static LRESULT CALLBACK WindowProcessor(
 	}
 
 	// output grafico della funzione
-	for (ptrdiff_t i = 0; i < (ptrdiff_t)Xcoord.size() - 1; ++i)
-	{
-		HPEN hpen = CreatePen(PS_SOLID, 2, RGB(0, 255, 128));
-		SelectObject(hdc, hpen);
+	for (ptrdiff_t i = 0; i < (ptrdiff_t)Xcoord.size() - 1; ++i) {
+		HPEN Hpen = CreatePen(PS_SOLID, 2, RGB(0, 255, 128));
+		SelectObject(hdc, Hpen);
 		MoveToEx(hdc, Xcoord[i], Ycoord[i], NULL);
 		LineTo(hdc, Xcoord[i + 1], Ycoord[i + 1]);
-		DeleteObject(hpen);
+		DeleteObject(Hpen);
 	}
 
 	// asse y
-	HPEN hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
+	hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
 	SelectObject(hdc, hPen);
-	MoveToEx(hdc, client.right / 2 + shiftX, 0, NULL);
-	LineTo(hdc, client.right / 2 + shiftX, client.bottom);
+	MoveToEx(hdc, OriginX, 0, NULL);
+	LineTo(hdc, OriginX, client.bottom);
 	DeleteObject(hPen);
 
 	// asse x
 	hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
 	SelectObject(hdc, hPen);
-	MoveToEx(hdc, 0, client.bottom / 2 - shiftY, NULL);
-	LineTo(hdc, client.right, client.bottom / 2 - shiftY);
+	MoveToEx(hdc, 0, OriginY, NULL);
+	LineTo(hdc, client.right, OriginY);
 	DeleteObject(hPen);
-
-	// estremi asse x
-	wchar_t XAxis[10];
-	swprintf(XAxis, 10, L"%lf", double(client.right / 2 - shiftX) / (20 * Zoom));
-	TextOut(
-		hdc,
-		client.right - 70,
-		client.bottom / 2 - shiftY,
-		XAxis,
-		lstrlenW(XAxis)
-	);
-
-	// estremi asse y
-	wchar_t YAxis[10];
-	swprintf(YAxis, 10, L"%lf", double(client.bottom / 2 - shiftY) / (20 * Zoom));
-	TextOut(
-		hdc,
-		client.right / 2 + shiftX,
-		0,
-		YAxis,
-		lstrlenW(YAxis)
-	);
 
 	// fine disegno
 	EndPaint(hwnd, &ps);
@@ -4300,32 +4376,6 @@ static void CreateGraph(FACTOR<> funct)
 	);
 	if (!hwnd) ret;
 	ShowWindow(hwnd, SW_SHOW);
-
-	// pulsante +
-	HWND hwndPlus = CreateWindowEx(
-		0,
-		L"BUTTON", L"+",
-		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-		50, 30,
-		30, 30,
-		hwnd,
-		HMENU(1),
-		hInstance,
-		NULL
-	);
-
-	// pulsante -
-	HWND hwndMinus = CreateWindowEx(
-		0,
-		L"BUTTON", L"-",
-		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-		100, 30,
-		30, 30,
-		hwnd,
-		HMENU(2),
-		hInstance,
-		NULL
-	);
 
 	// ciclo dei messaggi
 	MSG msg{};
@@ -9550,6 +9600,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			wstring Message;
 			do {
 				_GetCursorPos();
+				draw = false;
 				bool wrong{ true };
 
 				// input
@@ -9598,7 +9649,8 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 						Polynomial.erase(i, 1);
 
 				// controllo
-				Message = PolynomialSyntaxDirector(Polynomial);
+				Message = Polynomial.empty() ? L"il polinomio è vuoto"
+					: PolynomialSyntaxDirector(Polynomial);
 				if (!Message.empty() and wrong) {
 					SetConsoleTextAttribute(hConsole, 12);
 					wcout << Message << L"!!\n\a";
