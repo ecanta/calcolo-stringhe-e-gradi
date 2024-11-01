@@ -1612,11 +1612,16 @@ public:
 		ret y >= 0;
 	}
 
-	factor neg() const;
-	factor operator-(const factor& other) const;
-	factor operator*(const factor& other) const;
-	factor& operator-=(const factor& other);
-	factor& operator*=(const factor& other);
+	inline factor neg() const
+	{
+		auto This{ *this };
+		for (auto& mon : This) mon.coefficient *= -1;
+		ret This;
+	}
+	inline factor operator-(const factor& other) const;
+	inline factor operator*(const factor& other) const;
+	inline factor& operator-=(const factor& other);
+	inline factor& operator*=(const factor& other);
 
 	_NODISCARD wstring str(int size = Variables.size()) override
 	{
@@ -1704,6 +1709,7 @@ public:
 
 	FACTOR derivative() const
 	{
+		if (this->size() == 0) ret{ { 0, 0 } };
 		auto Derivative{ *this };
 		Derivative.sort();
 		Derivative.complete(Derivative[0].degree + 1);
@@ -1723,6 +1729,17 @@ public:
 			) / LCM.Number<long double>();
 		ret fx;
 	}
+
+	inline FACTOR neg() const
+	{
+		auto This{ *this };
+		for (auto& mon : This) mon.coefficient *= -1;
+		ret This;
+	}
+	inline FACTOR operator-(const FACTOR& other) const;
+	inline FACTOR operator*(const FACTOR& other) const;
+	inline FACTOR& operator-=(const FACTOR& other);
+	inline FACTOR& operator*=(const FACTOR& other);
 
 	_NODISCARD wstring str(int size = Variables.size()) override
 	{
@@ -2011,31 +2028,50 @@ factor<T_int> factor<T_int>::operator()(T_int x, size_t Vpos, int) const
 	ret PolynomialSum<T_int>(This);
 }
 
-template<class T_int> factor<T_int> factor<T_int>::neg() const
-{
-	auto This{ *this };
-	for (auto& mon : This) mon.coefficient *= -1;
-	ret This;
-}
-template<class T_int> factor<T_int>
+template<class T_int> inline factor<T_int>
 factor<T_int>::operator-(const factor& other) const
 {
 	ret PolynomialSum<T_int>(*this + other.neg());
 }
-template<class T_int> factor<T_int>
+template<class T_int> inline factor<T_int>
 factor<T_int>::operator*(const factor& other) const
 {
 	ret PolynomialMultiply<T_int>({ *this, other });
 }
-template<class T_int> factor<T_int>& factor<T_int>::operator-=(const factor& other)
+template<class T_int> inline factor<T_int>&
+factor<T_int>::operator-=(const factor& other)
 {
 	*this = *this - other;
 	ret *this;
 }
-template<class T_int> factor<T_int>& factor<T_int>::operator*=(const factor& other)
+template<class T_int> inline factor<T_int>&
+factor<T_int>::operator*=(const factor& other)
 {
 	*this = *this * other;
 	ret *this;
+}
+
+template<class T_int> inline FACTOR<T_int>
+FACTOR<T_int>::operator-(const FACTOR& other) const
+{
+	ret To1V(ToXV(*this) - ToXV(other));
+}
+template<class T_int> inline FACTOR<T_int>
+FACTOR<T_int>::operator*(const FACTOR& other) const
+{
+	ret To1V(ToXV(*this) * ToXV(other));
+}
+template<class T_int> inline FACTOR<T_int>&
+FACTOR<T_int>::operator-=(const FACTOR& other)
+{
+	*this = *this - other;
+	ret* this;
+}
+template<class T_int> inline FACTOR<T_int>&
+FACTOR<T_int>::operator*=(const FACTOR& other)
+{
+	*this = *this * other;
+	ret* this;
 }
 
 tensor_t PrimeNumbers;
@@ -2346,7 +2382,7 @@ static LRESULT CALLBACK WindowProcessor(
 	WPARAM wParam,
 	LPARAM lParam
 );
-static void CreateGraph(FACTOR<> funct);
+static void CreateGraph(FACTOR<> num, FACTOR<> den);
 static bool Prime(ptrdiff_t number);
 static void PrimeNCalculator(ptrdiff_t max, ptrdiff_t min = 0);
 static tensor<compost> DecomposeNumber(ptrdiff_t input);
@@ -4162,7 +4198,7 @@ enum states{
 	D_FLX
 };
 LPARAM Coords{};
-FACTOR<> Function;
+FACTOR<> FNumerator, FDenominator;
 tensor<int> States;
 tensor<long double> StationaryPointsX, StationaryPointsY;
 bool enable{ false };
@@ -4235,6 +4271,14 @@ static LRESULT CALLBACK WindowProcessor(
 	case WM_KEYDOWN:
 		switch (wParam)
 		{
+		case 13:
+			Zoom = 1;
+			shiftX = 0;
+			shiftY = 0;
+			charVariable = __save;
+			Variables = wstring(1, __save);
+			DestroyWindow(hwnd);
+			ret 0;
 		case 'R':
 			Zoom = 1;
 			shiftX = 0;
@@ -4460,23 +4504,48 @@ static LRESULT CALLBACK WindowProcessor(
 
 		// calcolo punti della funzione
 		tensor<int> Xcoord, Ycoord;
+		tensor<int> asintothes;
+		bool write{ false }, Oldwrite{ write }, enable{ true };
 		for (
 			double __x = (-client.right / 2 - shiftX) * Zoom / 20;
 			__x < (client.right / 2 - shiftX) * Zoom / 20;
 			__x += 0.1 * Zoom
 			)
 		{
-			auto fx{ Function(__x) };
+
+			// calcolo ordinate
+			auto _den{ FDenominator(__x) * LCM.Number<long double>() };
+			if (_den == 0) continue;
+			auto fx{ FNumerator(__x) / _den };
+
+			// output pixel
 			int X = OriginX + __x * 20 / Zoom, Y = OriginY - fx * 20 / Zoom;
 			if (Y > 0 and Y <= client.bottom and X > 0 and X <= client.right)
 			{
+				write = true;
+				enable = true;
 				Xcoord << X;
 				Ycoord << Y;
+			}
+
+			// gestione asintoti
+			else if (write) {
+				if (enable) asintothes << X;
+				enable = false;
 			}
 		}
 
 		// output grafico della funzione
 		for (ptrdiff_t i = 0; i < (ptrdiff_t)Xcoord.size() - 1; ++i) {
+			bool Continue{ false };
+			for (const auto& asintothe : asintothes)
+				if (Xcoord[i] < asintothe and asintothe < Xcoord[i + 1])
+				{
+					Continue = true;
+					break;
+				}
+			if (Continue) continue;
+
 			HPEN Hpen = CreatePen(PS_SOLID, 2, RGB(0, 255, 128));
 			SelectObject(hdc, Hpen);
 			MoveToEx(hdc, Xcoord[i], Ycoord[i], NULL);
@@ -4549,7 +4618,7 @@ static LRESULT CALLBACK WindowProcessor(
 }
 
 // funzione per creare la finestra del grafico
-static void CreateGraph(FACTOR<> funct)
+static void CreateGraph(FACTOR<> num, FACTOR<> den)
 {
 	__save = charVariable;
 	charVariable = L'x';
@@ -4557,12 +4626,14 @@ static void CreateGraph(FACTOR<> funct)
 
 	// inizio
 	HINSTANCE hInstance = GetModuleHandle(0);
-	Function = funct;
-	auto FirstDerivative{ Function.derivative() };
+	FNumerator = num;
+	FDenominator = den;
+	auto NFirstDerivative{ num.derivative() * den - num * den.derivative() };
+	auto DFirstDerivative{ den * FACTOR<>(den) };
 	const double DeltaX{ 0.01 };
 
 	// calcolo punti stazionari
-	StationaryPointsX = RootExtractor({ ToXV(FirstDerivative) });
+	StationaryPointsX = RootExtractor({ ToXV(NFirstDerivative) });
 	for (ptrdiff_t i = StationaryPointsX.size() - 1; i > 0; --i)
 		if (StationaryPointsX[i] == StationaryPointsX[i - 1])
 			StationaryPointsX.erase(i, 1);
@@ -4571,27 +4642,33 @@ static void CreateGraph(FACTOR<> funct)
 	size_t I{};
 	for (; I < StationaryPointsX; ++I) {
 		auto x{ StationaryPointsX[I] };
-		auto y{ Function(x) };
+		auto y{ FNumerator(x) / FDenominator(x) };
 
 		StationaryPointsY << y;
-		bool before{ Function(x - DeltaX) > y };
-		bool after{ Function(x + DeltaX) > y };
+		x -= DeltaX;
+		bool before{ FNumerator(x) / FDenominator(x) > y };
+		x += 2 * DeltaX;
+		bool after{ FNumerator(x) / FDenominator(x) > y };
 		if (before and after) States << MIN;
 		else if (!(before or after)) States << MAX;
 		else States << H_FLX;
 	}
 
 	// calcolo flessi
-	StationaryPointsX += RootExtractor({ ToXV(FirstDerivative.derivative()) });
+	StationaryPointsX += RootExtractor({ ToXV(
+		NFirstDerivative.derivative() * DFirstDerivative
+		- DFirstDerivative.derivative() * NFirstDerivative
+	) });
 	for (ptrdiff_t i = StationaryPointsX.size() - 1; i > 0; --i)
 		if (StationaryPointsX[i] == StationaryPointsX[i - 1])
 			StationaryPointsX.erase(i, 1);
 	for (; I < StationaryPointsX; ++I) {
 		auto x{ StationaryPointsX[I] };
-		auto y{ Function(x) };
+		auto y{ FNumerator(x) / FDenominator(x) };
 
 		StationaryPointsY << y;
-		bool before{ Function(x - DeltaX) > y };
+		x -= DeltaX;
+		bool before{ FNumerator(x) / FDenominator(x) > y };
 		States << (before ? D_FLX : A_FLX);
 	}
 	
@@ -6611,7 +6688,7 @@ static factor<T_int> PolynomialMultiply(polynomial<T_int> Polynomial)
 		Empty = true;
 		break;
 	}
-	if (Empty) ret { { 0, tensor<int>(Variables.size(), 0) } };
+	if (Empty) ret { { 1, tensor<int>(Variables.size(), 0) } };
 	Polynomial.open();
 
 	while (Polynomial > 1) {
@@ -10169,7 +10246,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 
 		// grafico del polinomio
 		if (input and draw and Variables.size() == 1)
-			CreateGraph(To1V(PolynomialMultiply(HT)));
+			CreateGraph(To1V(PolynomialMultiply(HT)), { { 0, 1 } });
 
 	EndOfDecomposition: if (!input) break;
 
@@ -10199,21 +10276,24 @@ static void DecompFraction(switchcase& argc)
 
 	// istruzioni
 	SetConsoleTextAttribute(hConsole, 14);
-	wcout << L"il PROGRAMMA scompone e semplifica le frazioni algebriche\n\n";
+	wcout << L"il PROGRAMMA scompone, semplifica, esegue lo studio del segno\n";
+	wcout << L"e disegna il grafico delle frazioni algebriche\n\n";
 	SetConsoleTextAttribute(hConsole, 12);
 	wcout << L"per attivare gli esponenti in forma di apice ";
 	wcout << L"scrivere noboolalpha\n";
 	wcout << L"per disattivare gli esponenti sottoforma di apice ";
 	wcout << L"scrivere boolalpha\n";
+	wcout << L"per disegnare il grafico aggiungere '\\' all'inizio\n";
 	ResetAttribute();
 
 	while (true)
 	{
 		// input della frazione algebrica
 		wstring numerator, denominator;
-		bool No1{ false }, No2{ false }, skip{ false };
+		bool No1{ false }, No2{ false }, skip{ false }, draw{ false };
 	insert:
 		do {
+			draw = false;
 
 			// input
 			SetConsoleTextAttribute(hConsole, 7);
@@ -10221,6 +10301,10 @@ static void DecompFraction(switchcase& argc)
 			wcout << L"\ninserisci una frazione algebrica (0 = fine input)\n\n";
 			ResetAttribute();
 			GetFraction(numerator, denominator);
+			if (numerator.at(0) == L'\\') {
+				numerator.erase(0, 1);
+				draw = true;
+			}
 			if (numerator.empty()) numerator = L"0";
 			if (denominator.empty()) denominator = L"1";
 
@@ -10682,6 +10766,12 @@ static void DecompFraction(switchcase& argc)
 			}
 		}
 		wcout << L"\n\n";
+
+		// grafico
+		if (draw and Variables.size() == 1) CreateGraph(
+			To1V(PolynomialMultiply(NumBackup)),
+			To1V(PolynomialMultiply(DenBackup))
+		);
 	}
 
 	argc = NotAssigned;
