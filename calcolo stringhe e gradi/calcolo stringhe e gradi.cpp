@@ -1702,6 +1702,15 @@ public:
 		}
 	}
 
+	T_int operator()(T_int x) const
+	{
+		T_int fx{};
+		for (size_t i = 0; i < this->size(); ++i) fx += (
+			(*this)[i].coefficient * pow(x, (*this)[i].degree)
+			) / LCM.Number<long double>();
+		ret fx;
+	}
+
 	_NODISCARD wstring str(int size = Variables.size()) override
 	{
 		factor<T_int> traduction;
@@ -2578,7 +2587,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.0.7 ";
+			wcout << L"1.0.9 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -4132,10 +4141,18 @@ static void UserInputThread()
 	}
 }
 
-// funzione per elaborare gli input della finestra del grafico
-FACTOR<> Function;
+#define MIN 0
+#define MAX 1
+#define H_FLX 2
+LPARAM Coords{};
+FACTOR<> Function, Derivative;
+tensor<int> States;
+tensor<long double> StationaryPointsX, StationaryPointsY;
+bool enable{ false };
 int shiftX{}, shiftY{};
 double Zoom{ 1 };
+
+// funzione per elaborare gli input della finestra del grafico
 static LRESULT CALLBACK WindowProcessor(
 	HWND hwnd,
 	UINT uMsg,
@@ -4158,6 +4175,28 @@ static LRESULT CALLBACK WindowProcessor(
 	case WM_SIZE: InvalidateRect(hwnd, NULL, TRUE);
 		break;
 
+		// pressione tasto sinistro
+	case WM_LBUTTONDOWN:
+		enable = true;
+		Coords = lParam;
+		ret 0;
+
+		// rilascio tasto sinistro
+	case WM_LBUTTONUP: enable = false;
+		ret 0;
+
+		// traslazione
+	case WM_MOUSEMOVE: {
+		if (!enable) break;
+		int OldXpos = (short)LOWORD(Coords), OldYpos = (short)HIWORD(Coords);
+		int xPos = (short)LOWORD(lParam) , yPos = (short)HIWORD(lParam);
+		shiftX -= OldXpos - xPos;
+		shiftY += OldYpos - yPos;
+		Coords = lParam;
+		InvalidateRect(hwnd, NULL, TRUE);
+		break;
+	}
+
 		// zoom
 	case WM_MOUSEWHEEL: {
 		int WheelData = GET_WHEEL_DELTA_WPARAM(wParam) / 120;
@@ -4165,8 +4204,8 @@ static LRESULT CALLBACK WindowProcessor(
 		double amount = (GetKeyState(VK_MENU) & 0x8000) != 0 ? 3 : 1.2;
 		WheelData = abs(WheelData);
 		for (int i = 0; i < WheelData; ++i) {
-			if (Zoom < 10000000 and decrease) Zoom /= amount;
-			if (Zoom > 0.0000001 and !decrease) Zoom *= amount;
+			if (Zoom < 10000000 and decrease) Zoom *= amount;
+			if (Zoom > 0.00001 and !decrease) Zoom /= amount;
 		}
 	}
 		InvalidateRect(hwnd, NULL, TRUE);
@@ -4191,160 +4230,292 @@ static LRESULT CALLBACK WindowProcessor(
 			break;
 		case 187: if (Zoom < 10000000) Zoom *= 1.2;
 			break;
-		case 189: if (Zoom > 0.0000001) Zoom /= 1.2;
+		case 189: if (Zoom > 0.00001) Zoom /= 1.2;
 			break;
+		default: ret DefWindowProc(hwnd, uMsg, wParam, lParam);
 		}
 		InvalidateRect(hwnd, NULL, TRUE);
-	}
+		break;
+
+	case WM_PAINT: {
 	
-	// inizio disegno
-	PAINTSTRUCT ps;
-	RECT client;
-	GetClientRect(hwnd, &client);
-	HDC hdc = BeginPaint(hwnd, &ps);
-	int OriginX{ client.right / 2 + shiftX }, OriginY{ client.bottom / 2 - shiftY };
-	const int markLenght{ 3 };
-	HPEN hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
-	HPEN hpen = CreatePen(PS_SOLID, 1, RGB(64, 64, 64));
+		// inizio disegno
+		PAINTSTRUCT ps;
+		RECT client;
+		GetClientRect(hwnd, &client);
+		if (client.right == 0 and client.bottom == 0)
+			ret DefWindowProc(hwnd, uMsg, wParam, lParam);
+		HDC hdc = BeginPaint(hwnd, &ps);
+		int OriginX{ client.right / 2 + shiftX }, OriginY{ client.bottom / 2 - shiftY };
+		const int markLenght{ 3 };
+		HPEN hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
+		HPEN hpen = CreatePen(PS_SOLID, 1, RGB(64, 64, 64));
 
-	// impostazioni
-	SetTextColor(hdc, RGB(192, 255, 192));
-	SetBkMode(hdc, TRANSPARENT);
-	HFONT hFont = CreateFontW(
-		16, 0, 0, 0,
-		FW_BOLD,
-		FALSE, FALSE, FALSE,
-		DEFAULT_CHARSET,
-		OUT_DEFAULT_PRECIS,
-		CLIP_DEFAULT_PRECIS,
-		DEFAULT_QUALITY,
-		DEFAULT_PITCH | FF_SWISS,
-		L"Consolas"
-	);
-	HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+		// impostazioni
+		SetTextColor(hdc, RGB(192, 255, 192));
+		SetBkMode(hdc, TRANSPARENT);
+		HFONT hFont = CreateFontW(
+			16, 0, 0, 0,
+			FW_BOLD,
+			FALSE, FALSE, FALSE,
+			DEFAULT_CHARSET,
+			OUT_DEFAULT_PRECIS,
+			CLIP_DEFAULT_PRECIS,
+			DEFAULT_QUALITY,
+			DEFAULT_PITCH | FF_SWISS,
+			L"Consolas"
+		);
+		HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
 
-	// calcolo ordine di grandezza
-	bool less;
-	double comparator{ 1 }, amount{ Zoom };
-	do (less = comparator < amount) ? comparator *= 10 : comparator /= 10;
-	while (comparator < amount == less);
-	if (less) comparator /= 10;
+		// calcolo ordine di grandezza
+		bool less;
+		double comparator{ 1 }, ValueIncrement{ Zoom };
+		do (less = comparator < ValueIncrement) ? comparator *= 10 : comparator /= 10;
+		while (comparator < ValueIncrement == less);
+		less ? comparator /= 10 : comparator *= 10;
 
-	// approssimazione
-	if (amount <= comparator) amount = 20 * comparator;
-	else if (amount <= 4 * comparator) amount = 40 * comparator;
-	else amount = 100 * comparator;
-	amount /= Zoom;
-
-	// output valori di riferimento asse x positivo
-	for (int pixel = OriginX; pixel < client.right; pixel += amount) {
-		hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
-		SelectObject(hdc, hPen);
-		MoveToEx(hdc, pixel, OriginY - markLenght, NULL);
-		LineTo(hdc, pixel, OriginY + markLenght);
-		DeleteObject(hPen);
-
-		hpen = CreatePen(PS_SOLID, 1, RGB(64, 64, 64));
-		SelectObject(hdc, hpen);
-		MoveToEx(hdc, pixel, 0, NULL);
-		LineTo(hdc, pixel, client.bottom);
-		DeleteObject(hpen);
-	}
-
-	// output valori di riferimento asse x negativo
-	for (int pixel = OriginX; pixel > 0; pixel -= amount) {
-		hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
-		SelectObject(hdc, hPen);
-		MoveToEx(hdc, pixel, OriginY - markLenght, NULL);
-		LineTo(hdc, pixel, OriginY + markLenght);
-		DeleteObject(hPen);
-
-		hpen = CreatePen(PS_SOLID, 1, RGB(64, 64, 64));
-		SelectObject(hdc, hpen);
-		MoveToEx(hdc, pixel, 0, NULL);
-		LineTo(hdc, pixel, client.bottom);
-		DeleteObject(hpen);
-	}
-
-	// output valori di riferimento asse y positivo
-	for (int pixel = OriginY; pixel < client.bottom; pixel += amount) {
-		hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
-		SelectObject(hdc, hPen);
-		MoveToEx(hdc, OriginX - markLenght, pixel, NULL);
-		LineTo(hdc, OriginX + markLenght, pixel);
-		DeleteObject(hPen);
-
-		hpen = CreatePen(PS_SOLID, 1, RGB(64, 64, 64));
-		SelectObject(hdc, hpen);
-		MoveToEx(hdc, 0, pixel, NULL);
-		LineTo(hdc, client.right, pixel);
-		DeleteObject(hpen);
-	}
-
-	// output valori di riferimento asse y negativo
-	for (int pixel = OriginY; pixel > 0; pixel -= amount) {
-		hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
-		SelectObject(hdc, hPen);
-		MoveToEx(hdc, OriginX - markLenght, pixel, NULL);
-		LineTo(hdc, OriginX + markLenght, pixel);
-		DeleteObject(hPen);
-
-		hpen = CreatePen(PS_SOLID, 1, RGB(64, 64, 64));
-		SelectObject(hdc, hpen);
-		MoveToEx(hdc, 0, pixel, NULL);
-		LineTo(hdc, client.right, pixel);
-		DeleteObject(hpen);
-	}
-
-	// calcolo punti della funzione
-	tensor<int> Xcoord, Ycoord;
-	for (
-		double x = (-client.right / 2 - shiftX) / Zoom;
-		x < (client.right / 2 - shiftX) / Zoom;
-		x += 0.1 / Zoom
-		)
-	{
-		double fx{};
-		for (size_t i = 0; i < Function; ++i) fx += (
-			Function[i].coefficient * pow(x, Function[i].degree)
-			) / LCM.Number<long double>();
-
-		int X = client.right / 2 + shiftX + x * Zoom * 20;
-		int Y = client.bottom / 2 - shiftY - fx * Zoom * 20;
-
-		if (Y > 0 and Y <= client.bottom and X > 0 and X <= client.right)
-		{
-			Xcoord << X;
-			Ycoord << Y;
+		// approssimazione
+		if (ValueIncrement <= comparator) ValueIncrement = comparator;
+		else if (ValueIncrement <= 4 * comparator) ValueIncrement = 2 * comparator;
+		else ValueIncrement = 5 * comparator;
+		double PixelIncrement{ 20 * ValueIncrement / Zoom };
+		if (PixelIncrement > 100) {
+			PixelIncrement /= 10;
+			ValueIncrement /= 10;
 		}
+		else if (PixelIncrement < 10) {
+			PixelIncrement *= 10;
+			ValueIncrement *= 10;
+		}
+
+		// calcolo valori e posizioni dei numeri degli assi
+		tensor<int> NumbersX, NumbersY;
+		tensor<wstring> ValsX, ValsY;
+		int OldPixelValue{ OriginX };
+		SIZE TextSize{ -50, 0 }, OldTextSize{ TextSize };
+		double x{};
+
+		// output valori di riferimento asse x positivo
+		for (int pixel = OriginX; pixel < client.right; pixel += PixelIncrement)
+		{
+			hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
+			SelectObject(hdc, hPen);
+			MoveToEx(hdc, pixel, OriginY - markLenght, NULL);
+			LineTo(hdc, pixel, OriginY + markLenght);
+			DeleteObject(hPen);
+
+			auto X{ to_wstring(x) };
+			while (Last(X) == L'0') X.pop_back();
+			if (Last(X) == L',') X.pop_back();
+			GetTextExtentPoint32(hdc, X.c_str(), X.size(), &TextSize);
+			if (OldPixelValue + OldTextSize.cx / 2 - pixel + TextSize.cx / 2 + 10 < 0)
+			{
+				OldPixelValue = pixel;
+				OldTextSize = TextSize;
+				NumbersX << pixel - TextSize.cx / 2;
+				ValsX << X;
+				GetTextExtentPoint32(hdc, X.c_str(), X.size(), &TextSize);
+				hpen = CreatePen(PS_SOLID, 1, RGB(96, 96, 96));
+			}
+			else hpen = CreatePen(PS_DOT, 1, RGB(64, 64, 64));
+
+			SelectObject(hdc, hpen);
+			MoveToEx(hdc, pixel, 0, NULL);
+			LineTo(hdc, pixel, client.bottom);
+			DeleteObject(hpen);
+			x += ValueIncrement;
+		}
+
+		// output valori di riferimento asse x negativo
+		OldPixelValue = OriginX;
+		OldTextSize = TextSize = {};
+		x = -ValueIncrement;
+		for (int pixel = OriginX - PixelIncrement; pixel > 0; pixel -= PixelIncrement)
+		{
+			hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
+			SelectObject(hdc, hPen);
+			MoveToEx(hdc, pixel, OriginY - markLenght, NULL);
+			LineTo(hdc, pixel, OriginY + markLenght);
+			DeleteObject(hPen);
+
+			auto X{ to_wstring(x) };
+			while (Last(X) == L'0') X.pop_back();
+			if (Last(X) == L',') X.pop_back();
+			GetTextExtentPoint32(hdc, X.c_str(), X.size(), &TextSize);
+			if (OldPixelValue - OldTextSize.cx / 2 - pixel - TextSize.cx / 2 - 10 > 0)
+			{
+				OldPixelValue = pixel;
+				OldTextSize = TextSize;
+				NumbersX << pixel - TextSize.cx / 2;
+				ValsX << X;
+				GetTextExtentPoint32(hdc, X.c_str(), X.size(), &TextSize);
+				hpen = CreatePen(PS_SOLID, 1, RGB(96, 96, 96));
+			}
+			else hpen = CreatePen(PS_DOT, 1, RGB(64, 64, 64));
+
+			SelectObject(hdc, hpen);
+			MoveToEx(hdc, pixel, 0, NULL);
+			LineTo(hdc, pixel, client.bottom);
+			DeleteObject(hpen);
+			x -= ValueIncrement;
+		}
+	                
+		// output valori di riferimento asse y positivo
+		OldPixelValue = OriginY;
+		OldTextSize = TextSize = {};
+		double y{ ValueIncrement };
+		for (int pixel = OriginY - PixelIncrement; pixel > 0; pixel -= PixelIncrement)
+		{
+			hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
+			SelectObject(hdc, hPen);
+			MoveToEx(hdc, OriginX - markLenght, pixel, NULL);
+			LineTo(hdc, OriginX + markLenght, pixel);
+			DeleteObject(hPen);
+
+			auto Y{ to_wstring(y) };
+			while (Last(Y) == L'0') Y.pop_back();
+			if (Last(Y) == L',') Y.pop_back();
+			GetTextExtentPoint32(hdc, Y.c_str(), Y.size(), &TextSize);
+			if (pixel - OldTextSize.cy / 2 - OldPixelValue - TextSize.cy / 2 < 0)
+			{
+				OldPixelValue = pixel;
+				OldTextSize = TextSize;
+				NumbersY << pixel - TextSize.cy / 2;
+				ValsY << Y;
+				GetTextExtentPoint32(hdc, Y.c_str(), Y.size(), &TextSize);
+				hpen = CreatePen(PS_SOLID, 1, RGB(96, 96, 96));
+			}
+			else hpen = CreatePen(PS_DOT, 1, RGB(64, 64, 64));
+		
+			SelectObject(hdc, hpen);
+			MoveToEx(hdc, 0, pixel, NULL);
+			LineTo(hdc, client.right, pixel);
+			DeleteObject(hpen);
+			y += ValueIncrement;
+		}
+
+		// output valori di riferimento asse y negativo
+		OldPixelValue = OriginY;
+		OldTextSize = TextSize = { 0, 26 };
+		y = -ValueIncrement;
+		for (
+			int pixel = OriginY + PixelIncrement;
+			pixel < client.bottom;
+			pixel += PixelIncrement
+			)
+		{
+			hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
+			SelectObject(hdc, hPen);
+			MoveToEx(hdc, OriginX - markLenght, pixel, NULL);
+			LineTo(hdc, OriginX + markLenght, pixel);
+			DeleteObject(hPen);
+
+			auto Y{ to_wstring(y) };
+			while (Last(Y) == L'0') Y.pop_back();
+			if (Last(Y) == L',') Y.pop_back();
+			GetTextExtentPoint32(hdc, Y.c_str(), Y.size(), &TextSize);
+			if (OldPixelValue + OldTextSize.cy / 2 - pixel + TextSize.cy / 2 < 0)
+			{
+				OldPixelValue = pixel;
+				OldTextSize = TextSize;
+				NumbersY << pixel - TextSize.cy / 2;
+				ValsY << Y;
+				GetTextExtentPoint32(hdc, Y.c_str(), Y.size(), &TextSize);
+				hpen = CreatePen(PS_SOLID, 1, RGB(96, 96, 96));
+			}
+			else hpen = CreatePen(PS_DOT, 1, RGB(64, 64, 64));
+
+			SelectObject(hdc, hpen);
+			MoveToEx(hdc, 0, pixel, NULL);
+			LineTo(hdc, client.right, pixel);
+			DeleteObject(hpen);
+			y -= ValueIncrement;
+		}
+
+		// output valori degli assi
+		for (size_t i = 0; i < NumbersX; ++i)
+			TextOut(hdc, NumbersX[i], OriginY, ValsX[i].c_str(), ValsX[i].size());
+		for (size_t i = 0; i < NumbersY; ++i)
+			TextOut(hdc, OriginX, NumbersY[i], ValsY[i].c_str(), ValsY[i].size());
+
+		// calcolo punti della funzione
+		tensor<int> Xcoord, Ycoord;
+		for (
+			double __x = (-client.right / 2 - shiftX) * Zoom / 20;
+			__x < (client.right / 2 - shiftX) * Zoom / 20;
+			__x += 0.1 * Zoom
+			)
+		{
+			auto fx{ Function(__x) };
+			int X = OriginX + __x * 20 / Zoom, Y = OriginY - fx * 20 / Zoom;
+			if (Y > 0 and Y <= client.bottom and X > 0 and X <= client.right)
+			{
+				Xcoord << X;
+				Ycoord << Y;
+			}
+		}
+
+		// output grafico della funzione
+		for (ptrdiff_t i = 0; i < (ptrdiff_t)Xcoord.size() - 1; ++i) {
+			HPEN Hpen = CreatePen(PS_SOLID, 2, RGB(0, 255, 128));
+			SelectObject(hdc, Hpen);
+			MoveToEx(hdc, Xcoord[i], Ycoord[i], NULL);
+			LineTo(hdc, Xcoord[i + 1], Ycoord[i + 1]);
+			DeleteObject(Hpen);
+		}
+
+		// asse y
+		hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
+		SelectObject(hdc, hPen);
+		MoveToEx(hdc, OriginX, 0, NULL);
+		LineTo(hdc, OriginX, client.bottom);
+		DeleteObject(hPen);
+
+		// asse x
+		hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
+		SelectObject(hdc, hPen);
+		MoveToEx(hdc, 0, OriginY, NULL);
+		LineTo(hdc, client.right, OriginY);
+		DeleteObject(hPen);
+
+		// output punti stazionari
+		SetTextColor(hdc, RGB(255, 0, 0));
+		for (size_t i = 0; i < States; ++i) {
+
+			// impostazione colore
+			int X = OriginX + StationaryPointsX[i] * 20 / Zoom;
+			int Y = OriginY - StationaryPointsY[i] * 20 / Zoom;
+			for (int j = -2; j < 2; ++j) for (int k = -2; k < 2; ++k)
+				SetPixel(hdc, X + j, Y + k, RGB(255, 0, 0));
+
+			// calcolo testo
+			wstring Out;
+			if (States[i] == MIN) Out = L"minimo: (";
+			else if (States[i] == MAX) Out = L"massimo: (";
+			else Out = L"flesso orizzontale: (";
+			auto _X{ to_wstring(StationaryPointsX[i]) };
+			auto _Y{ to_wstring(StationaryPointsY[i]) };
+
+			// approssimazione numeri
+			while (Last(_X) == L'0') _X.pop_back();
+			if (Last(_X) == L',') _X.pop_back();
+			while (Last(_Y) == L'0') _Y.pop_back();
+			if (Last(_Y) == L',') _Y.pop_back();
+
+			// output
+			Out += _X + L"; " + _Y + L')';
+			SIZE TextSize;
+			GetTextExtentPoint32(hdc, Out.c_str(), Out.size(), &TextSize);
+			TextOut(hdc, X - TextSize.cx / 2, Y, Out.c_str(), Out.size());
+		}
+
+		// fine disegno
+		EndPaint(hwnd, &ps);
+		ret 0;
 	}
 
-	// output grafico della funzione
-	for (ptrdiff_t i = 0; i < (ptrdiff_t)Xcoord.size() - 1; ++i) {
-		HPEN Hpen = CreatePen(PS_SOLID, 2, RGB(0, 255, 128));
-		SelectObject(hdc, Hpen);
-		MoveToEx(hdc, Xcoord[i], Ycoord[i], NULL);
-		LineTo(hdc, Xcoord[i + 1], Ycoord[i + 1]);
-		DeleteObject(Hpen);
+	default: ret DefWindowProc(hwnd, uMsg, wParam, lParam);
 	}
-
-	// asse y
-	hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
-	SelectObject(hdc, hPen);
-	MoveToEx(hdc, OriginX, 0, NULL);
-	LineTo(hdc, OriginX, client.bottom);
-	DeleteObject(hPen);
-
-	// asse x
-	hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
-	SelectObject(hdc, hPen);
-	MoveToEx(hdc, 0, OriginY, NULL);
-	LineTo(hdc, client.right, OriginY);
-	DeleteObject(hPen);
-
-	// fine disegno
-	EndPaint(hwnd, &ps);
-	ret DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
 // funzione per creare la finestra del grafico
@@ -4352,7 +4523,30 @@ static void CreateGraph(FACTOR<> funct)
 {
 	// inizio
 	HINSTANCE hInstance = GetModuleHandle(0);
-	Function = funct;
+	Derivative = Function = funct;
+
+	// calcolo ascisse dei punti stazionari
+	for (size_t j = 0; j < Derivative; ++j)
+		Derivative[j].coefficient *= Derivative[j].degree--;
+	Derivative--;
+	StationaryPointsX = RootExtractor({ ToXV(Derivative) });
+	for (ptrdiff_t i = StationaryPointsX.size() - 1; i > 0; --i)
+		if (StationaryPointsX[i] == StationaryPointsX[i - 1])
+			StationaryPointsX.erase(i, 1);
+
+	// calcolo di tutti i dati rimanenti dei punti stazionari
+	const double DeltaX{ 0.01 };
+	StationaryPointsY.clear();
+	States.clear();
+	for (const auto& x : StationaryPointsX) {
+		auto y{ Function(x) };
+		StationaryPointsY << y;
+		bool before{ Function(x - DeltaX) > y };
+		bool after{ Function(x + DeltaX) > y };
+		if (before and after) States << MIN;
+		else if (!(before or after)) States << MAX;
+		else States << H_FLX;
+	}
 
 	// dati finestra
 	WNDCLASS wc{};
@@ -7428,6 +7622,18 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 			VKnownSeq
 		)
 	};
+
+	// caso di sicurezza
+	if (equation.empty() and Variables.size() == 1) {
+		FACTOR<> eq{ To1V(Equation) };
+		eq.sort();
+		eq.complete(eq[0].degree + 1);
+		tensor<long double> _eq;
+		for (const auto& term : eq) _eq << term.coefficient;
+		equation = { _eq };
+		VDirectorSeq = { { 1 } };
+		VKnownSeq = { { 0 } };
+	}
 
 	// risoluzione dell'equazione
 	if (!equation.empty()) while (true) {
