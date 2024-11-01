@@ -1702,6 +1702,19 @@ public:
 		}
 	}
 
+	FACTOR derivative() const
+	{
+		auto Derivative{ *this };
+		Derivative.sort();
+		Derivative.complete(Derivative[0].degree + 1);
+		if (Derivative.size() == 1 and Derivative[0].degree == 0) ret { { 0, 0 } };
+		for (size_t j = 0; j < Derivative; ++j)
+			Derivative[j].coefficient *= Derivative[j].degree--;
+		Derivative--;
+		if (Derivative.empty()) Derivative = { { 0, (*this)[0].coefficient } };
+		ret Derivative;
+	}
+
 	T_int operator()(T_int x) const
 	{
 		T_int fx{};
@@ -2587,7 +2600,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.0.9 ";
+			wcout << L"1.1.0 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -4141,16 +4154,21 @@ static void UserInputThread()
 	}
 }
 
-#define MIN 0
-#define MAX 1
-#define H_FLX 2
+enum states{
+	MIN,
+	MAX,
+	H_FLX,
+	A_FLX,
+	D_FLX
+};
 LPARAM Coords{};
-FACTOR<> Function, Derivative;
+FACTOR<> Function;
 tensor<int> States;
 tensor<long double> StationaryPointsX, StationaryPointsY;
 bool enable{ false };
 int shiftX{}, shiftY{};
 double Zoom{ 1 };
+wchar_t __save; 
 
 // funzione per elaborare gli input della finestra del grafico
 static LRESULT CALLBACK WindowProcessor(
@@ -4168,6 +4186,8 @@ static LRESULT CALLBACK WindowProcessor(
 		Zoom = 1;
 		shiftX = 0;
 		shiftY = 0;
+		charVariable = __save;
+		Variables = wstring(1, __save);
 		PostQuitMessage(0);
 		ret 0;
 
@@ -4490,9 +4510,18 @@ static LRESULT CALLBACK WindowProcessor(
 
 			// calcolo testo
 			wstring Out;
-			if (States[i] == MIN) Out = L"minimo: (";
-			else if (States[i] == MAX) Out = L"massimo: (";
-			else Out = L"flesso orizzontale: (";
+			switch (States[i]) {
+			case MIN: Out = L"minimo: (";
+				break;
+			case MAX: Out = L"massimo: (";
+				break;
+			case H_FLX: Out = L"flesso orizzontale: (";
+				break;
+			case A_FLX: Out = L"flesso ascendente: (";
+				break;
+			case D_FLX: Out = L"flesso discendente: (";
+				break;
+			}
 			auto _X{ to_wstring(StationaryPointsX[i]) };
 			auto _Y{ to_wstring(StationaryPointsY[i]) };
 
@@ -4506,7 +4535,8 @@ static LRESULT CALLBACK WindowProcessor(
 			Out += _X + L"; " + _Y + L')';
 			SIZE TextSize;
 			GetTextExtentPoint32(hdc, Out.c_str(), Out.size(), &TextSize);
-			TextOut(hdc, X - TextSize.cx / 2, Y, Out.c_str(), Out.size());
+			TextOut
+			(hdc, X - TextSize.cx / 2, Y - TextSize.cy, Out.c_str(), Out.size());
 		}
 
 		// fine disegno
@@ -4521,25 +4551,28 @@ static LRESULT CALLBACK WindowProcessor(
 // funzione per creare la finestra del grafico
 static void CreateGraph(FACTOR<> funct)
 {
+	__save = charVariable;
+	charVariable = L'x';
+	Variables = L"x";
+
 	// inizio
 	HINSTANCE hInstance = GetModuleHandle(0);
-	Derivative = Function = funct;
+	Function = funct;
+	auto FirstDerivative{ Function.derivative() };
+	const double DeltaX{ 0.01 };
 
-	// calcolo ascisse dei punti stazionari
-	for (size_t j = 0; j < Derivative; ++j)
-		Derivative[j].coefficient *= Derivative[j].degree--;
-	Derivative--;
-	StationaryPointsX = RootExtractor({ ToXV(Derivative) });
+	// calcolo punti stazionari
+	StationaryPointsX = RootExtractor({ ToXV(FirstDerivative) });
 	for (ptrdiff_t i = StationaryPointsX.size() - 1; i > 0; --i)
 		if (StationaryPointsX[i] == StationaryPointsX[i - 1])
 			StationaryPointsX.erase(i, 1);
-
-	// calcolo di tutti i dati rimanenti dei punti stazionari
-	const double DeltaX{ 0.01 };
 	StationaryPointsY.clear();
 	States.clear();
-	for (const auto& x : StationaryPointsX) {
+	size_t I{};
+	for (; I < StationaryPointsX; ++I) {
+		auto x{ StationaryPointsX[I] };
 		auto y{ Function(x) };
+
 		StationaryPointsY << y;
 		bool before{ Function(x - DeltaX) > y };
 		bool after{ Function(x + DeltaX) > y };
@@ -4548,6 +4581,20 @@ static void CreateGraph(FACTOR<> funct)
 		else States << H_FLX;
 	}
 
+	// calcolo flessi
+	StationaryPointsX += RootExtractor({ ToXV(FirstDerivative.derivative()) });
+	for (ptrdiff_t i = StationaryPointsX.size() - 1; i > 0; --i)
+		if (StationaryPointsX[i] == StationaryPointsX[i - 1])
+			StationaryPointsX.erase(i, 1);
+	for (; I < StationaryPointsX; ++I) {
+		auto x{ StationaryPointsX[I] };
+		auto y{ Function(x) };
+
+		StationaryPointsY << y;
+		bool before{ Function(x - DeltaX) > y };
+		States << (before ? D_FLX : A_FLX);
+	}
+	
 	// dati finestra
 	WNDCLASS wc{};
 	wc.lpfnWndProc = WindowProcessor;
@@ -6941,6 +6988,10 @@ static polynomial<> Ruffini(factor<> vect)
 
 		// teorema delle radici razionali
 		for (auto p : P) for (auto q : Q) PossibleRoots.push_back(p / q);
+		for (ptrdiff_t i = PossibleRoots.size() - 1; i >= 0; --i)
+			for (ptrdiff_t j = i - 1; j >= 0 and i < PossibleRoots; --j)
+				if (PossibleRoots[i] == PossibleRoots[j])
+					PossibleRoots.erase(PossibleRoots.begin() + i);
 		int SetRoot{}, Root;
 
 		// calcolo della regola di ruffini sui coefficienti
@@ -7545,12 +7596,7 @@ static void Approximator(tensor<long double>& Equation, long double& root)
 		equation[i].coefficient = Equation[i];
 		equation[i].degree = Equation.size() - i - 1;
 	}
-
-	// calcolo derivata
-	auto derivative{ equation };
-	for (size_t j = 0; j < derivative; ++j)
-		derivative[j].coefficient *= derivative[j].degree--;
-	derivative--;
+	auto derivative{ equation.derivative() };
 
 	// calcolo radice
 	const double TOL = 0.000001;
@@ -9919,8 +9965,12 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		// risultato della somma
 		null(Variables.size());
 		null[0] = -1;
+		for (const auto& poly_data : HT) if (poly_data.empty()) {
+			Polynomial = L"0";
+			break;
+		}
 		if (HT.empty()) Polynomial = L"0";
-		else Polynomial = HT.str();
+		else if (Polynomial != L"0") Polynomial = HT.str();
 		if (input) {
 			SetConsoleTextAttribute(hConsole, 2);
 			if (Polynomial.empty()) Polynomial = L"0";
@@ -9937,7 +9987,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 
 		// raccoglimento totale
 		Back_T = HT;
-		HT.clear();
+		HT.clear(); 
 		for (const auto& polydata : Back_T) HT += Total(polydata);
 		for (ptrdiff_t i = HT.size() - 1; i >= 0; --i)
 			if (HT[i] == 1) if (HT[i][0].exp == tensor<int>(Variables.size(), 0))
@@ -9951,13 +10001,13 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			}
 
 		// aggiunta del coefficiente corretto
-		if (abs(Coeff) != 1) HT >> factor<>{ {
-			(long double)Coeff, tensor<int>(Variables.size(), 0)
-		} };
-		else if (Coeff == -1) for (auto& mon : HT[0]) mon.coefficient *= -1;
 		if (HT.empty()) HT = polynomial<>{ { {
 			(long double)Coeff, tensor<int>(Variables.size(), 0)
 		} } };
+		else if (abs(Coeff) != 1) HT >> factor<>{ {
+			(long double)Coeff, tensor<int>(Variables.size(), 0)
+		} };
+		else if (Coeff == -1) for (auto& mon : HT[0]) mon.coefficient *= -1;
 
 		// output raccoglimento totale
 		HT.close();
@@ -10118,7 +10168,8 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		}
 
 		// grafico del polinomio
-		if (input and draw) CreateGraph(To1V(PolynomialMultiply(HT)));
+		if (input and draw and Variables.size() == 1)
+			CreateGraph(To1V(PolynomialMultiply(HT)));
 
 	EndOfDecomposition: if (!input) break;
 
