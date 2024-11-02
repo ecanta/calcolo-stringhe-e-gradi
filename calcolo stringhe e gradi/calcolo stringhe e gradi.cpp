@@ -2316,6 +2316,8 @@ public:
 	}
 };
 ConsoleStream ConsoleText;
+
+// tensori
 tensor<wstring> commands{
 	L"cc" ,
 	L"ccc",
@@ -2329,7 +2331,7 @@ tensor<wstring> commands{
 	L"dff",
 	L"dcf",
 	L"dt" ,
-	L"dr",
+	L"dr" ,
 	L"drc",
 	L"drf",
 	L"drt",
@@ -2340,6 +2342,8 @@ tensor<wstring> commands{
 	L"mtx",
 	L"rnd"
 };
+tensor<wstring> Numbers, Expressions, Polynomials;
+tensor<wstring> FractionNumerators, FractionDenominators;
 
 #pragma endregion
 #pragma region Declarations
@@ -2367,7 +2371,7 @@ static wstring CTSuperScript(wchar_t input);
 static wstring CFSuperScript(wstring script);
 static void DeduceFromExponents(wstring& str);
 static void GetFraction(wstring& numerator, wstring& denominator);
-static wstring GetLine(bool ShowSuggestions = true);
+static wstring GetLine(tensor<wstring>& sugg, bool ShowSuggestions = true);
 static wstring GetUserNum
 (wstring txt, ptrdiff_t low, ptrdiff_t high, bool ShowSuggestions);
 static void SetDebug(wstring message, switchcase& opt, bool& Return,
@@ -2376,13 +2380,20 @@ static void SetDebug(wstring message, switchcase& opt, bool& Return,
 static void SendCtrlPlusMinus(bool plus);
 static void MonitorConsoleSize(COORD min, atomic_bool& runMonitor);
 static void UserInputThread();
-static LRESULT CALLBACK WindowProcessor(
+static LRESULT CALLBACK WindowProcessor2D(
 	HWND hwnd,
 	UINT uMsg,
 	WPARAM wParam,
 	LPARAM lParam
 );
 static void CreateGraph(FACTOR<> num, FACTOR<> den);
+static LRESULT CALLBACK WindowProcessor3D(
+	HWND hwnd,
+	UINT uMsg,
+	WPARAM wParam,
+	LPARAM lParam
+);
+static void Project3DGraph();
 static bool Prime(ptrdiff_t number);
 static void PrimeNCalculator(ptrdiff_t max, ptrdiff_t min = 0);
 static tensor<compost> DecomposeNumber(ptrdiff_t input);
@@ -2567,6 +2578,12 @@ static void DecompMatrices(switchcase& argc);
 // programma principale
 int main()
 {
+////////////////////////////////////////////////////////////////////////////////////
+
+	Project3DGraph();
+
+////////////////////////////////////////////////////////////////////////////////////
+
 	int ErrorCode{}, ErrMessage;
 	setlocale(LC_ALL, "");
 	SetConsoleOutputCP(CP_UTF8);
@@ -2752,7 +2769,7 @@ int main()
 		ResetAttribute();
 		wcout << L"selezionando più operazioni, il tempo di calcolo aumenta\n";
 
-		vel = GetLine();
+		vel = GetLine(Numbers);
 		option = ConvertWStringToEnum(vel);
 		
 		// gestione input numeri primi
@@ -2787,7 +2804,7 @@ int main()
 		option_choice:
 
 			wcout << L"\nscegli opzioni:: (...)\n";
-			vel = GetLine();
+			vel = GetLine(Numbers);
 			goto assigne;
 		}
 
@@ -3509,8 +3526,11 @@ static void DeduceFromExponents(wstring& str)
 	for (ptrdiff_t i = str.size() - 1; i >= 0; --i) {
 		auto script{ wstring(1, str.at(i)) };
 		auto unscript{ CFSuperScript(script) };
-		if (unscript != script)
-			str.replace(i, i, L"^" + wstring(1, unscript.at(0)));
+		if (unscript != script) {
+			str.erase(i, 1);
+			str.insert(str.begin() + i, L'^');
+			str.insert(str.begin() + i + 1, unscript.at(0));
+		}
 	}
 }
 
@@ -3533,8 +3553,9 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 	numerator.clear();
 	denominator.clear();
 	wstring vel, command{ L"rnd" }, Num, Den;
-	bool script{ true }, arrow{ false }, Continue{ false };
+	bool script{ true }, arrow{ false }, system{ false };
 	bool IsTheCursorAtStart{ true };
+	ptrdiff_t TensorIndex{};
 
 	// aggiunta di spazio
 	_GetCursorPos();
@@ -3570,11 +3591,7 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 			};
 			if (c == EscapeCode) arrow = true;
 			if (c == 0) {
-				Continue = true;
-				continue;
-			}
-			if (Continue) {
-				Continue = false;
+				system = true;
 				continue;
 			}
 			auto testN{ Num };
@@ -3598,6 +3615,8 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 				start.Y += 4;
 				SetConsoleCursorPosition(hConsole, start);
 				if (denominator.empty()) denominator = L"1";
+				FractionNumerators << numerator;
+				FractionDenominators << denominator;
 				ret;
 
 				// L'\b' cancella indietro
@@ -3625,7 +3644,26 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 
 			default: vel = IsTheCursorAtStart ? numerator : denominator;
 				wstring E_Vel = IsTheCursorAtStart ? Num : Den;
-			
+				
+				// suggerimenti
+				if (system and c == 59) { // F1
+					if (FractionNumerators.empty()) break;
+					TensorIndex++;
+					if (TensorIndex >= FractionNumerators) TensorIndex = 0;
+					numerator = FractionNumerators[TensorIndex];
+					denominator = FractionDenominators[TensorIndex];
+					break;
+				}
+				if (system and c == 60) { // F2
+					if (FractionNumerators.empty()) break;
+					TensorIndex--;
+					if (TensorIndex < 0) TensorIndex = FractionNumerators.size() - 1;
+					numerator = FractionNumerators[TensorIndex];
+					denominator = FractionDenominators[TensorIndex];
+					break;
+				}
+				else if (system) break;
+
 				// calcolo differenza in più
 				auto copy{ E_Vel };
 				copy.erase(0, E_Vel.size() - diff);
@@ -3681,6 +3719,7 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 				if (IsTheCursorAtStart) Num = vel;
 				else Den = vel;
 			}
+			system = false;
 
 			// calcolo dimensione stringhe
 			if (BOOLALPHA) {
@@ -3787,7 +3826,7 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 }
 
 // inputa un polinomio
-static wstring GetLine(bool ShowSuggestions)
+static wstring GetLine(tensor<wstring>& sugg, bool ShowSuggestions)
 {
 	using type = char;
 	int EscapeCode;
@@ -3804,6 +3843,7 @@ static wstring GetLine(bool ShowSuggestions)
 	wstring vel, E_Vel, command{ L"rnd" };
 	bool script{ false }, arrow{ false }, Continue{ false };
 
+	ptrdiff_t TensorIndex{};
 	while (true) {
 		if (_kbhit()) {
 			script = false;
@@ -3897,6 +3937,18 @@ static wstring GetLine(bool ShowSuggestions)
 					break;
 				case L'M': if (diff > 0) diff--;
 					break;
+				case L'H':
+					if (sugg.empty()) break;
+					TensorIndex++;
+					if (TensorIndex >= sugg) TensorIndex = 0;
+					vel = sugg[TensorIndex];
+					break;
+				case L'P':
+					if (sugg.empty()) break;
+					TensorIndex--;
+					if (TensorIndex < 0) TensorIndex = sugg.size() - 1;
+					vel = sugg[TensorIndex];
+					break;
 
 					// canc cancella in avanti
 				case L'S':
@@ -3980,6 +4032,8 @@ static wstring GetLine(bool ShowSuggestions)
 		}
 		if (!RunMonitor) ret L"0";
 	}
+
+	sugg << vel;
 	ret vel;
 }
 
@@ -3999,7 +4053,7 @@ static wstring GetUserNum
 
 		// input
 		wcout << txt;
-		check = GetLine(ShowSuggestions);
+		check = GetLine(Numbers, ShowSuggestions);
 		wcout << L'\n';
 		for (ptrdiff_t i = check.size() - 1; i >= 0; --i)
 			if (check.at(i) == L'\'' or check.at(i) == L' ' or check.at(i) == L'\t')
@@ -4190,30 +4244,38 @@ static void UserInputThread()
 	}
 }
 
-enum states{
-	MIN,
-	MAX,
-	H_FLX,
-	A_FLX,
-	D_FLX
-};
-LPARAM Coords{};
-FACTOR<> FNumerator, FDenominator;
-tensor<int> States;
-tensor<long double> StationaryPointsX, StationaryPointsY;
-bool enable{ false };
-int shiftX{}, shiftY{};
-double Zoom{ 1 };
-wchar_t __save; 
+#pragma endregion
 
-// funzione per elaborare gli input della finestra del grafico
-static LRESULT CALLBACK WindowProcessor(
+// funzioni per creare delle finestre e gestirle
+#pragma region Windows
+
+namespace WindowData{
+	enum states{
+		MIN,
+		MAX,
+		H_FLX,
+		A_FLX,
+		D_FLX
+	};
+	LPARAM Coords{}, Current{};
+	FACTOR<> FNumerator, FDenominator;
+	tensor<int> States;
+	tensor<long double> StationaryPointsX, StationaryPointsY;
+	bool enable{ false };
+	int shiftX{}, shiftY{};
+	double Zoom{ 1 };
+	wchar_t __save; 
+};
+
+// funzione per elaborare gli input della finestra del grafico a una variabile
+static LRESULT CALLBACK WindowProcessor2D(
 	HWND hwnd,
 	UINT uMsg,
 	WPARAM wParam,
 	LPARAM lParam
 )
 {
+	using namespace WindowData;
 	switch (uMsg)
 	{
 
@@ -4229,20 +4291,23 @@ static LRESULT CALLBACK WindowProcessor(
 
 		// finestra ridimensionata
 	case WM_SIZE: InvalidateRect(hwnd, NULL, TRUE);
-		break;
+		ret 0;
 
 		// pressione tasto sinistro
 	case WM_LBUTTONDOWN:
 		enable = true;
-		Coords = lParam;
+		Current = Coords = lParam;
 		ret 0;
 
 		// rilascio tasto sinistro
-	case WM_LBUTTONUP: enable = false;
+	case WM_LBUTTONUP:
+		enable = false;
+		Current = lParam;
 		ret 0;
 
 		// traslazione
 	case WM_MOUSEMOVE: {
+		Current = lParam;
 		if (!enable) break;
 		int OldXpos = (short)LOWORD(Coords), OldYpos = (short)HIWORD(Coords);
 		int xPos = (short)LOWORD(lParam) , yPos = (short)HIWORD(lParam);
@@ -4250,7 +4315,7 @@ static LRESULT CALLBACK WindowProcessor(
 		shiftY += OldYpos - yPos;
 		Coords = lParam;
 		InvalidateRect(hwnd, NULL, TRUE);
-		break;
+		ret 0;
 	}
 
 		// zoom
@@ -4264,8 +4329,9 @@ static LRESULT CALLBACK WindowProcessor(
 			if (Zoom > 0.00001 and !decrease) Zoom /= amount;
 		}
 	}
+		Current = lParam;
 		InvalidateRect(hwnd, NULL, TRUE);
-		break;
+		ret 0;
 
 		// tasto premuto
 	case WM_KEYDOWN:
@@ -4299,7 +4365,7 @@ static LRESULT CALLBACK WindowProcessor(
 		default: ret DefWindowProc(hwnd, uMsg, wParam, lParam);
 		}
 		InvalidateRect(hwnd, NULL, TRUE);
-		break;
+		ret 0;
 
 	case WM_PAINT: {
 	
@@ -4569,6 +4635,10 @@ static LRESULT CALLBACK WindowProcessor(
 
 		// output punti stazionari
 		SetTextColor(hdc, RGB(255, 0, 0));
+		tensor<wstring> PriorityLabels;
+		tensor<int> PriorityLabelsX, PriorityLabelsY;
+		tensor<int> PriorityLabelsCenterX, PriorityLabelsCenterY;
+		int cursorX = (short)LOWORD(Current), cursorY = (short)HIWORD(Current);
 		for (size_t i = 0; i < States; ++i) {
 
 			// impostazione colore
@@ -4600,12 +4670,65 @@ static LRESULT CALLBACK WindowProcessor(
 			while (Last(_Y) == L'0') _Y.pop_back();
 			if (Last(_Y) == L',') _Y.pop_back();
 
-			// output
+			// calcolo messaggio
 			Out += _X + L"; " + _Y + L')';
 			SIZE TextSize;
 			GetTextExtentPoint32(hdc, Out.c_str(), Out.size(), &TextSize);
-			TextOut
-			(hdc, X - TextSize.cx / 2, Y - TextSize.cy, Out.c_str(), Out.size());
+
+			// calcolo priorità e output
+			int CX{ X - TextSize.cx / 2 }, CY{ Y - TextSize.cy };
+			int CX2{ X + TextSize.cx / 2 }, CY2{ Y + TextSize.cy / 2 };
+			if (CX < cursorX and cursorX < CX2 and CY < cursorY and cursorY < CY2)
+			{
+				PriorityLabels << Out;
+				PriorityLabelsX << CX;
+				PriorityLabelsY << CY;
+				PriorityLabelsCenterX << X;
+				PriorityLabelsCenterY << Y;
+			}
+			else TextOut(hdc, CX, CY, Out.c_str(), Out.size());
+		}
+
+		if (PriorityLabels.empty()) {
+			EndPaint(hwnd, &ps);
+			ret 0;
+		}
+
+		// calcolo messaggio selezionato
+		int MinRadius{ -1 }, MinRadiusIndex;
+		for (size_t i = 0; i < PriorityLabels; ++i) {
+			int radius = hypot(
+				cursorX - PriorityLabelsCenterX[i], cursorY - PriorityLabelsCenterY[i]
+			);
+			if (MinRadius < 0 or MinRadius > radius) {
+				MinRadius = radius;
+				MinRadiusIndex = i;
+			}
+		}
+
+		// output messaggi restanti
+		for (size_t i = 0; i < PriorityLabels; ++i) {
+			if (i == MinRadiusIndex) {
+				SetBkColor(hdc, RGB(0, 0, 0));
+				SetBkMode(hdc, OPAQUE);
+				TextOut(
+					hdc,
+					PriorityLabelsX[i],
+					PriorityLabelsY[i],
+					PriorityLabels[i].c_str(),
+					PriorityLabels[i].size()
+				);
+				SetBkColor(hdc, RGB(255, 0, 0));
+				SetBkMode(hdc, TRANSPARENT);
+				continue;
+			}
+			TextOut(
+				hdc,
+				PriorityLabelsX[i],
+				PriorityLabelsY[i],
+				PriorityLabels[i].c_str(),
+				PriorityLabels[i].size()
+			);
 		}
 
 		// fine disegno
@@ -4617,9 +4740,10 @@ static LRESULT CALLBACK WindowProcessor(
 	}
 }
 
-// funzione per creare la finestra del grafico
+// funzione per creare la finestra del grafico a una variabile
 static void CreateGraph(FACTOR<> num, FACTOR<> den)
 {
+	using namespace WindowData;
 	__save = charVariable;
 	charVariable = L'x';
 	Variables = L"x";
@@ -4674,16 +4798,215 @@ static void CreateGraph(FACTOR<> num, FACTOR<> den)
 	
 	// dati finestra
 	WNDCLASS wc{};
-	wc.lpfnWndProc = WindowProcessor;
+	wc.lpfnWndProc = WindowProcessor2D;
 	wc.hInstance = hInstance;
-	wc.lpszClassName = L"ClasseDiProva";
+	wc.lpszClassName = L"2Dgraph";
 	wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
 	RegisterClass(&wc);
 
 	// creazione finestra
 	HWND hwnd = CreateWindowEx(
 		0,
-		L"ClasseDiProva", L"Grafico",
+		L"2Dgraph", L"Grafico",
+		WS_OVERLAPPEDWINDOW,
+		CW_USEDEFAULT, CW_USEDEFAULT,
+		1200, 700,
+		NULL,
+		NULL,
+		hInstance,
+		NULL
+	);
+	if (!hwnd) ret;
+	ShowWindow(hwnd, SW_SHOW);
+
+	// ciclo dei messaggi
+	MSG msg{};
+	while (GetMessage(&msg, NULL, 0, 0))
+	{
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
+}
+
+auto Theta{ M_PI / 4 };
+auto Phi{ M_PI / 6 }; 
+#define X2D(X, Y, Z) OriginX + (X) * cos(Theta) + (Y) * sin(Theta)
+#define Y2D(X, Y, Z) OriginY - \
+((Z) * sin(Phi) - (X) * sin(Theta) * cos(Phi) + (Y) * cos(Theta) * cos(Phi))
+
+// funzione per proiettare un punto in 2 dimensioni
+static void ProjectPoint(double point[], double theta[], int& pointX, int& pointY)
+{
+	pointX = pointY = 0;
+	for (int i = 0; i < 3; ++i) {
+		pointX += point[i] * cos(theta[i]);
+		pointY += point[i] * sin(theta[i]);
+	}
+	pointX *= 20;
+	pointY *= 20;
+}
+
+// funzione per elaborare gli input della finestra del grafico a due variabili
+static LRESULT CALLBACK WindowProcessor3D(
+	HWND hwnd,
+	UINT uMsg,
+	WPARAM wParam,
+	LPARAM lParam
+)
+{
+
+	switch (uMsg)
+	{
+
+		// finestra chiusa
+	case WM_DESTROY: PostQuitMessage(0);
+		ret 0;
+
+		// finestra ridimensionata
+	case WM_SIZE: InvalidateRect(hwnd, NULL, TRUE);
+		ret 0;
+
+	case WM_KEYDOWN:
+		switch (wParam)
+		{
+		case 'R':
+			Theta = M_PI / 4;
+			Phi = M_PI / 6;
+			break;
+		case 'A':
+			Theta += M_PI / 18;
+			while (Theta > M_PI) Theta -= M_PI;
+			break;
+		case 'D':
+			Theta -= M_PI / 18;
+			while (Theta > M_PI) Theta -= M_PI;
+			break;
+		case 'W':
+			Phi += M_PI / 18;
+			while (Phi > M_PI) Phi -= M_PI;
+			break;
+		case 'S':
+			Phi -= M_PI / 18;
+			while (Phi > M_PI) Phi -= M_PI;
+			break;
+		default: ret 0;
+		}
+		InvalidateRect(hwnd, NULL, TRUE);
+		ret 0;
+
+		// disegno
+	case WM_PAINT: {
+		
+		// inizio disegno
+		PAINTSTRUCT ps;
+		RECT client;
+		GetClientRect(hwnd, &client);
+		if (client.right == 0 and client.bottom == 0)
+			ret DefWindowProc(hwnd, uMsg, wParam, lParam);
+		HDC hdc = BeginPaint(hwnd, &ps);
+
+		// impostazioni
+		SetTextColor(hdc, RGB(128, 128, 255));
+		SetBkMode(hdc, TRANSPARENT);
+		HFONT hFont = CreateFontW(
+			16, 0, 0, 0,
+			FW_BOLD,
+			FALSE, FALSE, FALSE,
+			DEFAULT_CHARSET,
+			OUT_DEFAULT_PRECIS,
+			CLIP_DEFAULT_PRECIS,
+			DEFAULT_QUALITY,
+			DEFAULT_PITCH | FF_SWISS,
+			L"Consolas"
+		);
+		HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+		int OriginX{ client.right / 2 }, OriginY{ client.bottom / 2 };
+		
+		// Disegno assi completi
+		double theta[3]{};
+		for (int i = 0; i < 3; ++i) {
+			double point_pos[3]{}, point_neg[3]{};
+			
+			point_pos[i] = 300;
+			point_neg[i] = -300;
+
+			// calcolo punti
+			int X1 = X2D(point_pos[0], point_pos[1], point_pos[2]);
+			int Y1 = Y2D(point_pos[0], point_pos[1], point_pos[2]);
+			int X2 = X2D(point_neg[0], point_neg[1], point_neg[2]);
+			int Y2 = Y2D(point_neg[0], point_neg[1], point_neg[2]);
+
+			// calcolo angoli
+			int DeltaX{ X1 - OriginX }, DeltaY{ OriginY - Y1 };
+			if (DeltaX == 0 or i == 2) {
+				theta[i] = M_PI / 2;
+				if (Y1 < Y2) theta[i] *= -1;
+			}
+			else if (DeltaY != 0 and i < 2) theta[i] = double(DeltaY) / DeltaX;
+			if (DeltaX < 0 and i < 2) theta[i] += M_PI / 2;
+
+			// asse positivo
+			HPEN Hpen = CreatePen(PS_SOLID, 1, RGB(255, 255, 255));
+			HPEN oldPen = (HPEN)SelectObject(hdc, Hpen);
+			MoveToEx(hdc, X1, Y1, NULL);
+			LineTo(hdc, OriginX, OriginY);
+			SelectObject(hdc, oldPen);
+			DeleteObject(Hpen);
+
+			// asse negativo
+			LOGBRUSH lb;
+			lb.lbStyle = BS_SOLID;
+			lb.lbColor = RGB(255, 255, 255);
+			lb.lbHatch = 0;
+			HPEN hpen = ExtCreatePen(PS_DOT, 1, &lb, 0, NULL);
+			oldPen = (HPEN)SelectObject(hdc, hpen);
+			MoveToEx(hdc, OriginX, OriginY, NULL);
+			LineTo(hdc, X2, Y2);
+			SelectObject(hdc, oldPen);
+			DeleteObject(hpen);
+
+			// nome asse
+			wstring name{ wstring(1, L'x' + i) };
+			TextOut(hdc, X1, Y1, name.c_str(), name.size());
+		}
+
+		double FirstPoint[3]{ -1, -2, -3 }, SecondPoint[3]{ 2, 5, 3 };
+		int p1x, p2x, p1y, p2y;
+		ProjectPoint(FirstPoint, theta, p1x, p1y);
+		ProjectPoint(SecondPoint, theta, p2x, p2y);
+
+		HPEN Hpen = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));
+		HPEN oldPen = (HPEN)SelectObject(hdc, Hpen);
+		MoveToEx(hdc, OriginX + p1x, OriginY + p1y, NULL);
+		LineTo(hdc, OriginX + p2x, OriginY + p2y);
+		SelectObject(hdc, oldPen);
+		DeleteObject(Hpen);
+
+		// fine disegno
+		EndPaint(hwnd, &ps);
+		ret 0;
+	}
+
+	default: ret DefWindowProc(hwnd, uMsg, wParam, lParam);
+	}
+}
+
+// funzione per creare la finestra del grafico a due variabili
+static void Project3DGraph()
+{
+	// dati finestra
+	HINSTANCE hInstance = GetModuleHandle(0);
+	WNDCLASS wc{};
+	wc.lpfnWndProc = WindowProcessor3D;
+	wc.hInstance = hInstance;
+	wc.lpszClassName = L"3Dgraph";
+	wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
+	RegisterClass(&wc);
+
+	// creazione finestra
+	HWND hwnd = CreateWindowEx(
+		0,
+		L"3Dgraph", L"Grafico",
 		WS_OVERLAPPEDWINDOW,
 		CW_USEDEFAULT, CW_USEDEFAULT,
 		1200, 700,
@@ -9718,7 +10041,7 @@ static void Loop(
 		bool exit{ false };
 		do {
 			wcout << L"\ninserire la stringa\n";
-			instr = GetLine();
+			instr = GetLine(Expressions);
 			if (instr == L".") {
 				argc = Random;
 				ret;
@@ -9937,7 +10260,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 				wcout << L"inserisci un polinomio in una o più variabili";
 				wcout << L" (0 = fine input)\n";
 				do {
-					Polynomial = GetLine();
+					Polynomial = GetLine(Polynomials);
 					wcout << L'\n';
 				} while (Polynomial.empty());
 				if (Polynomial.at(0) == L'\\') {
