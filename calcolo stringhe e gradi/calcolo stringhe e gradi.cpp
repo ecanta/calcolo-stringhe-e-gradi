@@ -298,8 +298,7 @@ namespace std_tensor
 			count(other.count)
 		{
 			other.data = nullptr;
-			other.capacity = 0;
-			other.count = 0;
+			other.count = other.capacity = 0;
 		}
 		tensor(initializer_list<T> init) : tensor()
 		{
@@ -340,8 +339,7 @@ namespace std_tensor
 				capacity = other.capacity;
 				count = other.count;
 				other.data = nullptr;
-				other.capacity = 0;
-				other.count = 0;
+				other.count = other.capacity = 0;
 			}
 			ret *this;
 		}
@@ -891,8 +889,7 @@ private: tensor<int> Integer;
 		This.shift();
 		int decprecision = Val.Integer.size() - value.Integer.size()
 			+ This.Integer.size() - Integer.size();
-		This.sign = POS;
-		Val.sign = POS;
+		Val.sign = This.sign = POS;
 
 		// moltiplicazione
 		tensor<big> add;
@@ -1181,8 +1178,7 @@ public:
 		// gestione decimali e segni
 		big This = *this, Value = value;
 		bool ResultSign = This.sign xor Value.sign;
-		This.sign = POS;
-		Value.sign = POS;
+		Value.sign = This.sign = POS;
 		This.shift();
 		Value.shift();
 		size_t n = max(This.Integer.size(), Value.Integer.size()), m = n / 2;
@@ -1285,8 +1281,7 @@ public:
 
 		// segni
 		big This = *this, Val = value;
-		This.sign = POS;
-		Val.sign = POS;
+		Val.sign = This.sign = POS;
 
 		// calcolo
 		while (This >= Val) {
@@ -1709,7 +1704,7 @@ public:
 
 	FACTOR derivative() const
 	{
-		if (this->size() == 0) ret{ { 0, 0 } };
+		if (this->size() == 0) ret { { 0, 0 } };
 		auto Derivative{ *this };
 		Derivative.sort();
 		Derivative.complete(Derivative[0].degree + 1);
@@ -2065,13 +2060,13 @@ template<class T_int> inline FACTOR<T_int>&
 FACTOR<T_int>::operator-=(const FACTOR& other)
 {
 	*this = *this - other;
-	ret* this;
+	ret *this;
 }
 template<class T_int> inline FACTOR<T_int>&
 FACTOR<T_int>::operator*=(const FACTOR& other)
 {
 	*this = *this * other;
-	ret* this;
+	ret *this;
 }
 
 tensor_t PrimeNumbers;
@@ -2317,6 +2312,617 @@ public:
 };
 ConsoleStream ConsoleText;
 
+// matrici
+static ptrdiff_t intpow(ptrdiff_t base, int exp);
+static void ClearArea(COORD WinCenter, COORD Dimensions);
+template<typename _Ty = double> class Matrix : public tensor<tensor<_Ty>>
+{
+public:
+	using tensor<tensor<_Ty>>::tensor;
+
+	int output(COORD SelectedElement = { -1, -1 }) const
+	{
+
+		// aggiunta di spazio
+		_GetCursorPos();
+		auto size{ this->size() };
+		auto begin{ csbi.dwCursorPosition };
+		wcout << wstring(4 * size + 1, L'\n');
+		_GetCursorPos();
+		if (csbi.dwCursorPosition.Y >= begin.Y)
+			begin.Y -= 4 * size + 1 - csbi.dwCursorPosition.Y + begin.Y;
+		SetConsoleCursorPosition(hConsole, begin);
+		csbi.dwCursorPosition = begin;
+
+		// calcolo stringhe e trasposizione matrice stringhe
+		tensor<tensor<wstring>> StrMatrix(size), StrDenominators(size);
+		for (size_t i = 0; i < size; ++i) for (size_t j = 0; j < (*this)[i]; ++j)
+		{
+			double element{ (*this)[j][i] };
+
+			// elemento intero
+			if (SelectedElement.Y >= 0 or integer(element)) {
+				StrDenominators[i] << L"";
+				StrMatrix[i] << to_wstring((int)element);
+				continue;
+			}
+
+			// elemento decimale
+			int I{ -1 };
+			for (int i = 2; i < 1'000; ++i) if (integer(i * element)) {
+				I = i;
+				break;
+			}
+			if (I == -1) {
+
+				// elemento sottoforma di numero decimale
+				StrMatrix[i] << to_wstring(element);
+				StrDenominators[i] << L"";
+			}
+			else {
+
+				// elemento sottoforma di frazione
+				StrMatrix[i] << to_wstring(int(element * I));
+				StrDenominators[i] << to_wstring(I);
+			}
+		}
+
+		// correzione lunghezza stringhe
+		int sum{};
+		for (size_t i = 0; i < size; ++i) {
+			auto column{ StrMatrix[i] };
+			auto denom{ StrDenominators[i] };
+			int maxlenght{ 3 };
+
+			// calcolo della lunghezza massima e correzione
+			for (auto& num : column) if (num.size() > maxlenght)
+				maxlenght = num.size();
+			for (auto& den : denom) if (den.size() > maxlenght)
+				maxlenght = den.size();
+			for (auto& num : column) if (num.size() < maxlenght) {
+				int TotalLenght = maxlenght - num.size();
+				num = wstring(TotalLenght / 2, L' ') +
+					num + wstring(TotalLenght - TotalLenght / 2, L' ');
+			}
+			for (auto& den : denom) if (den.size() < maxlenght) {
+				int TotalLenght = maxlenght - den.size();
+				den = wstring(TotalLenght / 2, L' ') +
+					den + wstring(TotalLenght - TotalLenght / 2, L' ');
+			}
+
+			StrMatrix[i] = column;
+			StrDenominators[i] = denom;
+			sum += maxlenght;
+		}
+		sum += size * 2;
+
+		// calcolo delle righe con e senza frazioni
+		tensor<bool> HaveTheyFractions(size, false);
+		for (size_t i = 0; i < size; ++i) for (size_t j = 0; j < size; ++j)
+			if (StrDenominators[j][i].at(
+				(StrDenominators[j][i].size() - 1) / 2) != L' '
+				)
+			{
+				HaveTheyFractions[i] = true;
+				break;
+			}
+		int row{};
+		size_t index{};
+
+		// iterazione e stampa matrice
+		int line{};
+		for (size_t i = 0; index <= 2 * size; ++i) {
+
+			// inizio e fine matrice
+			if (index == 2 * size) line = i;
+			if (index == 0 or index == 2 * size) {
+				wcout << L'+' << wstring(sum + 1, L'-') << L'+';
+				csbi.dwCursorPosition.Y++;
+				SetConsoleCursorPosition(
+					hConsole, { begin.X, csbi.dwCursorPosition.Y }
+				);
+				index++;
+				continue;
+			}
+			wcout << L"| ";
+
+			// calcolo linea di frazione e indice
+			if (index % 2 == 0) {
+				wcout << wstring(sum, L' ') << L'|';
+				index++;
+				csbi.dwCursorPosition.Y++;
+				SetConsoleCursorPosition(
+					hConsole, { begin.X, csbi.dwCursorPosition.Y }
+				);
+				continue;
+			}
+			if (HaveTheyFractions[(index - 1) / 2]) row++;
+			if (row == 4) row = 1;
+
+			// output elemento (la matrice delle stringhe è trasposta)
+			for (size_t j = 0; j < size; ++j) {
+
+				// evindenziazione cursore
+				if (j == SelectedElement.X and (index - 1) / 2 == SelectedElement.Y)
+					SetConsoleTextAttribute(hConsole, 12);
+
+				// caso senza frazioni
+				auto TempDenominator{ StrDenominators[j][(index - 1) / 2] };
+				if (
+					!HaveTheyFractions[(index - 1) / 2] or
+					(row == 2 and TempDenominator.at(
+						(TempDenominator.size() - 1) / 2) == L' ')
+					)
+				{
+					wcout << StrMatrix[j][(index - 1) / 2];
+					if (j == SelectedElement.X and
+						(index - 1) / 2 == SelectedElement.Y)
+					{
+						SetConsoleTextAttribute(hConsole, 4);
+						wcout << L'.';
+					}
+					else wcout << L' ';
+				}
+
+				// caso con almeno una frazione nella riga
+				else switch (row) {
+
+					// numeratori
+				case 1:
+					if (
+						TempDenominator.at((TempDenominator.size() - 1) / 2)
+						== L' ')
+						wcout << wstring(
+							StrMatrix[j][(index - 1) / 2].size() + 1, L' '
+						);
+					else wcout << StrMatrix[j][(index - 1) / 2] << L' ';
+					break;
+
+					// linee di frazione e numeri
+				case 2:
+					wcout << wstring(StrMatrix[j][(index - 1) / 2].size(), L'-');
+					wcout << L' ';
+					break;
+
+					// denominatori non nulli
+				case 3:
+					if (TempDenominator.at((TempDenominator.size() - 1) / 2) == L' ')
+						wcout << wstring(
+							StrMatrix[j][(index - 1) / 2].size() + 1, L' '
+						);
+					else wcout << StrDenominators[j][(index - 1) / 2] << L' ';
+					break;
+				}
+
+				ResetAttribute();
+				wcout << L' ';
+			}
+			if (row == 0 or row == 3) index++;
+
+			// fine riga
+			wcout << L'|';
+			csbi.dwCursorPosition.Y++;
+			SetConsoleCursorPosition(
+				hConsole, { begin.X, csbi.dwCursorPosition.Y }
+			);
+		}
+
+		// riposizionamento cursore
+		if (SelectedElement.Y == -2) {
+			line = max(line, (int)SelectedElement.X);
+			begin.Y += line + 1;
+		}
+		if (SelectedElement.X == -1) begin.X += sum + 3;
+		SetConsoleCursorPosition(hConsole, begin);
+
+		ret line;
+	}
+
+	void input()
+	{
+		setlocale(LC_ALL, "");
+		SetConsoleOutputCP(CP_UTF8);
+		SetConsoleCP(CP_UTF8);
+		wcout.imbue(locale(""));
+
+		// calcolo posizione cursore
+#ifndef BUGS
+		SetConsoleCursorInfo(hConsole, &cursorInfo);
+#endif // BUGS
+
+		// inizializzazione
+		const int EscapeCode{ -32 };
+		tensor<tensor<bool>> Signs(2);
+		Matrix TheMatrix(2);
+		Signs[0](2, POS);
+		Signs[1](2, POS);
+		TheMatrix[0](2, 0);
+		TheMatrix[1](2, 0);
+		TheMatrix.output({ 0, 0 });
+		COORD IndexAccesser{};
+
+		bool arrow{ false };
+		wstring MatrixAtIndex;
+		while (true) {
+			if (_kbhit()) {
+				char c = tolower(_getch());
+
+				// casi speciali
+				if (c == EscapeCode) {
+					arrow = true;
+					continue;
+				}
+				if (c <= 0) continue;
+				if (arrow) {
+					switch (c) {
+					case L'h': c = L'w';
+						break;
+					case L'p': c = L's';
+						break;
+					case L'm': c = L'd';
+						break;
+					case L'k': c = L'a';
+						break;
+					}
+					arrow = false;
+				}
+
+				// // scelta carattere
+				size_t size;
+
+				// casi che non modificano la matrice
+				switch (c) {
+
+					// wasd per cambiare l'elemento da modificare
+				case L'w':
+					IndexAccesser.Y = (IndexAccesser.Y - 1) % TheMatrix.size();
+					break;
+				case L's':
+					IndexAccesser.Y = (IndexAccesser.Y + 1) % TheMatrix.size();
+					break;
+				case L'a':
+					IndexAccesser.X = (IndexAccesser.X - 1) % TheMatrix.size();
+					break;
+				case L'd':
+					IndexAccesser.X = (IndexAccesser.X + 1) % TheMatrix.size();
+					break;
+				}
+
+				MatrixAtIndex = to_wstring(
+					(int)TheMatrix[IndexAccesser.Y][IndexAccesser.X]
+				);
+
+				// casi che modificano la matrice
+				switch (c) {
+
+					// L'r' azzera il determinante
+				case L'r':
+					TheMatrix.last() = TheMatrix[TheMatrix.size() - 2];
+					MatrixAtIndex = to_wstring(
+						(int)TheMatrix[IndexAccesser.Y][IndexAccesser.X]
+					);
+					break;
+
+					// L'\b' cancella un carattere
+				case L'\b':
+					if (MatrixAtIndex == L"0" and
+						Signs[IndexAccesser.Y][IndexAccesser.X])
+					{
+						Signs[IndexAccesser.Y][IndexAccesser.X] = POS;
+						break;
+					}
+					if (MatrixAtIndex.size() == 1) {
+						MatrixAtIndex = L"0";
+						break;
+					}
+					MatrixAtIndex.pop_back();
+					break;
+
+					// ctrl + L'\b' cancella tutto
+				case 127:
+					MatrixAtIndex = L"0";
+					Signs[IndexAccesser.Y][IndexAccesser.X] = POS;
+					break;
+
+					// L'+' aumenta la dimensione
+				case L'>': if (TheMatrix.size() > 6) break;
+					size = TheMatrix.size() + 1;
+					TheMatrix(size);
+					Signs(size);
+					for (size_t i = 0; i < size; ++i) {
+						TheMatrix[i](size, 0);
+						Signs[i](size, POS);
+					}
+					break;
+
+					// L'-' riduce la dimensione
+				case L'<': if (TheMatrix.size() <= 2) break;
+					TheMatrix--;
+					for (auto& row : TheMatrix) row--;
+					IndexAccesser.X %= TheMatrix.size();
+					IndexAccesser.Y %= TheMatrix.size();
+					break;
+
+					// L'\r' invia la matrice
+				case L'\r':
+					_GetCursorPos();
+					csbi.dwCursorPosition.Y += 2 * TheMatrix.size() + 1;
+					SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
+					SetConsoleCursorInfo(hConsole, &cursor);
+					*this = TheMatrix;
+					ret;
+
+					// L'.' termina il programma
+				case L'.':
+					SetConsoleCursorInfo(hConsole, &cursor);
+					this->clear();
+					ret;
+
+				default:
+
+					// aggiunta di carattere numerico o segno
+					if (isdigit(c) or (c == L'-' and MatrixAtIndex == L"0")
+						and !Signs[IndexAccesser.Y][IndexAccesser.X])
+					{
+						if (Signs[IndexAccesser.Y][IndexAccesser.X]
+							and MatrixAtIndex.at(0) != L'-')
+							MatrixAtIndex = L'-' + MatrixAtIndex;
+						if (c == L'-')
+							Signs[IndexAccesser.Y][IndexAccesser.X] = NEG;
+						if (MatrixAtIndex.size() >
+							4 + (MatrixAtIndex.at(0) == L'-'))
+							break;
+						if (MatrixAtIndex == L"0") MatrixAtIndex = L"";
+						MatrixAtIndex += c;
+					}
+				}
+				// //
+
+				// stampa
+				TheMatrix[IndexAccesser.Y][IndexAccesser.X] =
+					MatrixAtIndex == L"-" ? 0 : stoi(MatrixAtIndex);
+				_GetCursorPos();
+				auto CursorPos{ csbi.dwCursorPosition };
+				ClearArea(
+					{ (short)(CursorPos.X + 30), (short)(CursorPos.Y + 8) },
+					{ 30, 8 }
+				);
+				TheMatrix.output(IndexAccesser);
+				SetConsoleCursorInfo(hConsole, &cursor);
+			}
+			if (!RunMonitor) {
+				_GetCursorPos();
+				csbi.dwCursorPosition.Y += 2 * TheMatrix.size() + 1;
+				SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
+				SetConsoleCursorInfo(hConsole, &cursor);
+				*this = Matrix(
+					TheMatrix.size(), tensor<double>(TheMatrix.size(), 0)
+				);
+				ret;
+			}
+		}
+	}
+
+	void DisplayWith(const Matrix other) const
+	{
+		_GetCursorPos();
+
+		// console ristretta
+		if (csbi.dwSize.X <= 22 * this->size() + 2) {
+			this->output({ 0, -2 });
+			other.output({ 0, -2 });
+			wcout << L'\n';
+			ret;
+		}
+
+		// console di dimensioni corrette
+		other.output({ (short)this->output(), -2 });
+		wcout << L'\n';
+	}
+	void DisplayWith(const Matrix A, const Matrix B) const
+	{
+		_GetCursorPos();
+
+		// console ristretta
+		if (csbi.dwSize.X <= 33 * this->size() + 3) {
+			this->output({ 0, -2 });
+			A.output({ 0, -2 });
+			B.output({ 0, -2 });
+			wcout << L'\n';
+			ret;
+		}
+
+		// console di dimensioni corrette
+		int line{ this->output() };
+		line = max(line, A.output());
+		B.output({ (short)line, -2 });
+		wcout << L'\n';
+	}
+
+	Matrix operator+(const Matrix other) const
+	{
+		Matrix result(*this);
+		for (size_t i = 0; i < result; ++i)
+			for (size_t j = 0; j < other; ++j)
+				result[i][j] += other[i][j];
+		ret result;
+	}
+	Matrix operator+=(const Matrix other)
+	{
+		*this = *this + other;
+		ret *this;
+	}
+
+	Matrix operator-(const Matrix other) const
+	{
+		Matrix result(*this);
+		for (size_t i = 0; i < result; ++i)
+			for (size_t j = 0; j < other; ++j)
+				result[i][j] -= other[i][j];
+		ret result;
+	}
+	Matrix operator-=(const Matrix other)
+	{
+		*this = *this - other;
+		ret *this;
+	}
+
+	Matrix operator*(const Matrix other) const
+	{
+		if (*this % other) ret {};
+		size_t size{ this->size() };
+		Matrix res(size);
+
+		for (size_t i = 0; i < size; ++i) for (size_t j = 0; j < size; ++j) {
+			double scalar_prod{};
+			for (size_t k = 0; k < size; ++k)
+				scalar_prod += (*this)[i][k] * other[k][j];
+			res[i] << scalar_prod;
+		}
+
+		ret res;
+	}
+	Matrix& operator*=(const Matrix other)
+	{
+		*this = *this * other;
+		ret *this;
+	}
+
+	_Ty det()
+	{
+		if constexpr (is_same_v<_Ty, FACTOR<>>)
+		{
+			FACTOR<> det;
+			int s = this->size();
+
+			// casi speciali del calcolo del determinante
+			if (s == 1) ret (*this)[0][0];
+			if (s == 2) {
+				auto addend1{ ToXV((*this)[0][0]) * ToXV((*this)[1][1]) };
+				auto addend2{ ToXV((*this)[0][1]) * ToXV((*this)[1][0]) };
+				for (auto& mon : addend2) mon.coefficient *= -1;
+				ret To1V(addend1 - addend2.neg());
+			}
+
+			// caso generale del calcolo del determinante
+			for (size_t i = 0; i < s; ++i) {
+
+				Matrix<FACTOR<>> MX(s - 1);
+				for (size_t I = 0; I < s - 1; ++I) for (size_t J = 0; J < s; ++J)
+				{
+					if (i == J) continue;
+					MX[I] << (*this)[I + 1][J];
+				}
+
+				auto MiddleDet{ ToXV(MX.det()) };
+				if (MiddleDet != 0) {
+					auto adder{ ToXV((*this)[0][i]) * MiddleDet };
+					for (auto& mon : adder) mon.coefficient *= -1;
+					det = To1V(ToXV(det) - adder.neg());
+				}
+			}
+
+			ret det;
+		}
+		if constexpr (is_integral_v<_Ty>) {
+			_Ty det{};
+			size_t s{ this->size() };
+
+			// casi speciali
+			if (s == 1) ret (*this)[0][0];
+			if (s == 2)
+				ret (*this)[0][0] * (*this)[1][1] - (*this)[0][1] * (*this)[1][0];
+
+			// caso generale
+			for (size_t i = 0; i < s; ++i) {
+
+				Matrix MX(s - 1);
+				for (size_t I = 0; I < s - 1; ++I) for (size_t J = 0; J < s; ++J)
+				{
+					if (i == J) continue;
+					MX[I] << (*this)[I + 1][J];
+				}
+
+				det += intpow(-1, i) * (*this)[0][i] * MX.det();
+			}
+
+			ret det;
+		}
+
+		ret 0;
+	}
+
+	tensor<double> EigenValues()
+	{
+
+		// inizializzazione
+		size_t s{ this->size() };
+		auto PolynomialMatrix{ Matrix<FACTOR<>>(s, tensor<FACTOR<>>(s)) };
+		for (size_t i = 0; i < s; ++i) for (size_t j = 0; j < s; ++j)
+			PolynomialMatrix[i][j] << MONOMIAL<>{ 0, (long double)(*this)[i][j] };
+		for (size_t i = 0; i < s; ++i)
+			PolynomialMatrix[i][i] >> MONOMIAL<>{ 1, -1 };
+
+		// calcolo autovalori
+		tensor<double> eigenvalues;
+		charVariable = L'x';
+		Variables = L"x";
+		auto EigenStrings{ EquationSolver(ToXV(PolynomialMatrix.det())) };
+		for (auto str : EigenStrings) {
+			str.erase(0, str.find(L'=') + 1);
+			if (str.find(L'i') == wstring::npos) eigenvalues << stod(str);
+		}
+
+		// ordinamento in ordine decrescente
+		for (size_t i = 0; i < eigenvalues; ++i)
+			for (size_t j = i + 1; j < eigenvalues; ++j)
+				if (eigenvalues[i] < eigenvalues[j])
+					swap(eigenvalues[i], eigenvalues[j]);
+
+		ret eigenvalues;
+	}
+
+	Matrix EigenVectors(tensor<double> EigenV = {})
+	{
+		size_t size{ this->size() };
+		if (EigenV.empty()) EigenV = this->EigenValues();
+		if (EigenV.size() != size) ret{};
+		tensor<double> result;
+		Matrix eigenvectors(size);
+
+		// risoluzione sistemi lineari
+		for (size_t i = 0; i < size; ++i) {
+
+			// sottrazione autovalore e rimozione fine
+			auto NewMx{ *this };
+			for (size_t j = 0; j < size; ++j) NewMx[j][j] -= EigenV[i];
+			for (size_t j = 0; j < size - 1; ++j) result << -NewMx[j].last();
+			NewMx--;
+			for (size_t j = 0; j < size - 1; ++j) NewMx[j]--;
+			auto Det{ NewMx.det() };
+
+			// calcolo soluzioni e determinanti
+			for (size_t j = 0; j < size - 1; ++j) {
+				auto NewMatrix{ NewMx };
+				for (size_t k = 0; k < size - 1; ++k) NewMatrix[k][k] = result[k];
+				eigenvectors[i] << NewMatrix.det() / Det;
+			}
+			eigenvectors[i] << 1;
+
+			// normalizzazione autovettori
+			double norm{};
+			for (size_t j = 0; j < size; ++j)
+				norm += eigenvectors[i][j] * eigenvectors[i][j];
+			norm = sqrt(norm);
+			if (isnan(norm)) ret {};
+			for (size_t j = 0; j < size; ++j) eigenvectors[i][j] /= norm;
+		}
+
+		ret eigenvectors;
+	}
+
+};
+
 // tensori
 tensor<wstring> commands{
 	L"cc" ,
@@ -2353,11 +2959,9 @@ static size_t Factorial(size_t n);
 static size_t BinomialCoeff(size_t n, size_t k);
 static ptrdiff_t Gcd(ptrdiff_t A, ptrdiff_t B);
 template<typename T> static int Gcd(tensor<T> terms);
-static ptrdiff_t intpow(ptrdiff_t base, int exp);
 static wstring ConvertEnumToWString(switchcase Enum);
 static switchcase ConvertWStringToEnum(wstring str);
 static void ReassigneEnum(switchcase& option);
-static void ClearArea(COORD WinCenter, COORD Dimensions);
 static void PrintPFrame
 (double deg, int sides, double radius, COORD WinCenter);
 static void DrawFrame
@@ -2387,6 +2991,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 	LPARAM lParam
 );
 static void CreateGraph(FACTOR<> num, FACTOR<> den);
+static void ProjectPoint(double point[], double theta[], int& pointX, int& pointY);
 static LRESULT CALLBACK WindowProcessor3D(
 	HWND hwnd,
 	UINT uMsg,
@@ -2528,29 +3133,6 @@ static void PrintFraction
 	int NC, int DC, int& LINE, bool WritePlus,
 	polynomial<> numerator, polynomial<> denominator
 );
-static int OutputMatrix(
-	tensor<tensor<double>> Matrix,
-	COORD SelectedElement = { -1, -1 }
-);
-static tensor<tensor<double>> InputMatrix();
-static void DisplayMatrices(
-	tensor<tensor<double>> A,
-	tensor<tensor<double>> B
-);
-static void DisplayMatrices(
-	tensor<tensor<double>> A,
-	tensor<tensor<double>> B,
-	tensor<tensor<double>> C
-);
-static tensor<tensor<double>> MatrixMultiply(
-	tensor<tensor<double>> A,
-	tensor<tensor<double>> B
-);
-template<typename T> static T Determinant(tensor<tensor<T>> mx);
-FACTOR<> PolynomialMatrixDeterminant(tensor<tensor<FACTOR<>>> PolynomialMatrix);
-static tensor<double> EigenValues(tensor<tensor<double>> mx);
-static tensor<tensor<double>> EigenVectors
-(tensor<tensor<double>> mx, tensor<double> EigenV = {});
 static void CodeToNumber(switchcase& argc);
 static wstring ExpandNumber(
 	switchcase& argc,
@@ -3558,6 +4140,7 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 	ptrdiff_t TensorIndex{};
 
 	// aggiunta di spazio
+	wstring Ncopy{ L"0" }, Dcopy;
 	_GetCursorPos();
 	auto START{ csbi.dwCursorPosition };
 	wcout << wstring(10, L'\n');
@@ -3615,8 +4198,10 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 				start.Y += 4;
 				SetConsoleCursorPosition(hConsole, start);
 				if (denominator.empty()) denominator = L"1";
-				FractionNumerators << numerator;
-				FractionDenominators << denominator;
+				if (numerator != Ncopy and denominator != Dcopy) {
+					FractionNumerators << numerator;
+					FractionDenominators << denominator;
+				}
 				ret;
 
 				// L'\b' cancella indietro
@@ -3650,16 +4235,16 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 					if (FractionNumerators.empty()) break;
 					TensorIndex++;
 					if (TensorIndex >= FractionNumerators) TensorIndex = 0;
-					numerator = FractionNumerators[TensorIndex];
-					denominator = FractionDenominators[TensorIndex];
+					Ncopy = numerator = FractionNumerators[TensorIndex];
+					Dcopy = denominator = FractionDenominators[TensorIndex];
 					break;
 				}
 				if (system and c == 60) { // F2
 					if (FractionNumerators.empty()) break;
 					TensorIndex--;
 					if (TensorIndex < 0) TensorIndex = FractionNumerators.size() - 1;
-					numerator = FractionNumerators[TensorIndex];
-					denominator = FractionDenominators[TensorIndex];
+					Ncopy = numerator = FractionNumerators[TensorIndex];
+					Dcopy = denominator = FractionDenominators[TensorIndex];
 					break;
 				}
 				else if (system) break;
@@ -3842,8 +4427,9 @@ static wstring GetLine(tensor<wstring>& sugg, bool ShowSuggestions)
 	int diff{}, maxsize;
 	wstring vel, E_Vel, command{ L"rnd" };
 	bool script{ false }, arrow{ false }, Continue{ false };
-
 	ptrdiff_t TensorIndex{};
+	wstring StringCopy;
+
 	while (true) {
 		if (_kbhit()) {
 			script = false;
@@ -3941,13 +4527,13 @@ static wstring GetLine(tensor<wstring>& sugg, bool ShowSuggestions)
 					if (sugg.empty()) break;
 					TensorIndex++;
 					if (TensorIndex >= sugg) TensorIndex = 0;
-					vel = sugg[TensorIndex];
+					StringCopy = vel = sugg[TensorIndex];
 					break;
 				case L'P':
 					if (sugg.empty()) break;
 					TensorIndex--;
 					if (TensorIndex < 0) TensorIndex = sugg.size() - 1;
-					vel = sugg[TensorIndex];
+					StringCopy = vel = sugg[TensorIndex];
 					break;
 
 					// canc cancella in avanti
@@ -4033,7 +4619,7 @@ static wstring GetLine(tensor<wstring>& sugg, bool ShowSuggestions)
 		if (!RunMonitor) ret L"0";
 	}
 
-	sugg << vel;
+	if (vel != StringCopy) sugg << vel;
 	ret vel;
 }
 
@@ -4258,7 +4844,7 @@ namespace WindowData{
 		D_FLX
 	};
 	LPARAM Coords{}, Current{};
-	FACTOR<> FNumerator, FDenominator;
+	tensor<FACTOR<>> FNumerators, FDenominators;
 	tensor<int> States;
 	tensor<long double> StationaryPointsX, StationaryPointsY;
 	bool enable{ false };
@@ -4569,55 +5155,59 @@ static LRESULT CALLBACK WindowProcessor2D(
 			TextOut(hdc, OriginX, NumbersY[i], ValsY[i].c_str(), ValsY[i].size());
 
 		// calcolo punti della funzione
-		tensor<int> Xcoord, Ycoord;
-		tensor<int> asintothes;
-		bool write{ false }, Oldwrite{ write }, enable{ true };
-		for (
-			double __x = (-client.right / 2 - shiftX) * Zoom / 20;
-			__x < (client.right / 2 - shiftX) * Zoom / 20;
-			__x += 0.1 * Zoom
-			)
-		{
+		for (size_t i = 0; i < FNumerators; ++i) {
+			bool write{ false }, Oldwrite{ write }, enable{ true };
+			tensor<int> Xcoord, Ycoord;
+			tensor<int> asintothes;
 
-			// calcolo ordinate
-			auto _den{ FDenominator(__x) * LCM.Number<long double>() };
-			if (_den == 0) continue;
-			auto fx{ FNumerator(__x) / _den };
-
-			// output pixel
-			int X = OriginX + __x * 20 / Zoom, Y = OriginY - fx * 20 / Zoom;
-			if (Y > 0 and Y <= client.bottom and X > 0 and X <= client.right)
+			for (
+				double __x = (-client.right / 2 - shiftX) * Zoom / 20;
+				__x < (client.right / 2 - shiftX) * Zoom / 20;
+				__x += 0.1 * Zoom
+				)
 			{
-				write = true;
-				enable = true;
-				Xcoord << X;
-				Ycoord << Y;
-			}
 
-			// gestione asintoti
-			else if (write) {
-				if (enable) asintothes << X;
-				enable = false;
-			}
-		}
+				// calcolo ordinate
+				auto _den{ FDenominators[i](__x) * LCM.Number<long double>() };
+				if (_den == 0) continue;
+				auto fx{ FNumerators[i](__x) / _den };
 
-		// output grafico della funzione
-		for (ptrdiff_t i = 0; i < (ptrdiff_t)Xcoord.size() - 1; ++i) {
-			bool Continue{ false };
-			for (const auto& asintothe : asintothes)
-				if (Xcoord[i] < asintothe and asintothe < Xcoord[i + 1])
+				// output pixel
+				int X = OriginX + __x * 20 / Zoom, Y = OriginY - fx * 20 / Zoom;
+				if (Y > 0 and Y <= client.bottom and X > 0 and X <= client.right)
 				{
-					Continue = true;
-					break;
+					write = true;
+					enable = true;
+					Xcoord << X;
+					Ycoord << Y;
 				}
-			if (Continue) continue;
 
-			HPEN Hpen = CreatePen(PS_SOLID, 2, RGB(0, 255, 128));
-			SelectObject(hdc, Hpen);
-			MoveToEx(hdc, Xcoord[i], Ycoord[i], NULL);
-			LineTo(hdc, Xcoord[i + 1], Ycoord[i + 1]);
-			DeleteObject(Hpen);
+				// gestione asintoti
+				else if (write) {
+					if (enable) asintothes << X;
+					enable = false;
+				}
+			}
+
+			// output grafico della funzione
+			for (ptrdiff_t i = 0; i < (ptrdiff_t)Xcoord.size() - 1; ++i) {
+				bool Continue{ false };
+				for (const auto& asintothe : asintothes)
+					if (Xcoord[i] < asintothe and asintothe < Xcoord[i + 1])
+					{
+						Continue = true;
+						break;
+					}
+				if (Continue) continue;
+
+				HPEN Hpen = CreatePen(PS_SOLID, 2, RGB(0, 255, 128));
+				SelectObject(hdc, Hpen);
+				MoveToEx(hdc, Xcoord[i], Ycoord[i], NULL);
+				LineTo(hdc, Xcoord[i + 1], Ycoord[i + 1]);
+				DeleteObject(Hpen);
+			}
 		}
+
 
 		// asse y
 		hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
@@ -4749,51 +5339,61 @@ static void CreateGraph(FACTOR<> num, FACTOR<> den)
 	Variables = L"x";
 
 	// inizio
-	HINSTANCE hInstance = GetModuleHandle(0);
-	FNumerator = num;
-	FDenominator = den;
-	auto NFirstDerivative{ num.derivative() * den - num * den.derivative() };
-	auto DFirstDerivative{ den * FACTOR<>(den) };
 	const double DeltaX{ 0.01 };
-
-	// calcolo punti stazionari
-	StationaryPointsX = RootExtractor({ ToXV(NFirstDerivative) });
-	for (ptrdiff_t i = StationaryPointsX.size() - 1; i > 0; --i)
-		if (StationaryPointsX[i] == StationaryPointsX[i - 1])
-			StationaryPointsX.erase(i, 1);
+	HINSTANCE hInstance = GetModuleHandle(0);
+	FNumerators << num;
+	FDenominators << den;
+	tensor<FACTOR<>> NFs, DFs;
+	StationaryPointsX.clear();
 	StationaryPointsY.clear();
 	States.clear();
-	size_t I{};
-	for (; I < StationaryPointsX; ++I) {
-		auto x{ StationaryPointsX[I] };
-		auto y{ FNumerator(x) / FDenominator(x) };
 
-		StationaryPointsY << y;
-		x -= DeltaX;
-		bool before{ FNumerator(x) / FDenominator(x) > y };
-		x += 2 * DeltaX;
-		bool after{ FNumerator(x) / FDenominator(x) > y };
-		if (before and after) States << MIN;
-		else if (!(before or after)) States << MAX;
-		else States << H_FLX;
-	}
+	// iterazione per ogni funzione
+	for (size_t i = 0; i < FNumerators; ++i) {
+		auto NFirstDerivative{ num.derivative() * den - num * den.derivative() };
+		auto DFirstDerivative{ den * FACTOR<>(den) };
 
-	// calcolo flessi
-	StationaryPointsX += RootExtractor({ ToXV(
-		NFirstDerivative.derivative() * DFirstDerivative
-		- DFirstDerivative.derivative() * NFirstDerivative
-	) });
-	for (ptrdiff_t i = StationaryPointsX.size() - 1; i > 0; --i)
-		if (StationaryPointsX[i] == StationaryPointsX[i - 1])
-			StationaryPointsX.erase(i, 1);
-	for (; I < StationaryPointsX; ++I) {
-		auto x{ StationaryPointsX[I] };
-		auto y{ FNumerator(x) / FDenominator(x) };
+		// calcolo punti stazionari
+		StationaryPointsX += RootExtractor({ ToXV(NFirstDerivative) });
+		for (ptrdiff_t i = StationaryPointsX.size() - 1; i > 0; --i)
+			if (StationaryPointsX[i] == StationaryPointsX[i - 1])
+				StationaryPointsX.erase(i, 1);
+		size_t I{};
+		for (; I < StationaryPointsX; ++I) {
+			auto x{ StationaryPointsX[I] };
+			auto y{ FNumerators[i](x) / FDenominators[i](x) };
 
-		StationaryPointsY << y;
-		x -= DeltaX;
-		bool before{ FNumerator(x) / FDenominator(x) > y };
-		States << (before ? D_FLX : A_FLX);
+			StationaryPointsY << y;
+			x -= DeltaX;
+			bool before{ FNumerators[i](x) / FDenominators[i](x) > y };
+			x += 2 * DeltaX;
+			bool after{ FNumerators[i](x) / FDenominators[i](x) > y };
+			if (before and after) States << MIN;
+			else if (!(before or after)) States << MAX;
+			else States << H_FLX;
+		}
+
+		// calcolo flessi
+		StationaryPointsX += RootExtractor({ ToXV(
+			NFirstDerivative.derivative() * DFirstDerivative
+			- DFirstDerivative.derivative() * NFirstDerivative
+		) });
+		for (ptrdiff_t i = StationaryPointsX.size() - 1; i > 0; --i)
+			if (StationaryPointsX[i] == StationaryPointsX[i - 1])
+			{
+				StationaryPointsX.erase(i, 1);
+				StationaryPointsY.erase(i, 1);
+				States.erase(i, 1);
+			}
+		for (; I < StationaryPointsX; ++I) {
+			auto x{ StationaryPointsX[I] };
+			auto y{ FNumerators[i](x) / FDenominators[i](x) };
+
+			StationaryPointsY << y;
+			x -= DeltaX;
+			bool before{ FNumerators[i](x) / FDenominators[i](x) > y };
+			States << (before ? D_FLX : A_FLX);
+		}
 	}
 	
 	// dati finestra
@@ -4835,15 +5435,9 @@ auto Phi{ M_PI / 6 };
 ((Z) * sin(Phi) - (X) * sin(Theta) * cos(Phi) + (Y) * cos(Theta) * cos(Phi))
 
 // funzione per proiettare un punto in 2 dimensioni
-static void ProjectPoint(double point[], double theta[], int& pointX, int& pointY)
+static void ProjectPoint(Matrix<> camera, double point[], int& pointX, int& pointY)
 {
-	pointX = pointY = 0;
-	for (int i = 0; i < 3; ++i) {
-		pointX += point[i] * cos(theta[i]);
-		pointY += point[i] * sin(theta[i]);
-	}
-	pointX *= 20;
-	pointY *= 20;
+	
 }
 
 // funzione per elaborare gli input della finestra del grafico a due variabili
@@ -4923,7 +5517,6 @@ static LRESULT CALLBACK WindowProcessor3D(
 		int OriginX{ client.right / 2 }, OriginY{ client.bottom / 2 };
 		
 		// Disegno assi completi
-		double theta[3]{};
 		for (int i = 0; i < 3; ++i) {
 			double point_pos[3]{}, point_neg[3]{};
 			
@@ -4935,15 +5528,6 @@ static LRESULT CALLBACK WindowProcessor3D(
 			int Y1 = Y2D(point_pos[0], point_pos[1], point_pos[2]);
 			int X2 = X2D(point_neg[0], point_neg[1], point_neg[2]);
 			int Y2 = Y2D(point_neg[0], point_neg[1], point_neg[2]);
-
-			// calcolo angoli
-			int DeltaX{ X1 - OriginX }, DeltaY{ OriginY - Y1 };
-			if (DeltaX == 0 or i == 2) {
-				theta[i] = M_PI / 2;
-				if (Y1 < Y2) theta[i] *= -1;
-			}
-			else if (DeltaY != 0 and i < 2) theta[i] = double(DeltaY) / DeltaX;
-			if (DeltaX < 0 and i < 2) theta[i] += M_PI / 2;
 
 			// asse positivo
 			HPEN Hpen = CreatePen(PS_SOLID, 1, RGB(255, 255, 255));
@@ -4970,17 +5554,11 @@ static LRESULT CALLBACK WindowProcessor3D(
 			TextOut(hdc, X1, Y1, name.c_str(), name.size());
 		}
 
-		double FirstPoint[3]{ -1, -2, -3 }, SecondPoint[3]{ 2, 5, 3 };
-		int p1x, p2x, p1y, p2y;
-		ProjectPoint(FirstPoint, theta, p1x, p1y);
-		ProjectPoint(SecondPoint, theta, p2x, p2y);
-
-		HPEN Hpen = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));
-		HPEN oldPen = (HPEN)SelectObject(hdc, Hpen);
-		MoveToEx(hdc, OriginX + p1x, OriginY + p1y, NULL);
-		LineTo(hdc, OriginX + p2x, OriginY + p2y);
-		SelectObject(hdc, oldPen);
-		DeleteObject(Hpen);
+		Matrix<> Rotation{
+			{ sin(Theta), -cos(Theta), 0 },
+			{ cos(Phi) * cos(Theta), cos(Phi) * sin(Theta), -sin(Theta) },
+			{ sin(Phi) * cos(Theta), sin(Phi) * sin(Theta), cos(Theta) }
+		};
 
 		// fine disegno
 		EndPaint(hwnd, &ps);
@@ -7062,7 +7640,7 @@ static void PolynomialDivide
 			divide[i].coefficient *= -rest_element;
 			divide[i].degree += deg - _deg;
 		}
-		dividend = V1converter(PolynomialSum, dividend + divide);
+		dividend = dividend - divide.neg();
 		dividend.complete(deg);
 		dividend.sort();
 		quotient << MONOMIAL<>{ deg - _deg, rest_element };
@@ -7155,7 +7733,7 @@ static polynomial<> Partial(factor<> vect)
 
 	// riordinamento del parziale
 	part_1.SortByExponents();
-	part_2 = PolynomialSum<long double>(mon_1[0] + mon_2[0]);
+	part_2 = mon_1[0] - mon_2[0].neg();
 	part_2.SortByExponents();
 	outp << part_1 << part_2;
 
@@ -8902,588 +9480,6 @@ static ConsoleStream DisequationSolutionPrinter(
 
 #pragma endregion
 
-// funzioni relative alle matrici
-#pragma region Matrices
-
-// stampa una matrice quadrata e restituisce la posizione del cursore
-static int OutputMatrix(
-	tensor<tensor<double>> Matrix,
-	COORD SelectedElement
-)
-{
-	
-	// aggiunta di spazio
-	_GetCursorPos();
-	auto size{ Matrix.size() };
-	auto begin{ csbi.dwCursorPosition };
-	wcout << wstring(4 * size + 1, L'\n');
-	_GetCursorPos();
-	if (csbi.dwCursorPosition.Y >= begin.Y)
-		begin.Y -= 4 * size + 1 - csbi.dwCursorPosition.Y + begin.Y;
-	SetConsoleCursorPosition(hConsole, begin);
-	csbi.dwCursorPosition = begin;
-
-	// calcolo stringhe e trasposizione matrice stringhe
-	tensor<tensor<wstring>> StrMatrix(size), StrDenominators(size);
-	for (size_t i = 0; i < size; ++i) for (size_t j = 0; j < Matrix[i]; ++j)
-	{
-		double element{ Matrix[j][i] };
-
-		// elemento intero
-		if (SelectedElement.Y >= 0 or integer(element)) {
-			StrDenominators[i] << L"";
-			StrMatrix[i] << to_wstring((int)element);
-			continue;
-		}
-
-		// elemento decimale
-		int I{ -1 };
-		for (int i = 2; i < 1'000; ++i) if (integer(i * element)) {
-			I = i;
-			break;
-		}
-		if (I == -1) {
-
-			// elemento sottoforma di numero decimale
-			StrMatrix[i] << to_wstring(element);
-			StrDenominators[i] << L"";
-		}
-		else {
-
-			// elemento sottoforma di frazione
-			StrMatrix[i] << to_wstring(int(element * I));
-			StrDenominators[i] << to_wstring(I);
-		}
-	}
-
-	// correzione lunghezza stringhe
-	int sum{};
-	for (size_t i = 0; i < size; ++i) {
-		auto column{ StrMatrix[i] };
-		auto denom{ StrDenominators[i] };
-		int maxlenght{ 3 };
-
-		// calcolo della lunghezza massima e correzione
-		for (auto& num : column) if (num.size() > maxlenght) maxlenght = num.size();
-		for (auto& den : denom) if (den.size() > maxlenght) maxlenght = den.size();
-		for (auto& num : column) if (num.size() < maxlenght) {
-			int TotalLenght = maxlenght - num.size();
-			num = wstring(TotalLenght / 2, L' ') +
-				num + wstring(TotalLenght - TotalLenght / 2, L' ');
-		}
-		for (auto& den : denom) if (den.size() < maxlenght) {
-			int TotalLenght = maxlenght - den.size();
-			den = wstring(TotalLenght / 2, L' ') +
-				den + wstring(TotalLenght - TotalLenght / 2, L' ');
-		}
-
-		StrMatrix[i] = column;
-		StrDenominators[i] = denom;
-		sum += maxlenght;
-	}
-	sum += size * 2;
-
-	// calcolo delle righe con e senza frazioni
-	tensor<bool> HaveTheyFractions(size, false);
-	for (size_t i = 0; i < size; ++i) for (size_t j = 0; j < size; ++j)
-		if (StrDenominators[j][i].at(
-			(StrDenominators[j][i].size() - 1) / 2) != L' '
-			)
-		{
-			HaveTheyFractions[i] = true;
-			break;
-		}
-	int row{};
-	size_t index{};
-
-	// iterazione e stampa matrice
-	int line{};
-	for (size_t i = 0; index <= 2 * size; ++i) {
-
-		// inizio e fine matrice
-		if (index == 2 * size) line = i;
-		if (index == 0 or index == 2 * size) {
-			wcout << L'+' << wstring(sum + 1, L'-') << L'+';
-			csbi.dwCursorPosition.Y++;
-			SetConsoleCursorPosition(
-				hConsole, { begin.X, csbi.dwCursorPosition.Y }
-			);
-			index++;
-			continue;
-		}
-		wcout << L"| ";
-
-		// calcolo linea di frazione e indice
-		if (index % 2 == 0) {
-			wcout << wstring(sum, L' ') << L'|';
-			index++;
-			csbi.dwCursorPosition.Y++;
-			SetConsoleCursorPosition(
-				hConsole, { begin.X, csbi.dwCursorPosition.Y }
-			);
-			continue;
-		}
-		if (HaveTheyFractions[(index - 1) / 2]) row++;
-		if (row == 4) row = 1;
-
-		// output elemento (la matrice delle stringhe è trasposta)
-		for (size_t j = 0; j < size; ++j) {
-
-			// evindenziazione cursore
-			if (j == SelectedElement.X and (index - 1) / 2 == SelectedElement.Y)
-				SetConsoleTextAttribute(hConsole, 12);
-
-			// caso senza frazioni
-			auto TempDenominator{ StrDenominators[j][(index - 1) / 2] };
-			if (
-				!HaveTheyFractions[(index - 1) / 2] or
-				(row == 2 and TempDenominator.at(
-					(TempDenominator.size() - 1) / 2) == L' ')
-				)
-			{
-				wcout << StrMatrix[j][(index - 1) / 2];
-				if (j == SelectedElement.X and (index - 1) / 2 == SelectedElement.Y)
-				{
-					SetConsoleTextAttribute(hConsole, 4);
-					wcout << L'.';
-				}
-				else wcout << L' ';
-			}
-
-			// caso con almeno una frazione nella riga
-			else switch (row) {
-
-				// numeratori
-			case 1:
-				if (TempDenominator.at((TempDenominator.size() - 1) / 2) == L' ')
-					wcout << wstring(
-						StrMatrix[j][(index - 1) / 2].size() + 1, L' '
-					);
-				else wcout << StrMatrix[j][(index - 1) / 2] << L' ';
-				break;
-
-				// linee di frazione e numeri
-			case 2:
-				wcout << wstring(StrMatrix[j][(index - 1) / 2].size(), L'-');
-				wcout << L' ';
-				break;
-				
-				// denominatori non nulli
-			case 3:
-				if (TempDenominator.at((TempDenominator.size() - 1) / 2) == L' ')
-					wcout << wstring(
-						StrMatrix[j][(index - 1) / 2].size() + 1, L' '
-					);
-				else wcout << StrDenominators[j][(index - 1) / 2] << L' ';
-				break;
-			}
-
-			ResetAttribute();
-			wcout << L' ';
-		}
-		if (row == 0 or row == 3) index++;
-
-		// fine riga
-		wcout << L'|';
-		csbi.dwCursorPosition.Y++;
-		SetConsoleCursorPosition(hConsole, { begin.X, csbi.dwCursorPosition.Y });
-	}
-
-	// riposizionamento cursore
-	if (SelectedElement.Y == -2) {
-		line = max(line, (int)SelectedElement.X);
-		begin.Y += line + 1;
-	}
-	if (SelectedElement.X == -1) begin.X += sum + 3;
-	SetConsoleCursorPosition(hConsole, begin);
-
-	ret line;
-}
-
-// inputa una matrice
-static tensor<tensor<double>> InputMatrix()
-{
-	setlocale(LC_ALL, "");
-	SetConsoleOutputCP(CP_UTF8);
-	SetConsoleCP(CP_UTF8);
-	wcout.imbue(locale(""));
-
-	// calcolo posizione cursore
-#ifndef BUGS
-	SetConsoleCursorInfo(hConsole, &cursorInfo);
-#endif // BUGS
-
-	// inizializzazione
-	const int EscapeCode{ -32 };
-	tensor<tensor<bool>> Signs(2);
-	tensor<tensor<double>> TheMatrix(2);
-	Signs[0](2, POS);
-	Signs[1](2, POS);
-	TheMatrix[0](2, 0);
-	TheMatrix[1](2, 0);
-	OutputMatrix(TheMatrix, { 0, 0 });
-	COORD IndexAccesser{};
-
-	bool arrow{ false };
-	wstring MatrixAtIndex;
-	while (true) {
-		if (_kbhit()) {
-			char c = tolower(_getch());
-
-			// casi speciali
-			if (c == EscapeCode) {
-				arrow = true;
-				continue;
-			}
-			if (c <= 0) continue;
-			if (arrow) {
-				switch (c) {
-				case L'h': c = L'w';
-					break;
-				case L'p': c = L's';
-					break;
-				case L'm': c = L'd';
-					break;
-				case L'k': c = L'a';
-					break;
-				}
-				arrow = false;
-			}
-
-			// // scelta carattere
-			size_t size;
-
-			// casi che non modificano la matrice
-			switch (c) {
-
-				// wasd per cambiare l'elemento da modificare
-			case L'w': IndexAccesser.Y = (IndexAccesser.Y - 1) % TheMatrix.size();
-				break;
-			case L's': IndexAccesser.Y = (IndexAccesser.Y + 1) % TheMatrix.size();
-				break;
-			case L'a': IndexAccesser.X = (IndexAccesser.X - 1) % TheMatrix.size();
-				break;
-			case L'd': IndexAccesser.X = (IndexAccesser.X + 1) % TheMatrix.size();
-				break;
-			}
-
-			MatrixAtIndex = to_wstring(
-				(int)TheMatrix[IndexAccesser.Y][IndexAccesser.X]
-			);
-
-			// casi che modificano la matrice
-			switch (c) {
-
-				// L'r' azzera il determinante
-			case L'r':
-				TheMatrix.last() = TheMatrix[TheMatrix.size() - 2];
-				MatrixAtIndex = to_wstring(
-					(int)TheMatrix[IndexAccesser.Y][IndexAccesser.X]
-				);
-				break;
-
-				// L'\b' cancella un carattere
-			case L'\b':
-				if (MatrixAtIndex == L"0" and
-					Signs[IndexAccesser.Y][IndexAccesser.X])
-				{
-					Signs[IndexAccesser.Y][IndexAccesser.X] = POS;
-					break;
-				}
-				if (MatrixAtIndex.size() == 1) {
-					MatrixAtIndex = L"0";
-					break;
-				}
-				MatrixAtIndex.pop_back();
-				break;
-
-				// ctrl + L'\b' cancella tutto
-			case 127:
-				MatrixAtIndex = L"0";
-				Signs[IndexAccesser.Y][IndexAccesser.X] = POS;
-				break;
-
-				// L'+' aumenta la dimensione
-			case L'>': if (TheMatrix.size() > 6) break;
-				size = TheMatrix.size() + 1;
-				TheMatrix(size);
-				Signs(size);
-				for (size_t i = 0; i < size; ++i) {
-					TheMatrix[i](size, 0);
-					Signs[i](size, POS);
-				}
-				break;
-
-				// L'-' riduce la dimensione
-			case L'<': if (TheMatrix.size() <= 2) break;
-				TheMatrix--;
-				for (auto& row : TheMatrix) row--;
-				IndexAccesser.X %= TheMatrix.size();
-				IndexAccesser.Y %= TheMatrix.size();
-				break;
-
-				// L'\r' invia la matrice
-			case L'\r':
-				_GetCursorPos();
-				csbi.dwCursorPosition.Y += 2 * TheMatrix.size() + 1;
-				SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
-				SetConsoleCursorInfo(hConsole, &cursor);
-				ret TheMatrix;
-
-				// L'.' termina il programma
-			case L'.':
-				SetConsoleCursorInfo(hConsole, &cursor);
-				ret {};
-
-			default:
-
-				// aggiunta di carattere numerico o segno
-				if (isdigit(c) or (c == L'-' and MatrixAtIndex == L"0")
-					and !Signs[IndexAccesser.Y][IndexAccesser.X])
-				{
-					if (Signs[IndexAccesser.Y][IndexAccesser.X]
-						and MatrixAtIndex.at(0) != L'-')
-						MatrixAtIndex = L'-' + MatrixAtIndex;
-					if (c == L'-') Signs[IndexAccesser.Y][IndexAccesser.X] = NEG;
-					if (MatrixAtIndex.size() > 4 + (MatrixAtIndex.at(0) == L'-'))
-						break;
-					if (MatrixAtIndex == L"0") MatrixAtIndex = L"";
-					MatrixAtIndex += c;
-				}
-			}
-			// //
-
-			// stampa
-			TheMatrix[IndexAccesser.Y][IndexAccesser.X] =
-				MatrixAtIndex == L"-" ? 0 : stoi(MatrixAtIndex);
-			_GetCursorPos();
-			auto CursorPos{ csbi.dwCursorPosition };
-			ClearArea(
-				{ (short)(CursorPos.X + 30), (short)(CursorPos.Y + 8) }, { 30, 8 }
-			);
-			OutputMatrix(TheMatrix, IndexAccesser);
-			SetConsoleCursorInfo(hConsole, &cursor);
-		}
-		if (!RunMonitor) {
-			_GetCursorPos();
-			csbi.dwCursorPosition.Y += 2 * TheMatrix.size() + 1;
-			SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
-			SetConsoleCursorInfo(hConsole, &cursor);
-			ret tensor<tensor<double>>(
-				TheMatrix.size(), tensor<double>(TheMatrix.size(), 0)
-			);
-		}
-	}
-}
-
-// scrive due matrici
-static void DisplayMatrices(
-	tensor<tensor<double>> A,
-	tensor<tensor<double>> B
-)
-{
-	_GetCursorPos();
-
-	// console ristretta
-	if (csbi.dwSize.X <= 22 * A.size() + 2) {
-		OutputMatrix(A, { 0, -2 });
-		OutputMatrix(B, { 0, -2 });
-		wcout << L'\n';
-		ret;
-	}
-
-	// console di dimensioni corrette
-	OutputMatrix(B, { (short)OutputMatrix(A), -2 });
-	wcout << L'\n';
-}
-
-// scrive tre matrici
-static void DisplayMatrices(
-	tensor<tensor<double>> A,
-	tensor<tensor<double>> B,
-	tensor<tensor<double>> C
-)
-{
-	_GetCursorPos();
-
-	// console ristretta
-	if (csbi.dwSize.X <= 33 * A.size() + 3) {
-		OutputMatrix(A, { 0, -2 });
-		OutputMatrix(B, { 0, -2 });
-		OutputMatrix(C, { 0, -2 });
-		wcout << L'\n';
-		ret;
-	}
-
-	// console di dimensioni corrette
-	int line{ OutputMatrix(A) };
-	line = max(line, OutputMatrix(B));
-	OutputMatrix(C, { (short)line, -2 });
-	wcout << L'\n';
-}
-
-// moltiplica due matrici
-static tensor<tensor<double>> MatrixMultiply(
-	tensor<tensor<double>> A,
-	tensor<tensor<double>> B
-)
-{
-	if (A % B) ret {};
-	size_t size{ A.size() };
-	tensor<tensor<double>> C(size);
-
-	for (size_t i = 0; i < size; ++i) for (size_t j = 0; j < size; ++j) {
-		double scalar_prod{};
-		for (size_t k = 0; k < size; ++k) scalar_prod += A[i][k] * B[k][j];
-		C[i] << scalar_prod;
-	}
-	
-	ret C;
-}
-
-// calcola il determinante di una matrice con il teorema di laplace
-template<typename T> static T Determinant(tensor<tensor<T>> mx)
-{
-	T det{};
-	size_t s{ mx.size() };
-
-	// casi speciali
-	if (s == 1) ret mx[0][0];
-	if (s == 2) ret mx[0][0] * mx[1][1] - mx[0][1] * mx[1][0];
-
-	// caso generale
-	for (size_t i = 0; i < s; ++i) {
-
-		tensor<tensor<T>> MX(s - 1);
-		for (size_t I = 0; I < s - 1; ++I) for (size_t J = 0; J < s; ++J)
-		{
-			if (i == J) continue;
-			MX[I] << mx[I + 1][J];
-		}
-		
-		det += intpow(-1, i) * mx[0][i] * Determinant(MX);
-	}
-	ret det;
-}
-
-// calcola il determinante di una matrice di polinomi
-FACTOR<> PolynomialMatrixDeterminant(tensor<tensor<FACTOR<>>> PolynomialMatrix)
-{
-
-	FACTOR<> det;
-	int s = PolynomialMatrix.size();
-
-	// casi speciali del calcolo del determinante
-	if (s == 1) ret PolynomialMatrix[0][0];
-	if (s == 2) {
-		auto addend1{
-			ToXV(PolynomialMatrix[0][0]) * ToXV(PolynomialMatrix[1][1])
-		};
-		auto addend2{
-			ToXV(PolynomialMatrix[0][1]) * ToXV(PolynomialMatrix[1][0])
-		};
-		for (auto& mon : addend2) mon.coefficient *= -1;
-		ret To1V(addend1 - addend2.neg());
-	}
-
-	// caso generale del calcolo del determinante
-	for (size_t i = 0; i < s; ++i) {
-
-		tensor<tensor<FACTOR<>>> MX(s - 1);
-		for (size_t I = 0; I < s - 1; ++I) for (size_t J = 0; J < s; ++J)
-		{
-			if (i == J) continue;
-			MX[I] << PolynomialMatrix[I + 1][J];
-		}
-
-		auto MiddleDet{ ToXV(PolynomialMatrixDeterminant(MX)) };
-		if (MiddleDet != 0) {
-			auto adder{ ToXV(PolynomialMatrix[0][i]) * MiddleDet };
-			for (auto& mon : adder) mon.coefficient *= -1;
-			det = To1V(ToXV(det) - adder.neg());
-		}
-	}
-
-	ret det;
-};
-
-// calcola gli autovalori di una matrice
-static tensor<double> EigenValues(tensor<tensor<double>> mx)
-{
-
-	// inizializzazione
-	size_t s{ mx.size() };
-	auto PolynomialMatrix{ tensor<tensor<FACTOR<>>>(s, tensor<FACTOR<>>(s)) };
-	for (size_t i = 0; i < s; ++i) for (size_t j = 0; j < s; ++j)
-		PolynomialMatrix[i][j] << MONOMIAL<>{ 0, (long double)mx[i][j] };
-	for (size_t i = 0; i < s; ++i) PolynomialMatrix[i][i] >> MONOMIAL<>{ 1, -1 };
-	
-	// calcolo autovalori
-	tensor<double> eigenvalues;
-	charVariable = L'x';
-	Variables = L"x";
-	auto EigenStrings{
-		EquationSolver(
-			ToXV(PolynomialMatrixDeterminant(PolynomialMatrix))
-		)
-	};
-	for (auto str : EigenStrings) {
-		str.erase(0, str.find(L'=') + 1);
-		if (str.find(L'i') == wstring::npos) eigenvalues << stod(str);
-	}
-
-	// ordinamento in ordine decrescente
-	for (size_t i = 0; i < eigenvalues; ++i)
-		for (size_t j = i + 1; j < eigenvalues; ++j)
-			if (eigenvalues[i] < eigenvalues[j])
-				swap(eigenvalues[i], eigenvalues[j]);
-
-	ret eigenvalues;
-}
-
-// calcola gli autovettori di una matrice
-static tensor<tensor<double>> EigenVectors
-(tensor<tensor<double>> mx, tensor<double> EigenV)
-{
-	size_t size{ mx.size() };
-	if (EigenV.empty()) EigenV = EigenValues(mx);
-	if (EigenV.size() != size) ret {};
-	tensor<double> result;
-	tensor<tensor<double>> eigenvectors(size);
-
-	// risoluzione sistemi lineari
-	for (size_t i = 0; i < size; ++i) {
-
-		// sottrazione autovalore e rimozione fine
-		auto NewMx{ mx };
-		for (size_t j = 0; j < size; ++j) NewMx[j][j] -= EigenV[i];
-		for (size_t j = 0; j < size - 1; ++j) result << -NewMx[j].last();
-		NewMx--;
-		for (size_t j = 0; j < size - 1; ++j) NewMx[j]--;
-		auto Det{ Determinant(NewMx) };
-
-		// calcolo soluzioni e determinanti
-		for (size_t j = 0; j < size - 1; ++j) {
-			auto NewMatrix{ NewMx };
-			for (size_t k = 0; k < size - 1; ++k) NewMatrix[k][k] = result[k];
-			eigenvectors[i] << Determinant(NewMatrix) / Det;
-		}
-		eigenvectors[i] << 1;
-
-		// normalizzazione autovettori
-		double norm{};
-		for (size_t j = 0; j < size; ++j)
-			norm += eigenvectors[i][j] * eigenvectors[i][j];
-		norm = sqrt(norm);
-		if (isnan(norm)) ret {};
-		for (size_t j = 0; j < size; ++j) eigenvectors[i][j] /= norm;
-	}
-
-	ret eigenvectors;
-}
-
-#pragma endregion
-
 // funzioni programma
 #pragma region Programs
 
@@ -10765,7 +10761,7 @@ static void DecompFraction(switchcase& argc)
 		POLYNOMIAL<> complementaries;
 		size_t index{}, size{};
 		int Det;
-		tensor<tensor<int>> Matrix;
+		Matrix<int> Matrix;
 		tensor<int> results;
 		tensor<double> roots;
 		FACTOR<> Quotient;
@@ -10847,12 +10843,12 @@ static void DecompFraction(switchcase& argc)
 
 			for (const auto& R : Rest) results << R.coefficient;
 			while (results.size() < complementaries.size()) results >> 0;
-			Det = Determinant(Matrix);
+			Det = Matrix.det();
 		}
 		if (!skip) for (size_t i = 0; i < results; ++i) {
-			tensor<tensor<int>> MX{ Matrix };
+			::Matrix<int> MX{ Matrix };
 			MX[i] = results;
-			roots << (double)Determinant(MX) / Det;
+			roots << (double)MX.det() / Det;
 		}
 
 		// eliminazione degli zeri
@@ -11123,26 +11119,25 @@ static void DecompMatrices(switchcase& argc)
 	wcout << L"sono ammesse solo matrici quadrate da 2x2 a 7x7\n";
 	wcout << L"premi r per copiare la penultima riga (azzera il determinante)\n\n";
 	ResetAttribute();
-	tensor<tensor<double>> matrix, Mx;
+	Matrix<> matrix, Mx;
 
 	while (true)
 	{
 		// input
 		ResetAttribute();
 		wcout << L"inserisci una matrice, usa wasd per cambiare elemento\n";
-		matrix = InputMatrix();
+		matrix.input();
 		size_t size{ matrix.size() };
 		if (size == 0) {
 			argc = Random;
 			goto RETURN;
 		}
-		if (matrix == tensor<tensor<double>>(size, tensor<double>(size, 0)))
-			break;
+		if (matrix == Matrix<>(size, tensor<double>(size, 0))) break;
 		wcout << L'\n';
 		Mx = matrix;
 
 		// calcolo matrice di permutazione
-		auto Id{ tensor<tensor<double>>(size, tensor<double>(size, 0)) };
+		auto Id{ Matrix<>(size, tensor<double>(size, 0)) };
 		for (size_t i = 0; i < size; ++i) Id[i][i] = 1;
 		auto permutator{ Id };
 		for (size_t i = 0; i + 1 < size; ++i) {
@@ -11163,7 +11158,7 @@ static void DecompMatrices(switchcase& argc)
 		}
 
 		// trasposizione della matrice di permutazione
-		auto NewPermutator{ tensor<tensor<double>>(size) };
+		auto NewPermutator{ Matrix<>(size) };
 		for (size_t i = 0; i < size; ++i) for (size_t j = 0; j < size; ++j)
 			NewPermutator[i] << permutator[j][i];
 		permutator = NewPermutator;
@@ -11191,7 +11186,7 @@ static void DecompMatrices(switchcase& argc)
 		// decomposizione PLU
 		if (!Break) {
 			wcout << L"decomposizione PLU:\n";
-			DisplayMatrices(permutator, lower, upper);
+			permutator.DisplayWith(lower, upper);
 		}
 
 		// algoritmo di givens
@@ -11214,8 +11209,8 @@ static void DecompMatrices(switchcase& argc)
 				givens[j][i] = -sine;
 				givens[j][j] = cosine;
 
-				Mx = MatrixMultiply(givens, Mx);
-				ortogonal = MatrixMultiply(ortogonal, givens);
+				Mx = givens * Mx;
+				ortogonal *= givens;
 			}
 			if (Break) break;
 		}
@@ -11223,7 +11218,7 @@ static void DecompMatrices(switchcase& argc)
 		// decomposizione QR
 		if (!Break) {
 			wcout << L"decomposizione QR:\n";
-			DisplayMatrices(ortogonal, Mx);
+			ortogonal.DisplayWith(Mx);
 		}
 
 		// decomposizione di cholesky
@@ -11255,14 +11250,14 @@ static void DecompMatrices(switchcase& argc)
 			}
 			if (Break) break;
 		}
-		auto lowerT{ tensor<tensor<double>>(size) };
+		auto lowerT{ Matrix<>(size) };
 		if (!Break) for (size_t i = 0; i < size; ++i)
 			for (size_t j = 0; j < size; ++j) lowerT[i] << lower[j][i];
 
 		// output decomposizione
 		if (!Break) {
 			wcout << L"decomposizione di cholesky:\n";
-			DisplayMatrices(lower, lowerT);
+			lower.DisplayWith(lowerT);
 		}
 
 		// calcolo autovalori
@@ -11270,18 +11265,18 @@ static void DecompMatrices(switchcase& argc)
 		auto MxT{ Id };
 		for (size_t i = 0; i < size; ++i) for (size_t j = 0; j < size; ++j)
 			MxT[i][j] = Mx[j][i];
-		auto Mx_MxT{ MatrixMultiply(Mx, MxT) };
-		auto MxT_Mx{ MatrixMultiply(MxT, Mx) };
-		auto EigenV{ EigenValues(Mx_MxT) };
+		auto Mx_MxT{ Mx * MxT };
+		auto MxT_Mx{ MxT * Mx };
+		auto EigenV{ Mx_MxT.EigenValues() };
 
 		// calcolo matrici U, V e sigma
 		auto sigma{ Id };
 		Break = EigenV.size() != size;
-		tensor<tensor<double>> U, V;
+		Matrix<> U, V;
 		if (!Break) {
 			for (size_t i = 0; i < size; ++i) sigma[i][i] = sqrt(EigenV[i]);
-			U = EigenVectors(Mx_MxT, EigenV);
-			V = EigenVectors(MxT_Mx);
+			U = Mx_MxT.EigenVectors(EigenV);
+			V = MxT_Mx.EigenVectors();
 			if (V.empty()) Break = true;
 			else {
 				auto NewV{ Id };
@@ -11294,15 +11289,15 @@ static void DecompMatrices(switchcase& argc)
 		// decomposizione a valori singolari
 		if (!Break) {
 			wcout << L"decomposizione a valori singolari:\n";
-			DisplayMatrices(U, sigma, V);
+			U.DisplayWith(sigma, V);
 		}
 
 		// output dati della matrice
-		auto maindet{ Determinant(matrix) };
+		auto maindet{ matrix.det() };
 		wcout << L"Determinante: " << maindet << L'\n';
-		auto eigenvalues{ EigenValues(matrix) };
+		auto eigenvalues{ matrix.EigenValues() };
 		wcout << L"Autovalori reali: " << eigenvalues.str() << L'\n';
-		auto eigenvectors{ EigenVectors(matrix, eigenvalues) };
+		auto eigenvectors{ matrix.EigenVectors(eigenvalues) };
 		if (eigenvectors == size) {
 			wcout << L"Autovettori reali: \n";
 			for (auto vector : eigenvectors) wcout << vector.str() << L'\n';
@@ -11318,7 +11313,7 @@ static void DecompMatrices(switchcase& argc)
 			auto NewMatrix{ matrix };
 			for (auto& row : NewMatrix) row--;
 			NewMatrix--;
-			auto newdet{ Determinant(NewMatrix) };
+			auto newdet{ NewMatrix.det() };
 			if (newdet == 0) continue;
 
 			// calcolo soluzioni
@@ -11326,7 +11321,7 @@ static void DecompMatrices(switchcase& argc)
 				Mx = NewMatrix;
 				for (size_t j = 0; j < size - 1; ++j)
 					Mx[j][i] = matrix[j].last();
-				solutionList << Determinant(Mx) / newdet;
+				solutionList << Mx.det() / newdet;
 			}
 
 			// output risultati
