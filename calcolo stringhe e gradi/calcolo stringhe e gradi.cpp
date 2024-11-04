@@ -420,7 +420,7 @@ namespace std_tensor
 		}
 		inline void pop_back()
 		{
-			if (count == 0) throw out_of_range("tensor is empty");
+			if (count == 0) throw out_of_range("Tensor is empty");
 			count--;
 		}
 		void push_front(const T& value)
@@ -432,7 +432,7 @@ namespace std_tensor
 		}
 		void pop_front()
 		{
-			if (count == 0) throw out_of_range("tensor is empty");
+			if (count == 0) throw out_of_range("Tensor is empty");
 			for (size_t i = 0; i < count - 1; ++i) data[i] = move(data[i + 1]);
 			count--;
 		}
@@ -2757,14 +2757,38 @@ public:
 	{
 		Matrix result(*this);
 		for (size_t i = 0; i < result; ++i)
-			for (size_t j = 0; j < other; ++j)
-				result[i][j] -= other[i][j];
+			for (size_t j = 0; j < other; ++j) result[i][j] -= other[i][j];
 		ret result;
 	}
 	Matrix operator-=(const Matrix other)
 	{
 		*this = *this - other;
 		ret *this;
+	}
+
+	tensor<_Ty> operator*(const tensor<_Ty> vector) const
+	{
+		if (vector.size() != this->size()) throw out_of_range("Wrong size!");
+		tensor<_Ty> product(vector.size());
+		for (size_t i = 0; i < product; ++i) {
+			_Ty DotProduct{};
+			for (size_t j = 0; j < product; ++j)
+				DotProduct += (*this)[i][j] * vector[j];
+			product[i] = DotProduct;
+		}
+		ret product;
+	}
+
+	Matrix operator*(const _Ty scalar) const
+	{
+		auto This{ *this };
+		for (auto& row : This) for (auto& el : row) el *= scalar;
+		ret This;
+	}
+	Matrix& operator*=(const _Ty scalar)
+	{
+		*this = *this * scalar;
+		ret* this;
 	}
 
 	Matrix operator*(const Matrix other) const
@@ -2920,7 +2944,6 @@ public:
 
 		ret eigenvectors;
 	}
-
 };
 
 // tensori
@@ -2991,7 +3014,8 @@ static LRESULT CALLBACK WindowProcessor2D(
 	LPARAM lParam
 );
 static void CreateGraph(FACTOR<> num, FACTOR<> den);
-static void ProjectPoint(double point[], double theta[], int& pointX, int& pointY);
+static void ProjectPoint
+(RECT client, tensor<double> point, int& pointX, int& pointY);
 static LRESULT CALLBACK WindowProcessor3D(
 	HWND hwnd,
 	UINT uMsg,
@@ -3839,9 +3863,9 @@ static void DrawFrame
 		random_device rng;
 		mt19937 gen(rng());
 		uniform_int_distribution<> dis(0, 9);
-		random_device Random;
 
 		// generatore casuale colori
+		random_device Random;
 		mt19937 Gen(Random());
 		uniform_int_distribution<> Dis(0, spectrum.size() - 1);
 		int DisGen{ Dis(Gen) };
@@ -4845,8 +4869,9 @@ namespace WindowData{
 	};
 	LPARAM Coords{}, Current{};
 	tensor<FACTOR<>> FNumerators, FDenominators;
-	tensor<int> States;
-	tensor<long double> StationaryPointsX, StationaryPointsY;
+	tensor<int> Colors;
+	tensor<tensor<int>> States;
+	tensor<tensor<long double>> StationaryPointsX, StationaryPointsY;
 	bool enable{ false };
 	int shiftX{}, shiftY{};
 	double Zoom{ 1 };
@@ -4968,7 +4993,6 @@ static LRESULT CALLBACK WindowProcessor2D(
 		HPEN hpen = CreatePen(PS_SOLID, 1, RGB(64, 64, 64));
 
 		// impostazioni
-		SetTextColor(hdc, RGB(192, 255, 192));
 		SetBkMode(hdc, TRANSPARENT);
 		HFONT hFont = CreateFontW(
 			16, 0, 0, 0,
@@ -5149,6 +5173,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 		}
 
 		// output valori degli assi
+		SetTextColor(hdc, RGB(192, 255, 255));
 		for (size_t i = 0; i < NumbersX; ++i)
 			TextOut(hdc, NumbersX[i], OriginY, ValsX[i].c_str(), ValsX[i].size());
 		for (size_t i = 0; i < NumbersY; ++i)
@@ -5190,20 +5215,20 @@ static LRESULT CALLBACK WindowProcessor2D(
 			}
 
 			// output grafico della funzione
-			for (ptrdiff_t i = 0; i < (ptrdiff_t)Xcoord.size() - 1; ++i) {
+			for (ptrdiff_t j = 0; j < (ptrdiff_t)Xcoord.size() - 1; ++j) {
 				bool Continue{ false };
 				for (const auto& asintothe : asintothes)
-					if (Xcoord[i] < asintothe and asintothe < Xcoord[i + 1])
+					if (Xcoord[j] < asintothe and asintothe < Xcoord[j + 1])
 					{
 						Continue = true;
 						break;
 					}
 				if (Continue) continue;
 
-				HPEN Hpen = CreatePen(PS_SOLID, 2, RGB(0, 255, 128));
+				HPEN Hpen = CreatePen(PS_SOLID, 2, Colors[i]);
 				SelectObject(hdc, Hpen);
-				MoveToEx(hdc, Xcoord[i], Ycoord[i], NULL);
-				LineTo(hdc, Xcoord[i + 1], Ycoord[i + 1]);
+				MoveToEx(hdc, Xcoord[j], Ycoord[j], NULL);
+				LineTo(hdc, Xcoord[j + 1], Ycoord[j + 1]);
 				DeleteObject(Hpen);
 			}
 		}
@@ -5224,22 +5249,23 @@ static LRESULT CALLBACK WindowProcessor2D(
 		DeleteObject(hPen);
 
 		// output punti stazionari
-		SetTextColor(hdc, RGB(255, 0, 0));
 		tensor<wstring> PriorityLabels;
 		tensor<int> PriorityLabelsX, PriorityLabelsY;
 		tensor<int> PriorityLabelsCenterX, PriorityLabelsCenterY;
 		int cursorX = (short)LOWORD(Current), cursorY = (short)HIWORD(Current);
-		for (size_t i = 0; i < States; ++i) {
+		for (size_t i = 0; i < States; ++i) for (size_t j = 0; j < States[i]; ++j)
+		{
 
 			// impostazione colore
-			int X = OriginX + StationaryPointsX[i] * 20 / Zoom;
-			int Y = OriginY - StationaryPointsY[i] * 20 / Zoom;
+			SetTextColor(hdc, Colors[i]);
+			int X = OriginX + StationaryPointsX[i][j] * 20 / Zoom;
+			int Y = OriginY - StationaryPointsY[i][j] * 20 / Zoom;
 			for (int j = -2; j < 2; ++j) for (int k = -2; k < 2; ++k)
-				SetPixel(hdc, X + j, Y + k, RGB(255, 0, 0));
+				SetPixel(hdc, X + j, Y + k, RGB(255, 255, 255));
 
 			// calcolo testo
 			wstring Out;
-			switch (States[i]) {
+			switch (States[i][j]) {
 			case MIN: Out = L"minimo: (";
 				break;
 			case MAX: Out = L"massimo: (";
@@ -5251,8 +5277,8 @@ static LRESULT CALLBACK WindowProcessor2D(
 			case D_FLX: Out = L"flesso discendente: (";
 				break;
 			}
-			auto _X{ to_wstring(StationaryPointsX[i]) };
-			auto _Y{ to_wstring(StationaryPointsY[i]) };
+			auto _X{ to_wstring(StationaryPointsX[i][j]) };
+			auto _Y{ to_wstring(StationaryPointsY[i][j]) };
 
 			// approssimazione numeri
 			while (Last(_X) == L'0') _X.pop_back();
@@ -5277,48 +5303,47 @@ static LRESULT CALLBACK WindowProcessor2D(
 				PriorityLabelsCenterY << Y;
 			}
 			else TextOut(hdc, CX, CY, Out.c_str(), Out.size());
-		}
-
-		if (PriorityLabels.empty()) {
-			EndPaint(hwnd, &ps);
-			ret 0;
-		}
-
-		// calcolo messaggio selezionato
-		int MinRadius{ -1 }, MinRadiusIndex;
-		for (size_t i = 0; i < PriorityLabels; ++i) {
-			int radius = hypot(
-				cursorX - PriorityLabelsCenterX[i], cursorY - PriorityLabelsCenterY[i]
-			);
-			if (MinRadius < 0 or MinRadius > radius) {
-				MinRadius = radius;
-				MinRadiusIndex = i;
+			
+			if (PriorityLabels.empty()) continue;
+			
+			// calcolo messaggio selezionato
+			int MinRadius{ -1 }, MinRadiusIndex;
+			for (size_t j = 0; j < PriorityLabels; ++j) {
+				int radius = hypot(
+					cursorX - PriorityLabelsCenterX[j],
+					cursorY - PriorityLabelsCenterY[j]
+				);
+				if (MinRadius < 0 or MinRadius > radius) {
+					MinRadius = radius;
+					MinRadiusIndex = j;
+				}
 			}
-		}
 
-		// output messaggi restanti
-		for (size_t i = 0; i < PriorityLabels; ++i) {
-			if (i == MinRadiusIndex) {
-				SetBkColor(hdc, RGB(0, 0, 0));
-				SetBkMode(hdc, OPAQUE);
+			// output messaggi restanti
+			for (size_t j = 0; j < PriorityLabels; ++j) {
+				if (j == MinRadiusIndex) {
+					SetBkColor(hdc, RGB(255, 255, 255));
+					SetTextColor(hdc, RGB(0, 0, 0));
+					SetBkMode(hdc, OPAQUE);
+					TextOut(
+						hdc,
+						PriorityLabelsX[j],
+						PriorityLabelsY[j],
+						PriorityLabels[j].c_str(),
+						PriorityLabels[j].size()
+					);
+					SetBkMode(hdc, TRANSPARENT);
+					SetTextColor(hdc, Colors[i]);
+					continue;
+				}
 				TextOut(
 					hdc,
-					PriorityLabelsX[i],
-					PriorityLabelsY[i],
-					PriorityLabels[i].c_str(),
-					PriorityLabels[i].size()
+					PriorityLabelsX[j],
+					PriorityLabelsY[j],
+					PriorityLabels[j].c_str(),
+					PriorityLabels[j].size()
 				);
-				SetBkColor(hdc, RGB(255, 0, 0));
-				SetBkMode(hdc, TRANSPARENT);
-				continue;
 			}
-			TextOut(
-				hdc,
-				PriorityLabelsX[i],
-				PriorityLabelsY[i],
-				PriorityLabels[i].c_str(),
-				PriorityLabels[i].size()
-			);
 		}
 
 		// fine disegno
@@ -5343,59 +5368,85 @@ static void CreateGraph(FACTOR<> num, FACTOR<> den)
 	HINSTANCE hInstance = GetModuleHandle(0);
 	FNumerators << num;
 	FDenominators << den;
-	tensor<FACTOR<>> NFs, DFs;
+	if (FNumerators > 10) {
+		--FNumerators;
+		--FDenominators;
+	}
 	StationaryPointsX.clear();
 	StationaryPointsY.clear();
+	Colors.clear();
 	States.clear();
 
 	// iterazione per ogni funzione
 	for (size_t i = 0; i < FNumerators; ++i) {
-		auto NFirstDerivative{ num.derivative() * den - num * den.derivative() };
-		auto DFirstDerivative{ den * FACTOR<>(den) };
+		auto NFirstDerivative{
+			FNumerators[i].derivative() * FDenominators[i] -
+			FNumerators[i] * FDenominators[i].derivative()
+		};
+		auto DFirstDerivative{ FDenominators[i] * FACTOR<>(FDenominators[i]) };
 
 		// calcolo punti stazionari
-		StationaryPointsX += RootExtractor({ ToXV(NFirstDerivative) });
-		for (ptrdiff_t i = StationaryPointsX.size() - 1; i > 0; --i)
-			if (StationaryPointsX[i] == StationaryPointsX[i - 1])
-				StationaryPointsX.erase(i, 1);
+		States << tensor<int>{};
+		StationaryPointsY << tensor<long double>{};
+		StationaryPointsX << RootExtractor({ ToXV(NFirstDerivative) });
+		for (ptrdiff_t j = StationaryPointsX[i].size() - 1; j > 0; --j)
+			if (StationaryPointsX[i][j] == StationaryPointsX[i][j - 1])
+				StationaryPointsX[i].erase(j, 1);
 		size_t I{};
-		for (; I < StationaryPointsX; ++I) {
-			auto x{ StationaryPointsX[I] };
+		for (; I < StationaryPointsX[i]; ++I) {
+			auto x{ StationaryPointsX[i][I] };
 			auto y{ FNumerators[i](x) / FDenominators[i](x) };
 
-			StationaryPointsY << y;
+			StationaryPointsY[i] << y;
 			x -= DeltaX;
 			bool before{ FNumerators[i](x) / FDenominators[i](x) > y };
 			x += 2 * DeltaX;
 			bool after{ FNumerators[i](x) / FDenominators[i](x) > y };
-			if (before and after) States << MIN;
-			else if (!(before or after)) States << MAX;
-			else States << H_FLX;
+			if (before and after) States[i] << MIN;
+			else if (!(before or after)) States[i] << MAX;
+			else States[i] << H_FLX;
 		}
 
 		// calcolo flessi
-		StationaryPointsX += RootExtractor({ ToXV(
+		StationaryPointsX[i] += RootExtractor({ ToXV(
 			NFirstDerivative.derivative() * DFirstDerivative
 			- DFirstDerivative.derivative() * NFirstDerivative
 		) });
-		for (ptrdiff_t i = StationaryPointsX.size() - 1; i > 0; --i)
-			if (StationaryPointsX[i] == StationaryPointsX[i - 1])
+		for (ptrdiff_t j = StationaryPointsX[i].size() - 1; j > 0; --j)
+			if (StationaryPointsX[i][j] == StationaryPointsX[i][j - 1])
 			{
-				StationaryPointsX.erase(i, 1);
-				StationaryPointsY.erase(i, 1);
-				States.erase(i, 1);
+				StationaryPointsX[i].erase(j, 1);
+				StationaryPointsY[i].erase(j, 1);
+				States[i].erase(j, 1);
 			}
-		for (; I < StationaryPointsX; ++I) {
-			auto x{ StationaryPointsX[I] };
+		for (; I < StationaryPointsX[i]; ++I) {
+			auto x{ StationaryPointsX[i][I] };
 			auto y{ FNumerators[i](x) / FDenominators[i](x) };
 
-			StationaryPointsY << y;
+			StationaryPointsY[i] << y;
 			x -= DeltaX;
 			bool before{ FNumerators[i](x) / FDenominators[i](x) > y };
-			States << (before ? D_FLX : A_FLX);
+			States[i] << (before ? D_FLX : A_FLX);
 		}
 	}
 	
+	// calcolo dei colori
+	random_device rng;
+	mt19937 gen(rng());
+	uniform_int_distribution<> dis(0, 127);
+	for (int i = 0; i < States; ++i) {
+		int rgbValues[3]{};
+		if ((i | FOREGROUND_BLUE) != i) rgbValues[2] += dis(gen);
+		if ((i | FOREGROUND_GREEN) != i) rgbValues[1] += dis(gen);
+		if ((i | FOREGROUND_RED) != i) rgbValues[0] += dis(gen);
+		if ((i | FOREGROUND_INTENSITY) != i) {
+			rgbValues[0] += 128;
+			rgbValues[1] += 128;
+			rgbValues[2] += 128;
+		}
+		Colors << RGB(rgbValues[0], rgbValues[1], rgbValues[2]);
+	}
+
 	// dati finestra
 	WNDCLASS wc{};
 	wc.lpfnWndProc = WindowProcessor2D;
@@ -5429,15 +5480,27 @@ static void CreateGraph(FACTOR<> num, FACTOR<> den)
 }
 
 auto Theta{ M_PI / 4 };
-auto Phi{ M_PI / 6 }; 
+auto Phi{ M_PI / 6 };
+auto FOV{ M_PI * 2 / 3 };
 #define X2D(X, Y, Z) OriginX + (X) * cos(Theta) + (Y) * sin(Theta)
 #define Y2D(X, Y, Z) OriginY - \
 ((Z) * sin(Phi) - (X) * sin(Theta) * cos(Phi) + (Y) * cos(Theta) * cos(Phi))
 
 // funzione per proiettare un punto in 2 dimensioni
-static void ProjectPoint(Matrix<> camera, double point[], int& pointX, int& pointY)
+static void ProjectPoint
+(RECT client, tensor<double> point, int& pointX, int& pointY)
 {
-	
+	Phi += M_PI / 2;
+	Matrix<> Rotation{
+		{ cos(Theta), -sin(Theta), 0 },
+		{ sin(Theta) * sin(Phi), cos(Theta) * sin(Phi), cos(Phi) },
+		{ sin(Theta) * cos(Phi), cos(Theta) * cos(Phi), -sin(Phi) }
+	};
+	Phi -= M_PI / 2;
+
+	auto Projection{ Rotation * point };
+	pointX = Projection[0] * 20;
+	pointY = Projection[1] * 20;
 }
 
 // funzione per elaborare gli input della finestra del grafico a due variabili
@@ -5448,7 +5511,6 @@ static LRESULT CALLBACK WindowProcessor3D(
 	LPARAM lParam
 )
 {
-
 	switch (uMsg)
 	{
 
@@ -5468,20 +5530,24 @@ static LRESULT CALLBACK WindowProcessor3D(
 			Phi = M_PI / 6;
 			break;
 		case 'A':
-			Theta += M_PI / 18;
-			while (Theta > M_PI) Theta -= M_PI;
+			Theta += M_PI / 36;
+			if (Theta < 0) Theta += 2 * M_PI;
+			if (Theta > 2 * M_PI) Theta -= 2 * M_PI;
 			break;
 		case 'D':
-			Theta -= M_PI / 18;
-			while (Theta > M_PI) Theta -= M_PI;
+			Theta -= M_PI / 36;
+			if (Theta < 0) Theta += 2 * M_PI;
+			if (Theta > 2 * M_PI) Theta -= 2 * M_PI;
 			break;
 		case 'W':
-			Phi += M_PI / 18;
-			while (Phi > M_PI) Phi -= M_PI;
+			Phi += M_PI / 36;
+			if (Phi < 0) Phi += M_PI;
+			if (Theta > M_PI) Theta -= M_PI;
 			break;
 		case 'S':
-			Phi -= M_PI / 18;
-			while (Phi > M_PI) Phi -= M_PI;
+			Phi -= M_PI / 36;
+			if (Phi < 0) Phi += M_PI;
+			if (Theta > M_PI) Theta -= M_PI;
 			break;
 		default: ret 0;
 		}
@@ -5548,17 +5614,23 @@ static LRESULT CALLBACK WindowProcessor3D(
 			LineTo(hdc, X2, Y2);
 			SelectObject(hdc, oldPen);
 			DeleteObject(hpen);
+			DeleteObject(Hpen);
 
 			// nome asse
 			wstring name{ wstring(1, L'x' + i) };
 			TextOut(hdc, X1, Y1, name.c_str(), name.size());
 		}
 
-		Matrix<> Rotation{
-			{ sin(Theta), -cos(Theta), 0 },
-			{ cos(Phi) * cos(Theta), cos(Phi) * sin(Theta), -sin(Theta) },
-			{ sin(Phi) * cos(Theta), sin(Phi) * sin(Theta), cos(Theta) }
-		};
+		// output linea
+		int p1x, p1y, p2x, p2y;
+		ProjectPoint(client, { 1, 2, 3 }, p1x, p1y);
+		ProjectPoint(client, { -1, -2, -3 }, p2x, p2y);
+		HPEN Hpen = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));
+		HPEN oldPen = (HPEN)SelectObject(hdc, Hpen);
+		MoveToEx(hdc, OriginX + p1x, OriginY + p1y, NULL);
+		LineTo(hdc, OriginX + p2x, OriginY + p2y);
+		SelectObject(hdc, oldPen);
+		DeleteObject(Hpen);
 
 		// fine disegno
 		EndPaint(hwnd, &ps);
