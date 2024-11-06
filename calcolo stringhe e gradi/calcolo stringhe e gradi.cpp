@@ -852,7 +852,6 @@ namespace std_tensor
 			ret *this;
 		}
 	};
-
 };
 #define _TENSOR ::std_tensor::
 using _TENSOR Variables, _TENSOR tensor, _TENSOR tensor_t;
@@ -874,7 +873,7 @@ private: tensor<int> Integer;
 		str.erase(0, 2);
 		bool Do{ false };
 		for (ptrdiff_t i = str.size() - 1; i >= 0; --i) {
-			int element = str.at(i) - '0';
+			int element = str.at(i) - L'0';
 			if (element != 0) Do = true;
 			if (Do) Integer << element;
 		}
@@ -958,20 +957,20 @@ public:
 	{
 		wstring Param{ to_wstring(param) };
 		if (Param.at(0) == L'-') Param.erase(0, 1);
-		for (auto ch : Param) Integer << ch - '0';
+		for (auto ch : Param) Integer << ch - L'0';
 	}
 	big(ptrdiff_t param) : sign(param < 0), Integer(0), decimal(0)
 	{
 		wstring Param{ to_wstring(param) };
 		if (Param.at(0) == L'-') Param.erase(0, 1);
-		for (auto ch : Param) Integer << ch - '0';
+		for (auto ch : Param) Integer << ch - L'0';
 	}
 	big(double param) : sign(param < 0), Integer(0), decimal(0)
 	{
 		int intParam = param;
 		wstring Param{ to_wstring(intParam) };
 		if (Param.at(0) == L'-') Param.erase(0, 1);
-		for (auto ch : Param) Integer << ch - '0';
+		for (auto ch : Param) Integer << ch - L'0';
 		decimal = _STD fabs(param) - _STD fabs(intParam);
 	}
 	big(long double param) : sign(param < 0), Integer(0), decimal(0)
@@ -979,14 +978,14 @@ public:
 		int intParam = param;
 		wstring Param{ to_wstring(intParam) };
 		if (Param.at(0) == L'-') Param.erase(0, 1);
-		for (auto ch : Param) Integer << ch - '0';
+		for (auto ch : Param) Integer << ch - L'0';
 		decimal = _STD fabs(param) - _STD fabs(intParam);
 	}
 	big(tensor<int> Big) : sign(POS), Integer(Big), decimal(0) {}
 	big(wstring wstr) : sign(POS), Integer(0), decimal(0)
 	{
 		tensor<int> Big;
-		for (auto c : wstr) if (isdigit(c)) Integer << c - '0';
+		for (auto c : wstr) if (isdigit(c)) Integer << c - L'0';
 	}
 
 	// confronto primario e assegnazione
@@ -1597,7 +1596,31 @@ public:
 				if (swap) ::swap(this->at(i), this->at(j));
 			}
 	}
+	
+	factor derivate(size_t Vpos) const
+	{
+		if (this->empty()) ret {};
+		auto Derivative{ *this };
+		for (ptrdiff_t i = Derivative.size() - 1; i >= 0; --i) {
+			if (Derivative[i].exp[Vpos] == 0) {
+				Derivative.erase(Derivative.begin() + i);
+				continue;
+			}
+			Derivative[i].coefficient *= Derivative[i].exp[Vpos]--;
+		}
+		ret Derivative;
+	}
 
+	T_int operator()(tensor<long double> params) const
+	{
+		if (params > Variables.size()) throw out_of_range("Too many parameters");
+		while (params < Variables.size()) params << 0;
+
+		auto This{ *this };
+		for (size_t i = 0; i < Variables.size(); ++i) This = This(params[i], i, 0);
+		if (This.empty()) ret 0;
+		ret This[0].coefficient / LCM.Number<T_int>();
+	}
 	factor operator()(T_int x, size_t Vpos, int) const;
 	bool operator()(T_int x, size_t Vpos, bool) const
 	{
@@ -1702,7 +1725,7 @@ public:
 		}
 	}
 
-	FACTOR derivative() const
+	FACTOR derivate() const
 	{
 		if (this->size() == 0) ret { { 0, 0 } };
 		auto Derivative{ *this };
@@ -3007,6 +3030,7 @@ static void SetDebug(wstring message, switchcase& opt, bool& Return,
 static void SendCtrlPlusMinus(bool plus);
 static void MonitorConsoleSize(COORD min, atomic_bool& runMonitor);
 static void UserInputThread();
+static void DrawLine(int firstX, int firstY, int secondX, int secondY, HPEN Hpen);
 static LRESULT CALLBACK WindowProcessor2D(
 	HWND hwnd,
 	UINT uMsg,
@@ -3016,13 +3040,14 @@ static LRESULT CALLBACK WindowProcessor2D(
 static void CreateGraph(FACTOR<> num, FACTOR<> den);
 static void ProjectPoint
 (RECT client, tensor<double> point, int& pointX, int& pointY);
+static void ProjectAndDrawLine(tensor<double> start, tensor<double> end, HPEN Hpen);
 static LRESULT CALLBACK WindowProcessor3D(
 	HWND hwnd,
 	UINT uMsg,
 	WPARAM wParam,
 	LPARAM lParam
 );
-static void Project3DGraph();
+static void Project3DGraph(factor<> funct);
 static bool Prime(ptrdiff_t number);
 static void PrimeNCalculator(ptrdiff_t max, ptrdiff_t min = 0);
 static tensor<compost> DecomposeNumber(ptrdiff_t input);
@@ -3184,12 +3209,6 @@ static void DecompMatrices(switchcase& argc);
 // programma principale
 int main()
 {
-////////////////////////////////////////////////////////////////////////////////////
-
-	Project3DGraph();
-
-////////////////////////////////////////////////////////////////////////////////////
-
 	int ErrorCode{}, ErrMessage;
 	setlocale(LC_ALL, "");
 	SetConsoleOutputCP(CP_UTF8);
@@ -3259,7 +3278,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.1.0 ";
+			wcout << L"1.1.5 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -3562,6 +3581,7 @@ End:
 // funzioni matematiche
 #pragma region Math
 
+// elaboratore di numeri sottoforma di stringa
 static wstring Handler(wstring test)
 {
 	if (test.find(L'.') != wstring::npos or test.find(L',') != wstring::npos)
@@ -3678,14 +3698,14 @@ static ptrdiff_t intpow(ptrdiff_t base, int exp)
 #pragma region EnumMod
 
 // da enum a stringa
-static wstring ConvertEnumToWString(switchcase Enum)
+inline static wstring ConvertEnumToWString(switchcase Enum)
 {
 	auto it = enumToStringMap.find(Enum);
 	if (it != enumToStringMap.end()) ret it->second;
 }
 
 // da stringa a enum
-static switchcase ConvertWStringToEnum(wstring str)
+inline static switchcase ConvertWStringToEnum(wstring str)
 {
 	auto it = stringToEnumMap.find(str);
 	if (it != stringToEnumMap.end()) ret it->second;
@@ -3756,12 +3776,15 @@ static void ReassigneEnum(switchcase& option)
 // funzioni necessarie per disegnare
 #pragma region BasicPrints
 
-int RotAngle{ 270 }, PolygDegree{}, PolygonSides{ 4 };
-int CircleCenterX, CircleCenterY, CircleRotDegreeAngle{};
-bool DecreaseAngle{ true }, DecreaseWidth{ true };
-double DWidth{ 1.9 };
+namespace ConsoleLogData
+{
+	int RotAngle{ 270 }, PolygDegree{}, PolygonSides{ 4 };
+	int CircleCenterX, CircleCenterY, CircleRotDegreeAngle{};
+	bool DecreaseAngle{ true }, DecreaseWidth{ true };
+	double DWidth{ 1.9 };
 
-const tensor<int> spectrum{ 9, 9, 9, 11, 11, 3, 3, 12, 4 };
+	const tensor<int> spectrum{ 9, 9, 9, 11, 11, 3, 3, 12, 4 };
+};
 
 // cancella un'area rettangolare di spazio
 static void ClearArea(COORD WinCenter, COORD Dimensions)
@@ -3832,6 +3855,7 @@ static void PrintPFrame
 static void DrawFrame
 (int arc, double __i, int centerX, int centerY, double DIM)
 {
+	using ConsoleLogData::spectrum;
 	COORD coord{};
 	int setX, setY;
 	const double R{ 8 };
@@ -3882,7 +3906,8 @@ static void DrawFrame
 // gestisce la stampa del poligono e del cerchio
 static void DrawCircleSquare(COORD CircleCenter)
 {
-	
+	using namespace ConsoleLogData;
+
 	// calcolo variabili
 	COORD Cursor{ 0, CircleCenter.Y };
 	Cursor.Y -= Min.Y;
@@ -4859,7 +4884,8 @@ static void UserInputThread()
 // funzioni per creare delle finestre e gestirle
 #pragma region Windows
 
-namespace WindowData{
+namespace WindowData
+{
 	enum states{
 		MIN,
 		MAX,
@@ -4877,6 +4903,26 @@ namespace WindowData{
 	double Zoom{ 1 };
 	wchar_t __save; 
 };
+namespace Window3Data
+{
+	tensor<int> Light{ 0, 0, -1 };
+	factor<> Function, PartialXder, PartialYder;
+	auto Theta{ M_PI / 4 };
+	auto Phi{ M_PI / 3 };
+	#define X2D(X, Y, Z) OriginX + (X) * cos(Theta) + (Y) * sin(Theta)
+	#define Y2D(X, Y, Z) OriginY - \
+	((Z) * sin(Phi) - (X) * sin(Theta) * cos(Phi) + (Y) * cos(Theta) * cos(Phi))
+};
+
+// funzione per disegnare una linea
+HDC GHDC;
+static void DrawLine(int firstX, int firstY, int secondX, int secondY, HPEN Hpen)
+{
+	SelectObject(GHDC, Hpen);
+	MoveToEx(GHDC, firstX, firstY, NULL);
+	LineTo(GHDC, secondX, secondY);
+	DeleteObject(Hpen);
+}
 
 // funzione per elaborare gli input della finestra del grafico a una variabile
 static LRESULT CALLBACK WindowProcessor2D(
@@ -4987,6 +5033,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 		if (client.right == 0 and client.bottom == 0)
 			ret DefWindowProc(hwnd, uMsg, wParam, lParam);
 		HDC hdc = BeginPaint(hwnd, &ps);
+		GHDC = hdc;
 		int OriginX{ client.right / 2 + shiftX }, OriginY{ client.bottom / 2 - shiftY };
 		const int markLenght{ 3 };
 		HPEN hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
@@ -5038,11 +5085,11 @@ static LRESULT CALLBACK WindowProcessor2D(
 		// output valori di riferimento asse x positivo
 		for (int pixel = OriginX; pixel < client.right; pixel += PixelIncrement)
 		{
-			hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
-			SelectObject(hdc, hPen);
-			MoveToEx(hdc, pixel, OriginY - markLenght, NULL);
-			LineTo(hdc, pixel, OriginY + markLenght);
-			DeleteObject(hPen);
+			HPEN hpen;
+			DrawLine(
+				pixel, OriginY - markLenght, pixel, OriginY + markLenght,
+				CreatePen(PS_SOLID, 2, RGB(0, 128, 0))
+			);
 
 			auto X{ to_wstring(x) };
 			while (Last(X) == L'0') X.pop_back();
@@ -5059,10 +5106,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 			}
 			else hpen = CreatePen(PS_DOT, 1, RGB(64, 64, 64));
 
-			SelectObject(hdc, hpen);
-			MoveToEx(hdc, pixel, 0, NULL);
-			LineTo(hdc, pixel, client.bottom);
-			DeleteObject(hpen);
+			DrawLine(pixel, 0, pixel, client.bottom, hpen);
 			x += ValueIncrement;
 		}
 
@@ -5072,11 +5116,11 @@ static LRESULT CALLBACK WindowProcessor2D(
 		x = -ValueIncrement;
 		for (int pixel = OriginX - PixelIncrement; pixel > 0; pixel -= PixelIncrement)
 		{
-			hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
-			SelectObject(hdc, hPen);
-			MoveToEx(hdc, pixel, OriginY - markLenght, NULL);
-			LineTo(hdc, pixel, OriginY + markLenght);
-			DeleteObject(hPen);
+			HPEN hpen;
+			DrawLine(
+				pixel, OriginY - markLenght, pixel, OriginY + markLenght,
+				CreatePen(PS_SOLID, 2, RGB(0, 128, 0))
+			);
 
 			auto X{ to_wstring(x) };
 			while (Last(X) == L'0') X.pop_back();
@@ -5093,24 +5137,21 @@ static LRESULT CALLBACK WindowProcessor2D(
 			}
 			else hpen = CreatePen(PS_DOT, 1, RGB(64, 64, 64));
 
-			SelectObject(hdc, hpen);
-			MoveToEx(hdc, pixel, 0, NULL);
-			LineTo(hdc, pixel, client.bottom);
-			DeleteObject(hpen);
+			DrawLine(pixel, 0, pixel, client.bottom, hpen);
 			x -= ValueIncrement;
 		}
-	                
+					
 		// output valori di riferimento asse y positivo
 		OldPixelValue = OriginY;
 		OldTextSize = TextSize = {};
 		double y{ ValueIncrement };
 		for (int pixel = OriginY - PixelIncrement; pixel > 0; pixel -= PixelIncrement)
 		{
-			hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
-			SelectObject(hdc, hPen);
-			MoveToEx(hdc, OriginX - markLenght, pixel, NULL);
-			LineTo(hdc, OriginX + markLenght, pixel);
-			DeleteObject(hPen);
+			HPEN hpen;
+			DrawLine(
+				OriginX - markLenght, pixel, OriginX + markLenght, pixel,
+				CreatePen(PS_SOLID, 2, RGB(0, 128, 0))
+			);
 
 			auto Y{ to_wstring(y) };
 			while (Last(Y) == L'0') Y.pop_back();
@@ -5127,10 +5168,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 			}
 			else hpen = CreatePen(PS_DOT, 1, RGB(64, 64, 64));
 		
-			SelectObject(hdc, hpen);
-			MoveToEx(hdc, 0, pixel, NULL);
-			LineTo(hdc, client.right, pixel);
-			DeleteObject(hpen);
+			DrawLine(0, pixel, client.right, pixel, hpen);
 			y += ValueIncrement;
 		}
 
@@ -5144,12 +5182,12 @@ static LRESULT CALLBACK WindowProcessor2D(
 			pixel += PixelIncrement
 			)
 		{
-			hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
-			SelectObject(hdc, hPen);
-			MoveToEx(hdc, OriginX - markLenght, pixel, NULL);
-			LineTo(hdc, OriginX + markLenght, pixel);
-			DeleteObject(hPen);
-
+			HPEN hpen;
+			DrawLine(
+				OriginX - markLenght, pixel, OriginX + markLenght, pixel,
+				CreatePen(PS_SOLID, 2, RGB(0, 128, 0))
+			);
+			
 			auto Y{ to_wstring(y) };
 			while (Last(Y) == L'0') Y.pop_back();
 			if (Last(Y) == L',') Y.pop_back();
@@ -5165,10 +5203,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 			}
 			else hpen = CreatePen(PS_DOT, 1, RGB(64, 64, 64));
 
-			SelectObject(hdc, hpen);
-			MoveToEx(hdc, 0, pixel, NULL);
-			LineTo(hdc, client.right, pixel);
-			DeleteObject(hpen);
+			DrawLine(0, pixel, client.right, pixel, hpen);
 			y -= ValueIncrement;
 		}
 
@@ -5223,30 +5258,24 @@ static LRESULT CALLBACK WindowProcessor2D(
 						Continue = true;
 						break;
 					}
-				if (Continue) continue;
 
-				HPEN Hpen = CreatePen(PS_SOLID, 2, Colors[i]);
-				SelectObject(hdc, Hpen);
-				MoveToEx(hdc, Xcoord[j], Ycoord[j], NULL);
-				LineTo(hdc, Xcoord[j + 1], Ycoord[j + 1]);
-				DeleteObject(Hpen);
+				if (Continue) continue;
+				DrawLine(
+					Xcoord[j], Ycoord[j], Xcoord[j + 1], Ycoord[j + 1],
+					CreatePen(PS_SOLID, 2, Colors[i])
+				);
 			}
 		}
 
-
-		// asse y
-		hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
-		SelectObject(hdc, hPen);
-		MoveToEx(hdc, OriginX, 0, NULL);
-		LineTo(hdc, OriginX, client.bottom);
-		DeleteObject(hPen);
-
-		// asse x
-		hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
-		SelectObject(hdc, hPen);
-		MoveToEx(hdc, 0, OriginY, NULL);
-		LineTo(hdc, client.right, OriginY);
-		DeleteObject(hPen);
+		// assi x e y 
+		DrawLine(
+			OriginX, 0, OriginX, client.bottom,
+			CreatePen(PS_SOLID, 2, RGB(0, 128, 0))
+		);
+		DrawLine(
+			0, OriginY, client.right, OriginY,
+			CreatePen(PS_SOLID, 2, RGB(0, 128, 0))
+		);
 
 		// output punti stazionari
 		tensor<wstring> PriorityLabels;
@@ -5358,6 +5387,8 @@ static LRESULT CALLBACK WindowProcessor2D(
 // funzione per creare la finestra del grafico a una variabile
 static void CreateGraph(FACTOR<> num, FACTOR<> den)
 {
+	if (Variables.size() != 1) ret;
+
 	using namespace WindowData;
 	__save = charVariable;
 	charVariable = L'x';
@@ -5380,8 +5411,8 @@ static void CreateGraph(FACTOR<> num, FACTOR<> den)
 	// iterazione per ogni funzione
 	for (size_t i = 0; i < FNumerators; ++i) {
 		auto NFirstDerivative{
-			FNumerators[i].derivative() * FDenominators[i] -
-			FNumerators[i] * FDenominators[i].derivative()
+			FNumerators[i].derivate() * FDenominators[i] -
+			FNumerators[i] * FDenominators[i].derivate()
 		};
 		auto DFirstDerivative{ FDenominators[i] * FACTOR<>(FDenominators[i]) };
 
@@ -5409,8 +5440,8 @@ static void CreateGraph(FACTOR<> num, FACTOR<> den)
 
 		// calcolo flessi
 		StationaryPointsX[i] += RootExtractor({ ToXV(
-			NFirstDerivative.derivative() * DFirstDerivative
-			- DFirstDerivative.derivative() * NFirstDerivative
+			NFirstDerivative.derivate() * DFirstDerivative
+			- DFirstDerivative.derivate() * NFirstDerivative
 		) });
 		for (ptrdiff_t j = StationaryPointsX[i].size() - 1; j > 0; --j)
 			if (StationaryPointsX[i][j] == StationaryPointsX[i][j - 1])
@@ -5479,17 +5510,12 @@ static void CreateGraph(FACTOR<> num, FACTOR<> den)
 	}
 }
 
-auto Theta{ M_PI / 4 };
-auto Phi{ M_PI / 6 };
-auto FOV{ M_PI * 2 / 3 };
-#define X2D(X, Y, Z) OriginX + (X) * cos(Theta) + (Y) * sin(Theta)
-#define Y2D(X, Y, Z) OriginY - \
-((Z) * sin(Phi) - (X) * sin(Theta) * cos(Phi) + (Y) * cos(Theta) * cos(Phi))
-
 // funzione per proiettare un punto in 2 dimensioni
 static void ProjectPoint
 (RECT client, tensor<double> point, int& pointX, int& pointY)
 {
+	using namespace Window3Data;
+
 	Phi += M_PI / 2;
 	Matrix<> Rotation{
 		{ cos(Theta), -sin(Theta), 0 },
@@ -5503,6 +5529,22 @@ static void ProjectPoint
 	pointY = Projection[1] * 20;
 }
 
+// funzione per proiettare una retta dallo spazio sullo schermo
+RECT ClientRect;
+static void ProjectAndDrawLine(tensor<double> start, tensor<double> end, HPEN Hpen)
+{
+	int p1x, p1y, p2x, p2y;
+	ProjectPoint(ClientRect, start, p1x, p1y);
+	ProjectPoint(ClientRect, end, p2x, p2y);
+	DrawLine(
+		ClientRect.right / 2 + p1x,
+		ClientRect.bottom / 2 + p1y,
+		ClientRect.right / 2 + p2x,
+		ClientRect.bottom / 2 + p2y,
+		Hpen
+	);
+}
+
 // funzione per elaborare gli input della finestra del grafico a due variabili
 static LRESULT CALLBACK WindowProcessor3D(
 	HWND hwnd,
@@ -5511,6 +5553,7 @@ static LRESULT CALLBACK WindowProcessor3D(
 	LPARAM lParam
 )
 {
+	using namespace Window3Data;
 	switch (uMsg)
 	{
 
@@ -5525,9 +5568,12 @@ static LRESULT CALLBACK WindowProcessor3D(
 	case WM_KEYDOWN:
 		switch (wParam)
 		{
+		case 13:
+			DestroyWindow(hwnd);
+			ret 0;
 		case 'R':
 			Theta = M_PI / 4;
-			Phi = M_PI / 6;
+			Phi = M_PI / 3;
 			break;
 		case 'A':
 			Theta += M_PI / 36;
@@ -5541,13 +5587,13 @@ static LRESULT CALLBACK WindowProcessor3D(
 			break;
 		case 'W':
 			Phi += M_PI / 36;
-			if (Phi < 0) Phi += M_PI;
-			if (Theta > M_PI) Theta -= M_PI;
+			if (Phi < 0) Phi += 2 * M_PI;
+			if (Phi > 2 * M_PI) Phi -= 2 * M_PI;
 			break;
 		case 'S':
 			Phi -= M_PI / 36;
-			if (Phi < 0) Phi += M_PI;
-			if (Theta > M_PI) Theta -= M_PI;
+			if (Phi < 0) Phi += 2 * M_PI;
+			if (Phi > 2 * M_PI) Phi -= 2 * M_PI;
 			break;
 		default: ret 0;
 		}
@@ -5561,10 +5607,12 @@ static LRESULT CALLBACK WindowProcessor3D(
 		PAINTSTRUCT ps;
 		RECT client;
 		GetClientRect(hwnd, &client);
+		ClientRect = client;
 		if (client.right == 0 and client.bottom == 0)
 			ret DefWindowProc(hwnd, uMsg, wParam, lParam);
 		HDC hdc = BeginPaint(hwnd, &ps);
-
+		GHDC = hdc;
+		
 		// impostazioni
 		SetTextColor(hdc, RGB(128, 128, 255));
 		SetBkMode(hdc, TRANSPARENT);
@@ -5585,9 +5633,9 @@ static LRESULT CALLBACK WindowProcessor3D(
 		// Disegno assi completi
 		for (int i = 0; i < 3; ++i) {
 			double point_pos[3]{}, point_neg[3]{};
-			
-			point_pos[i] = 300;
-			point_neg[i] = -300;
+
+			point_pos[i] = i == 1 ? -300 : 300;
+			point_neg[i] = i == 1 ? 300 : -300;
 
 			// calcolo punti
 			int X1 = X2D(point_pos[0], point_pos[1], point_pos[2]);
@@ -5595,43 +5643,62 @@ static LRESULT CALLBACK WindowProcessor3D(
 			int X2 = X2D(point_neg[0], point_neg[1], point_neg[2]);
 			int Y2 = Y2D(point_neg[0], point_neg[1], point_neg[2]);
 
-			// asse positivo
-			HPEN Hpen = CreatePen(PS_SOLID, 1, RGB(255, 255, 255));
-			HPEN oldPen = (HPEN)SelectObject(hdc, Hpen);
-			MoveToEx(hdc, X1, Y1, NULL);
-			LineTo(hdc, OriginX, OriginY);
-			SelectObject(hdc, oldPen);
-			DeleteObject(Hpen);
+			// calcolo colore
+			auto color{
+				RGB(
+					abs(point_pos[0]) / 100 * 255,
+					abs(point_pos[2]) / 100 * 255,
+					abs(point_pos[1]) / 100 * 255,
+				)
+			};
 
-			// asse negativo
+			// output assi
 			LOGBRUSH lb;
 			lb.lbStyle = BS_SOLID;
-			lb.lbColor = RGB(255, 255, 255);
+			lb.lbColor = color;
 			lb.lbHatch = 0;
-			HPEN hpen = ExtCreatePen(PS_DOT, 1, &lb, 0, NULL);
-			oldPen = (HPEN)SelectObject(hdc, hpen);
-			MoveToEx(hdc, OriginX, OriginY, NULL);
-			LineTo(hdc, X2, Y2);
-			SelectObject(hdc, oldPen);
-			DeleteObject(hpen);
-			DeleteObject(Hpen);
+			DrawLine(X1, Y1, OriginX, OriginY, CreatePen(PS_SOLID, 1, color));
+			DrawLine(
+				OriginX, OriginY, X2, Y2, ExtCreatePen(PS_DOT, 1, &lb, 0, NULL)
+			);
 
 			// nome asse
 			wstring name{ wstring(1, L'x' + i) };
 			TextOut(hdc, X1, Y1, name.c_str(), name.size());
 		}
 
-		// output linea
-		int p1x, p1y, p2x, p2y;
-		ProjectPoint(client, { 1, 2, 3 }, p1x, p1y);
-		ProjectPoint(client, { -1, -2, -3 }, p2x, p2y);
-		HPEN Hpen = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));
-		HPEN oldPen = (HPEN)SelectObject(hdc, Hpen);
-		MoveToEx(hdc, OriginX + p1x, OriginY + p1y, NULL);
-		LineTo(hdc, OriginX + p2x, OriginY + p2y);
-		SelectObject(hdc, oldPen);
-		DeleteObject(Hpen);
+		// disegno della funzione
+		tensor<tensor<int>> vertices;
+		for (double x = -15; x < 15; x += 0.5)
+			for (double y = -15; y < 15; y += 0.5)
+			{
+				int RgbValue{ 255 };
 
+				// calcolo coordinate punto
+				int X, Y;
+				auto z = Function({ x, y });
+				ProjectPoint(client, { x, y, double(z) }, X, Y);
+
+				// calcolo vettore normale
+				tensor<long double> normal(3);
+				normal[0] = PartialXder({ x, y });
+				normal[1] = PartialYder({ x, y });
+				normal[2] = 1;
+
+				// calcolo illuminazione
+				long double norm{ hypot(normal[0], normal[1], normal[2]) };
+				for (auto& component : normal) component /= norm;
+				RgbValue *= normal[2] * 5;
+				if (RgbValue > 255) RgbValue = 255;
+				if (RgbValue < 0) RgbValue = 0;
+
+				// output
+				SetPixel(
+					hdc, OriginX + X, OriginY + Y,
+					RGB(RgbValue, RgbValue, RgbValue)
+				);
+			}
+		
 		// fine disegno
 		EndPaint(hwnd, &ps);
 		ret 0;
@@ -5642,8 +5709,15 @@ static LRESULT CALLBACK WindowProcessor3D(
 }
 
 // funzione per creare la finestra del grafico a due variabili
-static void Project3DGraph()
+static void Project3DGraph(factor<> funct)
 {
+	if (Variables.size() != 2) ret;
+
+	using namespace Window3Data;
+	Function = funct;
+	PartialXder = Function.derivate(0);
+	PartialYder = Function.derivate(1);
+
 	// dati finestra
 	HINSTANCE hInstance = GetModuleHandle(0);
 	WNDCLASS wc{};
@@ -8634,6 +8708,7 @@ static void PrintFraction
 
 #pragma endregion
 
+// funzioni relative al calcolo delle soluzioni di una disequazione
 #pragma region Disequations
 
 // calcola una soluzione di un equazione con il metodo di newton-raphson
@@ -8646,7 +8721,7 @@ static void Approximator(tensor<long double>& Equation, long double& root)
 		equation[i].coefficient = Equation[i];
 		equation[i].degree = Equation.size() - i - 1;
 	}
-	auto derivative{ equation.derivative() };
+	auto derivative{ equation.derivate() };
 
 	// calcolo radice
 	const double TOL = 0.000001;
@@ -10636,8 +10711,14 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		}
 
 		// grafico del polinomio
-		if (input and draw and Variables.size() == 1)
-			CreateGraph(To1V(PolynomialMultiply(HT)), { { 0, 1 } });
+		if (input and draw) {
+			switch (Variables.size()) {
+			case 1: CreateGraph(To1V(PolynomialMultiply(HT)), { { 0, 1 } });
+				break;
+			case 2: Project3DGraph(PolynomialMultiply(HT));
+				break;
+			}
+		}
 
 	EndOfDecomposition: if (!input) break;
 
