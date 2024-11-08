@@ -981,7 +981,11 @@ public:
 		for (auto ch : Param) Integer << ch - L'0';
 		decimal = _STD fabs(param) - _STD fabs(intParam);
 	}
-	big(tensor<int> Big) : sign(POS), Integer(Big), decimal(0) {}
+	big(tensor<int> Big) : sign(POS), Integer(Big), decimal(0)
+	{
+		if (Integer.empty()) Integer = { 0 };
+		while (Integer > 1 and Integer[0] == 0) --Integer;
+	}
 	big(wstring wstr) : sign(POS), Integer(0), decimal(0)
 	{
 		tensor<int> Big;
@@ -2095,188 +2099,6 @@ FACTOR<T_int>::operator*=(const FACTOR& other)
 tensor_t PrimeNumbers;
 _STD map<int, wstring> CalculatedData;
 
-// altre classi
-class NumberData
-{
-public:
-	ptrdiff_t number{};
-	wstring code;
-	int degree{};
-	wstring expression;
-	tensor<ptrdiff_t> sequence;
-	divisor div;
-	digitRatio digit;
-
-	NumberData() = default;
-	NumberData(
-		ptrdiff_t num,
-		const wstring& c,
-		int deg,
-		const wstring& expr,
-		const tensor<ptrdiff_t>& seq,
-		const divisor& d,
-		const digitRatio& dr
-	) :
-		number(num),
-		code(c),
-		degree(deg),
-		expression(expr),
-		sequence(seq),
-		div(d),
-		digit(dr)
-	{}
-
-	void printf()
-	{
-		setlocale(LC_ALL, "");
-		SetConsoleOutputCP(CP_UTF8);
-		SetConsoleCP(CP_UTF8);
-		wcout.imbue(locale(""));
-
-		// stampa numero
-		if (PRINTN) {
-			wcout << L"numero " << number << L":\n";
-			SetConsoleTextAttribute(hConsole, 2);
-			wcout << L"in esadecimale è " << hex << uppercase;
-			wcout << number << L'\n' << dec << nouppercase;
-			if (number - 1 < PrimeNumbers.list_primes) {
-				wcout << L"Numero Primo #" << number << L" = ";
-				wcout << PrimeNumbers.list_primes[number - 1] << L'\n';
-			}
-		}
-
-		// stampa dati cifre
-		else if (number >= 10) {
-
-			// stampa numero
-			if (
-				digit.digitSumRatioNum == 0 and
-				digit.digitProductRatioNum == 0
-				) ret;
-			wcout << L"numero " << number << L":\n";
-			SetConsoleTextAttribute(hConsole, 2);
-			wcout << L"in esadecimale è " << hex << uppercase;
-			wcout << number << L'\n' << dec << nouppercase;
-			if (number - 1 < PrimeNumbers.list_primes) {
-				wcout << L"Numero Primo #" << number << L" = ";
-				wcout << PrimeNumbers.list_primes[number - 1] << L'\n';
-			}
-			SetConsoleTextAttribute(hConsole, 13);
-
-			// stampa somma cifre
-			if (digit.digitSumRatioNum != 0) {
-				wcout << L"la somma delle cifre è ";
-				wcout << L'(' << digit.digitSumRatioNum;
-				wcout << L'/' << digit.digitSumRatioDen;
-				wcout << L")x\n";
-			}
-
-			// stampa prodotto cifre
-			if (digit.digitProductRatioNum != 0) {
-				wcout << L"il prodotto delle cifre è ";
-				if (digit.digitProductRatioDen != 1) wcout << L'(';
-				wcout << digit.digitProductRatioNum;
-				if (digit.digitProductRatioDen != 1) {
-					wcout << L'/';
-					wcout << digit.digitProductRatioDen;
-					wcout << L')';
-				}
-				wcout << L"x\n";
-			}
-		}
-
-		// stampa stringa
-		if (!code.empty()) {
-			SetConsoleTextAttribute(hConsole, 12);
-			wcout << L"il codice è <" << code << L">\n";
-		}
-
-		// stampa grado e sequenza
-		if (degree != 0) {
-			SetConsoleTextAttribute(hConsole, 4);
-			wcout << L"il grado è " << degree << L'\n';
-			SetConsoleTextAttribute(hConsole, 3);
-			wcout << L"la sequenza del grado è :\n(";
-			for (size_t i = 0; i < sequence.size() - 1; ++i)
-				wcout << sequence[i] << L", ";
-			wcout << sequence.last() << L")\n";
-		}
-
-		if (!expression.empty()) {
-
-			// se il numero è primo
-			if (PrimeNumbers.is_prime[number]) {
-				SetConsoleTextAttribute(hConsole, 240);
-				wcout << L"il numero è primo";
-				ResetAttribute();
-				wcout << L'\n';
-			}
-
-			// altrimenti stampa scomposizione
-			else {
-				SetConsoleTextAttribute(hConsole, 11);
-				wcout << L"la fattorizzazione è ";
-				wcout << expression << L'\n';
-				if (div.DivNumber != 1) {
-					SetConsoleTextAttribute(hConsole, 8);
-
-					// stampa numero divisori
-					wcout << L"il numero dei divisori è ";
-					wcout << div.DivNumber << L'\n';
-
-					// stampa somma divisori
-					wcout << L"la somma dei divisori è ";
-					wcout << div.DivSum << L'\n';
-
-					// stampa prodotto divisori
-					wcout << L"il prodotto dei divisori è ";
-					if (div.DivProduct != 1) wcout << div.DivProduct << L'\n';
-					else wcout << div.Div_pr << L'\n';
-				}
-			}
-
-		}
-		ResetAttribute();
-	}
-};
-class NumberDataTensor : public tensor<NumberData>
-{
-private:
-	void heapify(int n, int i)
-	{
-		int largest{ i };
-		int left{ 2 * i + 1 };
-		int right{ 2 * i + 2 };
-		if (left < n and this->at(left).number > this->at(largest).number)
-			largest = left;
-		if (right < n and this->at(right).number > this->at(largest).number)
-			largest = right;
-		if (largest != i) {
-			iter_swap(this->begin() + i, this->begin() + largest);
-			heapify(n, largest);
-		}
-	}
-public:
-	NumberDataTensor() : tensor<NumberData>() {}
-	NumberDataTensor(initializer_list<NumberData> init) :
-		tensor<NumberData>(init)
-	{}
-
-	void printf()
-	{
-		for (auto& data : *this) data.printf();
-	}
-	void HeapSort()
-	{
-		int n = this->size();
-		for (ptrdiff_t i = n / 2 - 1; i >= 0; --i) heapify(n, i);
-		for (ptrdiff_t i = n - 1; i > 0; --i) {
-			iter_swap(this->begin(), this->begin() + i);
-			heapify(i, 0);
-		}
-	}
-};
-
 // stream
 struct Console {
 	wstring Text;
@@ -2969,6 +2791,279 @@ public:
 	}
 };
 
+// punti
+HDC GHDC;
+static void DrawLine(int firstX, int firstY, int secondX, int secondY, HPEN Hpen);
+static void ProjectPoint(tensor<double> point, int& pointX, int& pointY);
+static void ProjectAndDrawLine(tensor<double> start, tensor<double> end, HPEN Hpen);
+class Point__
+{
+private:
+	int ScreenX, ScreenY;
+	tensor<long double> Normal;
+public:
+	double x, y, z;
+
+	Point__() : x(0), y(0), z(0), ScreenX(-1), ScreenY(-1), Normal(3) {}
+	Point__(double _x, double _y, double _z)
+		: x(_x), y(_y), z(_z), ScreenX(-1), ScreenY(-1), Normal(3) {}
+	Point__(factor<> funct, double _x, double _y)
+		: x(_x), y(_y), z(funct({ x, y })), ScreenX(-1), ScreenY(-1), Normal(3) {}
+
+	int GetScreenX()
+	{
+		if (ScreenX == -1) ProjectPoint({ x, y, z }, ScreenX, ScreenY);
+		ret ScreenX;
+	}
+	int GetScreenY()
+	{
+		if (ScreenY == -1) ProjectPoint({ x, y, z }, ScreenX, ScreenY);
+		ret ScreenY;
+	}
+	tensor<long double> GetNormalVector() const
+	{
+		ret Normal;
+	}
+	
+	bool Void() const
+	{
+		ret x == 0 and y == 0 and z == 0 and
+			ScreenX == -1 and ScreenY == -1 and Normal == tensor<long double>(3);
+	}
+
+	Point__& operator=(const Point__& other)
+	{
+		if (this != &other) {
+			ScreenX = other.ScreenX;
+			ScreenY = other.ScreenY;
+			Normal = other.Normal;
+			x = other.x;
+			y = other.y;
+			z = other.z;
+		}
+		ret *this;
+	}
+
+	tensor<long double> SetNormalVector(factor<> dfx, factor<> dfy)
+	{
+		Normal(3);
+		Normal[0] = dfx({ x, y });
+		Normal[1] = dfy({ x, y });
+		Normal[2] = 1;
+
+		long double norm{ hypot(Normal[0], Normal[1], Normal[2]) };
+		for (auto& component : Normal) component /= norm;
+		ret Normal;
+	}
+
+	void Display(int width, COLORREF color)
+	{
+		if (ScreenX == -1 or ScreenY == -1)
+			ProjectPoint({ x, y, z }, ScreenX, ScreenY);
+		
+		int w2{ width / 2 };
+		for (int i = -w2; i < width - w2; ++i)
+			for (int j = -w2; j < width - w2; ++j)
+				SetPixel(GHDC, ScreenX, ScreenY, color);
+	}
+
+	void StdDisplay
+	(factor<> fx, factor<> dfx, factor<> dfy, tensor<long double> light)
+	{
+		Point__ P{ fx, x, y };
+		auto normal{ P.SetNormalVector(dfx, dfy) };
+		auto dot{
+			normal[0] * light[0] + normal[1] * light[1] + normal[2] * light[2]
+		};
+
+		int RgbValue = clamp(int(255 * dot), 0, 255);
+		P.Display(2, RGB(RgbValue, RgbValue, RgbValue));
+	}
+};
+static void DrawLine(Point__ P1, Point__ P2, HPEN hpen);
+
+// dati
+class NumberData
+{
+public:
+	ptrdiff_t number{};
+	wstring code;
+	int degree{};
+	wstring expression;
+	tensor<ptrdiff_t> sequence;
+	divisor div;
+	digitRatio digit;
+
+	NumberData() = default;
+	NumberData(
+		ptrdiff_t num,
+		const wstring& c,
+		int deg,
+		const wstring& expr,
+		const tensor<ptrdiff_t>& seq,
+		const divisor& d,
+		const digitRatio& dr
+	) :
+		number(num),
+		code(c),
+		degree(deg),
+		expression(expr),
+		sequence(seq),
+		div(d),
+		digit(dr)
+	{}
+
+	void printf()
+	{
+		setlocale(LC_ALL, "");
+		SetConsoleOutputCP(CP_UTF8);
+		SetConsoleCP(CP_UTF8);
+		wcout.imbue(locale(""));
+
+		// stampa numero
+		if (PRINTN) {
+			wcout << L"numero " << number << L":\n";
+			SetConsoleTextAttribute(hConsole, 2);
+			wcout << L"in esadecimale è " << hex << uppercase;
+			wcout << number << L'\n' << dec << nouppercase;
+			if (number - 1 < PrimeNumbers.list_primes) {
+				wcout << L"Numero Primo #" << number << L" = ";
+				wcout << PrimeNumbers.list_primes[number - 1] << L'\n';
+			}
+		}
+
+		// stampa dati cifre
+		else if (number >= 10) {
+
+			// stampa numero
+			if (
+				digit.digitSumRatioNum == 0 and
+				digit.digitProductRatioNum == 0
+				) ret;
+			wcout << L"numero " << number << L":\n";
+			SetConsoleTextAttribute(hConsole, 2);
+			wcout << L"in esadecimale è " << hex << uppercase;
+			wcout << number << L'\n' << dec << nouppercase;
+			if (number - 1 < PrimeNumbers.list_primes) {
+				wcout << L"Numero Primo #" << number << L" = ";
+				wcout << PrimeNumbers.list_primes[number - 1] << L'\n';
+			}
+			SetConsoleTextAttribute(hConsole, 13);
+
+			// stampa somma cifre
+			if (digit.digitSumRatioNum != 0) {
+				wcout << L"la somma delle cifre è ";
+				wcout << L'(' << digit.digitSumRatioNum;
+				wcout << L'/' << digit.digitSumRatioDen;
+				wcout << L")x\n";
+			}
+
+			// stampa prodotto cifre
+			if (digit.digitProductRatioNum != 0) {
+				wcout << L"il prodotto delle cifre è ";
+				if (digit.digitProductRatioDen != 1) wcout << L'(';
+				wcout << digit.digitProductRatioNum;
+				if (digit.digitProductRatioDen != 1) {
+					wcout << L'/';
+					wcout << digit.digitProductRatioDen;
+					wcout << L')';
+				}
+				wcout << L"x\n";
+			}
+		}
+
+		// stampa stringa
+		if (!code.empty()) {
+			SetConsoleTextAttribute(hConsole, 12);
+			wcout << L"il codice è <" << code << L">\n";
+		}
+
+		// stampa grado e sequenza
+		if (degree != 0) {
+			SetConsoleTextAttribute(hConsole, 4);
+			wcout << L"il grado è " << degree << L'\n';
+			SetConsoleTextAttribute(hConsole, 3);
+			wcout << L"la sequenza del grado è :\n(";
+			for (size_t i = 0; i < sequence.size() - 1; ++i)
+				wcout << sequence[i] << L", ";
+			wcout << sequence.last() << L")\n";
+		}
+
+		if (!expression.empty()) {
+
+			// se il numero è primo
+			if (PrimeNumbers.is_prime[number]) {
+				SetConsoleTextAttribute(hConsole, 240);
+				wcout << L"il numero è primo";
+				ResetAttribute();
+				wcout << L'\n';
+			}
+
+			// altrimenti stampa scomposizione
+			else {
+				SetConsoleTextAttribute(hConsole, 11);
+				wcout << L"la fattorizzazione è ";
+				wcout << expression << L'\n';
+				if (div.DivNumber != 1) {
+					SetConsoleTextAttribute(hConsole, 8);
+
+					// stampa numero divisori
+					wcout << L"il numero dei divisori è ";
+					wcout << div.DivNumber << L'\n';
+
+					// stampa somma divisori
+					wcout << L"la somma dei divisori è ";
+					wcout << div.DivSum << L'\n';
+
+					// stampa prodotto divisori
+					wcout << L"il prodotto dei divisori è ";
+					if (div.DivProduct != 1) wcout << div.DivProduct << L'\n';
+					else wcout << div.Div_pr << L'\n';
+				}
+			}
+
+		}
+		ResetAttribute();
+	}
+};
+class NumberDataTensor : public tensor<NumberData>
+{
+private:
+	void heapify(int n, int i)
+	{
+		int largest{ i };
+		int left{ 2 * i + 1 };
+		int right{ 2 * i + 2 };
+		if (left < n and this->at(left).number > this->at(largest).number)
+			largest = left;
+		if (right < n and this->at(right).number > this->at(largest).number)
+			largest = right;
+		if (largest != i) {
+			iter_swap(this->begin() + i, this->begin() + largest);
+			heapify(n, largest);
+		}
+	}
+public:
+	NumberDataTensor() : tensor<NumberData>() {}
+	NumberDataTensor(initializer_list<NumberData> init) :
+		tensor<NumberData>(init)
+	{}
+
+	void printf()
+	{
+		for (auto& data : *this) data.printf();
+	}
+	void HeapSort()
+	{
+		int n = this->size();
+		for (ptrdiff_t i = n / 2 - 1; i >= 0; --i) heapify(n, i);
+		for (ptrdiff_t i = n - 1; i > 0; --i) {
+			iter_swap(this->begin(), this->begin() + i);
+			heapify(i, 0);
+		}
+	}
+};
+
 // tensori
 tensor<wstring> commands{
 	L"cc" ,
@@ -3030,7 +3125,7 @@ static void SetDebug(wstring message, switchcase& opt, bool& Return,
 static void SendCtrlPlusMinus(bool plus);
 static void MonitorConsoleSize(COORD min, atomic_bool& runMonitor);
 static void UserInputThread();
-static void DrawLine(int firstX, int firstY, int secondX, int secondY, HPEN Hpen);
+static void DrawAxis(double pInc, double vInc);
 static LRESULT CALLBACK WindowProcessor2D(
 	HWND hwnd,
 	UINT uMsg,
@@ -3038,9 +3133,6 @@ static LRESULT CALLBACK WindowProcessor2D(
 	LPARAM lParam
 );
 static void CreateGraph(FACTOR<> num, FACTOR<> den);
-static void ProjectPoint
-(RECT client, tensor<double> point, int& pointX, int& pointY);
-static void ProjectAndDrawLine(tensor<double> start, tensor<double> end, HPEN Hpen);
 static LRESULT CALLBACK WindowProcessor3D(
 	HWND hwnd,
 	UINT uMsg,
@@ -3278,7 +3370,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.1.5 ";
+			wcout << L"1.1.8 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -3881,7 +3973,7 @@ static void DrawFrame
 		coord.Y += centerY;
 
 		SetConsoleCursorPosition(hConsole, coord);
-		WORD colour{ 15 };
+		WORD Color{ 15 };
 
 		// generatore casuale numeri
 		random_device rng;
@@ -3895,10 +3987,10 @@ static void DrawFrame
 		int DisGen{ Dis(Gen) };
 
 		// assegnazione colori
-		for (size_t j = 0; j < spectrum; ++j) if (DisGen == j) colour = spectrum[j];
+		for (size_t j = 0; j < spectrum; ++j) if (DisGen == j) Color = spectrum[j];
 
 		// stampa
-		SetConsoleTextAttribute(hConsole, colour);
+		SetConsoleTextAttribute(hConsole, Color);
 		wcout << dis(gen);
 	}
 }
@@ -4291,31 +4383,29 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 				if (system and c == 60) { // F2
 					if (FractionNumerators.empty()) break;
 					TensorIndex--;
-					if (TensorIndex < 0) TensorIndex = FractionNumerators.size() - 1;
+					if (TensorIndex < 0)
+						TensorIndex = FractionNumerators.size() - 1;
 					Ncopy = numerator = FractionNumerators[TensorIndex];
 					Dcopy = denominator = FractionDenominators[TensorIndex];
 					break;
 				}
 				else if (system) break;
 
-				// calcolo differenza in più
-				auto copy{ E_Vel };
-				copy.erase(0, E_Vel.size() - diff);
-				int new_diff{ (int)vel.size() - diff };
-				for (const auto& ch : copy)
-					if (CFSuperScript(wstring(1, ch)) != wstring(1, ch))
-						new_diff--;
 
 				// aggiunta carattere
 				if (!arrow) {
+
+					// calcolo differenza in più
+					auto copy{ E_Vel };
+					copy.erase(0, E_Vel.size() - diff);
+					int new_diff{ (int)vel.size() - diff };
+					for (const auto& ch : copy)
+						if (CFSuperScript(wstring(1, ch)) != wstring(1, ch))
+							new_diff--;
+
 					if (new_diff < 0) new_diff = 0;
-					auto first{ vel };
-					auto second{ vel };
-					first.erase(new_diff);
-					second.erase(0, new_diff);
-					first += c;
 					vel = vel.substr(0, new_diff) + wstring(1, c)
-						+ vel.substr(new_diff, vel.size() - 1);
+						+ vel.substr(new_diff, vel.size());
 
 					if (IsTheCursorAtStart) numerator = vel;
 					else denominator = vel;
@@ -4881,9 +4971,9 @@ static void UserInputThread()
 
 #pragma endregion
 
-// funzioni per creare delle finestre e gestirle
-#pragma region Windows
+#pragma region BasicWindows
 
+RECT ClientRect;
 namespace WindowData
 {
 	enum states{
@@ -4893,11 +4983,13 @@ namespace WindowData
 		A_FLX,
 		D_FLX
 	};
+
 	LPARAM Coords{}, Current{};
 	tensor<FACTOR<>> FNumerators, FDenominators;
 	tensor<int> Colors;
 	tensor<tensor<int>> States;
 	tensor<tensor<long double>> StationaryPointsX, StationaryPointsY;
+
 	bool enable{ false };
 	int shiftX{}, shiftY{};
 	double Zoom{ 1 };
@@ -4906,16 +4998,20 @@ namespace WindowData
 namespace Window3Data
 {
 	tensor<int> Light{ 0, 0, -1 };
+	double Zoom{ 1 };
+	bool enable{ false };
+
+	LPARAM Coords{}, Current{};
 	factor<> Function, PartialXder, PartialYder;
 	auto Theta{ M_PI / 4 };
 	auto Phi{ M_PI / 3 };
+
 	#define X2D(X, Y, Z) OriginX + (X) * cos(Theta) + (Y) * sin(Theta)
 	#define Y2D(X, Y, Z) OriginY - \
 	((Z) * sin(Phi) - (X) * sin(Theta) * cos(Phi) + (Y) * cos(Theta) * cos(Phi))
 };
 
 // funzione per disegnare una linea
-HDC GHDC;
 static void DrawLine(int firstX, int firstY, int secondX, int secondY, HPEN Hpen)
 {
 	SelectObject(GHDC, Hpen);
@@ -4923,6 +5019,157 @@ static void DrawLine(int firstX, int firstY, int secondX, int secondY, HPEN Hpen
 	LineTo(GHDC, secondX, secondY);
 	DeleteObject(Hpen);
 }
+
+// funzione per disegnare una linea avendo due punti
+static void DrawLine(Point__ P1, Point__ P2, HPEN hpen)
+{
+	SelectObject(GHDC, hpen);
+	MoveToEx(GHDC, P1.GetScreenX(), P1.GetScreenY(), NULL);
+	LineTo(GHDC, P2.GetScreenX(), P2.GetScreenY());
+	DeleteObject(hpen);
+}
+
+// funzione per calcolare l'incremento dei valori e dei pixel
+static void IncrementCalculator(double zoom, double& pInc, double& vInc)
+{
+	// calcolo ordine di grandezza
+	bool less;
+	double comparator{ 1 };
+	vInc = zoom;
+	do (less = comparator < vInc) ? comparator *= 10 : comparator /= 10;
+	while (comparator < vInc == less);
+	less ? comparator /= 10 : comparator *= 10;
+
+	// approssimazione
+	if (vInc <= comparator) vInc = comparator;
+	else if (vInc <= 4 * comparator) vInc = 2 * comparator;
+	else vInc = 5 * comparator;
+	pInc = 20 * vInc / zoom;
+	if (pInc > 100) {
+		pInc /= 10;
+		vInc /= 10;
+	}
+	else if (pInc < 10) {
+		pInc *= 10;
+		vInc *= 10;
+	}
+}
+
+// funzione per proiettare un punto in 2 dimensioni
+static void ProjectPoint(tensor<double> point, int& pointX, int& pointY)
+{
+	using namespace Window3Data;
+
+	Phi += M_PI / 2;
+	Matrix<> Rotation{
+		{ cos(Theta), -sin(Theta), 0 },
+		{ sin(Theta) * sin(Phi), cos(Theta) * sin(Phi), cos(Phi) },
+		{ sin(Theta) * cos(Phi), cos(Theta) * cos(Phi), -sin(Phi) }
+	};
+	Phi -= M_PI / 2;
+
+	auto Projection{ Rotation * point };
+	pointX = Projection[0] * 20 / Zoom + ClientRect.right / 2;
+	pointY = Projection[1] * 20 / Zoom + ClientRect.bottom / 2;
+}
+
+// funzione per proiettare una retta dallo spazio sullo schermo
+static void ProjectAndDrawLine(tensor<double> start, tensor<double> end, HPEN Hpen)
+{
+	int p1x, p1y, p2x, p2y;
+	ProjectPoint(start, p1x, p1y);
+	ProjectPoint(end, p2x, p2y);
+	DrawLine(p1x, p1y, p2x, p2y, Hpen);
+}
+
+// funzione per disegnare 3 assi
+static void DrawAxis(double pInc, double vInc)
+{
+	using namespace Window3Data;
+	int OriginX{ ClientRect.right / 2 }, OriginY{ ClientRect.bottom / 2 };
+	const int MarkLenght{ 3 };
+	
+	// Disegno assi completi
+	tensor<int> pixelX, pixelY;
+	tensor<wstring> PixelValues;
+	for (int i = 0; i < 3; ++i) {
+		double point_pos[3]{}, point_neg[3]{};
+		double Value{ 300 };
+
+		point_pos[i] = i == 1 ? -Value : Value;
+		point_neg[i] = i == 1 ? Value : -Value;
+
+		// calcolo punti
+		int X1 = X2D(point_pos[0], point_pos[1], point_pos[2]);
+		int Y1 = Y2D(point_pos[0], point_pos[1], point_pos[2]);
+		int X2 = X2D(point_neg[0], point_neg[1], point_neg[2]);
+		int Y2 = Y2D(point_neg[0], point_neg[1], point_neg[2]);
+
+		// calcolo colore
+		auto color{
+			RGB(
+				abs(point_pos[0]) / 100 * 255,
+				abs(point_pos[2]) / 100 * 255,
+				abs(point_pos[1]) / 100 * 255,
+			)
+		};
+
+		// output assi
+		LOGBRUSH lb;
+		lb.lbStyle = BS_SOLID;
+		lb.lbColor = color;
+		lb.lbHatch = 0;
+		HPEN UsedPen = ExtCreatePen(PS_DOT, 1, &lb, 0, NULL);
+		DrawLine(X1, Y1, OriginX, OriginY, CreatePen(PS_SOLID, 1, color));
+		DrawLine(OriginX, OriginY, X2, Y2, UsedPen);
+
+		// output valori degli assi
+		auto Pxf{ X2 - OriginX };
+		auto Pyf{ Y2 + OriginY };
+		auto hyp{ hypot(X2 - OriginX, Y2 + OriginY) };
+		double _x{};
+		for (double pixel = 0; pixel < hyp; pixel += pInc) {
+			
+			// calcolo coordinate del punto
+			auto y = Pxf == 0 ? pInc : pixel * pow(double(Pyf) / Pxf, 2) - 1;
+			auto x{ sqrt(fabs(pInc - y)) };
+			y = sqrt(fabs(y));
+			if (y > 0 != Pyf > 0) y = -y;
+			if (x > 0 != Pxf > 0) y = -y;
+
+			// push
+			auto X{ to_wstring(x) };
+			while (Last(X) == L'0') X.pop_back();
+			if (Last(X) == L',') X.pop_back();
+			pixelX << OriginX + x << OriginX - x;
+			pixelY << OriginY - y << OriginY + y;
+			PixelValues << X << L"-" + X;
+
+			// output tratti degli assi
+			auto Angle{ atan(-double(Pxf) / Pyf) };
+			auto cX{ MarkLenght * cos(Angle) };
+			auto cY{ MarkLenght * sin(Angle) };
+			DrawLine(
+				OriginX + x + cX,
+				OriginY - y - cY,
+				OriginX + x - cX,
+				OriginY - y + cY,
+				UsedPen
+			);
+
+			_x += vInc;
+		}
+
+		// nome asse
+		wstring name{ wstring(1, L'x' + i) };
+		TextOut(GHDC, X1, Y1, name.c_str(), name.size());
+	}
+}
+
+#pragma endregion
+
+// funzioni per creare delle finestre e gestirle
+#pragma region Windows
 
 // funzione per elaborare gli input della finestra del grafico a una variabile
 static LRESULT CALLBACK WindowProcessor2D(
@@ -4953,18 +5200,18 @@ static LRESULT CALLBACK WindowProcessor2D(
 		// pressione tasto sinistro
 	case WM_LBUTTONDOWN:
 		enable = true;
-		Current = Coords = lParam;
+		WindowData::Current = Coords = lParam;
 		ret 0;
 
 		// rilascio tasto sinistro
 	case WM_LBUTTONUP:
 		enable = false;
-		Current = lParam;
+		WindowData::Current = lParam;
 		ret 0;
 
 		// traslazione
 	case WM_MOUSEMOVE: {
-		Current = lParam;
+		WindowData::Current = lParam;
 		if (!enable) break;
 		int OldXpos = (short)LOWORD(Coords), OldYpos = (short)HIWORD(Coords);
 		int xPos = (short)LOWORD(lParam) , yPos = (short)HIWORD(lParam);
@@ -4986,7 +5233,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 			if (Zoom > 0.00001 and !decrease) Zoom /= amount;
 		}
 	}
-		Current = lParam;
+		WindowData::Current = lParam;
 		InvalidateRect(hwnd, NULL, TRUE);
 		ret 0;
 
@@ -5015,9 +5262,9 @@ static LRESULT CALLBACK WindowProcessor2D(
 			break;
 		case 'S': shiftY -= 10;
 			break;
-		case 187: if (Zoom < 10000000) Zoom *= 1.2;
+		case 189: if (Zoom < 10000000) Zoom *= 1.2;
 			break;
-		case 189: if (Zoom > 0.00001) Zoom /= 1.2;
+		case 187: if (Zoom > 0.00001) Zoom /= 1.2;
 			break;
 		default: ret DefWindowProc(hwnd, uMsg, wParam, lParam);
 		}
@@ -5053,28 +5300,9 @@ static LRESULT CALLBACK WindowProcessor2D(
 			L"Consolas"
 		);
 		HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
-
-		// calcolo ordine di grandezza
-		bool less;
-		double comparator{ 1 }, ValueIncrement{ Zoom };
-		do (less = comparator < ValueIncrement) ? comparator *= 10 : comparator /= 10;
-		while (comparator < ValueIncrement == less);
-		less ? comparator /= 10 : comparator *= 10;
-
-		// approssimazione
-		if (ValueIncrement <= comparator) ValueIncrement = comparator;
-		else if (ValueIncrement <= 4 * comparator) ValueIncrement = 2 * comparator;
-		else ValueIncrement = 5 * comparator;
-		double PixelIncrement{ 20 * ValueIncrement / Zoom };
-		if (PixelIncrement > 100) {
-			PixelIncrement /= 10;
-			ValueIncrement /= 10;
-		}
-		else if (PixelIncrement < 10) {
-			PixelIncrement *= 10;
-			ValueIncrement *= 10;
-		}
-
+		double ValueIncrement, PixelIncrement;
+		IncrementCalculator(Zoom, PixelIncrement, ValueIncrement);
+		
 		// calcolo valori e posizioni dei numeri degli assi
 		tensor<int> NumbersX, NumbersY;
 		tensor<wstring> ValsX, ValsY;
@@ -5083,7 +5311,11 @@ static LRESULT CALLBACK WindowProcessor2D(
 		double x{};
 
 		// output valori di riferimento asse x positivo
-		for (int pixel = OriginX; pixel < client.right; pixel += PixelIncrement)
+		for (
+			int pixel = OriginX;
+			pixel < client.right;
+			pixel += PixelIncrement
+			)
 		{
 			HPEN hpen;
 			DrawLine(
@@ -5095,13 +5327,13 @@ static LRESULT CALLBACK WindowProcessor2D(
 			while (Last(X) == L'0') X.pop_back();
 			if (Last(X) == L',') X.pop_back();
 			GetTextExtentPoint32(hdc, X.c_str(), X.size(), &TextSize);
-			if (OldPixelValue + OldTextSize.cx / 2 - pixel + TextSize.cx / 2 + 10 < 0)
+			if (OldPixelValue + OldTextSize.cx / 2
+				- pixel + TextSize.cx / 2 + 10 < 0)
 			{
 				OldPixelValue = pixel;
 				OldTextSize = TextSize;
 				NumbersX << pixel - TextSize.cx / 2;
 				ValsX << X;
-				GetTextExtentPoint32(hdc, X.c_str(), X.size(), &TextSize);
 				hpen = CreatePen(PS_SOLID, 1, RGB(96, 96, 96));
 			}
 			else hpen = CreatePen(PS_DOT, 1, RGB(64, 64, 64));
@@ -5114,7 +5346,11 @@ static LRESULT CALLBACK WindowProcessor2D(
 		OldPixelValue = OriginX;
 		OldTextSize = TextSize = {};
 		x = -ValueIncrement;
-		for (int pixel = OriginX - PixelIncrement; pixel > 0; pixel -= PixelIncrement)
+		for (
+			int pixel = OriginX - PixelIncrement;
+			pixel > 0;
+			pixel -= PixelIncrement
+			)
 		{
 			HPEN hpen;
 			DrawLine(
@@ -5126,13 +5362,13 @@ static LRESULT CALLBACK WindowProcessor2D(
 			while (Last(X) == L'0') X.pop_back();
 			if (Last(X) == L',') X.pop_back();
 			GetTextExtentPoint32(hdc, X.c_str(), X.size(), &TextSize);
-			if (OldPixelValue - OldTextSize.cx / 2 - pixel - TextSize.cx / 2 - 10 > 0)
+			if (OldPixelValue - OldTextSize.cx / 2
+				- pixel - TextSize.cx / 2 - 10 > 0)
 			{
 				OldPixelValue = pixel;
 				OldTextSize = TextSize;
 				NumbersX << pixel - TextSize.cx / 2;
 				ValsX << X;
-				GetTextExtentPoint32(hdc, X.c_str(), X.size(), &TextSize);
 				hpen = CreatePen(PS_SOLID, 1, RGB(96, 96, 96));
 			}
 			else hpen = CreatePen(PS_DOT, 1, RGB(64, 64, 64));
@@ -5145,7 +5381,11 @@ static LRESULT CALLBACK WindowProcessor2D(
 		OldPixelValue = OriginY;
 		OldTextSize = TextSize = {};
 		double y{ ValueIncrement };
-		for (int pixel = OriginY - PixelIncrement; pixel > 0; pixel -= PixelIncrement)
+		for (
+			int pixel = OriginY - PixelIncrement;
+			pixel > 0;
+			pixel -= PixelIncrement
+			)
 		{
 			HPEN hpen;
 			DrawLine(
@@ -5157,13 +5397,13 @@ static LRESULT CALLBACK WindowProcessor2D(
 			while (Last(Y) == L'0') Y.pop_back();
 			if (Last(Y) == L',') Y.pop_back();
 			GetTextExtentPoint32(hdc, Y.c_str(), Y.size(), &TextSize);
-			if (pixel - OldTextSize.cy / 2 - OldPixelValue - TextSize.cy / 2 < 0)
+			if (pixel - OldTextSize.cy / 2
+				- OldPixelValue - TextSize.cy / 2 < 0)
 			{
 				OldPixelValue = pixel;
 				OldTextSize = TextSize;
 				NumbersY << pixel - TextSize.cy / 2;
 				ValsY << Y;
-				GetTextExtentPoint32(hdc, Y.c_str(), Y.size(), &TextSize);
 				hpen = CreatePen(PS_SOLID, 1, RGB(96, 96, 96));
 			}
 			else hpen = CreatePen(PS_DOT, 1, RGB(64, 64, 64));
@@ -5192,13 +5432,13 @@ static LRESULT CALLBACK WindowProcessor2D(
 			while (Last(Y) == L'0') Y.pop_back();
 			if (Last(Y) == L',') Y.pop_back();
 			GetTextExtentPoint32(hdc, Y.c_str(), Y.size(), &TextSize);
-			if (OldPixelValue + OldTextSize.cy / 2 - pixel + TextSize.cy / 2 < 0)
+			if (OldPixelValue + OldTextSize.cy / 2
+				- pixel + TextSize.cy / 2 < 0)
 			{
 				OldPixelValue = pixel;
 				OldTextSize = TextSize;
 				NumbersY << pixel - TextSize.cy / 2;
 				ValsY << Y;
-				GetTextExtentPoint32(hdc, Y.c_str(), Y.size(), &TextSize);
 				hpen = CreatePen(PS_SOLID, 1, RGB(96, 96, 96));
 			}
 			else hpen = CreatePen(PS_DOT, 1, RGB(64, 64, 64));
@@ -5217,8 +5457,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 		// calcolo punti della funzione
 		for (size_t i = 0; i < FNumerators; ++i) {
 			bool write{ false }, Oldwrite{ write }, enable{ true };
-			tensor<int> Xcoord, Ycoord;
-			tensor<int> asintothes;
+			tensor<int> Xcoord, Ycoord, asintothes;
 
 			for (
 				double __x = (-client.right / 2 - shiftX) * Zoom / 20;
@@ -5281,7 +5520,8 @@ static LRESULT CALLBACK WindowProcessor2D(
 		tensor<wstring> PriorityLabels;
 		tensor<int> PriorityLabelsX, PriorityLabelsY;
 		tensor<int> PriorityLabelsCenterX, PriorityLabelsCenterY;
-		int cursorX = (short)LOWORD(Current), cursorY = (short)HIWORD(Current);
+		int cursorX = (short)LOWORD(WindowData::Current);
+		int cursorY = (short)HIWORD(WindowData::Current);
 		for (size_t i = 0; i < States; ++i) for (size_t j = 0; j < States[i]; ++j)
 		{
 
@@ -5336,7 +5576,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 			if (PriorityLabels.empty()) continue;
 			
 			// calcolo messaggio selezionato
-			int MinRadius{ -1 }, MinRadiusIndex;
+			int MinRadius{ -1 }, MinRadiusIndex{};
 			for (size_t j = 0; j < PriorityLabels; ++j) {
 				int radius = hypot(
 					cursorX - PriorityLabelsCenterX[j],
@@ -5503,46 +5743,10 @@ static void CreateGraph(FACTOR<> num, FACTOR<> den)
 
 	// ciclo dei messaggi
 	MSG msg{};
-	while (GetMessage(&msg, NULL, 0, 0))
-	{
+	while (GetMessage(&msg, NULL, 0, 0)) {
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
-}
-
-// funzione per proiettare un punto in 2 dimensioni
-static void ProjectPoint
-(RECT client, tensor<double> point, int& pointX, int& pointY)
-{
-	using namespace Window3Data;
-
-	Phi += M_PI / 2;
-	Matrix<> Rotation{
-		{ cos(Theta), -sin(Theta), 0 },
-		{ sin(Theta) * sin(Phi), cos(Theta) * sin(Phi), cos(Phi) },
-		{ sin(Theta) * cos(Phi), cos(Theta) * cos(Phi), -sin(Phi) }
-	};
-	Phi -= M_PI / 2;
-
-	auto Projection{ Rotation * point };
-	pointX = Projection[0] * 20;
-	pointY = Projection[1] * 20;
-}
-
-// funzione per proiettare una retta dallo spazio sullo schermo
-RECT ClientRect;
-static void ProjectAndDrawLine(tensor<double> start, tensor<double> end, HPEN Hpen)
-{
-	int p1x, p1y, p2x, p2y;
-	ProjectPoint(ClientRect, start, p1x, p1y);
-	ProjectPoint(ClientRect, end, p2x, p2y);
-	DrawLine(
-		ClientRect.right / 2 + p1x,
-		ClientRect.bottom / 2 + p1y,
-		ClientRect.right / 2 + p2x,
-		ClientRect.bottom / 2 + p2y,
-		Hpen
-	);
 }
 
 // funzione per elaborare gli input della finestra del grafico a due variabili
@@ -5558,23 +5762,86 @@ static LRESULT CALLBACK WindowProcessor3D(
 	{
 
 		// finestra chiusa
-	case WM_DESTROY: PostQuitMessage(0);
+	case WM_DESTROY:
+		Zoom = 1;
+		PostQuitMessage(0);
 		ret 0;
 
 		// finestra ridimensionata
 	case WM_SIZE: InvalidateRect(hwnd, NULL, TRUE);
 		ret 0;
 
+		// pressione tasto sinistro
+	case WM_LBUTTONDOWN:
+		enable = true;
+		Window3Data::Current = Coords = lParam;
+		ret 0;
+
+		// rilascio tasto sinistro
+	case WM_LBUTTONUP:
+		enable = false;
+		Window3Data::Current = lParam;
+		ret 0;
+
+		// traslazione
+	case WM_MOUSEMOVE: {
+		
+		// premesse
+		Window3Data::Current = lParam;
+		if (!enable) break;
+		int OldXpos = (short)LOWORD(Coords), OldYpos = (short)HIWORD(Coords);
+		int xPos = (short)LOWORD(lParam), yPos = (short)HIWORD(lParam);
+		
+		// calcolo angoli nuovi
+		long double radius{
+			hypot(OldXpos - ClientRect.right / 2, OldYpos - ClientRect.bottom / 2)
+		};
+		Theta += 2 * asin((OldXpos - xPos) / (2 * radius));
+		Phi += 2 * asin((OldYpos - yPos) / (2 * radius));
+		
+		// controlli
+		if (Theta < 0) Theta += 2 * M_PI;
+		if (Theta > 2 * M_PI) Theta -= 2 * M_PI;
+		if (Phi < 0) Phi += 2 * M_PI;
+		if (Phi > 2 * M_PI) Phi -= 2 * M_PI;
+
+		Coords = lParam;
+		InvalidateRect(hwnd, NULL, TRUE);
+		ret 0;
+	}
+
+		// zoom
+	case WM_MOUSEWHEEL: {
+		int WheelData = GET_WHEEL_DELTA_WPARAM(wParam) / 120;
+		bool decrease{ WheelData < 0 };
+		double amount = (GetKeyState(VK_MENU) & 0x8000) != 0 ? 3 : 1.2;
+		WheelData = abs(WheelData);
+		for (int i = 0; i < WheelData; ++i) {
+			if (Zoom < 10000000 and decrease) Zoom *= amount;
+			if (Zoom > 0.00001 and !decrease) Zoom /= amount;
+		}
+	}
+		Window3Data::Current = lParam;
+		InvalidateRect(hwnd, NULL, TRUE);
+		ret 0;
+
 	case WM_KEYDOWN:
 		switch (wParam)
 		{
+
+			// invio
 		case 13:
 			DestroyWindow(hwnd);
 			ret 0;
+
+			// reset
 		case 'R':
 			Theta = M_PI / 4;
 			Phi = M_PI / 3;
+			Zoom = 1;
 			break;
+
+			// movimento
 		case 'A':
 			Theta += M_PI / 36;
 			if (Theta < 0) Theta += 2 * M_PI;
@@ -5595,6 +5862,13 @@ static LRESULT CALLBACK WindowProcessor3D(
 			if (Phi < 0) Phi += 2 * M_PI;
 			if (Phi > 2 * M_PI) Phi -= 2 * M_PI;
 			break;
+
+			// zoom
+		case 189: if (Zoom < 10000000) Zoom *= 1.2;
+			break;
+		case 187: if (Zoom > 0.00001) Zoom /= 1.2;
+			break;
+
 		default: ret 0;
 		}
 		InvalidateRect(hwnd, NULL, TRUE);
@@ -5628,77 +5902,78 @@ static LRESULT CALLBACK WindowProcessor3D(
 			L"Consolas"
 		);
 		HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
-		int OriginX{ client.right / 2 }, OriginY{ client.bottom / 2 };
-		
-		// Disegno assi completi
-		for (int i = 0; i < 3; ++i) {
-			double point_pos[3]{}, point_neg[3]{};
 
-			point_pos[i] = i == 1 ? -300 : 300;
-			point_neg[i] = i == 1 ? 300 : -300;
+		double PixelIncrement, ValueIncrement;
+		IncrementCalculator(Zoom, PixelIncrement, ValueIncrement);
+		DrawAxis(PixelIncrement, ValueIncrement);
 
-			// calcolo punti
-			int X1 = X2D(point_pos[0], point_pos[1], point_pos[2]);
-			int Y1 = Y2D(point_pos[0], point_pos[1], point_pos[2]);
-			int X2 = X2D(point_neg[0], point_neg[1], point_neg[2]);
-			int Y2 = Y2D(point_neg[0], point_neg[1], point_neg[2]);
+		// calcolo dei vertici dei quadrilateri
+		tensor<tensor<Point__>> mesh;
+		for (double x = -15 * Zoom; x < 15 * Zoom; x += 0.5 * Zoom)
+		{
+			tensor<Point__> points;
+			for (double y = -15 * Zoom; y < 15 * Zoom; y += 0.5 * Zoom) {
+				Point__ P{ Function, x, y };
 
-			// calcolo colore
-			auto color{
-				RGB(
-					abs(point_pos[0]) / 100 * 255,
-					abs(point_pos[2]) / 100 * 255,
-					abs(point_pos[1]) / 100 * 255,
-				)
-			};
-
-			// output assi
-			LOGBRUSH lb;
-			lb.lbStyle = BS_SOLID;
-			lb.lbColor = color;
-			lb.lbHatch = 0;
-			DrawLine(X1, Y1, OriginX, OriginY, CreatePen(PS_SOLID, 1, color));
-			DrawLine(
-				OriginX, OriginY, X2, Y2, ExtCreatePen(PS_DOT, 1, &lb, 0, NULL)
-			);
-
-			// nome asse
-			wstring name{ wstring(1, L'x' + i) };
-			TextOut(hdc, X1, Y1, name.c_str(), name.size());
+				if (P.GetScreenY() < 0 or P.GetScreenY() > client.bottom) {
+					points << Point__();
+					continue;
+				}
+				P.SetNormalVector(PartialXder, PartialYder);
+				points << P;
+			}
+			mesh << points;
 		}
-
-		// disegno della funzione
-		tensor<tensor<int>> vertices;
-		for (double x = -15; x < 15; x += 0.5)
-			for (double y = -15; y < 15; y += 0.5)
+		
+		// output quadrilateri
+		for (size_t i = 0; i < mesh.size() - 1; ++i)
+			for (size_t j = 0; j < mesh[i].size() - 1; ++j)
 			{
-				int RgbValue{ 255 };
 
-				// calcolo coordinate punto
-				int X, Y;
-				auto z = Function({ x, y });
-				ProjectPoint(client, { x, y, double(z) }, X, Y);
+				// esclusione di punti in più
+				tensor<Point__> square{
+					mesh[i][j], mesh[i][j + 1], mesh[i + 1][j], mesh[i + 1][j + 1]
+				};
+				for (const auto& P : square) if (P.Void()) continue;
 
-				// calcolo vettore normale
-				tensor<long double> normal(3);
-				normal[0] = PartialXder({ x, y });
-				normal[1] = PartialYder({ x, y });
-				normal[2] = 1;
+				// vettori normali dei punti
+				auto ii{ square[0].GetNormalVector() };
+				auto ij{ square[1].GetNormalVector() };
+				auto ji{ square[2].GetNormalVector() };
+				auto jj{ square[3].GetNormalVector() };
 
-				// calcolo illuminazione
-				long double norm{ hypot(normal[0], normal[1], normal[2]) };
-				for (auto& component : normal) component /= norm;
-				RgbValue *= normal[2] * 5;
-				if (RgbValue > 255) RgbValue = 255;
-				if (RgbValue < 0) RgbValue = 0;
+				// calcolo vettore normale del quadrilatero
+				tensor<long double> Normal{
+					ii[0] + ij[0] + ji[0] + jj[0],
+					ii[1] + ij[1] + ji[1] + jj[1],
+					ii[2] + ij[2] + ji[2] + jj[2]
+				};
+				long double norm{ hypot(Normal[0], Normal[1], Normal[2]) };
+				for (auto& component : Normal) component /= norm;
+
+				// calcolo colore
+				tensor<double> light{ 0, 0, 1 };
+				auto dot{
+					Normal[0] * light[0] +
+					Normal[1] * light[1] +
+					Normal[2] * light[2]
+				};
+				int RgbValue = clamp(int(255 * dot), 0, 255);
+				if (RgbValue < 0) continue;
 
 				// output
-				SetPixel(
-					hdc, OriginX + X, OriginY + Y,
-					RGB(RgbValue, RgbValue, RgbValue)
+				DrawLine(
+					square[0], square[1],
+					CreatePen(PS_SOLID, 1, RGB(RgbValue, RgbValue, RgbValue))
+				);
+				DrawLine(
+					square[0], square[2],
+					CreatePen(PS_SOLID, 1, RGB(RgbValue, RgbValue, RgbValue))
 				);
 			}
-		
+
+		DrawAxis(PixelIncrement, ValueIncrement);
+
 		// fine disegno
 		EndPaint(hwnd, &ps);
 		ret 0;
@@ -5707,6 +5982,29 @@ static LRESULT CALLBACK WindowProcessor3D(
 	default: ret DefWindowProc(hwnd, uMsg, wParam, lParam);
 	}
 }
+
+/// nel grafico 3D:
+/// 
+/// debug valori degli assi
+/// estendi la funzione alle frazioni algebriche
+/// aggiungi i punti stazionari
+/// tieni conto della trasparenza-
+/// e delle linee tratteggiate
+/// aggiungi effetti per il colore
+/// sposta il calcolo sulla GPU
+/// 
+/// 
+/// nel grafico 2D:
+/// 
+/// sistema i messaggi di testo
+/// ottimizza l'aggiunta delle funzioni
+/// crea un'interfaccia per eliminare le funzioni-
+/// o per aggiungere le derivate
+/// 
+/// 
+/// altro:
+/// 
+/// debug delle disequazioni (specialmente se con tre o più termini)
 
 // funzione per creare la finestra del grafico a due variabili
 static void Project3DGraph(factor<> funct)
@@ -5744,8 +6042,7 @@ static void Project3DGraph(factor<> funct)
 
 	// ciclo dei messaggi
 	MSG msg{};
-	while (GetMessage(&msg, NULL, 0, 0))
-	{
+	while (GetMessage(&msg, NULL, 0, 0)) {
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
