@@ -1,4 +1,4 @@
-﻿// inizio del codice
+﻿// inizio del codice ---------------------------------------------------------------
 // ATTENZIONE: il codice del programma è molto avanzato
 // e deve essere eseguito in c++20 o c++23 e su Windows
 #pragma region Files
@@ -22,8 +22,6 @@
 #define POS false
 #define NEG true
 #define ret return
-#define FRIEND_BOOL_OPERATOR \
-template<typename U, typename = enable_if_t<is_integral_v<U>>> friend bool operator
 
 // funzioni macro
 #define _GetCursorPos() GetConsoleScreenBufferInfo(hConsole, &csbi)
@@ -91,7 +89,10 @@ IMPROVE OPT
 #include <utility>
 #include <Windows.h>
 
+#include "../tensor/tensor.cpp"
+
 // namespace globali
+#define stddef using namespace std;
 using namespace std;
 using namespace _STD chrono;
 using Concurrency::parallel_for, this_thread::sleep_for;
@@ -252,609 +253,8 @@ unordered_map<wstring, wstring> ConvertFromSuperScript{
 #pragma endregion
 #pragma region Classes
 
-namespace std_tensor
-{
-	wstring Variables;
-
-	// tensor, una variante ottimizzata di ::std::vector
-	template<class T>class tensor
-	{
-	protected:
-
-		// dati
-		T* data;
-		size_t capacity{ 10 };
-		size_t count{ 10 };
-	
-		// metodi privati
-		void resize(size_t new_capacity)
-		{
-			if (capacity > new_capacity) ret;
-			T* new_data = new T[new_capacity];
-			if (data != nullptr) {
-				for (size_t i = 0; i < count; ++i) new_data[i] = move(data[i]);
-				delete[] data;
-			}
-			data = new_data;
-			capacity = new_capacity;
-		}
-
-	public:
-
-		// costruttori e distruttori
-		tensor() : data(nullptr), capacity(0), count(0)
-		{
-			resize(10);
-		}
-		tensor(const tensor& other) : data(nullptr), capacity(0), count(0)
-		{
-			resize(other.count + 10);
-			count = other.count;
-			for (size_t i = 0; i < count; ++i) data[i] = other.data[i];
-		}
-		tensor(tensor&& other) noexcept:
-			data(other.data),
-			capacity(other.capacity),
-			count(other.count)
-		{
-			other.data = nullptr;
-			other.count = other.capacity = 0;
-		}
-		tensor(initializer_list<T> init) : tensor()
-		{
-			for (const T& value : init) push_back(value);
-		}
-		tensor(size_t size, const T& initial_value)
-			: data(nullptr), capacity(0), count(0)
-		{
-			resize(size + 10);
-			count = size;
-			fill(data, data + count, initial_value);
-		}
-		tensor(size_t size) : data(nullptr), capacity(0), count(0)
-		{
-			resize(size + 10);
-			count = size;
-		}
-		~tensor()
-		{
-			delete[] data;
-		}
-
-		// assegnazione
-		tensor& operator=(const tensor& other)
-		{
-			if (this != &other) {
-				resize(other.count + 10);
-				for (size_t i = 0; i < other.count; ++i) data[i] = other.data[i];
-				count = other.count;
-			}
-			ret *this;
-		}
-		tensor& operator=(tensor&& other) noexcept
-		{
-			if (this != &other) {
-				delete[] data;
-				data = other.data;
-				capacity = other.capacity;
-				count = other.count;
-				other.data = nullptr;
-				other.count = other.capacity = 0;
-			}
-			ret *this;
-		}
-		inline void assign(tensor<T> other)
-		{
-			*this = other;
-		}
-
-		// metodi di base
-		inline size_t size() const
-		{
-			ret count;
-		}
-		inline size_t get_capacity() const
-		{
-			ret capacity;
-		}
-		inline bool empty() const
-		{
-			ret count == 0;
-		}
-
-		// metodi di accesso agli elementi
-		inline T& at(size_t index)
-		{
-			if (index >= count) throw out_of_range("Index out of range");
-			ret data[index];
-		}
-		inline const T& at(size_t index) const
-		{
-			if (index >= count) throw out_of_range("Index out of range");
-			ret data[index];
-		}
-		inline T& last()
-		{
-			ret data[count - 1];
-		}
-		inline const T& last() const
-		{
-			ret data[count - 1];
-		}
-
-		// metodi di taglio
-		inline void clear()
-		{
-			count = 0;
-		}
-		tensor erase(size_t pos)
-		{
-			if (pos >= count) throw out_of_range("Index out of range");
-			count = pos;
-			ret *this;
-		}
-		tensor erase(size_t pos, size_t n)
-		{
-			if (pos >= count) throw out_of_range("Index out of range");
-			n = min(n, count - pos);
-			for (size_t i = pos; i < count - n; ++i) data[i] = move(data[i + n]);
-			count -= n;
-			ret *this;
-		}
-
-		// operatori di accesso agli elementi
-		_NODISCARD inline T& operator[](size_t index)
-		{
-			ret at(index);
-		}
-		_NODISCARD inline const T& operator[](size_t index) const
-		{
-			ret at(index);
-		}
-	
-		// operatori di modifica degli elementi e della dimensione
-		inline void push_back(const T& value)
-		{
-			if (count == capacity) resize(capacity * 2 + 1);
-			data[count++] = value;
-		}
-		inline void pop_back()
-		{
-			if (count == 0) throw out_of_range("Tensor is empty");
-			count--;
-		}
-		void push_front(const T& value)
-		{
-			if (count == capacity) resize(capacity * 2);
-			for (size_t i = count; i > 0; --i) data[i] = move(data[i - 1]);
-			data[0] = value;
-			count++;
-		}
-		void pop_front()
-		{
-			if (count == 0) throw out_of_range("Tensor is empty");
-			for (size_t i = 0; i < count - 1; ++i) data[i] = move(data[i + 1]);
-			count--;
-		}
-
-		// operatori di modifica della dimensione
-		inline tensor<T>& operator++()
-		{
-			push_front(T());
-			ret *this;
-		}
-		inline tensor<T> operator++(int)
-		{
-			auto temp{ *this };
-			push_back(T());
-			ret temp;
-		}
-		inline tensor<T>& operator--()
-		{
-			pop_front();
-			ret *this;
-		}
-		inline tensor<T> operator--(int)
-		{
-			auto temp{ *this };
-			pop_back();
-			ret temp;
-		}
-		inline tensor& operator-=(size_t n)
-		{
-			count = n > count ? 0 : count - n;
-			ret *this;
-		}
-
-		// operatori push
-		tensor& operator()(size_t n)
-		{
-			if (n >= count) resize(n * 2);
-			count = n;
-			ret *this;
-		}
-		tensor& operator()(size_t n, const T& value)
-		{
-			if (n >= count) resize(n * 2);
-			for (size_t i = count; i < n; ++i) data[i] = value;
-			count = n;
-			ret *this;
-		}
-		inline tensor& operator<<(const T& value)
-		{
-			push_back(value);
-			ret *this;
-		}
-		inline tensor& operator>>(const T& value)
-		{
-			push_front(value);
-			ret *this;
-		}
-
-		// operatori di uguaglianza
-		_NODISCARD bool operator==(const tensor& other) const
-		{
-			if (count != other.count) ret false;
-			for (size_t i = 0; i < count; ++i) if (data[i] != other.data[i])
-				ret false;
-			ret true;
-		}
-		_NODISCARD inline bool operator!=(const tensor& other) const
-		{
-			ret !(*this == other);
-		}
-
-		// operatori di concatenazione
-		_NODISCARD tensor operator+(const T value) const
-		{
-			auto result{ *this };
-			result.push_back(value);
-			ret result;
-		}
-		_NODISCARD tensor operator+(const tensor other) const
-		{
-			auto result{ *this };
-			result += other;
-			ret result;
-		}
-		tensor& operator+=(const tensor other)
-		{
-			for (size_t i = 0; i < other.count; ++i) push_back(other.data[i]);
-			ret *this;
-		}
-
-		// operatori di confronto tra tensori
-		_NODISCARD inline bool operator<(const tensor& other) const
-		{
-			ret count < other.count;
-		}
-		_NODISCARD inline bool operator<=(const tensor& other) const
-		{
-			ret count <= other.count;
-		}
-		_NODISCARD inline bool operator>(const tensor& other) const
-		{
-			ret count > other.count;
-		}
-		_NODISCARD inline bool operator>=(const tensor& other) const
-		{
-			ret count >= other.count;
-		}
-
-		// operatori di confronto a destra con un intero
-		FRIEND_BOOL_OPERATOR==(const tensor& t, U n)
-		{
-			ret t.count == static_cast<size_t>(n);
-		}
-		FRIEND_BOOL_OPERATOR!=(const tensor& t, U n)
-		{
-			ret t.count != static_cast<size_t>(n);
-		}
-		FRIEND_BOOL_OPERATOR<(const tensor& t, U n)
-		{
-			ret t.count < static_cast<size_t>(n);
-		}
-		FRIEND_BOOL_OPERATOR<=(const tensor& t, U n)
-		{
-			ret t.count <= static_cast<size_t>(n);
-		}
-		FRIEND_BOOL_OPERATOR>(const tensor& t, U n)
-		{
-			ret t.count > static_cast<size_t>(n);
-		}
-		FRIEND_BOOL_OPERATOR>=(const tensor& t, U n)
-		{
-			ret t.count >= static_cast<size_t>(n);
-		}
-
-		// operatori di confronto a sinistra con un intero
-		FRIEND_BOOL_OPERATOR==(U n, const tensor& t)
-		{
-			ret static_cast<size_t>(n) == t.count;
-		}
-		FRIEND_BOOL_OPERATOR!=(U n, const tensor& t)
-		{
-			ret static_cast<size_t>(n) != t.count;
-		}
-		FRIEND_BOOL_OPERATOR<(U n, const tensor& t)
-		{
-			ret static_cast<size_t>(n) < t.count;
-		}
-		FRIEND_BOOL_OPERATOR<=(U n, const tensor& t)
-		{
-			ret static_cast<size_t>(n) <= t.count;
-		}
-		FRIEND_BOOL_OPERATOR>(U n, const tensor& t)
-		{
-			ret static_cast<size_t>(n) > t.count;
-		}
-		FRIEND_BOOL_OPERATOR>=(U n, const tensor& t)
-		{
-			ret static_cast<size_t>(n) >= t.count;
-		}
-
-		// operatori logici
-		_NODISCARD inline bool operator&&(const tensor& other) const
-		{
-			ret !this->empty() and !other.empty();
-		}
-		_NODISCARD inline bool operator||(const tensor& other) const
-		{
-			ret !this->empty() or !other.empty();
-		}
-		_NODISCARD inline bool operator%(const tensor& other) const
-		{
-			ret this->size() xor other.size();
-		}
-
-		// iteratori
-		class iterator
-		{
-		private: T* data;
-
-		public: size_t index;
-			using value_type        = T;
-			using reference         = T&;
-			using pointer           = T*;
-			using difference_type   = ptrdiff_t;
-			using iterator_category = forward_iterator_tag;
-
-			iterator(T* data, size_t index) : data(data), index(index) {}
-
-			iterator& operator++()
-			{
-				index++; 
-				ret *this;
-			}
-			iterator operator++(int)
-			{ 
-				iterator temp = *this;
-				index++; 
-				ret temp;
-			}
-			iterator& operator--()
-			{
-				index--;
-				ret *this;
-			}
-			iterator operator--(int)
-			{
-				iterator temp = *this;
-				index--;
-				ret temp;
-			}
-
-			iterator operator+(size_t n) const
-			{
-				ret iterator(data, index + n);
-			}
-			iterator& operator+=(size_t n)
-			{
-				index += n;
-				ret *this;
-			}
-			iterator operator-(size_t n) const
-			{
-				ret iterator(data, index - n);
-			}
-			iterator& operator-=(size_t n)
-			{
-				index -= n;
-				ret *this;
-			}
-
-			size_t operator+(iterator value) const
-			{
-				ret index + value.index;
-			}
-			size_t operator-(iterator value) const
-			{
-				if (index == value.index) ret 0;
-				if (index < value.index) throw out_of_range("Index out of range");
-				ret index - value.index;
-			}
-
-			T& operator*()
-			{
-				ret data[index];
-			}
-			const T& operator*() const
-			{
-				ret data[index];
-			}
-			T* operator->()
-			{
-				ret &data[index];
-			}
-			const T* operator->() const
-			{
-				ret &data[index];
-			}
-
-			bool operator==(const iterator& other) const
-			{
-				ret index == other.index;
-			}
-			bool operator!=(const iterator& other) const
-			{
-				ret index != other.index;
-			}
-			bool operator<(const iterator& other) const
-			{
-				ret index < other.index;
-			}
-			bool operator<=(const iterator& other) const
-			{
-				ret index <= other.index;
-			}
-			bool operator>(const iterator& other) const
-			{
-				ret index > other.index;
-			}
-			bool operator>=(const iterator& other) const
-			{
-				ret index >= other.index;
-			}
-		};
-		iterator begin()
-		{
-			ret iterator(data, 0);
-		}
-		iterator end()
-		{
-			ret iterator(data, count);
-		}
-		tensor(iterator first, iterator last) : data(nullptr), capacity(0), count(0)
-		{
-			size_t n = last - first;
-			if (n > count) resize(n);
-			count = n;
-
-			for (size_t i = 0; i < n; ++i, ++first) data[i] = *first;
-		}
-
-		// metodi con gli operatori
-		void erase(iterator it)
-		{
-			if (it == end()) throw out_of_range("Iterator out of range");
-			size_t pos{ it - begin() };
-			for (size_t i = pos; i < count - 1; ++i) data[i] = move(data[i + 1]);
-			count--;
-		}
-		void erase(iterator first, iterator last)
-		{
-			if (first == last) ret;
-			size_t start{ first - begin() };
-			size_t end{ last - begin() };
-
-			if (start >= count or end > count or start > end)
-				throw out_of_range("Invalid iterator range");
-
-			size_t distance = end - start;
-			for (size_t i = start; i < count - distance; ++i)
-				data[i] = move(data[i + distance]);
-
-			count -= distance;
-		}
-		void insert(iterator pos, const T& value)
-		{
-			size_t index = pos - begin();
-			if (count == capacity) resize(capacity * 2);
-
-			for (size_t i = count; i > index; --i) data[i] = move(data[i - 1]);
-
-			data[index] = value;
-			count++;
-		}
-		void remove(const T& value)
-		{
-			size_t write{};
-			for (size_t read = 0; read < count; ++read) if (data[read] != value)
-			{
-				if (write != read) data[write] = move(data[read]);
-				write++;
-			}
-			count = write;
-		}
-
-		virtual _NODISCARD wstring str(int size = Variables.size())
-		{
-			wostringstream result;
-			wstring outp;
-			result << fixed;
-
-			// bool
-			if constexpr (is_same_v<T, bool>) for (const auto& element : *this) {
-				result << element ? L"1" : L"0";
-				result << L", ";
-			}
-
-			// carattere
-			else if constexpr (is_same_v<T, wchar_t>) {
-				for (const auto& element : *this) result << element;
-				result << L", ";
-			}
-
-			// numeri decimali
-			else if constexpr (is_same_v<T, double>) for (const auto& element : *this)
-			{
-				if (integer(element)) result << setprecision(0);
-				result << element << L", ";
-				if (integer(element)) result << setprecision(6);
-			}
-
-			// dati generici
-			else if constexpr (is_integral_v<T> or is_same_v<T, wstring>)
-				for (const auto& element : *this) result << element << L", ";
-
-			// niente
-			else ret L"";
-
-			// fine
-			outp = result.str();
-			if (outp.size() >= 2) {
-				outp.pop_back();
-				outp.pop_back();
-			}
-			ret L'{' + outp + L'}';
-		}
-	};
-
-	// estensioni di tensor
-	class tensor_t
-	{
-	public:
-		tensor<bool> is_prime;
-		tensor<ptrdiff_t> list_primes;
-
-		tensor_t(){}	
-		tensor_t(
-			tensor<bool> is_prime_param, 
-			tensor<ptrdiff_t> list_primes_param
-		) : 
-			is_prime(move(is_prime_param)), 
-			list_primes(move(list_primes_param))
-		{}
-		tensor_t(const tensor_t& other)
-			: is_prime(other.is_prime), list_primes(other.list_primes)
-		{}
-		tensor_t(tensor_t&& other) noexcept
-			: is_prime(move(other.is_prime)),
-			list_primes(move(other.list_primes))
-		{}
-
-		tensor_t& operator=(const tensor_t& other)
-		{
-			if (this != &other) {
-				is_prime = other.is_prime;
-				list_primes = other.list_primes;
-			}
-			ret *this;
-		}
-	};
-};
-#define _TENSOR ::std_tensor::
-using _TENSOR Variables, _TENSOR tensor, _TENSOR tensor_t;
+wstring Variables;
+using _TENSOR tensor, _TENSOR tensor_t;
 
 // numeri grandi con precisione di long double
 class big
@@ -1603,7 +1003,8 @@ public:
 	
 	factor derivate(size_t Vpos) const
 	{
-		if (this->empty()) ret {};
+		tensor<int> null{ tensor<int>(Variables.size(), 0) };
+		if (this->empty()) ret { { 0, null } };
 		auto Derivative{ *this };
 		for (ptrdiff_t i = Derivative.size() - 1; i >= 0; --i) {
 			if (Derivative[i].exp[Vpos] == 0) {
@@ -1612,6 +1013,7 @@ public:
 			}
 			Derivative[i].coefficient *= Derivative[i].exp[Vpos]--;
 		}
+		if (Derivative.empty()) ret { { 0, null } };
 		ret Derivative;
 	}
 
@@ -1860,7 +1262,7 @@ public:
 						// caso senza esponente
 						else {
 							int setK = 0;
-							this->insert(this->begin() + i, { {2, modifier} });
+							this->insert(this->begin() + i, { { 2, modifier } });
 							this->erase(this->begin() + j);
 							for (size_t k = 0; k < this->size(); ++k)
 								if ((*this)[k] == CommonFactor) {
@@ -1874,7 +1276,7 @@ public:
 
 					// caso di eccezione
 					else {
-						this->push_front({ {2, modifier} });
+						this->push_front({ { 2, modifier } });
 						this->erase(this->begin() + j + 1);
 					}
 				}
@@ -2095,6 +1497,52 @@ FACTOR<T_int>::operator*=(const FACTOR& other)
 	*this = *this * other;
 	ret *this;
 }
+
+template<class T = long double>struct Fraction
+{
+	polynomial<T> num, den;
+
+	Fraction extend()
+	{
+		num = { PolynomialMultiply<T>(num) };
+		den = { PolynomialMultiply<T>(den) };
+		ret *this;
+	}
+
+	Fraction derivate(size_t Vpos) const
+	{
+		Fraction derivative{
+			{ num[0].derivate(Vpos) * den[0] - num[0] * den[0].derivate(Vpos) },
+			{ den[0] * factor<>(den[0]) }
+		};
+		bool empty{ true };
+		for (const auto& term : derivative.num) if (!term.empty()) {
+			empty = false;
+			break;
+		}
+		if (empty) derivative.num = { { { 0, tensor<int>(Variables.size(), 0) } } };
+		ret derivative;
+	}
+
+	wstring str()
+	{
+		// frazione semplice
+		wstring output{ num.str() };
+		if (
+			den == polynomial<>{ { {
+					1, tensor<int>(Variables.size(), 0)
+				} } }
+			) ret output;
+		
+		// frazione complicata
+		if (output.find(L'+') != wstring::npos or
+			output.find(L'-') != wstring::npos)
+			output = L'(' + output + L')';
+		output += L" / " + den.str();
+		
+		ret output;
+	}
+};
 
 tensor_t PrimeNumbers;
 _STD map<int, wstring> CalculatedData;
@@ -3132,7 +2580,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 	WPARAM wParam,
 	LPARAM lParam
 );
-static void CreateGraph(FACTOR<> num, FACTOR<> den);
+static BOOL CreateGraph(Fraction<> funct = { {}, {} });
 static LRESULT CALLBACK WindowProcessor3D(
 	HWND hwnd,
 	UINT uMsg,
@@ -3270,10 +2718,7 @@ static ConsoleStream DisequationSolutionPrinter(
 	bool PrintCondition = true
 );
 static void PrintFraction
-(
-	int NC, int DC, int& LINE, bool WritePlus,
-	polynomial<> numerator, polynomial<> denominator
-);
+(int NC, int DC, int& LINE, bool WritePlus, Fraction<> fract);
 static void CodeToNumber(switchcase& argc);
 static wstring ExpandNumber(
 	switchcase& argc,
@@ -3370,7 +2815,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.1.8 ";
+			wcout << L"1.2.0 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -4976,24 +4421,105 @@ static void UserInputThread()
 RECT ClientRect;
 namespace WindowData
 {
-	enum states{
+	bool redo{ false };
+
+	#define FUNCTION_REMOVE 0
+	#define FUNCTION_DERIVATIVE 1
+	#define FUNCTION_LABEL 2
+
+	enum states {
 		MIN,
 		MAX,
 		H_FLX,
 		A_FLX,
 		D_FLX
 	};
-
 	LPARAM Coords{}, Current{};
-	tensor<FACTOR<>> FNumerators, FDenominators;
-	tensor<int> Colors;
-	tensor<tensor<int>> States;
-	tensor<tensor<long double>> StationaryPointsX, StationaryPointsY;
-
 	bool enable{ false };
 	int shiftX{}, shiftY{};
 	double Zoom{ 1 };
 	wchar_t __save; 
+	
+	int gIndex{};
+	tensor<int> Indexlist;
+	tensor<tensor<int>> memory;
+	class DATA
+	{
+	public:
+		COLORREF Color;
+		Fraction<> Function;
+		wstring ID;
+
+		tensor<int> States;
+		tensor<long double> StatX, StatY;
+
+		DATA() : Color(0) {}
+		DATA(Fraction<> funct);
+
+		bool operator==(DATA other)
+		{
+			ret ID == other.ID;
+		}
+	};
+	tensor<DATA> List;
+
+	DATA::DATA(Fraction<> funct) : Function(funct), ID(funct.str())
+	{
+		const double DeltaX{ 0.01 };
+		auto Derivative{ funct.derivate(0) };
+
+		// eliminazione di eventuali doppi
+		StatX = RootExtractor({ Derivative.num });
+		for (ptrdiff_t i = StatX.size() - 1; i > 0; --i)
+			if (StatX[i] == StatX[i - 1]) StatX.erase(i, 1);
+		size_t I{};
+
+		// calcolo punti stazionari
+		for (; I < StatX; ++I) {
+			auto x{ StatX[I] };
+			auto y{ funct.num[0]({ x }) / funct.den[0]({ x }) };
+
+			StatY << y;
+			x -= DeltaX;
+			bool before{ funct.num[0]({ x }) / funct.den[0]({ x }) > y };
+			x += 2 * DeltaX;
+			bool after{ funct.num[0]({ x }) / funct.den[0]({ x }) > y };
+			if (before and after) States << MIN;
+			else if (!(before or after)) States << MAX;
+			else States << H_FLX;
+		}
+
+		// calcolo flessi
+		auto NewStatX{ RootExtractor({ Derivative.derivate(0).num }) };
+		for (ptrdiff_t j = NewStatX.size() - 1; j > 0; --j)
+			if (NewStatX[j] == NewStatX[j - 1]) NewStatX.erase(j, 1);
+		for (; I < NewStatX; ++I) {
+			auto x{ NewStatX[I] };
+			auto y{ funct.num[0]({ x }) / funct.den[0]({ x }) };
+
+			StatX << x;
+			StatY << y;
+			x -= DeltaX;
+			bool before{ funct.num[0]({ x }) / funct.den[0]({ x }) > y };
+			States << (before ? D_FLX : A_FLX);
+		}
+
+		// calcolo del colore
+		random_device rng;
+		mt19937 gen(rng());
+		uniform_int_distribution<> dis(0, 127);
+		int rgbValues[3]{};
+		auto i{ List.size() };
+		if ((i | FOREGROUND_BLUE) != i) rgbValues[2] += dis(gen);
+		if ((i | FOREGROUND_GREEN) != i) rgbValues[1] += dis(gen);
+		if ((i | FOREGROUND_RED) != i) rgbValues[0] += dis(gen);
+		if ((i | FOREGROUND_INTENSITY) != i) {
+			rgbValues[0] += 128;
+			rgbValues[1] += 128;
+			rgbValues[2] += 128;
+		}
+		Color = RGB(rgbValues[0], rgbValues[1], rgbValues[2]);
+	}
 };
 namespace Window3Data
 {
@@ -5197,6 +4723,72 @@ static LRESULT CALLBACK WindowProcessor2D(
 	case WM_SIZE: InvalidateRect(hwnd, NULL, TRUE);
 		ret 0;
 
+		// pulsante
+	case WM_COMMAND: {
+		auto id{ LOWORD(wParam) };
+		if ((id | 2) == id) {
+			SetFocus(hwnd);
+			ret 0;
+		}
+		bool derivate{ (id | FUNCTION_DERIVATIVE) == id };
+		int index = id >> 2;
+		
+		// rimozione della funzione
+		if (!derivate) {
+			Indexlist.erase(Indexlist.begin() + index); 
+			gIndex--;
+			memory << Indexlist;
+			redo = true;
+			charVariable = __save;
+			Variables = wstring(1, __save);
+
+			// salvataggio dati
+			auto shiftx{ shiftX };
+			auto shifty{ shiftY };
+			auto zoom{ Zoom };
+			DestroyWindow(hwnd);
+			shiftX = shiftx;
+			shiftY = shifty;
+			Zoom = zoom;
+			ret 0;
+		}
+
+		// aggiunta della derivata
+		auto derivative{ List[Indexlist[index]].Function.derivate(0) };
+		if (derivative.num ==
+			polynomial<>{ { { 0, tensor<int>(Variables.size(), 0) } } })
+		{
+			SetFocus(hwnd);
+			ret 0;
+		}
+		DATA new_data{ derivative };
+		for (const auto& indx : Indexlist) if (List[indx] == new_data) {
+			SetFocus(hwnd);
+			ret 0;
+		}
+		Indexlist << List.size();
+		List << new_data;
+		gIndex++;
+		if (Indexlist > 10) {
+			--Indexlist;
+			gIndex--;
+		}
+		memory << Indexlist;
+		redo = true;
+		charVariable = __save;
+		Variables = wstring(1, __save);
+
+		// salvataggio dati
+		auto shiftx{ shiftX };
+		auto shifty{ shiftY };
+		auto zoom{ Zoom };
+		DestroyWindow(hwnd);
+		shiftX = shiftx;
+		shiftY = shifty;
+		Zoom = zoom;
+		ret 0;
+	}
+
 		// pressione tasto sinistro
 	case WM_LBUTTONDOWN:
 		enable = true;
@@ -5281,7 +4873,8 @@ static LRESULT CALLBACK WindowProcessor2D(
 			ret DefWindowProc(hwnd, uMsg, wParam, lParam);
 		HDC hdc = BeginPaint(hwnd, &ps);
 		GHDC = hdc;
-		int OriginX{ client.right / 2 + shiftX }, OriginY{ client.bottom / 2 - shiftY };
+		int OriginX{ client.right / 2 + shiftX };
+		int OriginY{ client.bottom / 2 - shiftY };
 		const int markLenght{ 3 };
 		HPEN hPen = CreatePen(PS_SOLID, 2, RGB(0, 128, 0));
 		HPEN hpen = CreatePen(PS_SOLID, 1, RGB(64, 64, 64));
@@ -5455,7 +5048,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 			TextOut(hdc, OriginX, NumbersY[i], ValsY[i].c_str(), ValsY[i].size());
 
 		// calcolo punti della funzione
-		for (size_t i = 0; i < FNumerators; ++i) {
+		for (size_t i = 0; i < Indexlist; ++i) {
 			bool write{ false }, Oldwrite{ write }, enable{ true };
 			tensor<int> Xcoord, Ycoord, asintothes;
 
@@ -5467,9 +5060,12 @@ static LRESULT CALLBACK WindowProcessor2D(
 			{
 
 				// calcolo ordinate
-				auto _den{ FDenominators[i](__x) * LCM.Number<long double>() };
+				auto _den{
+					List[Indexlist[i]].Function.den[0]({ __x })
+					* LCM.Number<long double>()
+				};
 				if (_den == 0) continue;
-				auto fx{ FNumerators[i](__x) / _den };
+				auto fx{ List[Indexlist[i]].Function.num[0]({ __x }) / _den };
 
 				// output pixel
 				int X = OriginX + __x * 20 / Zoom, Y = OriginY - fx * 20 / Zoom;
@@ -5501,7 +5097,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 				if (Continue) continue;
 				DrawLine(
 					Xcoord[j], Ycoord[j], Xcoord[j + 1], Ycoord[j + 1],
-					CreatePen(PS_SOLID, 2, Colors[i])
+					CreatePen(PS_SOLID, 2, List[Indexlist[i]].Color)
 				);
 			}
 		}
@@ -5522,78 +5118,90 @@ static LRESULT CALLBACK WindowProcessor2D(
 		tensor<int> PriorityLabelsCenterX, PriorityLabelsCenterY;
 		int cursorX = (short)LOWORD(WindowData::Current);
 		int cursorY = (short)HIWORD(WindowData::Current);
-		for (size_t i = 0; i < States; ++i) for (size_t j = 0; j < States[i]; ++j)
-		{
-
-			// impostazione colore
-			SetTextColor(hdc, Colors[i]);
-			int X = OriginX + StationaryPointsX[i][j] * 20 / Zoom;
-			int Y = OriginY - StationaryPointsY[i][j] * 20 / Zoom;
-			for (int j = -2; j < 2; ++j) for (int k = -2; k < 2; ++k)
-				SetPixel(hdc, X + j, Y + k, RGB(255, 255, 255));
-
-			// calcolo testo
-			wstring Out;
-			switch (States[i][j]) {
-			case MIN: Out = L"minimo: (";
-				break;
-			case MAX: Out = L"massimo: (";
-				break;
-			case H_FLX: Out = L"flesso orizzontale: (";
-				break;
-			case A_FLX: Out = L"flesso ascendente: (";
-				break;
-			case D_FLX: Out = L"flesso discendente: (";
-				break;
-			}
-			auto _X{ to_wstring(StationaryPointsX[i][j]) };
-			auto _Y{ to_wstring(StationaryPointsY[i][j]) };
-
-			// approssimazione numeri
-			while (Last(_X) == L'0') _X.pop_back();
-			if (Last(_X) == L',') _X.pop_back();
-			while (Last(_Y) == L'0') _Y.pop_back();
-			if (Last(_Y) == L',') _Y.pop_back();
-
-			// calcolo messaggio
-			Out += _X + L"; " + _Y + L')';
-			SIZE TextSize;
-			GetTextExtentPoint32(hdc, Out.c_str(), Out.size(), &TextSize);
-
-			// calcolo priorità e output
-			int CX{ X - TextSize.cx / 2 }, CY{ Y - TextSize.cy };
-			int CX2{ X + TextSize.cx / 2 }, CY2{ Y + TextSize.cy / 2 };
-			if (CX < cursorX and cursorX < CX2 and CY < cursorY and cursorY < CY2)
+		for (size_t i = 0; i < Indexlist; ++i)
+			for (size_t j = 0; j < List[Indexlist[i]].States; ++j)
 			{
-				PriorityLabels << Out;
-				PriorityLabelsX << CX;
-				PriorityLabelsY << CY;
-				PriorityLabelsCenterX << X;
-				PriorityLabelsCenterY << Y;
-			}
-			else TextOut(hdc, CX, CY, Out.c_str(), Out.size());
-			
-			if (PriorityLabels.empty()) continue;
-			
-			// calcolo messaggio selezionato
-			int MinRadius{ -1 }, MinRadiusIndex{};
-			for (size_t j = 0; j < PriorityLabels; ++j) {
-				int radius = hypot(
-					cursorX - PriorityLabelsCenterX[j],
-					cursorY - PriorityLabelsCenterY[j]
-				);
-				if (MinRadius < 0 or MinRadius > radius) {
-					MinRadius = radius;
-					MinRadiusIndex = j;
-				}
-			}
 
-			// output messaggi restanti
-			for (size_t j = 0; j < PriorityLabels; ++j) {
-				if (j == MinRadiusIndex) {
-					SetBkColor(hdc, RGB(255, 255, 255));
-					SetTextColor(hdc, RGB(0, 0, 0));
-					SetBkMode(hdc, OPAQUE);
+				// impostazione colore
+				SetTextColor(hdc, List[Indexlist[i]].Color);
+				int X = OriginX + List[Indexlist[i]].StatX[j] * 20 / Zoom;
+				int Y = OriginY - List[Indexlist[i]].StatY[j] * 20 / Zoom;
+				for (int j = -2; j < 2; ++j) for (int k = -2; k < 2; ++k)
+					SetPixel(hdc, X + j, Y + k, RGB(255, 255, 255));
+
+				// calcolo testo
+				wstring Out;
+				switch (List[Indexlist[i]].States[j]) {
+				case MIN: Out = L"minimo: (";
+					break;
+				case MAX: Out = L"massimo: (";
+					break;
+				case H_FLX: Out = L"flesso orizzontale: (";
+					break;
+				case A_FLX: Out = L"flesso ascendente: (";
+					break;
+				case D_FLX: Out = L"flesso discendente: (";
+					break;
+				}
+				auto _X{ to_wstring(List[Indexlist[i]].StatX[j]) };
+				auto _Y{ to_wstring(List[Indexlist[i]].StatY[j]) };
+
+				// approssimazione numeri
+				while (Last(_X) == L'0') _X.pop_back();
+				if (Last(_X) == L',') _X.pop_back();
+				while (Last(_Y) == L'0') _Y.pop_back();
+				if (Last(_Y) == L',') _Y.pop_back();
+
+				// calcolo messaggio
+				Out += _X + L"; " + _Y + L')';
+				SIZE TextSize;
+				GetTextExtentPoint32(hdc, Out.c_str(), Out.size(), &TextSize);
+
+				// calcolo priorità e output
+				int CX{ X - TextSize.cx / 2 }, CY{ Y - TextSize.cy };
+				int CX2{ X + TextSize.cx / 2 }, CY2{ Y + TextSize.cy / 2 };
+				if (CX < cursorX and cursorX < CX2 and
+					CY < cursorY and cursorY < CY2)
+				{
+					PriorityLabels << Out;
+					PriorityLabelsX << CX;
+					PriorityLabelsY << CY;
+					PriorityLabelsCenterX << X;
+					PriorityLabelsCenterY << Y;
+				}
+				else TextOut(hdc, CX, CY, Out.c_str(), Out.size());
+			
+				if (PriorityLabels.empty()) continue;
+			
+				// calcolo messaggio selezionato
+				int MinRadius{ -1 }, MinRadiusIndex{};
+				for (size_t j = 0; j < PriorityLabels; ++j) {
+					int radius = hypot(
+						cursorX - PriorityLabelsCenterX[j],
+						cursorY - PriorityLabelsCenterY[j]
+					);
+					if (MinRadius < 0 or MinRadius > radius) {
+						MinRadius = radius;
+						MinRadiusIndex = j;
+					}
+				}
+
+				// output messaggi restanti
+				for (size_t j = 0; j < PriorityLabels; ++j) {
+					if (j == MinRadiusIndex) {
+						SetBkColor(hdc, RGB(255, 255, 255));
+						SetTextColor(hdc, RGB(0, 0, 0));
+						SetBkMode(hdc, OPAQUE);
+						TextOut(
+							hdc,
+							PriorityLabelsX[j],
+							PriorityLabelsY[j],
+							PriorityLabels[j].c_str(),
+							PriorityLabels[j].size()
+						);
+						SetBkMode(hdc, TRANSPARENT);
+						continue;
+					}
 					TextOut(
 						hdc,
 						PriorityLabelsX[j],
@@ -5601,19 +5209,8 @@ static LRESULT CALLBACK WindowProcessor2D(
 						PriorityLabels[j].c_str(),
 						PriorityLabels[j].size()
 					);
-					SetBkMode(hdc, TRANSPARENT);
-					SetTextColor(hdc, Colors[i]);
-					continue;
 				}
-				TextOut(
-					hdc,
-					PriorityLabelsX[j],
-					PriorityLabelsY[j],
-					PriorityLabels[j].c_str(),
-					PriorityLabels[j].size()
-				);
 			}
-		}
 
 		// fine disegno
 		EndPaint(hwnd, &ps);
@@ -5625,100 +5222,39 @@ static LRESULT CALLBACK WindowProcessor2D(
 }
 
 // funzione per creare la finestra del grafico a una variabile
-static void CreateGraph(FACTOR<> num, FACTOR<> den)
+static BOOL CreateGraph(Fraction<> funct)
 {
-	if (Variables.size() != 1) ret;
-
+	if (Variables.size() != 1) ret false;
 	using namespace WindowData;
+
+	// inizio
 	__save = charVariable;
 	charVariable = L'x';
 	Variables = L"x";
-
-	// inizio
-	const double DeltaX{ 0.01 };
 	HINSTANCE hInstance = GetModuleHandle(0);
-	FNumerators << num;
-	FDenominators << den;
-	if (FNumerators > 10) {
-		--FNumerators;
-		--FDenominators;
-	}
-	StationaryPointsX.clear();
-	StationaryPointsY.clear();
-	Colors.clear();
-	States.clear();
-
-	// iterazione per ogni funzione
-	for (size_t i = 0; i < FNumerators; ++i) {
-		auto NFirstDerivative{
-			FNumerators[i].derivate() * FDenominators[i] -
-			FNumerators[i] * FDenominators[i].derivate()
-		};
-		auto DFirstDerivative{ FDenominators[i] * FACTOR<>(FDenominators[i]) };
-
-		// calcolo punti stazionari
-		States << tensor<int>{};
-		StationaryPointsY << tensor<long double>{};
-		StationaryPointsX << RootExtractor({ ToXV(NFirstDerivative) });
-		for (ptrdiff_t j = StationaryPointsX[i].size() - 1; j > 0; --j)
-			if (StationaryPointsX[i][j] == StationaryPointsX[i][j - 1])
-				StationaryPointsX[i].erase(j, 1);
-		size_t I{};
-		for (; I < StationaryPointsX[i]; ++I) {
-			auto x{ StationaryPointsX[i][I] };
-			auto y{ FNumerators[i](x) / FDenominators[i](x) };
-
-			StationaryPointsY[i] << y;
-			x -= DeltaX;
-			bool before{ FNumerators[i](x) / FDenominators[i](x) > y };
-			x += 2 * DeltaX;
-			bool after{ FNumerators[i](x) / FDenominators[i](x) > y };
-			if (before and after) States[i] << MIN;
-			else if (!(before or after)) States[i] << MAX;
-			else States[i] << H_FLX;
-		}
-
-		// calcolo flessi
-		StationaryPointsX[i] += RootExtractor({ ToXV(
-			NFirstDerivative.derivate() * DFirstDerivative
-			- DFirstDerivative.derivate() * NFirstDerivative
-		) });
-		for (ptrdiff_t j = StationaryPointsX[i].size() - 1; j > 0; --j)
-			if (StationaryPointsX[i][j] == StationaryPointsX[i][j - 1])
-			{
-				StationaryPointsX[i].erase(j, 1);
-				StationaryPointsY[i].erase(j, 1);
-				States[i].erase(j, 1);
-			}
-		for (; I < StationaryPointsX[i]; ++I) {
-			auto x{ StationaryPointsX[i][I] };
-			auto y{ FNumerators[i](x) / FDenominators[i](x) };
-
-			StationaryPointsY[i] << y;
-			x -= DeltaX;
-			bool before{ FNumerators[i](x) / FDenominators[i](x) > y };
-			States[i] << (before ? D_FLX : A_FLX);
-		}
-	}
 	
-	// calcolo dei colori
-	random_device rng;
-	mt19937 gen(rng());
-	uniform_int_distribution<> dis(0, 127);
-	for (int i = 0; i < States; ++i) {
-		int rgbValues[3]{};
-		if ((i | FOREGROUND_BLUE) != i) rgbValues[2] += dis(gen);
-		if ((i | FOREGROUND_GREEN) != i) rgbValues[1] += dis(gen);
-		if ((i | FOREGROUND_RED) != i) rgbValues[0] += dis(gen);
-		if ((i | FOREGROUND_INTENSITY) != i) {
-			rgbValues[0] += 128;
-			rgbValues[1] += 128;
-			rgbValues[2] += 128;
-		}
-		Colors << RGB(rgbValues[0], rgbValues[1], rgbValues[2]);
+	// aggiunta
+	bool present{ false };
+	DATA new_data;
+	if (funct.num.empty() and funct.den.empty()) goto WindowCreation;
+	new_data = funct;
+	for (const auto idx : Indexlist) if (List[idx] == new_data) {
+		present = true;
+		break;
 	}
+	if (!present) {
+		Indexlist << List.size();
+		List << new_data;
+		gIndex++;
+		if (List > 10) {
+			--Indexlist;
+			gIndex--;
+		}
+	}
+	memory << Indexlist;
 
 	// dati finestra
+WindowCreation:
 	WNDCLASS wc{};
 	wc.lpfnWndProc = WindowProcessor2D;
 	wc.hInstance = hInstance;
@@ -5738,8 +5274,68 @@ static void CreateGraph(FACTOR<> num, FACTOR<> den)
 		hInstance,
 		NULL
 	);
-	if (!hwnd) ret;
+	if (!hwnd) ret false;
 	ShowWindow(hwnd, SW_SHOW);
+
+	// calcolo lunghezza massima
+	PAINTSTRUCT ps;
+	HDC hdc = BeginPaint(hwnd, &ps);
+	SIZE Maxlenght{};
+	for (size_t i = 0; i < Indexlist; ++i) {
+		auto Text{ List[Indexlist[i]].ID };
+		SIZE lenght{};
+		GetTextExtentPoint32(hdc, Text.c_str(), Text.size(), &lenght);
+
+		if (Maxlenght.cx < lenght.cx) Maxlenght.cx = lenght.cx;
+		if (Maxlenght.cy < lenght.cy) Maxlenght.cy = lenght.cy;
+	}
+	EndPaint(hwnd, &ps);
+
+	// creazione pulsanti per ogni funzione
+	int LINE{ 30 };
+	tensor<HWND> ButtonList;
+	for (size_t i = 0; i < Indexlist; ++i) {
+
+		// pulsante della funzione
+		ButtonList << CreateWindowEx(
+			0,
+			L"BUTTON", List[Indexlist[i]].ID.c_str(),
+			WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+			30, 30 + i * (2 * Maxlenght.cy + 20),
+			Maxlenght.cx + 10, Maxlenght.cy + 10,
+			hwnd,
+			HMENU((i << 2) | FUNCTION_LABEL),
+			hInstance,
+			NULL
+		);
+
+		// pulsante della derivata
+		ButtonList << CreateWindowEx(
+			0,
+			L"BUTTON", L"D",
+			WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+			50 + Maxlenght.cx, 30 + i * (2 * Maxlenght.cy + 20),
+			2 * Maxlenght.cy, 2 * Maxlenght.cy,
+			hwnd,
+			HMENU((i << 2) | FUNCTION_DERIVATIVE),
+			hInstance,
+			NULL
+		);
+
+		// pulsante di eliminazione
+		ButtonList << CreateWindowEx(
+			0,
+			L"BUTTON", L"X",
+			WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+			60 + Maxlenght.cx + 2 * Maxlenght.cy, 30 + i * (2 * Maxlenght.cy + 20),
+			2 * Maxlenght.cy, 2 * Maxlenght.cy,
+			hwnd,
+			HMENU((i << 2) | FUNCTION_REMOVE),
+			hInstance,
+			NULL
+		);
+	}
+	InvalidateRect(hwnd, NULL, FALSE);
 
 	// ciclo dei messaggi
 	MSG msg{};
@@ -5747,6 +5343,10 @@ static void CreateGraph(FACTOR<> num, FACTOR<> den)
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
+
+	bool result{ redo };
+	redo = false;
+	ret result;
 }
 
 // funzione per elaborare gli input della finestra del grafico a due variabili
@@ -5982,29 +5582,6 @@ static LRESULT CALLBACK WindowProcessor3D(
 	default: ret DefWindowProc(hwnd, uMsg, wParam, lParam);
 	}
 }
-
-/// nel grafico 3D:
-/// 
-/// debug valori degli assi
-/// estendi la funzione alle frazioni algebriche
-/// aggiungi i punti stazionari
-/// tieni conto della trasparenza-
-/// e delle linee tratteggiate
-/// aggiungi effetti per il colore
-/// sposta il calcolo sulla GPU
-/// 
-/// 
-/// nel grafico 2D:
-/// 
-/// sistema i messaggi di testo
-/// ottimizza l'aggiunta delle funzioni
-/// crea un'interfaccia per eliminare le funzioni-
-/// o per aggiungere le derivate
-/// 
-/// 
-/// altro:
-/// 
-/// debug delle disequazioni (specialmente se con tre o più termini)
 
 // funzione per creare la finestra del grafico a due variabili
 static void Project3DGraph(factor<> funct)
@@ -8563,7 +8140,7 @@ static polynomial<> TrinomialSquare(factor<> vect)
 		bool AB2, AC2, BC2;
 		long double A{ sqrt(vect[0].coefficient) };
 		if (!integer(A)) ret output;
-		long double C{ sqrt(vect[4].coefficient)};
+		long double C{ sqrt(vect[4].coefficient) };
 		if (!integer(C)) ret output;
 		long double B{ (long double)vect[3].coefficient / (2 * C) };
 		if (!integer(B)) ret output;
@@ -8829,12 +8406,9 @@ static void Simplify(
 
 // stampa una frazione
 static void PrintFraction
-(
-	int NC, int DC, int& LINE, bool WritePlus,
-	polynomial<> numerator, polynomial<> denominator
-)
+(int NC, int DC, int& LINE, bool WritePlus, Fraction<> fract)
 {
-
+	
 	// aggiunta di spazio
 	tensor<int> null(Variables.size(), 0);
 	_GetCursorPos();
@@ -8850,10 +8424,10 @@ static void PrintFraction
 	int I{ 1 }, Root;
 	bool IsMinus{ false };
 	wstring den_, num_;
-	if (numerator == 1) if (numerator[0] == 1)
-		if (numerator[0][0].exp == null)
-			root = numerator[0][0].coefficient;
-	if (numerator.empty()) numerator = polynomial<> { { { 1, null } } };
+	if (fract.num == 1) if (fract.num[0] == 1)
+		if (fract.num[0][0].exp == null)
+			root = fract.num[0][0].coefficient;
+	if (fract.num.empty()) fract.num = polynomial<> { { { 1, null } } };
 
 	// calcolo coefficienti e correzione
 	if (root != 0) {
@@ -8879,10 +8453,10 @@ static void PrintFraction
 
 	// aggiustamento denominatore
 	bool HasACoefficient{ false };
-	if (denominator >= 1) if (denominator[0] == 1)
-		if (denominator[0][0].exp == null) HasACoefficient = true;
-	if (HasACoefficient) denominator[0][0].coefficient *= CORRECTION_RATIO;
-	else denominator >> factor<>{ monomial<>{ CORRECTION_RATIO, null } };
+	if (fract.den >= 1) if (fract.den[0] == 1)
+		if (fract.den[0][0].exp == null) HasACoefficient = true;
+	if (HasACoefficient) fract.den[0][0].coefficient *= CORRECTION_RATIO;
+	else fract.den >> factor<>{ monomial<>{ CORRECTION_RATIO, null } };
 
 	// calcolo GCD e segni
 	int gcd = Gcd(NC, DC);
@@ -8890,26 +8464,26 @@ static void PrintFraction
 	DC /= gcd;
 	int Gcd{ 1 };
 	if (root == 0) Gcd =
-		::Gcd((int)numerator[0][0].coefficient, (int)denominator[0][0].coefficient);
-	else Gcd = ::Gcd(Root, denominator[0][0].coefficient);
-	denominator[0][0].coefficient /= Gcd;
+		::Gcd((int)fract.num[0][0].coefficient, (int)fract.den[0][0].coefficient);
+	else Gcd = ::Gcd(Root, fract.den[0][0].coefficient);
+	fract.den[0][0].coefficient /= Gcd;
 	if (root != 0) Root /= Gcd;
-	else numerator[0][0].coefficient /= Gcd;
-	if (denominator[0][0] == monomial<>{ 1, null }) --denominator;
-	else if (denominator[0][0] == monomial<>{ -1, null }) {
-		--denominator;
-		if (root == 0) numerator[0][0].coefficient *= -1;
+	else fract.num[0][0].coefficient /= Gcd;
+	if (fract.den[0][0] == monomial<>{ 1, null }) --fract.den;
+	else if (fract.den[0][0] == monomial<>{ -1, null }) {
+		--fract.den;
+		if (root == 0) fract.num[0][0].coefficient *= -1;
 		else Root *= -1;
 	}
-	if (root == 0) if (numerator[0][0] == monomial<>{ 1, null }) --numerator;
+	if (root == 0) if (fract.num[0][0] == monomial<>{ 1, null }) --fract.num;
 	if (root != 0) num_ = to_wstring(NC * Root);
 
 	// calcolo numeratore
 	if (root == 0) {
-		num_ = numerator.str();
+		num_ = fract.num.str();
 
 		if (num_ == L"0") num_.clear();
-		else if (abs(NC) != 1 and (numerator[0] > 1 and numerator == 1))
+		else if (abs(NC) != 1 and (fract.num[0] > 1 and fract.num == 1))
 			num_ = L'(' + num_ + L')';
 
 		if (abs(NC) != 1) num_ = to_wstring(NC) + num_;
@@ -8923,11 +8497,11 @@ static void PrintFraction
 
 	// // calcolo denominatore
 	den_.clear();
-	auto tempden{ denominator.str() };
+	auto tempden{ fract.den.str() };
 	if (tempden != L"1") den_ = tempden;
 	
 	if (den_ == L"0") den_.clear();
-	else if (abs(DC) != 1 and (denominator[0] > 1 and denominator == 1))
+	else if (abs(DC) != 1 and (fract.den[0] > 1 and fract.den == 1))
 		den_ = L'(' + den_ + L')';
 
 	if (abs(DC) != 1) den_ = to_wstring(DC) + den_;
@@ -8942,20 +8516,20 @@ static void PrintFraction
 	// aggiustamento segni
 	bool both{ true };
 	if (num_.at(0) == L'-' and den_.at(0) == L'-' and
-		numerator == 1 and denominator == 1)
-		if (numerator[0] == 1 and denominator[0] == 1)
+		fract.num == 1 and fract.den == 1)
+		if (fract.num[0] == 1 and fract.den[0] == 1)
 		{
 			num_.erase(0, 1);
 			den_.erase(0, 1);
 			both = false;
 		}
-	if (num_.at(0) == L'-' and numerator == 1 and both) if (numerator[0] == 1)
+	if (num_.at(0) == L'-' and fract.num == 1 and both) if (fract.num[0] == 1)
 	{
 		num_.erase(0, 1);
 		IsMinus = !IsMinus;
 		both = false;
 	}
-	if (den_.at(0) == L'-' and denominator == 1 and both) if (denominator[0] == 1)
+	if (den_.at(0) == L'-' and fract.den == 1 and both) if (fract.den[0] == 1)
 	{
 		den_.erase(0, 1);
 		IsMinus = !IsMinus;
@@ -9058,6 +8632,7 @@ static void Approximator(tensor<long double>& Equation, long double& root)
 static tensor<wstring> EquationSolver(factor<> Equation)
 {
 	// caso nullo
+	tensor<int> null{ tensor<int>(Variables.size() , 0) };
 	if (Equation.empty()) ret {};
 	tensor<wstring> answer;
 
@@ -9124,14 +8699,14 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 				_push = factor<>{ { 1, VDirectorSeq[0] } }.str() + L" != "
 					+ to_wstring(half_root_sum + sqrt(delta_4));
 
-				if (VKnownSeq[0] != tensor<int>(Variables.size(), 0))
+				if (VKnownSeq[0] != null)
 					_push += factor<>{ { 1, VKnownSeq[0] } }.str();
 				answer << _push;
 
 				_push = factor<>{ { 1, VDirectorSeq[0] } }.str() + L" != "
 					+ to_wstring(half_root_sum - sqrt(delta_4));
 
-				if (VKnownSeq[0] != tensor<int>(Variables.size(), 0))
+				if (VKnownSeq[0] != null)
 					_push += factor<>{ { 1, VKnownSeq[0] } }.str();
 				answer << _push;
 			}
@@ -9140,13 +8715,13 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 			else {
 				_push = factor<>{ { 1, VDirectorSeq[0] } }.str() + L" != "
 					+ complex(half_root_sum, sqrt(-delta_4)).c_str();
-				if (VKnownSeq[0] != tensor<int>(Variables.size(), 0))
+				if (VKnownSeq[0] != null)
 					_push += factor<>{ { 1, VKnownSeq[0] } }.str();
 				answer << _push;
 
 				_push = factor<>{ { 1, VDirectorSeq[0] } }.str() + L" != "
 					+ complex(half_root_sum, -sqrt(-delta_4)).c_str();
-				if (VKnownSeq[0] != tensor<int>(Variables.size(), 0))
+				if (VKnownSeq[0] != null)
 					_push += factor<>{ { 1, VKnownSeq[0] } }.str();
 				answer << _push;
 			}
@@ -9159,7 +8734,7 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 		auto push{
 			factor<>{ { 1, VDirectorSeq[0] } }.str() + L" != " + to_wstring(root)
 		};
-		if (VKnownSeq[0] != tensor<int>(Variables.size(), 0))
+		if (VKnownSeq[0] != null)
 			push += factor<>{ { 1, VKnownSeq[0] } }.str();
 		answer << push;
 	}
@@ -10755,7 +10330,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 
 		// traduzione dell'input utente
 		polynomial<> BackT, Back_T{ HT };
-		tensor<int> null;
+		tensor<int> null, Null;
 		int size;
 		auto bigHT{ GetMonomialsAssister(Polynomial) };
 
@@ -10803,7 +10378,8 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		}
 
 		// risultato della somma
-		null(Variables.size());
+		Null(Variables.size(), 0);
+		null(Variables.size(), 0);
 		null[0] = -1;
 		for (const auto& poly_data : HT) if (poly_data.empty()) {
 			Polynomial = L"0";
@@ -10830,7 +10406,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		HT.clear(); 
 		for (const auto& polydata : Back_T) HT += Total(polydata);
 		for (ptrdiff_t i = HT.size() - 1; i >= 0; --i)
-			if (HT[i] == 1) if (HT[i][0].exp == tensor<int>(Variables.size(), 0))
+			if (HT[i] == 1) if (HT[i][0].exp == Null)
 			{
 				Coeff *= HT[i][0].coefficient;
 				HT.erase(HT.begin() + i);
@@ -10842,10 +10418,10 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 
 		// aggiunta del coefficiente corretto
 		if (HT.empty()) HT = polynomial<>{ { {
-			(long double)Coeff, tensor<int>(Variables.size(), 0)
+			(long double)Coeff, Null
 		} } };
 		else if (abs(Coeff) != 1) HT >> factor<>{ {
-			(long double)Coeff, tensor<int>(Variables.size(), 0)
+			(long double)Coeff, Null
 		} };
 		else if (Coeff == -1) for (auto& mon : HT[0]) mon.coefficient *= -1;
 
@@ -11010,7 +10586,10 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		// grafico del polinomio
 		if (input and draw) {
 			switch (Variables.size()) {
-			case 1: CreateGraph(To1V(PolynomialMultiply(HT)), { { 0, 1 } });
+			case 1:
+				if (CreateGraph(
+					{ { PolynomialMultiply(HT) }, { { { 1, Null } } } }
+				)) while (CreateGraph());
 				break;
 			case 2: Project3DGraph(PolynomialMultiply(HT));
 				break;
@@ -11135,10 +10714,12 @@ static void DecompFraction(switchcase& argc)
 		// scomposizione polinomi
 		switchcase use;
 		CORRECTION_RATIO = 1;
-		auto N_{ DecompPolynomial(use, numerator) };
+		Fraction<> fraction;
+		fraction.num = DecompPolynomial(use, numerator);
+
 		big DenMultiplier = LCM;
 		auto savx{ Variables };
-		auto D_{ DecompPolynomial(use, denominator) };
+		fraction.den = DecompPolynomial(use, denominator);
 		big NumMultiplier = LCM;
 		big GCD{ Gcd(NumMultiplier, DenMultiplier) };
 		NumMultiplier /= GCD;
@@ -11146,7 +10727,9 @@ static void DecompFraction(switchcase& argc)
 		auto nummultiplier{ NumMultiplier.Number<long double>() };
 		auto denmultiplier{ DenMultiplier.Number<long double>() };
 		
-		if (!(N_ and D_) or isnan(nummultiplier) or isnan(denmultiplier)) {
+		if (!(fraction.num and fraction.den) or
+			isnan(nummultiplier) or isnan(denmultiplier))
+		{
 			wcout << L'\n';
 			SetConsoleTextAttribute(hConsole, 64);
 			wcout << L"input overflow: prova a inserire valori più piccoli";
@@ -11160,43 +10743,41 @@ static void DecompFraction(switchcase& argc)
 		for (const auto& ch : Variables) if (savx.find(ch) == wstring::npos)
 			savx += ch;
 		Variables = savx;
-		for (auto& fac : N_) for (auto& mon : fac) mon.exp(Variables.size(), 0);
-		for (auto& fac : D_) for (auto& mon : fac) mon.exp(Variables.size(), 0);
-		auto temp{ D_ };
-		for (size_t i = 0; i < D_; ++i)
+		for (auto& fac : fraction.num) for (auto& mon : fac) mon.exp(Variables.size(), 0);
+		for (auto& fac : fraction.den) for (auto& mon : fac) mon.exp(Variables.size(), 0);
+		auto temp{ fraction.den };
+		for (size_t i = 0; i < fraction.den; ++i)
 			for (size_t j = 0; j < temp[i]; ++j)
 				if (temp[i][j].exp[0] >= 0)
 					for (size_t k = 0; k < Variables.size(); ++k) {
 						auto pos{ oldV.find(Variables.at(k)) };
 						temp[i][j].exp[k] = pos != wstring::npos ?
-							D_[i][j].exp[pos] : 0;
+							fraction.den[i][j].exp[pos] : 0;
 					}
-		D_ = temp;
+		fraction.den = temp;
 		
 		// backup
-		auto NumBackup{ N_ };
-		auto DenBackup{ D_ };
+		auto Backup{ fraction };
 		int NCOEFF{ 1 }, DCOEFF{ 1 };
-		bool _Nchangx{ false }, _Dchangx{ false };
+		tensor<int> null{ tensor<int>(Variables.size(), 0) };
 
 		// semplificazione fattori
-		Simplify(N_, D_, NCOEFF, DCOEFF);
-		if (N_ != NumBackup) _Nchangx = true;
-		if (D_ != DenBackup) _Dchangx = true;
+		Simplify(fraction.num, fraction.den, NCOEFF, DCOEFF);
 		NCOEFF *= nummultiplier;
 		DCOEFF *= denmultiplier;
 		LCM = 1;
 
 		// aggiornamento dati globali
-		auto test{ N_ };
-		if (!(N_ or D_)) charVariable = L'x';
-		else if (N_.empty()) test = D_;
-		if (N_ or D_) for (size_t i = 0; i < Variables.size(); ++i)
-			if (test[0][0].exp[i] != 0) charVariable = Variables.at(i);
+		auto test{ fraction.num };
+		if (!(fraction.num or fraction.den)) charVariable = L'x';
+		else if (fraction.num.empty()) test = fraction.den;
+		if (fraction.num or fraction.den)
+			for (size_t i = 0; i < Variables.size(); ++i)
+				if (test[0][0].exp[i] != 0) charVariable = Variables.at(i);
 
 		// correzione fattori
-		auto NScomp{ To1V(N_) };
-		auto DScomp{ To1V(D_) };
+		auto NScomp{ To1V(fraction.num) };
+		auto DScomp{ To1V(fraction.den) };
 		NScomp.close();
 		DScomp.close();
 		for (size_t i = 0; i < NScomp; ++i) NScomp[i].sort();
@@ -11216,7 +10797,7 @@ static void DecompFraction(switchcase& argc)
 		tensor<double> roots;
 		FACTOR<> Quotient;
 		FACTOR<> Rest;
-		if (N_ != ToXV(NScomp) or D_ != ToXV(DScomp)) {
+		if (fraction.num != ToXV(NScomp) or fraction.den != ToXV(DScomp)) {
 			skip = true;
 			HasMoreVariables = true;
 			goto PrintStatement;
@@ -11321,7 +10902,7 @@ static void DecompFraction(switchcase& argc)
 
 		// push condizioni di esistenza
 		COORD cursorPos;
-		for (const auto& d : DenBackup) {
+		for (const auto& d : Backup.den) {
 			auto Ctemp_{ EquationSolver(d) };
 			for (const auto& i : Ctemp_) C_E_ << i;
 		}
@@ -11346,7 +10927,10 @@ static void DecompFraction(switchcase& argc)
 
 		// output del segno della frazione
 		auto DiseqSol{
-			DisequationSolutionPrinter(N_, D_, 15, NCOEFF < 0 or DCOEFF < 0)
+			DisequationSolutionPrinter(
+				fraction.num, fraction.den,
+				15, NCOEFF < 0 or DCOEFF < 0
+			)
 		};
 		if (!DiseqSol.empty())  wcout << L'\n' << DiseqSol << L'\n';
 
@@ -11358,8 +10942,9 @@ static void DecompFraction(switchcase& argc)
 		int lines{};
 
 		// caso generale, frazione scomposta
-		polynomial<> TopPart = HasMoreVariables ? N_ : ToXV(NScomp);
-		polynomial<> BottomPart = HasMoreVariables ? D_ : ToXV(DScomp);
+		Fraction<> Part;
+		Part.num = HasMoreVariables ? fraction.num : ToXV(NScomp);
+		Part.den = HasMoreVariables ? fraction.den : ToXV(DScomp);
 		bool NewPrint{ false };
 		if (!skip) {
 			wcout << L"\n\n";
@@ -11369,8 +10954,7 @@ static void DecompFraction(switchcase& argc)
 					DCOEFF,
 					lines,
 					ShowPlus,
-					{ { { roots[i], tensor<int>(Variables.size(), 0) } } },
-					ToXV(denominators[i])
+					{ polynomial<>{ { { roots[i], null } } }, ToXV(denominators[i]) }
 				);
 				ShowPlus = true;
 			}
@@ -11379,9 +10963,8 @@ static void DecompFraction(switchcase& argc)
 		}
 
 		// caso di frazione semplificata ma non scomposta
-		if (!BottomPart.empty()) {
-			if (BottomPart > 1 or BottomPart[0] > 1 or
-				BottomPart[0][0].exp != tensor<int>(Variables.size(), 0))
+		if (!Part.den.empty()) {
+			if (Part.den > 1 or Part.den[0] > 1 or Part.den[0][0].exp != null)
 			{
 				_GetCursorPos();
 				csbi.dwCursorPosition.Y--;
@@ -11391,8 +10974,7 @@ static void DecompFraction(switchcase& argc)
 					DCOEFF,
 					lines,
 					false,
-					TopPart,
-					BottomPart
+					Part
 				);
 				wcout << L"\n\n";
 			}
@@ -11401,7 +10983,7 @@ static void DecompFraction(switchcase& argc)
 		else NewPrint = true;
 
 		// caso di denominatore coefficiente
-		if (abs(DCOEFF) != 1 and !TopPart.empty() and NewPrint) {
+		if (abs(DCOEFF) != 1 and !Part.num.empty() and NewPrint) {
 			_GetCursorPos();
 			csbi.dwCursorPosition.Y--;
 			SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
@@ -11410,8 +10992,7 @@ static void DecompFraction(switchcase& argc)
 				DCOEFF,
 				lines,
 				false,
-				TopPart,
-				{ { monomial<>{ 1, tensor<int>(Variables.size(), 0) } } }
+				{ Part.num, { { monomial<>{ 1, null } } } }
 			);
 			wcout << L"\n\n";
 		}
@@ -11426,8 +11007,7 @@ static void DecompFraction(switchcase& argc)
 				DCOEFF,
 				lines,
 				false,
-				{ { monomial<>{ 1, tensor<int>(Variables.size(), 0) } } },
-				{ { monomial<>{ 1, tensor<int>(Variables.size(), 0) } } }
+				{ { { { 1, null } } }, { { { 1, null } } } }
 			);
 			wcout << L"\n\n";
 		}
@@ -11440,7 +11020,8 @@ static void DecompFraction(switchcase& argc)
 
 		// caso fattore
 		else if (NScomp == 1 and NewPrint) {
-			auto output = HasMoreVariables ? N_[0].str() : NScomp[0].str();
+			auto output = HasMoreVariables ?
+				fraction.num[0].str() : NScomp[0].str();
 			ElabExponents(output);
 			if (NScomp[0] > 1 and NCOEFF != 1) output = L'(' + output + L')';
 			if (abs(NCOEFF) != 1) output = to_wstring(NCOEFF) + output;
@@ -11451,7 +11032,7 @@ static void DecompFraction(switchcase& argc)
 		// caso polinomio
 		else if (NewPrint) {
 			wcout << L' ';
-			HasMoreVariables ? wcout << N_.str() : wcout << NScomp.str();
+			HasMoreVariables ? wcout << fraction.num.str() : wcout << NScomp.str();
 		}
 
 	EndOfStatement:
@@ -11511,11 +11092,7 @@ static void DecompFraction(switchcase& argc)
 					1,
 					lines,
 					true,
-					{ { monomial<>{
-						a.coefficient,
-						tensor<int>(Variables.size(), 0) 
-					} } },
-					{ { monomial<>{1, tensor<int>(Variables.size(), 0)} } }
+					{ { { { a.coefficient, null } } }, { { { 1, null } } } }
 				);
 
 				// avanzamento cursore
@@ -11537,10 +11114,8 @@ static void DecompFraction(switchcase& argc)
 		wcout << L"\n\n";
 
 		// grafico
-		if (draw and Variables.size() == 1) CreateGraph(
-			To1V(PolynomialMultiply(NumBackup)),
-			To1V(PolynomialMultiply(DenBackup))
-		);
+		if (draw and Variables.size() == 1) if (CreateGraph(Backup.extend()))
+			while (CreateGraph());
 	}
 
 	argc = NotAssigned;
@@ -11796,5 +11371,30 @@ RETURN:
 
 #pragma endregion
 
-// file natvis 54 righe
-// fine del codice
+// file natvis                                54  righe
+// tensor.cpp                                 626 righe
+/// totale righe non presenti in questo file: 680
+
+// fine del codice -----------------------------------------------------------------
+
+
+/*	
+	debug messaggi di testo
+	
+	estensione alle frazioni algebriche
+	
+	debug delle disequazioni (specialmente se con tre o più termini)
+	
+	aggiunta punti stazionari
+	
+	debug valori degli assi
+
+	aggiunta frecce alla fine degli assi
+
+	polinomi a coefficienti complessi
+
+modifiche avanzate:
+	trasparenza e linee tratteggiate
+	effetti per il colore
+	calcolo sulla GPU
+*/

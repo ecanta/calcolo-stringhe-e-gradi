@@ -18,14 +18,9 @@
     <ClCompile Include="calcolo stringhe e gradi.cpp">
       <Filter>File di origine</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\tensor\tensor.h">
+    <ClCompile Include="..\tensor\tensor.cpp">
       <Filter>File di intestazione</Filter>
-    </ClInclude>
-    <ClInclude Include="..\tensor\tensor_impl.h">
-      <Filter>File di intestazione</Filter>
-    </ClInclude>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="..\tensor\tensor.natvis">
@@ -37,5 +32,10 @@
     <Natvis Include="..\debugger\monomial.natvis">
       <Filter>File di intestazione</Filter>
     </Natvis>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\tensor\tensor_impl.h">
+      <Filter>File di intestazione</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

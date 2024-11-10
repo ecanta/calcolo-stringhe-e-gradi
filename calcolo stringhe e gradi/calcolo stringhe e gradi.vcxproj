@@ -140,16 +140,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\tensor\tensor.cpp" />
     <ClCompile Include="calcolo stringhe e gradi.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\tensor\tensor.h" />
-    <ClInclude Include="..\tensor\tensor_impl.h" />
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="..\debugger\factor.natvis" />
     <Natvis Include="..\debugger\monomial.natvis" />
     <Natvis Include="..\tensor\tensor.natvis" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\tensor\tensor_impl.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
