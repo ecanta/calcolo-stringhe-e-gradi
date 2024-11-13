@@ -932,19 +932,19 @@ public:
 	{
 		ret coefficient == other.coefficient and exp == other.exp;
 	}
-	int degree()
+	int degree() const
 	{
 		int sum{};
 		for (size_t i = 0; i < exp; ++i) sum += exp[i];
 		ret sum;
 	}
-	bool IsSquare()
+	bool IsSquare() const
 	{
 		if (!integer(sqrt(fabs(this->coefficient)))) ret false;
 		for (size_t i = 0; i < exp; ++i) if (exp[i] % 2 == 1) ret false;
 		ret true;
 	}
-	monomial Root(int order)
+	monomial Root(int order) const
 	{
 		monomial result;
 
@@ -1003,7 +1003,7 @@ public:
 	
 	factor derivate(size_t Vpos) const
 	{
-		tensor<int> null{ tensor<int>(Variables.size(), 0) };
+		tensor<int> null(Variables.size(), 0);
 		if (this->empty()) ret { { 0, null } };
 		auto Derivative{ *this };
 		for (ptrdiff_t i = Derivative.size() - 1; i >= 0; --i) {
@@ -1524,6 +1524,14 @@ template<class T = long double>struct Fraction
 		ret derivative;
 	}
 
+	T operator()(tensor<long double> params) const
+	{
+		T res{ 1 };
+		for (size_t i = 0; i < num.size(); ++i) res *= num[i](params);
+		for (size_t i = 0; i < den.size(); ++i) res /= den[i](params);
+		ret res;
+	}
+
 	wstring str()
 	{
 		// frazione semplice
@@ -1608,7 +1616,7 @@ ConsoleStream ConsoleText;
 // matrici
 static ptrdiff_t intpow(ptrdiff_t base, int exp);
 static void ClearArea(COORD WinCenter, COORD Dimensions);
-template<typename _Ty = double> class Matrix : public tensor<tensor<_Ty>>
+template<typename _Ty = long double> class Matrix : public tensor<tensor<_Ty>>
 {
 public:
 	using tensor<tensor<_Ty>>::tensor;
@@ -1631,7 +1639,7 @@ public:
 		tensor<tensor<wstring>> StrMatrix(size), StrDenominators(size);
 		for (size_t i = 0; i < size; ++i) for (size_t j = 0; j < (*this)[i]; ++j)
 		{
-			double element{ (*this)[j][i] };
+			auto element{ (*this)[j][i] };
 
 			// elemento intero
 			if (SelectedElement.Y >= 0 or integer(element)) {
@@ -1989,7 +1997,7 @@ public:
 				SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
 				SetConsoleCursorInfo(hConsole, &cursor);
 				*this = Matrix(
-					TheMatrix.size(), tensor<double>(TheMatrix.size(), 0)
+					TheMatrix.size(), tensor<long double>(TheMatrix.size(), 0)
 				);
 				ret;
 			}
@@ -2141,7 +2149,7 @@ public:
 
 			ret det;
 		}
-		if constexpr (is_integral_v<_Ty>) {
+		if constexpr (is_integral_v<_Ty> or is_floating_point_v<_Ty>) {
 			_Ty det{};
 			size_t s{ this->size() };
 
@@ -2167,6 +2175,22 @@ public:
 		}
 
 		ret 0;
+	}
+	
+	Matrix invert()
+	{
+		Matrix result(this->size());
+		auto det{ this->det() };
+		for (size_t i = 0; i < this->size(); ++i)
+			for (size_t j = 0; j < this->size(); ++j)
+			{
+				auto second{ *this };
+				second.erase(second.begin() + i);
+				for (size_t k = 0; k < second; ++k)
+					second[k].erase(second[k].begin() + j);
+				result[i] << ((i + j) % 2 == 0 ? 1 : -1) * second.det() / det;
+			}
+		ret result;
 	}
 
 	tensor<double> EigenValues()
@@ -2242,21 +2266,27 @@ public:
 // punti
 HDC GHDC;
 static void DrawLine(int firstX, int firstY, int secondX, int secondY, HPEN Hpen);
-static void ProjectPoint(tensor<double> point, int& pointX, int& pointY);
-static void ProjectAndDrawLine(tensor<double> start, tensor<double> end, HPEN Hpen);
+static void ProjectPoint(tensor<long double> point, int& pointX, int& pointY);
+static void ProjectAndDrawLine
+(tensor<long double> start, tensor<long double> end, HPEN Hpen);
 class Point__
 {
 private:
 	int ScreenX, ScreenY;
 	tensor<long double> Normal;
 public:
-	double x, y, z;
+	long double x, y, z;
 
 	Point__() : x(0), y(0), z(0), ScreenX(-1), ScreenY(-1), Normal(3) {}
-	Point__(double _x, double _y, double _z)
-		: x(_x), y(_y), z(_z), ScreenX(-1), ScreenY(-1), Normal(3) {}
-	Point__(factor<> funct, double _x, double _y)
-		: x(_x), y(_y), z(funct({ x, y })), ScreenX(-1), ScreenY(-1), Normal(3) {}
+	Point__(long double _x, long double _y, long double _z)
+		: x(_x), y(_y), z(_z), ScreenX(-1), ScreenY(-1), Normal(3)
+	{}
+	Point__(factor<> funct, long double _x, long double _y)
+		: x(_x), y(_y), z(funct({ x, y })), ScreenX(-1), ScreenY(-1), Normal(3)
+	{}
+	Point__(Fraction<> funct, long double _x, long double _y)
+		: x(_x), y(_y), z(funct({ x, y })), ScreenX(-1), ScreenY(-1), Normal(3)
+	{}
 
 	int GetScreenX()
 	{
@@ -2292,7 +2322,7 @@ public:
 		ret *this;
 	}
 
-	tensor<long double> SetNormalVector(factor<> dfx, factor<> dfy)
+	tensor<long double> SetNormalVector(Fraction<> dfx, Fraction<> dfy)
 	{
 		Normal(3);
 		Normal[0] = dfx({ x, y });
@@ -2316,7 +2346,7 @@ public:
 	}
 
 	void StdDisplay
-	(factor<> fx, factor<> dfx, factor<> dfy, tensor<long double> light)
+	(Fraction<> fx, Fraction<> dfx, Fraction<> dfy, tensor<long double> light)
 	{
 		Point__ P{ fx, x, y };
 		auto normal{ P.SetNormalVector(dfx, dfy) };
@@ -2587,7 +2617,7 @@ static LRESULT CALLBACK WindowProcessor3D(
 	WPARAM wParam,
 	LPARAM lParam
 );
-static void Project3DGraph(factor<> funct);
+static void Project3DGraph(Fraction<> funct);
 static bool Prime(ptrdiff_t number);
 static void PrimeNCalculator(ptrdiff_t max, ptrdiff_t min = 0);
 static tensor<compost> DecomposeNumber(ptrdiff_t input);
@@ -2652,6 +2682,7 @@ static void Simplify(
 static void Approximator(tensor<long double>& Equation, long double& root);
 static tensor<wstring> EquationSolver(factor<> equation);
 static tensor<long double> RootExtractor(polynomial<> vect);
+static tensor<tensor<long double>> SystemSolver(tensor<factor<>> functions);
 static void FractDisequationMain(
 	polynomial<> Num, polynomial<> Den,
 
@@ -2815,7 +2846,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.2.0 ";
+			wcout << L"1.2.2 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -3836,7 +3867,6 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 				}
 				else if (system) break;
 
-
 				// aggiunta carattere
 				if (!arrow) {
 
@@ -4528,7 +4558,8 @@ namespace Window3Data
 	bool enable{ false };
 
 	LPARAM Coords{}, Current{};
-	factor<> Function, PartialXder, PartialYder;
+	tensor<long double> StatX, StatY, StatZ;
+	Fraction<> Function, PartialXder,  PartialYder;
 	auto Theta{ M_PI / 4 };
 	auto Phi{ M_PI / 3 };
 
@@ -4582,7 +4613,7 @@ static void IncrementCalculator(double zoom, double& pInc, double& vInc)
 }
 
 // funzione per proiettare un punto in 2 dimensioni
-static void ProjectPoint(tensor<double> point, int& pointX, int& pointY)
+static void ProjectPoint(tensor<long double> point, int& pointX, int& pointY)
 {
 	using namespace Window3Data;
 
@@ -4600,7 +4631,8 @@ static void ProjectPoint(tensor<double> point, int& pointX, int& pointY)
 }
 
 // funzione per proiettare una retta dallo spazio sullo schermo
-static void ProjectAndDrawLine(tensor<double> start, tensor<double> end, HPEN Hpen)
+static void ProjectAndDrawLine
+(tensor<long double> start, tensor<long double> end, HPEN Hpen)
 {
 	int p1x, p1y, p2x, p2y;
 	ProjectPoint(start, p1x, p1y);
@@ -5574,6 +5606,14 @@ static LRESULT CALLBACK WindowProcessor3D(
 
 		DrawAxis(PixelIncrement, ValueIncrement);
 
+		// output punti stazionari
+		for (size_t i = 0; i < StatX; ++i) {
+			int pointX, pointY;
+			ProjectPoint({ StatX[i], StatY[i], StatZ[i] }, pointX, pointY);
+			for (int i = 0; i < 2; ++i) for (int j = 0; j < 2; ++j)
+				SetPixel(hdc, pointX, pointY, RGB(255, 0, 0));
+		}
+
 		// fine disegno
 		EndPaint(hwnd, &ps);
 		ret 0;
@@ -5584,14 +5624,24 @@ static LRESULT CALLBACK WindowProcessor3D(
 }
 
 // funzione per creare la finestra del grafico a due variabili
-static void Project3DGraph(factor<> funct)
+static void Project3DGraph(Fraction<> funct)
 {
 	if (Variables.size() != 2) ret;
 
+	// calcolo dati della funzione
 	using namespace Window3Data;
 	Function = funct;
 	PartialXder = Function.derivate(0);
 	PartialYder = Function.derivate(1);
+	StatX.clear();
+	StatY.clear();
+	StatZ.clear();
+	auto StationaryPoints{ SystemSolver({ PartialXder.num[0], PartialYder.num[0] }) };
+	for (size_t i = 0; i < StationaryPoints; ++i) {
+		StatX << StationaryPoints[i][0];
+		StatY << StationaryPoints[i][1];
+		StatZ << Function({ StationaryPoints[i][0], StationaryPoints[i][1] });
+	}
 
 	// dati finestra
 	HINSTANCE hInstance = GetModuleHandle(0);
@@ -8632,7 +8682,7 @@ static void Approximator(tensor<long double>& Equation, long double& root)
 static tensor<wstring> EquationSolver(factor<> Equation)
 {
 	// caso nullo
-	tensor<int> null{ tensor<int>(Variables.size() , 0) };
+	tensor<int> null(Variables.size() , 0);
 	if (Equation.empty()) ret {};
 	tensor<wstring> answer;
 
@@ -8728,7 +8778,7 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 			ret answer;
 		}
 
-		// metodo di Newton-Raphson
+		// metodo di newton-raphson
 		long double root{};
 		Approximator(equation[0], root);
 		auto push{
@@ -8781,7 +8831,7 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 	}
 
 	// ricerca variabili
-	auto Used{ tensor<bool>(Variables.size(), false) };
+	tensor<bool> Used(Variables.size(), false);
 	for (const auto& mon : Equation)
 		for (size_t i = 0; i < Variables.size(); ++i) if (mon.exp[i] > 0)
 			Used[i] = true;
@@ -8816,6 +8866,85 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 
 	ret Used[Vpos] ?
 		tensor<wstring>{ L"x != " + str } : tensor<wstring>{ str + L" != 0" };
+}
+
+// risolve un sistema non lineare con il metodo di newton-raphson
+static tensor<tensor<long double>> SystemSolver(tensor<factor<>> functions)
+{
+	const double TOL = 0.000001;
+
+	// calcolo del grado del sistema
+	if (functions != Variables.size()) ret {};
+	int degree{ 1 };
+	for (const auto& function : functions) {
+		int max{ function[0].degree() };
+		for (size_t i = 1; i < function; ++i) {
+			int deg{ function[i].degree() };
+			if (max < deg) max = deg;
+		}
+		degree *= max;
+	}
+
+	// calcolo dello jacobiano inverso
+	Matrix<factor<>> Jacobian(Variables.size());
+	for (size_t i = 0; i < Variables.size(); ++i)
+		for (size_t j = 0; j < Variables.size(); ++j)
+			Jacobian[i] << functions[i].derivate(j);
+
+	// calcolo di ogni coppia ordinata
+	tensor<tensor<long double>> solutions;
+	tensor<long double> StarterPoint(Variables.size(), 0);
+	for (int i = 0; i < 100 or solutions >= degree; ++i) {
+
+		auto solution{ StarterPoint };
+		for (int j = 0; j < 100; ++j) {
+			
+			// valutazione dello jacobiano inverso nel punto
+			Matrix<> JInvpoint(Variables.size());
+			for (size_t j = 0; j < Variables.size(); ++j)
+				for (size_t k = 0; k < Variables.size(); ++k)
+					JInvpoint[j] << Jacobian[j][k](solution);
+			JInvpoint = JInvpoint.invert();
+
+			// aggiornamento punto
+			tensor<long double> vect;
+			for (size_t j = 0; j < Variables.size(); ++j)
+				vect << functions[j](solution);
+			tensor<long double> updater{ JInvpoint * vect };
+			for (size_t j = 0; j < Variables.size(); ++j)
+				solution[j] -= updater[j];
+
+			// uscita
+			long double norm{};
+			for (size_t j = 0; j < Variables.size(); ++j)
+				norm += updater[j] * updater[j];
+			if (norm < TOL) break;
+		}
+
+		// aggiunta
+		bool present{ false };
+		for (const auto& sol : solutions) if (sol == solution) {
+			present = true;
+			break;
+		}
+		if (!present) solutions << solution;
+		
+		// calcolo jacobiano nella soluzione
+		Matrix<> Jpoint(Variables.size());
+		for (size_t j = 0; j < Variables.size(); ++j)
+			for (size_t k = 0; k < Variables.size(); ++k)
+				Jpoint[j] << Jacobian[j][k](solution);
+		Jpoint = Jpoint.invert();
+
+		// aggiornamento punto
+		auto eigenvectors{ Jpoint.EigenVectors() };
+		if (eigenvectors.empty()) for (size_t j = 0; j < Variables.size(); ++j)
+			StarterPoint[j] = solution[j] + 0.1 * Jacobian[j][j](solution);
+		else for (size_t j = 0; j < Variables.size(); ++j)
+			StarterPoint[j] = solution[j] + 0.1 * eigenvectors[j][0];
+	}
+
+	ret solutions;
 }
 
 // converte le soluzioni di un'equazione da stringa a numero
@@ -10584,16 +10713,16 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		}
 
 		// grafico del polinomio
-		if (input and draw) {
-			switch (Variables.size()) {
-			case 1:
-				if (CreateGraph(
-					{ { PolynomialMultiply(HT) }, { { { 1, Null } } } }
-				)) while (CreateGraph());
-				break;
-			case 2: Project3DGraph(PolynomialMultiply(HT));
-				break;
-			}
+		if (input and draw) switch (Variables.size()) {
+		case 1:
+			if (CreateGraph(
+				{ { PolynomialMultiply(HT) }, { { { 1, Null } } } }
+			)) while (CreateGraph());
+			break;
+		case 2: Project3DGraph(
+			{ { PolynomialMultiply(HT) }, { { { 1, { Null } } } } }
+			  );
+			break;
 		}
 
 	EndOfDecomposition: if (!input) break;
@@ -10759,7 +10888,7 @@ static void DecompFraction(switchcase& argc)
 		// backup
 		auto Backup{ fraction };
 		int NCOEFF{ 1 }, DCOEFF{ 1 };
-		tensor<int> null{ tensor<int>(Variables.size(), 0) };
+		tensor<int> null(Variables.size(), 0);
 
 		// semplificazione fattori
 		Simplify(fraction.num, fraction.den, NCOEFF, DCOEFF);
@@ -11114,8 +11243,13 @@ static void DecompFraction(switchcase& argc)
 		wcout << L"\n\n";
 
 		// grafico
-		if (draw and Variables.size() == 1) if (CreateGraph(Backup.extend()))
-			while (CreateGraph());
+		if (draw) switch (Variables.size()) {
+		case 1:
+			if (CreateGraph(Backup.extend())) while (CreateGraph());
+			break;
+		case 2: Project3DGraph(Backup.extend());
+			break;
+		}
 	}
 
 	argc = NotAssigned;
@@ -11157,12 +11291,12 @@ static void DecompMatrices(switchcase& argc)
 			argc = Random;
 			goto RETURN;
 		}
-		if (matrix == Matrix<>(size, tensor<double>(size, 0))) break;
+		if (matrix == Matrix<>(size, tensor<long double>(size, 0))) break;
 		wcout << L'\n';
 		Mx = matrix;
 
 		// calcolo matrice di permutazione
-		auto Id{ Matrix<>(size, tensor<double>(size, 0)) };
+		auto Id{ Matrix<>(size, tensor<long double>(size, 0)) };
 		for (size_t i = 0; i < size; ++i) Id[i][i] = 1;
 		auto permutator{ Id };
 		for (size_t i = 0; i + 1 < size; ++i) {
@@ -11221,12 +11355,12 @@ static void DecompMatrices(switchcase& argc)
 		for (size_t i = 0; i < size; ++i) {
 			for (size_t j = i + 1; j < size; ++j) if (Mx[j][i] != 0) {
 
-				double norm{ hypot(Mx[j][i], Mx[j - 1][i]) };
+				long double norm{ hypot(Mx[j][i], Mx[j - 1][i]) };
 				if (norm == 0) {
 					Break = true;
 					break;
 				}
-				double cosine{ Mx[j - 1][i] / norm }, sine{ Mx[j][i] / norm };
+				long double cosine{ Mx[j - 1][i] / norm }, sine{ Mx[j][i] / norm };
 
 				auto givens{ Id };
 				givens[i][i] = cosine;
@@ -11377,23 +11511,35 @@ RETURN:
 
 // fine del codice -----------------------------------------------------------------
 
-
-/*	
-	debug messaggi di testo
+/*	LAVORO DA FARE
+	debug punti stazionari
 	
-	estensione alle frazioni algebriche
+	ctrl Z e ctrl Y
+	
+	aggiunta frecce alla fine degli assi
+	
+	debug messaggi di testo
 	
 	debug delle disequazioni (specialmente se con tre o più termini)
 	
-	aggiunta punti stazionari
-	
 	debug valori degli assi
-
-	aggiunta frecce alla fine degli assi
-
+	
+	operazioni tra matrici e tra frazioni algebriche
+	
+	risoluzione di sistemi non lineari e parametrici lineari
+	
+	nel grafico:
+		intersezione tra due rette
+		retta dato il coefficiente angolare e il punto
+		distanza punto-retta
+		distanza tra due rette
+		area triangolo
+	
 	polinomi a coefficienti complessi
-
-modifiche avanzate:
+	
+	radicali e operazioni con i radicali
+	
+LAVORO MOLTO DIFFICILE
 	trasparenza e linee tratteggiate
 	effetti per il colore
 	calcolo sulla GPU
