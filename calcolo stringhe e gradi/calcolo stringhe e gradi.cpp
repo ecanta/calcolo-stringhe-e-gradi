@@ -35,6 +35,7 @@
 #define issign(x)  (x == L'+' || x == L'-')
 #define Last(x)    (x).at((x).size() - 1)
 #define _SQ(x)     x * x
+#define cstr(x)   (x).c_str(), (x).size()
 
 // pragma warning
 #ifndef BUGS
@@ -2113,9 +2114,9 @@ public:
 		ret *this;
 	}
 
-	_Ty det()
+	template<typename T = _Ty> T det()
 	{
-		if constexpr (is_same_v<_Ty, FACTOR<>>)
+		if constexpr (is_same_v<T, FACTOR<>>)
 		{
 			FACTOR<> det;
 			int s = this->size();
@@ -2149,8 +2150,8 @@ public:
 
 			ret det;
 		}
-		if constexpr (is_integral_v<_Ty> or is_floating_point_v<_Ty>) {
-			_Ty det{};
+		if constexpr (is_integral_v<T> or is_floating_point_v<T>) {
+			T det{};
 			size_t s{ this->size() };
 
 			// casi speciali
@@ -2206,6 +2207,8 @@ public:
 
 		// calcolo autovalori
 		tensor<double> eigenvalues;
+		wchar_t save_char{ charVariable };
+		wstring save_wstring{ Variables };
 		charVariable = L'x';
 		Variables = L"x";
 		auto EigenStrings{ EquationSolver(ToXV(PolynomialMatrix.det())) };
@@ -2220,6 +2223,9 @@ public:
 				if (eigenvalues[i] < eigenvalues[j])
 					swap(eigenvalues[i], eigenvalues[j]);
 
+		// rispristino e fine
+		charVariable = save_char;
+		Variables = save_wstring;
 		ret eigenvalues;
 	}
 
@@ -2846,7 +2852,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.2.2 ";
+			wcout << L"1.2.3 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -4553,6 +4559,14 @@ namespace WindowData
 };
 namespace Window3Data
 {
+	enum states {
+		MINIMUM,
+		MAXIMUM,
+		SADDLE,
+		UNKNOWN,
+	};
+	tensor<int> def;
+
 	tensor<int> Light{ 0, 0, -1 };
 	double Zoom{ 1 };
 	bool enable{ false };
@@ -4645,7 +4659,7 @@ static void DrawAxis(double pInc, double vInc)
 {
 	using namespace Window3Data;
 	int OriginX{ ClientRect.right / 2 }, OriginY{ ClientRect.bottom / 2 };
-	const int MarkLenght{ 3 };
+	const int MarkLenght{ 5 };
 	
 	// Disegno assi completi
 	tensor<int> pixelX, pixelY;
@@ -4683,35 +4697,45 @@ static void DrawAxis(double pInc, double vInc)
 
 		// output valori degli assi
 		auto Pxf{ X2 - OriginX };
-		auto Pyf{ Y2 + OriginY };
-		auto hyp{ hypot(X2 - OriginX, Y2 + OriginY) };
+		auto Pyf{ Y2 - OriginY };
+		auto hyp{ hypot(Pxf, Pyf) };
 		double _x{};
+		
+		// calcolo angoli
+		auto PerpAngle = Pyf == 0 ? M_PI / 2 : atan(-double(Pxf) / Pyf);
+		auto cX{ MarkLenght * cos(PerpAngle) };
+		auto cY{ MarkLenght * sin(PerpAngle) };
+
+		// iterazione
 		for (double pixel = 0; pixel < hyp; pixel += pInc) {
-			
+			if (pixel == 0) continue;
+
 			// calcolo coordinate del punto
-			auto y = Pxf == 0 ? pInc : pixel * pow(double(Pyf) / Pxf, 2) - 1;
-			auto x{ sqrt(fabs(pInc - y)) };
-			y = sqrt(fabs(y));
+			auto y = Pyf == 0 ? 0 :
+				sqrt(fabs(pixel * pixel / (1 + pow((double(Pxf) / Pyf), 2))));
+			auto x = Pyf == 0 ? pixel : y * double(Pxf) / Pyf ;
+			if (x > 0 == Pxf > 0) x = -x;
 			if (y > 0 != Pyf > 0) y = -y;
-			if (x > 0 != Pxf > 0) y = -y;
 
 			// push
-			auto X{ to_wstring(x) };
-			while (Last(X) == L'0') X.pop_back();
-			if (Last(X) == L',') X.pop_back();
+			auto X{ Handler(to_wstring(x)) };
 			pixelX << OriginX + x << OriginX - x;
 			pixelY << OriginY - y << OriginY + y;
 			PixelValues << X << L"-" + X;
 
 			// output tratti degli assi
-			auto Angle{ atan(-double(Pxf) / Pyf) };
-			auto cX{ MarkLenght * cos(Angle) };
-			auto cY{ MarkLenght * sin(Angle) };
 			DrawLine(
-				OriginX + x + cX,
-				OriginY - y - cY,
 				OriginX + x - cX,
+				OriginY - y - cY,
+				OriginX + x + cX,
 				OriginY - y + cY,
+				UsedPen
+			);
+			DrawLine(
+				OriginX - x - cX,
+				OriginY + y - cY,
+				OriginX - x + cX,
+				OriginY + y + cY,
 				UsedPen
 			);
 
@@ -4720,7 +4744,7 @@ static void DrawAxis(double pInc, double vInc)
 
 		// nome asse
 		wstring name{ wstring(1, L'x' + i) };
-		TextOut(GHDC, X1, Y1, name.c_str(), name.size());
+		TextOut(GHDC, X1, Y1, cstr(name));
 	}
 }
 
@@ -4770,7 +4794,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 			Indexlist.erase(Indexlist.begin() + index); 
 			gIndex--;
 			memory << Indexlist;
-			redo = true;
+			redo = !Indexlist.empty();
 			charVariable = __save;
 			Variables = wstring(1, __save);
 
@@ -4948,10 +4972,8 @@ static LRESULT CALLBACK WindowProcessor2D(
 				CreatePen(PS_SOLID, 2, RGB(0, 128, 0))
 			);
 
-			auto X{ to_wstring(x) };
-			while (Last(X) == L'0') X.pop_back();
-			if (Last(X) == L',') X.pop_back();
-			GetTextExtentPoint32(hdc, X.c_str(), X.size(), &TextSize);
+			auto X{ Handler(to_wstring(x)) };
+			GetTextExtentPoint32(hdc, cstr(X), &TextSize);
 			if (OldPixelValue + OldTextSize.cx / 2
 				- pixel + TextSize.cx / 2 + 10 < 0)
 			{
@@ -4983,10 +5005,8 @@ static LRESULT CALLBACK WindowProcessor2D(
 				CreatePen(PS_SOLID, 2, RGB(0, 128, 0))
 			);
 
-			auto X{ to_wstring(x) };
-			while (Last(X) == L'0') X.pop_back();
-			if (Last(X) == L',') X.pop_back();
-			GetTextExtentPoint32(hdc, X.c_str(), X.size(), &TextSize);
+			auto X{ Handler(to_wstring(x)) };
+			GetTextExtentPoint32(hdc, cstr(X), &TextSize);
 			if (OldPixelValue - OldTextSize.cx / 2
 				- pixel - TextSize.cx / 2 - 10 > 0)
 			{
@@ -5018,10 +5038,8 @@ static LRESULT CALLBACK WindowProcessor2D(
 				CreatePen(PS_SOLID, 2, RGB(0, 128, 0))
 			);
 
-			auto Y{ to_wstring(y) };
-			while (Last(Y) == L'0') Y.pop_back();
-			if (Last(Y) == L',') Y.pop_back();
-			GetTextExtentPoint32(hdc, Y.c_str(), Y.size(), &TextSize);
+			auto Y{ Handler(to_wstring(y)) };
+			GetTextExtentPoint32(hdc, cstr(Y), &TextSize);
 			if (pixel - OldTextSize.cy / 2
 				- OldPixelValue - TextSize.cy / 2 < 0)
 			{
@@ -5053,10 +5071,8 @@ static LRESULT CALLBACK WindowProcessor2D(
 				CreatePen(PS_SOLID, 2, RGB(0, 128, 0))
 			);
 			
-			auto Y{ to_wstring(y) };
-			while (Last(Y) == L'0') Y.pop_back();
-			if (Last(Y) == L',') Y.pop_back();
-			GetTextExtentPoint32(hdc, Y.c_str(), Y.size(), &TextSize);
+			auto Y{ Handler(to_wstring(y)) };
+			GetTextExtentPoint32(hdc, cstr(Y), &TextSize);
 			if (OldPixelValue + OldTextSize.cy / 2
 				- pixel + TextSize.cy / 2 < 0)
 			{
@@ -5075,9 +5091,9 @@ static LRESULT CALLBACK WindowProcessor2D(
 		// output valori degli assi
 		SetTextColor(hdc, RGB(192, 255, 255));
 		for (size_t i = 0; i < NumbersX; ++i)
-			TextOut(hdc, NumbersX[i], OriginY, ValsX[i].c_str(), ValsX[i].size());
+			TextOut(hdc, NumbersX[i], OriginY, cstr(ValsX[i]));
 		for (size_t i = 0; i < NumbersY; ++i)
-			TextOut(hdc, OriginX, NumbersY[i], ValsY[i].c_str(), ValsY[i].size());
+			TextOut(hdc, OriginX, NumbersY[i], cstr(ValsY[i]));
 
 		// calcolo punti della funzione
 		for (size_t i = 0; i < Indexlist; ++i) {
@@ -5175,19 +5191,13 @@ static LRESULT CALLBACK WindowProcessor2D(
 				case D_FLX: Out = L"flesso discendente: (";
 					break;
 				}
-				auto _X{ to_wstring(List[Indexlist[i]].StatX[j]) };
-				auto _Y{ to_wstring(List[Indexlist[i]].StatY[j]) };
-
-				// approssimazione numeri
-				while (Last(_X) == L'0') _X.pop_back();
-				if (Last(_X) == L',') _X.pop_back();
-				while (Last(_Y) == L'0') _Y.pop_back();
-				if (Last(_Y) == L',') _Y.pop_back();
+				auto _X{ Handler(to_wstring(List[Indexlist[i]].StatX[j])) };
+				auto _Y{ Handler(to_wstring(List[Indexlist[i]].StatY[j])) };
 
 				// calcolo messaggio
 				Out += _X + L"; " + _Y + L')';
 				SIZE TextSize;
-				GetTextExtentPoint32(hdc, Out.c_str(), Out.size(), &TextSize);
+				GetTextExtentPoint32(hdc, cstr(Out), &TextSize);
 
 				// calcolo priorità e output
 				int CX{ X - TextSize.cx / 2 }, CY{ Y - TextSize.cy };
@@ -5201,7 +5211,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 					PriorityLabelsCenterX << X;
 					PriorityLabelsCenterY << Y;
 				}
-				else TextOut(hdc, CX, CY, Out.c_str(), Out.size());
+				else TextOut(hdc, CX, CY, cstr(Out));
 			
 				if (PriorityLabels.empty()) continue;
 			
@@ -5228,8 +5238,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 							hdc,
 							PriorityLabelsX[j],
 							PriorityLabelsY[j],
-							PriorityLabels[j].c_str(),
-							PriorityLabels[j].size()
+							cstr(PriorityLabels[j])
 						);
 						SetBkMode(hdc, TRANSPARENT);
 						continue;
@@ -5238,8 +5247,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 						hdc,
 						PriorityLabelsX[j],
 						PriorityLabelsY[j],
-						PriorityLabels[j].c_str(),
-						PriorityLabels[j].size()
+						cstr(PriorityLabels[j])
 					);
 				}
 			}
@@ -5316,7 +5324,7 @@ WindowCreation:
 	for (size_t i = 0; i < Indexlist; ++i) {
 		auto Text{ List[Indexlist[i]].ID };
 		SIZE lenght{};
-		GetTextExtentPoint32(hdc, Text.c_str(), Text.size(), &lenght);
+		GetTextExtentPoint32(hdc, cstr(Text), &lenght);
 
 		if (Maxlenght.cx < lenght.cx) Maxlenght.cx = lenght.cx;
 		if (Maxlenght.cy < lenght.cy) Maxlenght.cy = lenght.cy;
@@ -5608,10 +5616,34 @@ static LRESULT CALLBACK WindowProcessor3D(
 
 		// output punti stazionari
 		for (size_t i = 0; i < StatX; ++i) {
+
+			// output punto
 			int pointX, pointY;
 			ProjectPoint({ StatX[i], StatY[i], StatZ[i] }, pointX, pointY);
 			for (int i = 0; i < 2; ++i) for (int j = 0; j < 2; ++j)
-				SetPixel(hdc, pointX, pointY, RGB(255, 0, 0));
+				SetPixel(hdc, pointX, pointY, RGB(255, 255, 255));
+
+			// calcolo testo
+			wstring Out;
+			switch (def[i]) {
+			case MINIMUM: Out = L"minimo: (";
+				break;
+			case MAXIMUM: Out = L"massimo: (";
+				break;
+			case SADDLE: Out = L"sella: (";
+				break;
+			case UNKNOWN: Out = L"punto stazionario: (";
+				break;
+			}
+			auto _X{ Handler(to_wstring(StatX[i])) };
+			auto _Y{ Handler(to_wstring(StatY[i])) };
+			auto _Z{ Handler(to_wstring(StatZ[i])) };
+			Out += _X + L"; " + _Y + L"; " + _Z + L')';
+
+			// scrittura
+			SIZE txtsize;
+			GetTextExtentPoint32(hdc, cstr(Out), &txtsize);
+			TextOut(hdc, pointX - txtsize.cx / 2, pointY + 10, cstr(Out));
 		}
 
 		// fine disegno
@@ -5636,11 +5668,45 @@ static void Project3DGraph(Fraction<> funct)
 	StatX.clear();
 	StatY.clear();
 	StatZ.clear();
-	auto StationaryPoints{ SystemSolver({ PartialXder.num[0], PartialYder.num[0] }) };
+	auto StationaryPoints{
+		SystemSolver({ PartialXder.num[0], PartialYder.num[0] })
+	};
 	for (size_t i = 0; i < StationaryPoints; ++i) {
 		StatX << StationaryPoints[i][0];
 		StatY << StationaryPoints[i][1];
 		StatZ << Function({ StationaryPoints[i][0], StationaryPoints[i][1] });
+	}
+
+	// calcolo matrice hessiana
+	Matrix<Fraction<>> Hessian{
+		{ PartialXder.derivate(0), PartialXder.derivate(1) },
+		{ PartialYder.derivate(0), PartialYder.derivate(1) },
+	};
+	for (size_t i = 0; i < StatX; ++i) {
+		Matrix<> hessian(2);
+		for (int j = 0; j < 2; ++j) for (int k = 0; k < 2; ++k)
+			hessian[j] << Hessian[j][k]({ StatX[i], StatY[i] });
+
+		// calcolo del delta
+		long double A{ hessian[0][0] }, B{ hessian[0][1] };
+		long double C{ hessian[1][0] }, D{ hessian[1][1] };
+		long double delta{ A * A + D * D - 2 * A * D + 4 * B * C };
+
+		// autovalori immaginari
+		if (delta < 0) {
+			def << UNKNOWN;
+			continue;
+		}
+
+		// calcolo degli autovalori
+		delta = sqrt(delta);
+		long double e1{ (A + D + delta) / 2 }, e2{ (A + D - delta) / 2 };
+
+		// decisione
+		if (e1 == 0 or e2 == 0) def << UNKNOWN;
+		else if (e1 > 0 != e2 > 0) def << SADDLE;
+		else if (e1 > 0 and e2 > 0) def << MINIMUM;
+		else def << MAXIMUM;
 	}
 
 	// dati finestra
@@ -6637,6 +6703,10 @@ balance:
 		ret L"il polinomio è troppo grande";
 	for (auto adder : fact) for (auto element : adder) {
 		if (PolynomialSyntaxDirector(element).empty()) continue;
+
+		// controlli aggiuntivi
+		if (element.find(L'/') != wstring::npos) if (!isdigit(Last(element)))
+			ret L"i denominatori devono essere costanti";
 
 		bool exp{ element.size() > 1 and element.size() < 4 };
 		if (exp) if (element.at(0) == L'^')
@@ -8872,6 +8942,7 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 static tensor<tensor<long double>> SystemSolver(tensor<factor<>> functions)
 {
 	const double TOL = 0.000001;
+	tensor<int> null(Variables.size(), 0);
 
 	// calcolo del grado del sistema
 	if (functions != Variables.size()) ret {};
@@ -8885,6 +8956,37 @@ static tensor<tensor<long double>> SystemSolver(tensor<factor<>> functions)
 		degree *= max;
 	}
 
+	// casi semplificati
+	if (degree == 0) ret {};
+	if (degree == 1) {
+		tensor<tensor<long double>> solutions(1);
+
+		// calcolo termini noti
+		tensor<int> KnownTerms(Variables.size(), 0);
+		for (size_t i = 0; i < functions; ++i)
+			for (size_t j = 0; j < functions[i]; ++j)
+				if (functions[i][j].exp == null)
+					KnownTerms[i] = -functions[i][j].coefficient;
+
+		// calcolo coefficienti interni
+		Matrix<int> system(Variables.size(), tensor<int>(Variables.size(), 0));
+		for (size_t i = 0; i < functions; ++i)
+			for (size_t j = 0; j < functions[i]; ++j)
+				for (size_t k = 0; k < Variables.size(); ++k)
+					if (functions[i][j].exp[k] == 1)
+						system[k][i] = functions[i][j].coefficient;
+
+		// calcolo determinanti
+		auto D{ system.det<long double>() };
+		if (D == 0) ret {};
+		for (size_t i = 0; i < Variables.size(); ++i) {
+			auto mx{ system };
+			mx[i] = KnownTerms;
+			solutions[0] << mx.det() / D;
+		}
+		ret solutions;
+	}
+
 	// calcolo dello jacobiano inverso
 	Matrix<factor<>> Jacobian(Variables.size());
 	for (size_t i = 0; i < Variables.size(); ++i)
@@ -8894,7 +8996,7 @@ static tensor<tensor<long double>> SystemSolver(tensor<factor<>> functions)
 	// calcolo di ogni coppia ordinata
 	tensor<tensor<long double>> solutions;
 	tensor<long double> StarterPoint(Variables.size(), 0);
-	for (int i = 0; i < 100 or solutions >= degree; ++i) {
+	for (int i = 0; i < 100 and solutions < degree; ++i) {
 
 		auto solution{ StarterPoint };
 		for (int j = 0; j < 100; ++j) {
@@ -8904,6 +9006,8 @@ static tensor<tensor<long double>> SystemSolver(tensor<factor<>> functions)
 			for (size_t j = 0; j < Variables.size(); ++j)
 				for (size_t k = 0; k < Variables.size(); ++k)
 					JInvpoint[j] << Jacobian[j][k](solution);
+			if (JInvpoint.det<long double>() == 0)
+				for (size_t j = 0; j < Variables.size(); ++j) JInvpoint[j][j]++;
 			JInvpoint = JInvpoint.invert();
 
 			// aggiornamento punto
@@ -8923,9 +9027,18 @@ static tensor<tensor<long double>> SystemSolver(tensor<factor<>> functions)
 
 		// aggiunta
 		bool present{ false };
-		for (const auto& sol : solutions) if (sol == solution) {
-			present = true;
-			break;
+		for (auto& sol : solutions) {
+
+			bool LocalPresent{ true };
+			for (size_t j = 0; j < sol; ++j) if (sol[j] - solution[j] > TOL)
+			{
+				LocalPresent = false;
+				break;
+			}
+			if (LocalPresent) {
+				present = true;
+				break;
+			}
 		}
 		if (!present) solutions << solution;
 		
@@ -8934,6 +9047,9 @@ static tensor<tensor<long double>> SystemSolver(tensor<factor<>> functions)
 		for (size_t j = 0; j < Variables.size(); ++j)
 			for (size_t k = 0; k < Variables.size(); ++k)
 				Jpoint[j] << Jacobian[j][k](solution);
+		if (Jpoint.det() == 0) Jpoint = Matrix<>(
+			Variables.size(), tensor<long double>(Variables.size(), 0)
+		);
 		Jpoint = Jpoint.invert();
 
 		// aggiornamento punto
@@ -11512,7 +11628,8 @@ RETURN:
 // fine del codice -----------------------------------------------------------------
 
 /*	LAVORO DA FARE
-	debug punti stazionari
+	
+	debug systemsolver
 	
 	ctrl Z e ctrl Y
 	
@@ -11522,7 +11639,7 @@ RETURN:
 	
 	debug delle disequazioni (specialmente se con tre o più termini)
 	
-	debug valori degli assi
+	aggiunta valori sui tratti degli assi
 	
 	operazioni tra matrici e tra frazioni algebriche
 	
