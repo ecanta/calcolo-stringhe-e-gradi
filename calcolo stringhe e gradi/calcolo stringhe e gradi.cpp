@@ -101,6 +101,8 @@ using Concurrency::parallel_for, this_thread::sleep_for;
 #pragma endregion
 #pragma region Globals
 
+int __NULL__ = 0;
+
 // oggetti windows
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 HANDLE hConsoleInput = GetStdHandle(STD_INPUT_HANDLE);
@@ -770,7 +772,7 @@ public:
 	wostringstream c_str(int precision) const
 	{
 		wostringstream oss, result;
-		if (sign) result << L'-'; 
+		if (sign) result << L'-';
 		for (size_t i = 0; i < Integer; ++i) result << Integer[i];
 		if (precision > 0) oss << setprecision(precision) << decimal;
 		auto str{ oss.str() };
@@ -1622,7 +1624,7 @@ template<typename _Ty = long double> class Matrix : public tensor<tensor<_Ty>>
 public:
 	using tensor<tensor<_Ty>>::tensor;
 
-	int output(COORD SelectedElement = { -1, -1 }) const
+	int output(COORD SelectedElement = { -1, -1 }, int& extension = __NULL__) const
 	{
 
 		// aggiunta di spazio
@@ -1713,6 +1715,7 @@ public:
 
 		// iterazione e stampa matrice
 		int line{};
+		if (extension) extension = sum + 3;
 		for (size_t i = 0; index <= 2 * size; ++i) {
 
 			// inizio e fine matrice
@@ -1788,7 +1791,8 @@ public:
 
 					// denominatori non nulli
 				case 3:
-					if (TempDenominator.at((TempDenominator.size() - 1) / 2) == L' ')
+					if (TempDenominator.at(
+						(TempDenominator.size() - 1) / 2) == L' ')
 						wcout << wstring(
 							StrMatrix[j][(index - 1) / 2].size() + 1, L' '
 						);
@@ -1817,11 +1821,14 @@ public:
 		if (SelectedElement.X == -1) begin.X += sum + 3;
 		SetConsoleCursorPosition(hConsole, begin);
 
+		__NULL__ = 0;
 		ret line;
 	}
 
-	void input()
+	int input(bool enable, wchar_t& Operator, int& extension = __NULL__)
 	{
+		Operator = L' ';
+
 		setlocale(LC_ALL, "");
 		SetConsoleOutputCP(CP_UTF8);
 		SetConsoleCP(CP_UTF8);
@@ -1840,14 +1847,44 @@ public:
 		Signs[1](2, POS);
 		TheMatrix[0](2, 0);
 		TheMatrix[1](2, 0);
-		TheMatrix.output({ 0, 0 });
+		int line{ TheMatrix.output({ 0, 0 }, extension) };
 		COORD IndexAccesser{};
 
 		bool arrow{ false };
 		wstring MatrixAtIndex;
-		while (true) {
+		for (;;) {
+			char c;
+
+			// operatori
+			if (GetAsyncKeyState(VK_ADD) & 0x8000) {
+				Operator = L'+';
+				goto end;
+			}
+			if (GetAsyncKeyState(VK_SUBTRACT) & 0x8000) {
+				Operator = L'-';
+				goto end;
+			}
+			if (GetAsyncKeyState(VK_MULTIPLY) & 0x8000) {
+				Operator = L'*';
+				goto end;
+			}
+			if (GetAsyncKeyState(VK_DIVIDE) & 0x8000) {
+				Operator = L'/';
+				goto end;
+			}
+			if (GetAsyncKeyState(VK_SHIFT) & 0x8000) {
+				if (GetAsyncKeyState(L'8') & 0x8000) {
+					Operator = L'(';
+					goto end;
+				}
+				if (GetAsyncKeyState(L'9') & 0x8000) {
+					Operator = L')';
+					goto end;
+				}
+			}
+
 			if (_kbhit()) {
-				char c = tolower(_getch());
+				c = tolower(_getch());
 
 				// casi speciali
 				if (c == EscapeCode) {
@@ -1927,7 +1964,7 @@ public:
 					break;
 
 					// L'+' aumenta la dimensione
-				case L'>': if (TheMatrix.size() > 6) break;
+				case L'>': if (TheMatrix.size() > 6 or !enable) break;
 					size = TheMatrix.size() + 1;
 					TheMatrix(size);
 					Signs(size);
@@ -1938,7 +1975,7 @@ public:
 					break;
 
 					// L'-' riduce la dimensione
-				case L'<': if (TheMatrix.size() <= 2) break;
+				case L'<': if (TheMatrix.size() <= 2 or !enable) break;
 					TheMatrix--;
 					for (auto& row : TheMatrix) row--;
 					IndexAccesser.X %= TheMatrix.size();
@@ -1947,18 +1984,21 @@ public:
 
 					// L'\r' invia la matrice
 				case L'\r':
+				end:
 					_GetCursorPos();
 					csbi.dwCursorPosition.Y += 2 * TheMatrix.size() + 1;
 					SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
 					SetConsoleCursorInfo(hConsole, &cursor);
 					*this = TheMatrix;
-					ret;
+
+					__NULL__ = 0;
+					ret line;
 
 					// L'.' termina il programma
 				case L'.':
 					SetConsoleCursorInfo(hConsole, &cursor);
 					this->clear();
-					ret;
+					ret line;
 
 				default:
 
@@ -1989,7 +2029,7 @@ public:
 					{ (short)(CursorPos.X + 30), (short)(CursorPos.Y + 8) },
 					{ 30, 8 }
 				);
-				TheMatrix.output(IndexAccesser);
+				line = TheMatrix.output(IndexAccesser, extension);
 				SetConsoleCursorInfo(hConsole, &cursor);
 			}
 			if (!RunMonitor) {
@@ -2000,7 +2040,9 @@ public:
 				*this = Matrix(
 					TheMatrix.size(), tensor<long double>(TheMatrix.size(), 0)
 				);
-				ret;
+
+				__NULL__ = 0;
+				ret line;
 			}
 		}
 	}
@@ -2788,7 +2830,119 @@ int main()
 	SetConsoleOutputCP(CP_UTF8);
 	SetConsoleCP(CP_UTF8);
 	wcout.imbue(locale(""));
-	
+
+	// -----------------------------------------------------------------------------
+
+	// inizio
+	_GetCursorPos();
+	COORD begin{ csbi.dwCursorPosition };
+	tensor<tensor<Matrix<>>> OperationList{ {} };
+	tensor<Matrix<>> Displayed;
+	wstring operators;
+	wchar_t Oldcode{ L'+' };
+	bool enable{ true };
+
+	for (;;) {
+
+		// input iniziale
+		Matrix<> inputer;
+		wchar_t Opcode;
+		int lenght{ 1 };
+		int depth{ inputer.input(enable, Opcode, lenght) };
+
+		// blocco se sono premuti i tasti degli operatori
+		while (
+			GetAsyncKeyState(VK_ADD) & 0x8000 or
+			GetAsyncKeyState(VK_SUBTRACT) & 0x8000 or
+			GetAsyncKeyState(VK_MULTIPLY) & 0x8000 or
+			GetAsyncKeyState(VK_DIVIDE) & 0x8000 or
+			(
+				GetAsyncKeyState(VK_SHIFT) & 0x8000 and
+				(GetAsyncKeyState(L'8') & 0x8000 or GetAsyncKeyState(L'9') & 0x8000)
+				)
+			);
+
+		// calcolo matrice corretta
+		auto displayed{ inputer };
+		switch (Oldcode) {
+		case L'-':
+			for (auto& row : displayed) for (auto& el : row) el *= -1;
+			break;
+		case '/':
+			displayed = displayed.invert();
+			break;
+		}
+
+		// aggiunte
+		Displayed << inputer;
+		operators += Opcode;
+		if (Oldcode == L' ' or Oldcode == L'*' or Oldcode == L'/')
+			OperationList.last() << inputer;
+		else OperationList << tensor<Matrix<>>{ inputer };
+		
+		// termine
+		if (Opcode == L' ') {
+			_GetCursorPos();
+			SetConsoleCursorPosition(hConsole, { 0, csbi.dwCursorPosition.Y });
+			break;
+		}
+
+		// pulizia
+		_GetCursorPos();
+		ClearArea(
+			{ csbi.dwSize.X, short((csbi.dwCursorPosition.Y + begin.Y) / 2) },
+			{ csbi.dwSize.X, short((csbi.dwCursorPosition.Y - begin.Y) / 2) }
+		);
+		SetConsoleCursorPosition(hConsole, begin);
+
+		// output
+		auto size{ Displayed[0].size() };
+		for (size_t i = 0; i < Displayed; ++i) {
+
+			// controllo iniziale
+			_GetCursorPos();
+			if (csbi.dwSize.X <= csbi.dwCursorPosition.X + 11 * size + 4)
+				SetConsoleCursorPosition(
+					hConsole, { 0, short(csbi.dwCursorPosition.Y + depth + 3) }
+				);
+			Displayed[i].output();
+
+			// riposizionamento operatore
+			_GetCursorPos();
+			SetConsoleCursorPosition(
+				hConsole,
+				{
+					short(csbi.dwCursorPosition.X + 1),
+					short(csbi.dwCursorPosition.Y + depth / 2)
+				}
+			);
+			wcout << operators.at(i);
+
+			// riposizionamento finale
+			_GetCursorPos();
+			SetConsoleCursorPosition(
+				hConsole,
+				{
+					short(csbi.dwCursorPosition.X + 1),
+					short(csbi.dwCursorPosition.Y - depth / 2)
+				}
+			);
+
+			// controllo finale
+			_GetCursorPos();
+			if (csbi.dwSize.X <= csbi.dwCursorPosition.X + 11 * size + 4)
+				SetConsoleCursorPosition(
+					hConsole, { 0, short(csbi.dwCursorPosition.Y + depth + 3) }
+				);
+		}
+
+		Oldcode = Opcode;
+		enable = false;
+	}
+
+	_getch();
+	// -----------------------------------------------------------------------------
+
 	// avvio
 	QueryPerformanceFrequency(&ProgramFrequency);
 	Beep(1'000, 50);
@@ -2835,7 +2989,7 @@ int main()
 	ptrdiff_t global{ 1 };
 	long double ComputationTime;
 	size_t Timer{ 6'500'000'000 };
-	while (true)
+	for (;;)
 	{
 		if (!LockPrimeNumbersInput) {
 			Start:
@@ -2852,7 +3006,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.2.3 ";
+			wcout << L"1.2.5 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -3774,7 +3928,7 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 
 	_GetCursorPos();
 	auto start{ csbi.dwCursorPosition };
-	while (true) {
+	for (;;) {
 		if (_kbhit()) {
 			_GetCursorPos();
 			short maxsize = csbi.dwSize.X;
@@ -4050,7 +4204,7 @@ static wstring GetLine(tensor<wstring>& sugg, bool ShowSuggestions)
 	ptrdiff_t TensorIndex{};
 	wstring StringCopy;
 
-	while (true) {
+	for (;;) {
 		if (_kbhit()) {
 			script = false;
 
@@ -4474,11 +4628,11 @@ namespace WindowData
 	bool enable{ false };
 	int shiftX{}, shiftY{};
 	double Zoom{ 1 };
-	wchar_t __save; 
+	wchar_t __save;
 	
 	int gIndex{};
 	tensor<int> Indexlist;
-	tensor<tensor<int>> memory;
+	tensor<tensor<int>> memory{ {} };
 	class DATA
 	{
 	public:
@@ -4791,9 +4945,10 @@ static LRESULT CALLBACK WindowProcessor2D(
 		
 		// rimozione della funzione
 		if (!derivate) {
-			Indexlist.erase(Indexlist.begin() + index); 
-			gIndex--;
+			Indexlist.erase(Indexlist.begin() + index);
+			memory(gIndex + 1);
 			memory << Indexlist;
+			gIndex++;
 			redo = !Indexlist.empty();
 			charVariable = __save;
 			Variables = wstring(1, __save);
@@ -4808,9 +4963,9 @@ static LRESULT CALLBACK WindowProcessor2D(
 			Zoom = zoom;
 			ret 0;
 		}
-
+		
 		// aggiunta della derivata
-		auto derivative{ List[Indexlist[index]].Function.derivate(0) };
+		auto derivative{ List[memory[gIndex][index]].Function.derivate(0) };
 		if (derivative.num ==
 			polynomial<>{ { { 0, tensor<int>(Variables.size(), 0) } } })
 		{
@@ -4829,6 +4984,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 			--Indexlist;
 			gIndex--;
 		}
+		memory(gIndex);
 		memory << Indexlist;
 		redo = true;
 		charVariable = __save;
@@ -4862,7 +5018,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 		WindowData::Current = lParam;
 		if (!enable) break;
 		int OldXpos = (short)LOWORD(Coords), OldYpos = (short)HIWORD(Coords);
-		int xPos = (short)LOWORD(lParam) , yPos = (short)HIWORD(lParam);
+		int xPos = (short)LOWORD(lParam), yPos = (short)HIWORD(lParam);
 		shiftX -= OldXpos - xPos;
 		shiftY += OldYpos - yPos;
 		Coords = lParam;
@@ -4889,6 +5045,8 @@ static LRESULT CALLBACK WindowProcessor2D(
 	case WM_KEYDOWN:
 		switch (wParam)
 		{
+
+			// invio
 		case 13:
 			Zoom = 1;
 			shiftX = 0;
@@ -4897,11 +5055,15 @@ static LRESULT CALLBACK WindowProcessor2D(
 			Variables = wstring(1, __save);
 			DestroyWindow(hwnd);
 			ret 0;
+
+			// reset
 		case 'R':
 			Zoom = 1;
 			shiftX = 0;
 			shiftY = 0;
 			break;
+
+			// traslazione
 		case 'D': shiftX += 10;
 			break;
 		case 'A': shiftX -= 10;
@@ -4910,12 +5072,54 @@ static LRESULT CALLBACK WindowProcessor2D(
 			break;
 		case 'S': shiftY -= 10;
 			break;
+
+			// zoom
 		case 189: if (Zoom < 10000000) Zoom *= 1.2;
 			break;
 		case 187: if (Zoom > 0.00001) Zoom /= 1.2;
 			break;
+
+			// ctrl + y
+		case 'Y': {
+			if ((GetKeyState(VK_CONTROL) & 0x8000) == 0 or gIndex + 1 >= memory)
+				ret 0;
+			gIndex++;
+			Indexlist = memory[gIndex];
+
+			// salvataggio dati
+			redo = true;
+			auto shiftx{ shiftX };
+			auto shifty{ shiftY };
+			auto zoom{ Zoom };
+			DestroyWindow(hwnd);
+			shiftX = shiftx;
+			shiftY = shifty;
+			Zoom = zoom;
+		}
+			ret 0;
+
+			// ctrl + z
+		case 'Z': {
+			if ((GetKeyState(VK_CONTROL) & 0x8000) == 0 or gIndex <= 0)
+				ret 0;
+			gIndex--;
+			Indexlist = memory[gIndex];
+
+			// salvataggio dati
+			redo = true;
+			auto shiftx{ shiftX };
+			auto shifty{ shiftY };
+			auto zoom{ Zoom };
+			DestroyWindow(hwnd);
+			shiftX = shiftx;
+			shiftY = shifty;
+			Zoom = zoom;
+		}
+			ret 0;
+
 		default: ret DefWindowProc(hwnd, uMsg, wParam, lParam);
 		}
+
 		InvalidateRect(hwnd, NULL, TRUE);
 		ret 0;
 
@@ -5096,7 +5300,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 			TextOut(hdc, OriginX, NumbersY[i], cstr(ValsY[i]));
 
 		// calcolo punti della funzione
-		for (size_t i = 0; i < Indexlist; ++i) {
+		for (size_t i = 0; i < memory[gIndex]; ++i) {
 			bool write{ false }, Oldwrite{ write }, enable{ true };
 			tensor<int> Xcoord, Ycoord, asintothes;
 
@@ -5109,11 +5313,11 @@ static LRESULT CALLBACK WindowProcessor2D(
 
 				// calcolo ordinate
 				auto _den{
-					List[Indexlist[i]].Function.den[0]({ __x })
+					List[memory[gIndex][i]].Function.den[0]({ __x })
 					* LCM.Number<long double>()
 				};
 				if (_den == 0) continue;
-				auto fx{ List[Indexlist[i]].Function.num[0]({ __x }) / _den };
+				auto fx{ List[memory[gIndex][i]].Function.num[0]({ __x }) / _den };
 
 				// output pixel
 				int X = OriginX + __x * 20 / Zoom, Y = OriginY - fx * 20 / Zoom;
@@ -5145,7 +5349,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 				if (Continue) continue;
 				DrawLine(
 					Xcoord[j], Ycoord[j], Xcoord[j + 1], Ycoord[j + 1],
-					CreatePen(PS_SOLID, 2, List[Indexlist[i]].Color)
+					CreatePen(PS_SOLID, 2, List[memory[gIndex][i]].Color)
 				);
 			}
 		}
@@ -5166,20 +5370,20 @@ static LRESULT CALLBACK WindowProcessor2D(
 		tensor<int> PriorityLabelsCenterX, PriorityLabelsCenterY;
 		int cursorX = (short)LOWORD(WindowData::Current);
 		int cursorY = (short)HIWORD(WindowData::Current);
-		for (size_t i = 0; i < Indexlist; ++i)
-			for (size_t j = 0; j < List[Indexlist[i]].States; ++j)
+		for (size_t i = 0; i < memory[gIndex]; ++i)
+			for (size_t j = 0; j < List[memory[gIndex][i]].States; ++j)
 			{
 
 				// impostazione colore
-				SetTextColor(hdc, List[Indexlist[i]].Color);
-				int X = OriginX + List[Indexlist[i]].StatX[j] * 20 / Zoom;
-				int Y = OriginY - List[Indexlist[i]].StatY[j] * 20 / Zoom;
+				SetTextColor(hdc, List[memory[gIndex][i]].Color);
+				int X = OriginX + List[memory[gIndex][i]].StatX[j] * 20 / Zoom;
+				int Y = OriginY - List[memory[gIndex][i]].StatY[j] * 20 / Zoom;
 				for (int j = -2; j < 2; ++j) for (int k = -2; k < 2; ++k)
 					SetPixel(hdc, X + j, Y + k, RGB(255, 255, 255));
 
 				// calcolo testo
 				wstring Out;
-				switch (List[Indexlist[i]].States[j]) {
+				switch (List[memory[gIndex][i]].States[j]) {
 				case MIN: Out = L"minimo: (";
 					break;
 				case MAX: Out = L"massimo: (";
@@ -5191,8 +5395,8 @@ static LRESULT CALLBACK WindowProcessor2D(
 				case D_FLX: Out = L"flesso discendente: (";
 					break;
 				}
-				auto _X{ Handler(to_wstring(List[Indexlist[i]].StatX[j])) };
-				auto _Y{ Handler(to_wstring(List[Indexlist[i]].StatY[j])) };
+				auto _X{ Handler(to_wstring(List[memory[gIndex][i]].StatX[j])) };
+				auto _Y{ Handler(to_wstring(List[memory[gIndex][i]].StatY[j])) };
 
 				// calcolo messaggio
 				Out += _X + L"; " + _Y + L')';
@@ -5278,7 +5482,7 @@ static BOOL CreateGraph(Fraction<> funct)
 	DATA new_data;
 	if (funct.num.empty() and funct.den.empty()) goto WindowCreation;
 	new_data = funct;
-	for (const auto idx : Indexlist) if (List[idx] == new_data) {
+	for (const auto idx : memory[gIndex]) if (List[idx] == new_data) {
 		present = true;
 		break;
 	}
@@ -5290,8 +5494,13 @@ static BOOL CreateGraph(Fraction<> funct)
 			--Indexlist;
 			gIndex--;
 		}
-	}
+	} 
+	memory(gIndex);
 	memory << Indexlist;
+	if (memory == 2) {
+		--memory;
+		gIndex--;
+	}
 
 	// dati finestra
 WindowCreation:
@@ -5321,8 +5530,8 @@ WindowCreation:
 	PAINTSTRUCT ps;
 	HDC hdc = BeginPaint(hwnd, &ps);
 	SIZE Maxlenght{};
-	for (size_t i = 0; i < Indexlist; ++i) {
-		auto Text{ List[Indexlist[i]].ID };
+	for (size_t i = 0; i < memory[gIndex]; ++i) {
+		auto Text{ List[memory[gIndex][i]].ID };
 		SIZE lenght{};
 		GetTextExtentPoint32(hdc, cstr(Text), &lenght);
 
@@ -5334,12 +5543,12 @@ WindowCreation:
 	// creazione pulsanti per ogni funzione
 	int LINE{ 30 };
 	tensor<HWND> ButtonList;
-	for (size_t i = 0; i < Indexlist; ++i) {
+	for (size_t i = 0; i < memory[gIndex]; ++i) {
 
 		// pulsante della funzione
 		ButtonList << CreateWindowEx(
 			0,
-			L"BUTTON", List[Indexlist[i]].ID.c_str(),
+			L"BUTTON", List[memory[gIndex][i]].ID.c_str(),
 			WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
 			30, 30 + i * (2 * Maxlenght.cy + 20),
 			Maxlenght.cx + 10, Maxlenght.cy + 10,
@@ -6080,7 +6289,7 @@ static wstring Cript(ptrdiff_t input)
 				// ricerca binaria
 				ptrdiff_t index = PrimeNumbers.list_primes.size() / 2;
 				ptrdiff_t position{ -1 }, incr{ index };
-				while (true) {
+				for (;;) {
 					incr /= 2;
 					if (incr == 0) incr = 1;
 					if (PrimeNumbers.list_primes[index] > WhatFactor)
@@ -8551,7 +8760,7 @@ static void PrintFraction
 
 	// calcolo coefficienti e correzione
 	if (root != 0) {
-		while (true) {
+		for (;;) {
 			if (integer(I * root)) break;
 			I++;
 		}
@@ -8799,7 +9008,7 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 	}
 
 	// risoluzione dell'equazione
-	if (!equation.empty()) while (true) {
+	if (!equation.empty()) for (;;) {
 
 		if (equation[0] == 2) break;
 
@@ -9774,7 +9983,7 @@ static void CodeToNumber(switchcase& argc)
 	wcout << L"oppure '\\' o '/' senza <> non vengono mostrati gli errori\n\n";
 	ResetAttribute();
 
-	while (true)
+	for (;;)
 	{
 		do {
 			message.clear();
@@ -9893,7 +10102,7 @@ static wstring ExpandNumber(
 		ResetAttribute();
 	}
 
-	while (true)
+	for (;;)
 	{
 		if (!RetAccess) code = true;
 		if (access)
@@ -10082,7 +10291,7 @@ static wstring ExpandNumber(
 			// calcolo delle tetrazioni
 			tensor<big> tetration{ 0, 1, Base };
 			big last = Base;
-			while (true) {
+			for (;;) {
 				if (last * log2(Base) >= 256) break;
 				last = big(Base) ^ last;
 				tetration << last;
@@ -10220,7 +10429,7 @@ static void Repeater(
 	wcout << message << L"\n\n";
 	ResetAttribute();
 
-	while (true)
+	for (;;)
 	{
 		// input e controllo
 		SetConsoleTextAttribute(hConsole, 14);
@@ -10879,7 +11088,7 @@ static void DecompFraction(switchcase& argc)
 	wcout << L"per disegnare il grafico aggiungere '\\' all'inizio\n";
 	ResetAttribute();
 
-	while (true)
+	for (;;)
 	{
 		// input della frazione algebrica
 		wstring numerator, denominator;
@@ -11396,12 +11605,26 @@ static void DecompMatrices(switchcase& argc)
 	ResetAttribute();
 	Matrix<> matrix, Mx;
 
-	while (true)
+	for (;;)
 	{
+
+		// blocco se sono premuti i tasti degli operatori
+		while (
+			GetAsyncKeyState(VK_ADD) & 0x8000 or
+			GetAsyncKeyState(VK_SUBTRACT) & 0x8000 or
+			GetAsyncKeyState(VK_MULTIPLY) & 0x8000 or
+			GetAsyncKeyState(VK_DIVIDE) & 0x8000 or
+			(
+				GetAsyncKeyState(VK_SHIFT) & 0x8000 and
+				(GetAsyncKeyState(L'8') & 0x8000 or GetAsyncKeyState(L'9') & 0x8000)
+			)
+		);
+
 		// input
 		ResetAttribute();
 		wcout << L"inserisci una matrice, usa wasd per cambiare elemento\n";
-		matrix.input();
+		wchar_t notused;
+		matrix.input(true, notused);
 		size_t size{ matrix.size() };
 		if (size == 0) {
 			argc = Random;
@@ -11629,9 +11852,9 @@ RETURN:
 
 /*	LAVORO DA FARE
 	
-	debug systemsolver
+	operazioni tra matrici e tra frazioni algebriche
 	
-	ctrl Z e ctrl Y
+	debug systemsolver
 	
 	aggiunta frecce alla fine degli assi
 	
@@ -11640,8 +11863,6 @@ RETURN:
 	debug delle disequazioni (specialmente se con tre o più termini)
 	
 	aggiunta valori sui tratti degli assi
-	
-	operazioni tra matrici e tra frazioni algebriche
 	
 	risoluzione di sistemi non lineari e parametrici lineari
 	
