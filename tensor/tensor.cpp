@@ -127,20 +127,22 @@ namespace std_tensor
 		// metodi di accesso agli elementi
 		inline T& at(size_t index)
 		{
-			if (index >= count) throw _STD out_of_range("Index out of range");
+			if (index >= count) throw _STD out_of_range("Index out of range!");
 			ret data[index];
 		}
 		inline const T& at(size_t index) const
 		{
-			if (index >= count) throw _STD out_of_range("Index out of range");
+			if (index >= count) throw _STD out_of_range("Index out of range!");
 			ret data[index];
 		}
 		inline T& last()
 		{
+			if (count == 0) throw _STD out_of_range("Tensor is empty!");
 			ret data[count - 1];
 		}
 		inline const T& last() const
 		{
+			if (count == 0) throw _STD out_of_range("Tensor is empty!");
 			ret data[count - 1];
 		}
 
@@ -151,7 +153,7 @@ namespace std_tensor
 		}
 		tensor erase(size_t pos)
 		{
-			if (pos >= count) throw _STD out_of_range("Index out of range");
+			if (pos >= count) throw _STD out_of_range("Index out of range!");
 			count = pos;
 			ret *this;
 		}
