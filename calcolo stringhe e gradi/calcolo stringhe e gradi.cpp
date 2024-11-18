@@ -33,9 +33,9 @@
 // funzioni macro importanti
 #define integer(x) (::std::fabs(x - ::std::round(x)) < 1e-9)
 #define issign(x)  (x == L'+' || x == L'-')
+#define cstr(x)	   (x).c_str(), (x).size()
 #define Last(x)    (x).at((x).size() - 1)
 #define _SQ(x)     x * x
-#define cstr(x)   (x).c_str(), (x).size()
 
 // pragma warning
 #ifndef BUGS
@@ -1617,14 +1617,20 @@ public:
 ConsoleStream ConsoleText;
 
 // matrici
+static void SendCtrlPlusMinus(bool plus);
 static ptrdiff_t intpow(ptrdiff_t base, int exp);
 static void ClearArea(COORD WinCenter, COORD Dimensions);
 template<typename _Ty = long double> class Matrix : public tensor<tensor<_Ty>>
 {
 public:
+	Matrix() {}
 	using tensor<tensor<_Ty>>::tensor;
 
-	int output(COORD SelectedElement = { -1, -1 }, int& extension = __NULL__) const
+	int output(
+		COORD SelectedElement = { -1, -1 },
+		int& extension = __NULL__,
+		WORD Attribute = 15
+	) const
 	{
 
 		// aggiunta di spazio
@@ -1800,7 +1806,7 @@ public:
 					break;
 				}
 
-				ResetAttribute();
+				SetConsoleTextAttribute(hConsole, Attribute);
 				wcout << L' ';
 			}
 			if (row == 0 or row == 3) index++;
@@ -1825,209 +1831,559 @@ public:
 		ret line;
 	}
 
-	int input
-	(bool& Continue, bool& KeepUpdating, int minSize = 2, int& extension = __NULL__)
+	bool input()
 	{
-		Continue = true;
-		KeepUpdating = false;
-
 		setlocale(LC_ALL, "");
 		SetConsoleOutputCP(CP_UTF8);
 		SetConsoleCP(CP_UTF8);
 		wcout.imbue(locale(""));
+		const int EscapeCode{ -32 };
 
-		// calcolo posizione cursore
+		// inizio
+		_GetCursorPos();
+		COORD begin{ csbi.dwCursorPosition };
+		size_t size_s{ 2 };
+		tensor<Matrix<_Ty>> Displayed;
+		const wstring operatorsAllowed{ L"(+-*/)," };
+
+		tensor<wstring> operators{ L"" };
+		wstring ToConvalidate;
+		bool Continue, keep{ false }, skip{ false };
+
+		for (;;) if (_kbhit() or
+			(GetAsyncKeyState(VK_CONTROL) & 0x8000 and
+				GetAsyncKeyState(VK_MENU) & 0x8000))
+		{
+
+			// lettura
+			skip = false;
+			tensor<long double> unit(size_s, 0);
+			int sizemin = size_s, lenght{ 1 }, depth;
+			char c = _kbhit() ? tolower(_getch()) : L',';
+
+			// termine
+			switch (c) {
+			case L'\r': goto end;
+			case L'\b':
+				operators.last().empty() ?
+					(void)operators-- : operators.last().pop_back();
+				if (!ToConvalidate.empty()) {
+					if (Last(ToConvalidate) == L'\'') Displayed--;
+					ToConvalidate.pop_back();
+				}
+				if (operators.empty()) operators = { {} };
+				goto output;
+			}
+
+			// casi illegali
+			if (c == 0 or c == EscapeCode) {
+				skip = true;
+				continue;
+			}
+			if (operatorsAllowed.find(c) == wstring::npos) continue;
+
+			// aggiunta carattere
+			if (c != L',') {
+				operators.last() += c;
+				ToConvalidate += c;
+				goto output;
+			}
+
+			// calcolo dimensioni minime
+		input:
+			sizemin = 2;
+			unit(size_s, 0);
+			for (const auto& matrix : Displayed) {
+
+				// dimensione minima rispetto alle righe
+				int localmin{ 1 };
+				for (ptrdiff_t i = size_s - 1; i >= 0; --i) if (matrix[i] != unit)
+				{
+					localmin = i;
+					break;
+				}
+				if (localmin == size_s) {
+					sizemin = size_s;
+					break;
+				}
+
+				// dimensione minima rispetto alle colonne
+				for (ptrdiff_t i = size_s - 1; i >= 0; --i)
+					for (size_t j = 0; j < size_s; ++j) if (matrix[j][i] != 0)
+					{
+						if (localmin < i) localmin = i;
+						break;
+					}
+
+				if (localmin > sizemin) sizemin = localmin;
+				if (sizemin == size_s) break;
+			}
+
+			// correzione matrice
+			while (GetAsyncKeyState(VK_CONTROL) & 0x8000 and
+				GetAsyncKeyState(VK_MENU) & 0x8000);
+			if (!keep)
+				Displayed << Matrix<_Ty>(size_s, tensor<long double>(size_s, 0));
+			{
+				auto& inputer{ Displayed.last() };
+				Continue = true;
+				keep = false;
+
+				// inizio dell'input principale
 #ifndef BUGS
-		SetConsoleCursorInfo(hConsole, &cursorInfo);
+				SetConsoleCursorInfo(hConsole, &cursorInfo);
+#endif // BUGS
+				// inizializzazione
+				if (inputer.size() < 2) inputer(2);
+				Matrix<bool> Signs(inputer.size());
+				for (auto& row : inputer) row(inputer.size(), 0);
+				for (auto& row : Signs) row(Signs.size(), POS);
+				for (size_t i = 0; i < inputer; ++i)
+					for (size_t j = 0; j < inputer[i]; ++j)
+						Signs[i][j] = inputer[i][j] < 0;
+
+				bool arrow{ false };
+				depth = inputer.output({ 0, 0 }, lenght);
+				COORD IndexAccesser{};
+				wstring MatrixAtIndex;
+				for (;;) {
+					char C;
+
+					// operatori
+					if (GetAsyncKeyState(VK_CONTROL) & 0x8000 and
+						GetAsyncKeyState(VK_MENU))
+						goto inputend;
+
+					if (_kbhit()) {
+						C = tolower(_getch());
+
+						// casi speciali
+						if (C == EscapeCode) {
+							arrow = true;
+							continue;
+						}
+						if (C <= 0) continue;
+						if (arrow) {
+							switch (C) {
+							case L'h': C = L'w';
+								break;
+							case L'p': C = L's';
+								break;
+							case L'm': C = L'd';
+								break;
+							case L'k': C = L'a';
+								break;
+							}
+							arrow = false;
+						}
+
+						// // scelta carattere
+						size_t size;
+
+						// casi che non modificano la matrice
+						switch (C) {
+
+							// wasd per cambiare l'elemento da modificare
+						case L'w':
+							IndexAccesser.Y =
+								(IndexAccesser.Y - 1) % inputer.size();
+							break;
+						case L's':
+							IndexAccesser.Y =
+								(IndexAccesser.Y + 1) % inputer.size();
+							break;
+						case L'a':
+							IndexAccesser.X =
+								(IndexAccesser.X - 1) % inputer.size();
+							break;
+						case L'd':
+							IndexAccesser.X =
+								(IndexAccesser.X + 1) % inputer.size();
+							break;
+						}
+
+						MatrixAtIndex = to_wstring(
+							(int)inputer[IndexAccesser.Y][IndexAccesser.X]
+						);
+
+						// casi che modificano la matrice
+						switch (C) {
+
+							// L'z' riempie la matrice
+						case L'z': {
+							random_device rng;
+							mt19937 gen(rng());
+							uniform_int_distribution<> dis(-100, 100);
+							for (size_t i = 0; i < inputer; ++i)
+								for (size_t j = 0; j < inputer[i]; ++j)
+									if (inputer[i][j] == 0)
+									{
+										int rand{ dis(gen) };
+										Signs[i][j] = rand < 0;
+										inputer[i][j] = rand;
+									}
+						}
+								 break;
+
+								 // L'r' azzera il determinante
+						case L'r':
+							inputer.last() = inputer[inputer.size() - 2];
+							MatrixAtIndex = to_wstring(
+								(int)inputer[IndexAccesser.Y][IndexAccesser.X]
+							);
+							break;
+
+							// L'\b' cancella un carattere
+						case L'\b':
+							if (MatrixAtIndex == L"0" and
+								Signs[IndexAccesser.Y][IndexAccesser.X])
+							{
+								Signs[IndexAccesser.Y][IndexAccesser.X] = POS;
+								break;
+							}
+							if (MatrixAtIndex.size() == 1) {
+								MatrixAtIndex = L"0";
+								break;
+							}
+							MatrixAtIndex.pop_back();
+							break;
+
+						case 127:
+							// ctrl + alt + L'\b' cancella tutto
+							if (GetAsyncKeyState(VK_MENU) & 0x8000) {
+								for (size_t i = 0; i < inputer; ++i)
+									for (size_t j = 0; j < inputer[i]; ++j)
+									{
+										inputer[i][j] = 0;
+										Signs[i][j] = POS;
+									}
+								break;
+							}
+
+							// ctrl + L'\b' cancella un numero
+							MatrixAtIndex = L"0";
+							Signs[IndexAccesser.Y][IndexAccesser.X] = POS;
+							break;
+
+							// L'>' aumenta la dimensione
+						case L'>':
+							if (inputer > 6) break;
+							size = inputer.size() + 1;
+							Signs(size);
+							inputer(size);
+							for (size_t i = 0; i < size; ++i) {
+								inputer[i](size, 0);
+								Signs[i](size, POS);
+							}
+
+							keep = true;
+							goto inputend;
+
+							// L'<' riduce la dimensione
+						case L'<':
+							if (inputer.size() <= max(2, sizemin)) break;
+							Signs--;
+							inputer--;
+							for (auto& row : Signs) row--;
+							for (auto& row : inputer) row--;
+							IndexAccesser.X %= inputer.size();
+							IndexAccesser.Y %= inputer.size();
+
+							keep = true;
+							goto inputend;
+
+							// L'\r' invia la matrice
+						case L'\r':
+							Continue = false;
+						inputend:
+							_GetCursorPos();
+							csbi.dwCursorPosition.Y += 2 * inputer.size() + 1;
+							SetConsoleCursorPosition(
+								hConsole, csbi.dwCursorPosition
+							);
+							SetConsoleCursorInfo(hConsole, &cursor);
+							goto exit;
+
+							// termine programma
+						case L'.':
+							SetConsoleCursorInfo(hConsole, &cursor);
+							this->clear();
+							ret true;
+
+						default:
+
+							// aggiunta di carattere numerico o segno
+							if (isdigit(C) or (C == L'-' and MatrixAtIndex == L"0")
+								and !Signs[IndexAccesser.Y][IndexAccesser.X])
+							{
+								if (Signs[IndexAccesser.Y][IndexAccesser.X]
+									and MatrixAtIndex.at(0) != L'-')
+									MatrixAtIndex = L'-' + MatrixAtIndex;
+								if (C == L'-')
+									Signs[IndexAccesser.Y][IndexAccesser.X] = NEG;
+								if (MatrixAtIndex.size() >
+									4 + (MatrixAtIndex.at(0) == L'-'))
+									break;
+								if (MatrixAtIndex == L"0") MatrixAtIndex = L"";
+								MatrixAtIndex += C;
+							}
+						}
+						// //
+
+						// stampa matrice di input
+						inputer[IndexAccesser.Y][IndexAccesser.X] =
+							MatrixAtIndex == L"-" ? 0 : stoi(MatrixAtIndex);
+						_GetCursorPos();
+						auto CursorPos{ csbi.dwCursorPosition };
+						ClearArea(
+							{ (short)(CursorPos.X + 30), (short)(CursorPos.Y + 8) },
+							{ 30, 8 }
+						);
+						depth = inputer.output(IndexAccesser, lenght);
+						SetConsoleCursorInfo(hConsole, &cursor);
+					}
+
+					// uscita dal programma
+					if (!RunMonitor) {
+						_GetCursorPos();
+						csbi.dwCursorPosition.Y += 2 * inputer.size() + 1;
+						SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
+						SetConsoleCursorInfo(hConsole, &cursor);
+
+						*this = Matrix<_Ty>(
+							inputer.size(), tensor<long double>(inputer.size(), 0)
+						);
+						ret true;
+					}
+				}
+			}
+
+			// termine dell'input principale
+		exit:
+			if (Displayed.last() ==
+				Matrix<_Ty>(size_s, tensor<long double>(size_s, 0)))
+			{
+				*this = Matrix<_Ty>(size_s, tensor<long double>(size_s, 0));
+				ret true;
+			}
+			while (GetAsyncKeyState(VK_CONTROL) & 0x8000 and
+				GetAsyncKeyState(VK_MENU) & 0x8000);
+			if (!keep) {
+				operators << L"";
+				ToConvalidate += L'\'';
+			}
+
+			// ridimensionamento se richiesto
+			if (keep) for (auto& matrix : Displayed) {
+				size_s = Displayed.last().size();
+				matrix(size_s);
+				for (auto& row : matrix) row(size_s, 0);
+			}
+
+			// termine
+			if (!Continue) {
+			end:
+				_GetCursorPos();
+				SetConsoleCursorPosition(hConsole, { 0, csbi.dwCursorPosition.Y });
+				break;
+			}
+
+		output:
+#ifndef BUGS
+			SetConsoleCursorInfo(hConsole, &cursorInfo);
 #endif // BUGS
 
-		// inizializzazione
-		const int EscapeCode{ -32 };
-		tensor<tensor<bool>> Signs(2);
-		Matrix TheMatrix(2);
-		Signs[0](2, POS);
-		Signs[1](2, POS);
-		TheMatrix[0](2, 0);
-		TheMatrix[1](2, 0);
-		int line{ TheMatrix.output({ 0, 0 }, extension) };
-		COORD IndexAccesser{};
+			// pulizia
+			SetConsoleCursorPosition(hConsole, { 0, begin.Y });
+			short extension = csbi.dwSize.X - 1;
+			short limit = csbi.dwCursorPosition.Y + depth + 1;
+			for (short i = begin.Y; i <= limit; ++i)
+				wcout << wstring(extension, L' ') << L'\n';
 
-		bool arrow{ false };
-		wstring MatrixAtIndex;
+			// primo output
+			SetConsoleCursorInfo(hConsole, &cursor);
+			SetConsoleCursorPosition(hConsole, begin);
+			_GetCursorPos();
+			SetConsoleCursorPosition(
+				hConsole,
+				{
+					short(csbi.dwCursorPosition.X + 1),
+					short(csbi.dwCursorPosition.Y + depth / 2)
+				}
+			);
+			wcout << operators[0];
+
+			// output
+			_GetCursorPos();
+			SetConsoleCursorPosition(
+				hConsole, { short(csbi.dwCursorPosition.X + 1), begin.Y }
+			);
+			for (size_t i = 0; i < Displayed.size() - keep; ++i) {
+
+				// controllo iniziale
+				_GetCursorPos();
+				if (csbi.dwSize.X <= csbi.dwCursorPosition.X + 11 * size_s + 1)
+				{
+					Displayed.erase(i);
+					if (i + 1 < operators) operators.erase(i + 1);
+					int sum{};
+					for (const auto& op : operators) sum += op.size();
+					sum += Displayed.size();
+					if (ToConvalidate.size() > sum) ToConvalidate.erase(sum);
+					break;
+				}
+				Displayed[i].output();
+
+				// riposizionamento operatore
+				_GetCursorPos();
+				SetConsoleCursorPosition(
+					hConsole,
+					{
+						short(csbi.dwCursorPosition.X + 1),
+						short(csbi.dwCursorPosition.Y + depth / 2)
+					}
+				);
+				if (i + 1 < operators) {
+					if (csbi.dwCursorPosition.X + operators[i + 1].size()
+						>= csbi.dwSize.X)
+					{
+						operators.erase(i + 1);
+						break;
+					}
+					wcout << operators[i + 1];
+				}
+
+				// riposizionamento finale
+				_GetCursorPos();
+				SetConsoleCursorPosition(
+					hConsole,
+					{
+						short(csbi.dwCursorPosition.X + 1),
+						short(csbi.dwCursorPosition.Y - depth / 2)
+					}
+				);
+			}
+			if (keep) goto input;
+		}
+
+		// calcolo matrice
+		bool stay{ true };
 		for (;;) {
-			char c;
+			int apostrophes{};
+			Matrix<_Ty> final;
+			wstring part;
+			if (ToConvalidate.find(L'(') == wstring::npos and
+				ToConvalidate.find(L')') == wstring::npos) stay = false;
 
-			// operatori
-			if (GetAsyncKeyState(VK_CONTROL) & 0x8000 and GetAsyncKeyState(VK_MENU))
-				goto end;
+			// loop per trovare una regione senza parentesi
+			int balance{}, start, end;
+			if (stay) for (size_t i = 0; i < ToConvalidate.size(); ++i) {
 
-			if (_kbhit()) {
-				c = tolower(_getch());
+				// aggiornamento puntatori
+				switch (ToConvalidate.at(i)) {
+				case L'(':
+					start = i;
+					balance++;
+					break;
+				case L')':
+					if (balance == 1) end = i;
+					if (balance == 0) ret false;
+					balance--;
+					break;
+				case L'\'': apostrophes++;
+				}
 
-				// casi speciali
-				if (c == EscapeCode) {
-					arrow = true;
+				if (balance == 0) {
+					part = ToConvalidate.substr(start + 1, end - 1);
+					break;
+				}
+			}
+			else part = ToConvalidate;
+			if (balance != 0) ret false;
+			if (start + 1 == end) ret false;
+
+			// controllo estremi
+			if (Last(part) != L'\'') ret false;
+			if (part.at(0) == L'*' or part.at(0) == L'/') ret false;
+			if (part.at(0) == L'\'') part = L'+' + part;
+
+			// controllo operatori consecutivi
+			for (size_t i = 1; i < part.size(); ++i)
+				if (part.at(i - 1) != L'\'' and part.at(i) != L'\'') ret false;
+
+			// moltiplicazione
+			int LocalApostrophes{ apostrophes - 1 };
+			for (ptrdiff_t i = part.size() - 1; i >= 0; --i) {
+				switch (part.at(i)) {
+				case L'*': part.erase(i, 1);
+					break;
+				case L'\'': LocalApostrophes++;
+				}
+			}
+
+			// divisione
+			auto local_apostrophes{ LocalApostrophes };
+			for (ptrdiff_t i = part.size() - 1; i >= 0; --i) {
+				switch (part.at(i)) {
+				case L'/':
+					part.erase(i, 1);
+					Displayed[local_apostrophes] =
+						Displayed[local_apostrophes].invert();
+					if (isnan(Displayed[local_apostrophes][0][0])) ret false;
+					break;
+				case L'\'': local_apostrophes--;
+				}
+			}
+
+			// sottrazione
+			local_apostrophes = LocalApostrophes;
+			for (ptrdiff_t i = part.size() - 1; i >= 0; --i) {
+				switch (part.at(i)) {
+				case L'-': {
+					part.at(i) = L'+';
+					auto& matrix{ Displayed[local_apostrophes] };
+					for (auto& row : matrix) for (auto& el : row) el *= -1;
+					break;
+				}
+				case L'\'': local_apostrophes--;
+				}
+			}
+
+			// addizione
+			tensor<tensor<Matrix<_Ty>>> AddAndMultiply{
+				tensor<Matrix<_Ty>>{}
+			};
+			tensor<Matrix<_Ty>> Add;
+			auto index{ apostrophes };
+			for (size_t i = 0; i < part.size(); ++i) {
+				if (part.at(i) == L'\'') {
+					AddAndMultiply.last() << Displayed[index];
+					index++;
 					continue;
 				}
-				if (c <= 0) continue;
-				if (arrow) {
-					switch (c) {
-					case L'h': c = L'w';
-						break;
-					case L'p': c = L's';
-						break;
-					case L'm': c = L'd';
-						break;
-					case L'k': c = L'a';
-						break;
-					}
-					arrow = false;
-				}
-
-				// // scelta carattere
-				size_t size;
-
-				// casi che non modificano la matrice
-				switch (c) {
-
-					// wasd per cambiare l'elemento da modificare
-				case L'w':
-					IndexAccesser.Y = (IndexAccesser.Y - 1) % TheMatrix.size();
-					break;
-				case L's':
-					IndexAccesser.Y = (IndexAccesser.Y + 1) % TheMatrix.size();
-					break;
-				case L'a':
-					IndexAccesser.X = (IndexAccesser.X - 1) % TheMatrix.size();
-					break;
-				case L'd':
-					IndexAccesser.X = (IndexAccesser.X + 1) % TheMatrix.size();
-					break;
-				}
-
-				MatrixAtIndex = to_wstring(
-					(int)TheMatrix[IndexAccesser.Y][IndexAccesser.X]
-				);
-
-				// casi che modificano la matrice
-				switch (c) {
-
-					// L'r' azzera il determinante
-				case L'r':
-					TheMatrix.last() = TheMatrix[TheMatrix.size() - 2];
-					MatrixAtIndex = to_wstring(
-						(int)TheMatrix[IndexAccesser.Y][IndexAccesser.X]
-					);
-					break;
-
-					// L'\b' cancella un carattere
-				case L'\b':
-					if (MatrixAtIndex == L"0" and
-						Signs[IndexAccesser.Y][IndexAccesser.X])
-					{
-						Signs[IndexAccesser.Y][IndexAccesser.X] = POS;
-						break;
-					}
-					if (MatrixAtIndex.size() == 1) {
-						MatrixAtIndex = L"0";
-						break;
-					}
-					MatrixAtIndex.pop_back();
-					break;
-
-					// ctrl + L'\b' cancella tutto
-				case 127:
-					MatrixAtIndex = L"0";
-					Signs[IndexAccesser.Y][IndexAccesser.X] = POS;
-					break;
-
-					// L'>' aumenta la dimensione
-				case L'>':
-					if (TheMatrix.size() > 6) break;
-					size = TheMatrix.size() + 1;
-					TheMatrix(size);
-					Signs(size);
-					for (size_t i = 0; i < size; ++i) {
-						TheMatrix[i](size, 0);
-						Signs[i](size, POS);
-					}
-
-					KeepUpdating = true;
-					goto end;
-
-					// L'<' riduce la dimensione
-				case L'<':
-					if (TheMatrix.size() <= max(2, minSize)) break;
-					TheMatrix--;
-					for (auto& row : TheMatrix) row--;
-					IndexAccesser.X %= TheMatrix.size();
-					IndexAccesser.Y %= TheMatrix.size();
-					
-					KeepUpdating = true;
-					goto end;
-					
-					// L'\r' invia la matrice
-				case L'\r':
-					Continue = false;
-				end:
-					_GetCursorPos();
-					csbi.dwCursorPosition.Y += 2 * TheMatrix.size() + 1;
-					SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
-					SetConsoleCursorInfo(hConsole, &cursor);
-					*this = TheMatrix;
-
-					__NULL__ = 0;
-					ret line;
-
-					// L'.' termina il programma
-				case L'.':
-					SetConsoleCursorInfo(hConsole, &cursor);
-					this->clear();
-					ret line;
-
-				default:
-
-					// aggiunta di carattere numerico o segno
-					if (isdigit(c) or (c == L'-' and MatrixAtIndex == L"0")
-						and !Signs[IndexAccesser.Y][IndexAccesser.X])
-					{
-						if (Signs[IndexAccesser.Y][IndexAccesser.X]
-							and MatrixAtIndex.at(0) != L'-')
-							MatrixAtIndex = L'-' + MatrixAtIndex;
-						if (c == L'-')
-							Signs[IndexAccesser.Y][IndexAccesser.X] = NEG;
-						if (MatrixAtIndex.size() >
-							4 + (MatrixAtIndex.at(0) == L'-'))
-							break;
-						if (MatrixAtIndex == L"0") MatrixAtIndex = L"";
-						MatrixAtIndex += c;
-					}
-				}
-				// //
-
-				// stampa
-				TheMatrix[IndexAccesser.Y][IndexAccesser.X] =
-					MatrixAtIndex == L"-" ? 0 : stoi(MatrixAtIndex);
-				_GetCursorPos();
-				auto CursorPos{ csbi.dwCursorPosition };
-				ClearArea(
-					{ (short)(CursorPos.X + 30), (short)(CursorPos.Y + 8) },
-					{ 30, 8 }
-				);
-				line = TheMatrix.output(IndexAccesser, extension);
-				SetConsoleCursorInfo(hConsole, &cursor);
+				AddAndMultiply << tensor<Matrix<_Ty>>{};
 			}
-			if (!RunMonitor) {
-				_GetCursorPos();
-				csbi.dwCursorPosition.Y += 2 * TheMatrix.size() + 1;
-				SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
-				SetConsoleCursorInfo(hConsole, &cursor);
-				*this = Matrix(
-					TheMatrix.size(), tensor<long double>(TheMatrix.size(), 0)
-				);
+			for (auto& Multiply : AddAndMultiply) {
+				if (Multiply.empty()) continue;
+				auto product{ Multiply[0] };
+				for (size_t i = 1; i < Multiply; ++i) product *= Multiply[i];
+				Add << product;
+			}
+			final = Add[0];
+			for (size_t i = 1; i < Add; ++i) final += Add[i];
 
-				__NULL__ = 0;
-				ret line;
+			// sostituzione
+			ToConvalidate.erase(start, end - start + 1);
+			ToConvalidate.insert(ToConvalidate.begin() + start, L'\'');
+			Displayed.erase(
+				(size_t)apostrophes, size_t(LocalApostrophes - apostrophes + 1)
+			);
+			Displayed.insert(Displayed.begin() + apostrophes, final);
+
+			// termine
+			if (!stay) {
+				*this = final;
+				ret true;
 			}
 		}
 	}
@@ -2209,6 +2565,15 @@ public:
 	{
 		Matrix result(this->size());
 		auto det{ this->det() };
+		
+		// matrice non invertibile
+		if (det == 0) {
+			result = *this;
+			result[0][0] = nan("");
+			ret result;
+		}
+
+		// matrice invertibile
 		for (size_t i = 0; i < this->size(); ++i)
 			for (size_t j = 0; j < this->size(); ++j)
 			{
@@ -2218,6 +2583,7 @@ public:
 					second[k].erase(second[k].begin() + j);
 				result[i] << ((i + j) % 2 == 0 ? 1 : -1) * second.det() / det;
 			}
+
 		ret result;
 	}
 
@@ -2626,7 +2992,6 @@ static long double WaitingScreen(auto begin, auto end);
 static wstring CTSuperScript(wchar_t input);
 static wstring CFSuperScript(wstring script);
 static void DeduceFromExponents(wstring& str);
-static Matrix<> GetMatrixAdvanced();
 static void GetFraction(wstring& numerator, wstring& denominator);
 static wstring GetLine(tensor<wstring>& sugg, bool ShowSuggestions = true);
 static wstring GetUserNum
@@ -2634,7 +2999,6 @@ static wstring GetUserNum
 static void SetDebug(wstring message, switchcase& opt, bool& Return,
 	ptrdiff_t& LowerBound, ptrdiff_t& UpperBound, ptrdiff_t& datalenght
 );
-static void SendCtrlPlusMinus(bool plus);
 static void MonitorConsoleSize(COORD min, atomic_bool& runMonitor);
 static void UserInputThread();
 static void DrawAxis(double pInc, double vInc);
@@ -2816,10 +3180,6 @@ int main()
 	SetConsoleOutputCP(CP_UTF8);
 	SetConsoleCP(CP_UTF8);
 	wcout.imbue(locale(""));
-
-	// -----------------------------------------------------------------------------
-	GetMatrixAdvanced();
-	// -----------------------------------------------------------------------------
 
 	// avvio
 	QueryPerformanceFrequency(&ProgramFrequency);
@@ -3775,195 +4135,6 @@ static void DeduceFromExponents(wstring& str)
 
 // funzioni di input utente
 #pragma region Input
-
-static Matrix<> GetMatrixAdvanced()
-{
-	const int EscapeCode{ -32 };
-
-	// inizio
-	_GetCursorPos();
-	COORD begin{ csbi.dwCursorPosition };
-	size_t size{ 2 };
-	tensor<Matrix<>> Displayed;
-	const wstring operatorsAllowed{ L"+-*/(),\r" };
-	tensor<wstring> operators{ L"" };
-	wstring ToConvalidate;
-	bool Continue, keep{ false }, skip{ false };
-
-	for (;;) if (
-		_kbhit() or
-		(GetAsyncKeyState(VK_CONTROL) & 0x8000 and
-		GetAsyncKeyState(VK_MENU) & 0x8000))
-	{
-
-		// lettura
-		skip = false;
-		tensor<long double> unit(size, 0);
-		int sizemin = size;
-		int lenght{ 1 }, depth;
-		char c = _kbhit() ? _getch() : L',';
-
-		// termine
-		if (c == L'\r') goto end;
-
-		// backspace
-		if (c == L'\b') {
-			operators.last().empty() ?
-				(void)operators-- : operators.last().pop_back();
-			if (!ToConvalidate.empty()) {
-				if (Last(ToConvalidate) == L'\'') Displayed--;
-				ToConvalidate.pop_back();
-			}
-			if (operators.empty()) operators = { {} };
-			goto output;
-		}
-
-		// casi illegali
-		if (c == 0 or c == EscapeCode) {
-			skip = true;
-			continue;
-		}
-		if (operatorsAllowed.find(c) == wstring::npos) continue;
-
-		// aggiunta carattere
-		if (c != L',') {
-			operators.last() += c;
-			ToConvalidate += c;
-			goto output;
-		}
-
-		// calcolo dimensioni minime
-		for (const auto& matrix : Displayed) {
-			
-			// dimensione minima rispetto alle righe
-			int localmin{ 1 };
-			for (ptrdiff_t i = size - 1; i >= 0; --i) if (matrix[i] != unit)
-			{
-				localmin = i;
-				break;
-			}
-			if (localmin == size) {
-				sizemin = size;
-				break;
-			}
-
-			// dimensione minima rispetto alle colonne
-			for (ptrdiff_t i = size - 1; i >= 0; --i)
-				for (size_t j = 0; j < size; ++j) if (matrix[j][i] != 0)
-				{
-					if (localmin < i) localmin = i;
-					break;
-				}
-
-			if (localmin > sizemin) sizemin = localmin;
-			if (sizemin == size) break;
-		}
-
-		// // input iniziale
-		while (GetAsyncKeyState(VK_CONTROL) & 0x8000 and
-			GetAsyncKeyState(VK_MENU) & 0x8000);
-		if (!keep) Displayed << Matrix<>(size, tensor<long double>(size, 0));
-		keep = false;
-
-		depth = Displayed.last().input(Continue, keep, sizemin, lenght);
-		if (Displayed.last() == Matrix<>(size, tensor<long double>(size, 0)))
-			ret Matrix<>(size, tensor<long double>(size, 0));
-		while (GetAsyncKeyState(VK_CONTROL) & 0x8000 and
-			GetAsyncKeyState(VK_MENU) & 0x8000);
-
-		operators << L"";
-		ToConvalidate += L'\'';
-		// //
-
-		// ridimensionamento se richiesto
-		if (keep) for (auto& matrix : Displayed) {
-			size = Displayed.last().size();
-			matrix(size);
-			for (auto& row : matrix) row(size, 0);
-		}
-
-		// termine
-		if (!Continue) {
-		end:
-			_GetCursorPos();
-			SetConsoleCursorPosition(hConsole, { 0, csbi.dwCursorPosition.Y });
-			break;
-		}
-
-	output:
-
-		// pulizia
-		_GetCursorPos();
-		ClearArea(
-			{
-				csbi.dwSize.X,
-				short(max(lenght + 1, ((csbi.dwCursorPosition.Y + begin.Y) / 2)))
-			},
-			{
-				csbi.dwSize.X,
-				short(max(lenght + 1, ((csbi.dwCursorPosition.Y - begin.Y) / 2)))
-			}
-		);
-
-		// primo output
-		SetConsoleCursorPosition(hConsole, begin);
-		_GetCursorPos();
-		SetConsoleCursorPosition(
-			hConsole,
-			{
-				short(csbi.dwCursorPosition.X + 1),
-				short(csbi.dwCursorPosition.Y + depth / 2)
-			}
-		);
-		wcout << operators[0];
-
-		// output
-		_GetCursorPos();
-		SetConsoleCursorPosition(
-			hConsole, { short(csbi.dwCursorPosition.X + 1), begin.Y }
-		);
-		for (size_t i = 0; i < Displayed; ++i) {
-
-			// controllo iniziale
-			_GetCursorPos();
-			if (csbi.dwSize.X <= csbi.dwCursorPosition.X + 11 * size + 4)
-				SetConsoleCursorPosition(
-					hConsole, { 0, short(csbi.dwCursorPosition.Y + depth + 3) }
-				);
-			if (i < Displayed) Displayed[i].output();
-
-			// riposizionamento operatore
-			_GetCursorPos();
-			SetConsoleCursorPosition(
-				hConsole,
-				{
-					short(csbi.dwCursorPosition.X + 1),
-					short(csbi.dwCursorPosition.Y + depth / 2)
-				}
-			);
-			if (i + 1 < operators) wcout << operators[i + 1];
-
-			// riposizionamento finale
-			_GetCursorPos();
-			SetConsoleCursorPosition(
-				hConsole,
-				{
-					short(csbi.dwCursorPosition.X + 1),
-					short(csbi.dwCursorPosition.Y - depth / 2)
-				}
-			);
-
-			// controllo finale
-			_GetCursorPos();
-			if (csbi.dwSize.X <= csbi.dwCursorPosition.X + 11 * size + 4)
-				SetConsoleCursorPosition(
-					hConsole, { 0, short(csbi.dwCursorPosition.Y + depth + 3) }
-				);
-		}
-	}
-
-	ret {};
-}
 
 // inputa una frazione algebrica
 static void GetFraction(wstring& numerator, wstring& denominator)
@@ -11668,38 +11839,34 @@ static void DecompMatrices(switchcase& argc)
 	wcout << L"e calcola determiante, autovalori e autovettori\n\n";
 	SetConsoleTextAttribute(hConsole, 12);
 	wcout << L"sono ammesse solo matrici quadrate da 2x2 a 7x7\n";
-	wcout << L"premi r per copiare la penultima riga (azzera il determinante)\n\n";
+	wcout << L"utilizza CTRL + ALT per inserire una matrice\n";
+	wcout << L"utilizza CTRL + ALT + BACKSPACE per azzerare la matrice\n";
+	wcout << L"premi r per copiare la penultima riga (azzera il determinante)\n";
+	wcout << L"premi z per riempire la matrice con numeri casuali\n\n";
 	ResetAttribute();
 	Matrix<> matrix, Mx;
 
 	for (;;)
 	{
 
-		// blocco se sono premuti i tasti degli operatori
-		while (
-			GetAsyncKeyState(VK_ADD) & 0x8000 or
-			GetAsyncKeyState(VK_SUBTRACT) & 0x8000 or
-			GetAsyncKeyState(VK_MULTIPLY) & 0x8000 or
-			GetAsyncKeyState(VK_DIVIDE) & 0x8000 or
-			(
-				GetAsyncKeyState(VK_SHIFT) & 0x8000 and
-				(GetAsyncKeyState(L'8') & 0x8000 or GetAsyncKeyState(L'9') & 0x8000)
-			)
-		);
-
 		// input
 		ResetAttribute();
-		wcout << L"inserisci una matrice, usa wasd per cambiare elemento\n";
-		bool nouse, nono;
-		matrix.input(nouse, nono);
+		wcout << L"Inserisci una matrice\n";
+		while (!matrix.input());
 		size_t size{ matrix.size() };
 		if (size == 0) {
 			argc = Random;
 			goto RETURN;
 		}
 		if (matrix == Matrix<>(size, tensor<long double>(size, 0))) break;
-		wcout << L'\n';
 		Mx = matrix;
+
+		// output matrice risultato
+		SetConsoleTextAttribute(hConsole, 2);
+		wcout << L"\nQuesta è la matrice: \n";
+		matrix.output({ 0, -2 }, __NULL__, 2);
+		wcout << L'\n';
+		ResetAttribute();
 
 		// calcolo matrice di permutazione
 		auto Id{ Matrix<>(size, tensor<long double>(size, 0)) };
@@ -11919,19 +12086,19 @@ RETURN:
 
 /*	LAVORO DA FARE
 	
-	operazioni tra matrici e tra frazioni algebriche
-	
-	debug systemsolver
-	
-	aggiunta frecce alla fine degli assi
+	debug matrici
 	
 	debug messaggi di testo
 	
-	debug delle disequazioni (specialmente se con tre o più termini)
-	
-	aggiunta valori sui tratti degli assi
+	debug systemsolver
 	
 	risoluzione di sistemi non lineari e parametrici lineari
+	
+	operazioni tra frazioni algebriche
+	
+	aggiunta valori sui tratti degli assi e frecce
+	
+	debug delle disequazioni (specialmente se con tre o più termini)
 	
 	nel grafico:
 		intersezione tra due rette
