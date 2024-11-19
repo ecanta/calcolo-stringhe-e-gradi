@@ -186,6 +186,7 @@ enum switchcase
 	DebugComplete       ,
 	ConvertCodeInverse  ,
 	SeriesExpansion     ,
+	SolveSystem         ,
 	FactorPolynomial    ,
 	FactorFraction      ,
 	FactorMatrix        ,
@@ -211,6 +212,7 @@ unordered_map<wstring, switchcase> stringToEnumMap{
 	{ L"drt", switchcase::DebugComplete        },
 	{ L"ctn", switchcase::ConvertCodeInverse   },
 	{ L"cod", switchcase::SeriesExpansion      },
+	{ L"sys", switchcase::SolveSystem          },
 	{ L"pol", switchcase::FactorPolynomial     },
 	{ L"alg", switchcase::FactorFraction       },
 	{ L"mtx", switchcase::FactorMatrix         },
@@ -235,6 +237,7 @@ unordered_map<switchcase, wstring> enumToStringMap{
 	{ switchcase::DebugComplete       , L"drt" },
 	{ switchcase::ConvertCodeInverse  , L"ctn" },
 	{ switchcase::SeriesExpansion     , L"cod" },
+	{ switchcase::SolveSystem         , L"sys" },
 	{ switchcase::FactorPolynomial    , L"pol" },
 	{ switchcase::FactorFraction      , L"alg" },
 	{ switchcase::FactorMatrix        , L"mtx" },
@@ -1839,6 +1842,16 @@ public:
 		wcout.imbue(locale(""));
 		const int EscapeCode{ -32 };
 
+		// aggiunta di spazio
+		_GetCursorPos();
+		auto start{ csbi.dwCursorPosition };
+		wcout << wstring(29, L'\n');
+		_GetCursorPos();
+		if (csbi.dwCursorPosition.Y >= start.Y)
+			start.Y -= 29 - csbi.dwCursorPosition.Y + start.Y;
+		SetConsoleCursorPosition(hConsole, start);
+		csbi.dwCursorPosition = start;
+
 		// inizio
 		_GetCursorPos();
 		COORD begin{ csbi.dwCursorPosition };
@@ -1863,6 +1876,8 @@ public:
 
 			// termine
 			switch (c) {
+			case L'.': this->clear();
+				ret true;
 			case L'\r': goto end;
 			case L'\b':
 				operators.last().empty() ?
@@ -1941,6 +1956,7 @@ public:
 				for (size_t i = 0; i < inputer; ++i)
 					for (size_t j = 0; j < inputer[i]; ++j)
 						Signs[i][j] = inputer[i][j] < 0;
+				if (inputer[0][0] == 0) inputer[0][0] = 1;
 
 				bool arrow{ false };
 				depth = inputer.output({ 0, 0 }, lenght);
@@ -2184,7 +2200,10 @@ public:
 			if (!Continue) {
 			end:
 				_GetCursorPos();
-				SetConsoleCursorPosition(hConsole, { 0, csbi.dwCursorPosition.Y });
+				auto D = Continue ? depth + 1 : 0;
+				SetConsoleCursorPosition(
+					hConsole, { 0, short(csbi.dwCursorPosition.Y + D) }
+				);
 				break;
 			}
 
@@ -2265,35 +2284,47 @@ public:
 			}
 			if (keep) goto input;
 		}
+		if (Displayed.empty()) {
+			_GetCursorPos();
+			csbi.dwCursorPosition.Y += 2 * size_s + 1;
+			SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
+			SetConsoleCursorInfo(hConsole, &cursor);
+
+			*this = Matrix<_Ty>(size_s, tensor<long double>(size_s, 0));
+			ret true;
+		}
 
 		// calcolo matrice
 		bool stay{ true };
 		for (;;) {
-			int apostrophes{};
+			int Apostrophes{}, apostrophes{};
 			Matrix<_Ty> final;
 			wstring part;
 			if (ToConvalidate.find(L'(') == wstring::npos and
 				ToConvalidate.find(L')') == wstring::npos) stay = false;
 
 			// loop per trovare una regione senza parentesi
-			int balance{}, start, end;
+			bool change{ false };
+			int balance{}, start{ -1 }, end = ToConvalidate.size();
 			if (stay) for (size_t i = 0; i < ToConvalidate.size(); ++i) {
 
 				// aggiornamento puntatori
 				switch (ToConvalidate.at(i)) {
 				case L'(':
+					change = true;
 					start = i;
 					balance++;
+					apostrophes = Apostrophes;
 					break;
 				case L')':
 					if (balance == 1) end = i;
 					if (balance == 0) ret false;
 					balance--;
 					break;
-				case L'\'': apostrophes++;
+				case L'\'': Apostrophes++;
 				}
 
-				if (balance == 0) {
+				if (balance == 0 and change) {
 					part = ToConvalidate.substr(start + 1, end - 1);
 					break;
 				}
@@ -2313,40 +2344,37 @@ public:
 
 			// moltiplicazione
 			int LocalApostrophes{ apostrophes - 1 };
-			for (ptrdiff_t i = part.size() - 1; i >= 0; --i) {
-				switch (part.at(i)) {
-				case L'*': part.erase(i, 1);
-					break;
-				case L'\'': LocalApostrophes++;
-				}
+			for (ptrdiff_t i = part.size() - 1; i >= 0; --i) switch (part.at(i))
+			{
+			case L'*': part.erase(i, 1);
+				break;
+			case L'\'': LocalApostrophes++;
 			}
 
 			// divisione
 			auto local_apostrophes{ LocalApostrophes };
-			for (ptrdiff_t i = part.size() - 1; i >= 0; --i) {
-				switch (part.at(i)) {
-				case L'/':
-					part.erase(i, 1);
-					Displayed[local_apostrophes] =
-						Displayed[local_apostrophes].invert();
-					if (isnan(Displayed[local_apostrophes][0][0])) ret false;
-					break;
-				case L'\'': local_apostrophes--;
-				}
+			for (ptrdiff_t i = part.size() - 1; i >= 0; --i)
+			switch (part.at(i)) {
+			case L'/':
+				part.erase(i, 1);
+				Displayed[local_apostrophes + 1] =
+					Displayed[local_apostrophes + 1].invert();
+				if (isnan(Displayed[local_apostrophes + 1][0][0])) ret false;
+				break;
+			case L'\'': local_apostrophes--;
 			}
-
+			
 			// sottrazione
-			local_apostrophes = LocalApostrophes;
-			for (ptrdiff_t i = part.size() - 1; i >= 0; --i) {
-				switch (part.at(i)) {
-				case L'-': {
-					part.at(i) = L'+';
-					auto& matrix{ Displayed[local_apostrophes] };
-					for (auto& row : matrix) for (auto& el : row) el *= -1;
-					break;
-				}
-				case L'\'': local_apostrophes--;
-				}
+			local_apostrophes = LocalApostrophes + 1;
+			for (ptrdiff_t i = part.size() - 1; i >= 0; --i) switch (part.at(i))
+			{
+			case L'-': {
+				part.at(i) = L'+';
+				auto& matrix{ Displayed[local_apostrophes] };
+				for (auto& row : matrix) for (auto& el : row) el *= -1;
+				break;
+			}
+			case L'\'': local_apostrophes--;
 			}
 
 			// addizione
@@ -2373,8 +2401,12 @@ public:
 			for (size_t i = 1; i < Add; ++i) final += Add[i];
 
 			// sostituzione
-			ToConvalidate.erase(start, end - start + 1);
-			ToConvalidate.insert(ToConvalidate.begin() + start, L'\'');
+			if (ToConvalidate.find(L'(') != wstring::npos or
+				ToConvalidate.find(L')') != wstring::npos)
+			{
+				ToConvalidate.erase(start, end - start + 1);
+				ToConvalidate.insert(ToConvalidate.begin() + start, L'\'');
+			}
 			Displayed.erase(
 				(size_t)apostrophes, size_t(LocalApostrophes - apostrophes + 1)
 			);
@@ -2961,12 +2993,13 @@ tensor<wstring> commands{
 	L"drt",
 	L"ctn",
 	L"cod",
+	L"sys",
 	L"pol",
 	L"alg",
 	L"mtx",
 	L"rnd"
 };
-tensor<wstring> Numbers, Expressions, Polynomials;
+tensor<wstring> Numbers, Expressions, Polynomials, Equations;
 tensor<wstring> FractionNumerators, FractionDenominators;
 
 #pragma endregion
@@ -3166,6 +3199,7 @@ static void Loop(
 	NumberData CPU(ptrdiff_t input),
 	bool select = false
 );
+static void SystemSolverGeneral(switchcase& argc);
 static polynomial<> DecompPolynomial(switchcase& argc, wstring polynomial);
 static void DecompFraction(switchcase& argc);
 static void DecompMatrices(switchcase& argc);
@@ -3187,36 +3221,36 @@ int main()
 	Beep(1'000, 50);
 
 	// // dichiarazione stringhe
-	wstring simpledeg{ L"il PROGRAMMA calcola solo la codifica di un intero" };
+	wstring simpledeg{ L"Il PROGRAMMA calcola solo la codifica di un intero" };
 
-	wstring simplefact{ L"il PROGRAMMA calcola solo la fattorizzazione di un intero" };
+	wstring simplefact{ L"Il PROGRAMMA calcola solo la fattorizzazione di un intero" };
 
-	wstring def_sct{ L"il PROGRAMMA calcola solo codifica e fattorizzazione" };
+	wstring def_sct{ L"Il PROGRAMMA calcola solo codifica e fattorizzazione" };
 
-	wstring desimpledeg{ L"il PROGRAMMA calcola solo la codifica di una serie" };
+	wstring desimpledeg{ L"Il PROGRAMMA calcola solo la codifica di una serie" };
 
-	wstring desimplefact{ L"il PROGRAMMA calcola solo la fattorizzazione di una serie" };
+	wstring desimplefact{ L"Il PROGRAMMA calcola solo la fattorizzazione di una serie" };
 
-	wstring defact_message{ L"il PROGRAMMA calcola la fattorizzazione di una serie" };
+	wstring defact_message{ L"Il PROGRAMMA calcola la fattorizzazione di una serie" };
 	defact_message += L"\ne numero, somma e prodotto dei divisori";
 
-	wstring deg_message{ L"il PROGRAMMA calcola codice, sequenza e grado di una serie" };
+	wstring deg_message{ L"Il PROGRAMMA calcola codice, sequenza e grado di una serie" };
 
-	wstring fact_message{ L"il PROGRAMMA calcola la fattorizzazione di un intero" };
+	wstring fact_message{ L"Il PROGRAMMA calcola la fattorizzazione di un intero" };
 	fact_message += L"\ne numero, somma e prodotto dei divisori";
 
-	wstring message{ L"il PROGRAMMA calcola codice, sequenza e grado di un intero" };
+	wstring message{ L"Il PROGRAMMA calcola codice, sequenza e grado di un intero" };
 
-	wstring AllMessage{ L"il PROGRAMMA calcola \"tutti\" i dati di alcuni interi" };
+	wstring AllMessage{ L"Il PROGRAMMA calcola \"tutti\" i dati di alcuni interi" };
 
-	wstring de_digit{ L"il PROGRAMMA ricerca numeri con particolari" };
+	wstring de_digit{ L"Il PROGRAMMA ricerca numeri con particolari" };
 	de_digit += L" occorrenze di somma e prodotto cifre";
 
-	wstring deg_digit{ L"il PROGRAMMA calcola cifre, codice, sequenza e grado" };
+	wstring deg_digit{ L"Il PROGRAMMA calcola cifre, codice, sequenza e grado" };
 
-	wstring fact_digit{ L"il PROGRAMMA calcola cifre, fattorizzazione, e divisori" };
+	wstring fact_digit{ L"Il PROGRAMMA calcola cifre, fattorizzazione, e divisori" };
 
-	wstring defact_digit{ L"il PROGRAMMA calcola tutti i dati, cifre comprese" };
+	wstring defact_digit{ L"Il PROGRAMMA calcola tutti i dati, cifre comprese" };
 
 	wstring vel;
 	switchcase option;
@@ -3244,7 +3278,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.2.6 ";
+			wcout << L"1.2.9 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -3258,12 +3292,12 @@ int main()
 			SetConsoleTextAttribute(hConsole, 10);
 			wcout << L"Scegliere il limite per la ricerca dei numeri primi\n";
 			wcout << L"Un limite più alto comporta un tempo di attesa più lungo\n";
-			wcout << L"inserire un numero tra compreso 10 milioni e 50 miliardi\n\n";
+			wcout << L"Inserire un numero tra compreso 10 milioni e 50 miliardi\n\n";
 
 			SetConsoleTextAttribute(hConsole, 2);
 			wcout << L"*****.*****.*****.*****.******.*****.*****.*****.*****\n\n";
 			SetConsoleTextAttribute(hConsole, 9);
-			wcout << L"per bloccare l'input inserire 0\n";
+			wcout << L"Per bloccare l'input inserire 0\n";
 			// //
 
 			// inserimento punti
@@ -3322,29 +3356,30 @@ int main()
 		Beep(750, 300);
 
 		// scelta
-		wcout << L"scegliere la modalità di calcolo::\n";
+		wcout << L"Scegliere la modalità di calcolo::\n";
 		SetConsoleTextAttribute(hConsole, 4);
-		wcout << L"se stringa di un carattere:\n";
-		wcout << L"\t'0' = blocca input numeri primi ~[~sempre]\n";
-		wcout << L"\t'1' = sblocca input numeri primi\n";
+		wcout << L"Se stringa di un carattere:\n";
+		wcout << L"\t'0' = Blocca input numeri primi ~[~sempre]\n";
+		wcout << L"\t'1' = Sblocca input numeri primi\n";
 		wcout << L"\t'x' = TORNA ALLA SCHERMATA START\n";
-		wcout << L"\t'.' = fine programma [sempre]\n";
+		wcout << L"\t'.' = Fine programma [sempre]\n";
 		SetConsoleTextAttribute(hConsole, 9);
 		wcout << L"altrimenti:\n";
 		wcout << L"\t\"rnd\" = casuale\n";
 		wcout << L"\t\"ctn\" = da codice a numero\n";
 		wcout << L"\t\"cod\" = da numero a espansione in serie e viceversa\n";
+		wcout << L"\t\"sys\" = risolutore di sistemi non lineari o parametrici\n";
 		wcout << L"\t\"pol\" = scomposizione polinomi\n";
 		wcout << L"\t\"alg\" = scomposizione frazioni algebriche\n";
 		wcout << L"\t\"mtx\" = scomposizione matrici\n";
 		SetConsoleTextAttribute(hConsole, 11);
-		wcout << L"oppure:\n";
-		wcout << L"primi caratteri:\n";
+		wcout << L"Oppure:\n";
+		wcout << L"Primi caratteri:\n";
 		wcout << L"\t'c' = calcolo\n";
 		wcout << L"\t'd' = debug\n";
 		wcout << L"\t\"dr\" = debug ristretto\n";
 		SetConsoleTextAttribute(hConsole, 14);
-		wcout << L"caratteri seguenti:\n";
+		wcout << L"Caratteri seguenti:\n";
 		wcout << L"\t'c' = solo codifica\n";
 		wcout << L"\t'f' = scomposizione in fattori primi\n";
 		wcout << L"\t\"cc\" = codifica, sequenza e grado\n";
@@ -3352,15 +3387,16 @@ int main()
 		wcout << L"\t\"cf\" = codifica e fattorizzazione\n";
 		wcout << L"\t't' = tutti i dati\n";
 		SetConsoleTextAttribute(hConsole, 6);
-		wcout << L"solo per il debug ristretto:\n";
+		wcout << L"Solo per il debug ristretto:\n";
 		wcout << L"\t'' = solo dati sulle cifre dei numeri\n";
 		wcout << L"\t'c' = cifre, codifica, sequenza e grado\n";
 		wcout << L"\t'f' = fattorizzazione, cifre e divisori\n";
 		wcout << L"\t't' = tutti i dati compresi quelli sulle cifre\n";
 		ResetAttribute();
-		wcout << L"selezionando più operazioni, il tempo di calcolo aumenta\n";
+		wcout << L"Selezionando più operazioni, il tempo di calcolo aumenta\n";
 
 		vel = GetLine(Numbers);
+		if (vel.empty()) vel = L"rnd";
 		option = ConvertWStringToEnum(vel);
 		
 		// gestione input numeri primi
@@ -3369,11 +3405,11 @@ int main()
 			switch (vel.at(0)) {
 			case L'0':
 				LockPrimeNumbersInput = true;
-				wcout << L"\ninput numeri primi bloccato";
+				wcout << L"\ng++ - Input numeri primi bloccato";
 				goto option_choice;
 			case L'1':
 				LockPrimeNumbersInput = false;
-				wcout << L"\ninput numeri primi sbloccato";
+				wcout << L"\ng++ - Input numeri primi sbloccato";
 				goto option_choice;
 			case L'x': goto Start;
 			case L'.':
@@ -3394,7 +3430,7 @@ int main()
 
 		option_choice:
 
-			wcout << L"\nscegli opzioni:: (...)\n";
+			wcout << L"\ng++ - Scegli opzioni:: (...)\n";
 			vel = GetLine(Numbers);
 			goto assigne;
 		}
@@ -3412,7 +3448,6 @@ int main()
 		do {
 			Beep(500, 200);
 			bool Threading{ false };
-			COORD MinLenght{ 50, 20 };
 
 			switch (option)
 			{
@@ -3469,9 +3504,14 @@ int main()
 			case SeriesExpansion: ExpandNumber(option);
 				break;
 
+			case SolveSystem: Threading = true;
+				calculator = thread(SystemSolverGeneral, ref(option));
+				monitor = thread(MonitorConsoleSize, COORD{ 50, 20 }, ref(RunMonitor));
+				break;
+
 			case FactorPolynomial: Threading = true;
 				calculator = thread(DecompPolynomial, ref(option), L"");
-				monitor = thread(MonitorConsoleSize, MinLenght, ref(RunMonitor));
+				monitor = thread(MonitorConsoleSize, COORD{ 50, 20}, ref(RunMonitor));
 				break;
 
 			case FactorFraction: Threading = true;
@@ -3516,7 +3556,7 @@ MB:
 	ErrMessage = MessageBox(
 		NULL,
 		L"\t\t DEBUG ERROR\
-		\n\n   sei sicuro di voler terminare il programma?\
+		\n\n   g++ - Terminare il programma??\
 		\n\n   [riprova] per tornare all'inizio del programma\
 		\n\n",
 		L"Microsoft Visual C++ Runtime Library",
@@ -3728,11 +3768,13 @@ static void ReassigneEnum(switchcase& option)
 		ret;
 	case 18: option = SeriesExpansion;
 		ret;
-	case 19: option = FactorPolynomial;
+	case 19: option = SolveSystem;
 		ret;
-	case 20: option = FactorFraction;
+	case 20: option = FactorPolynomial;
 		ret;
-	case 21: option = FactorMatrix;
+	case 21: option = FactorFraction;
+		ret;
+	case 22: option = FactorMatrix;
 		ret;
 	}
 }
@@ -4706,12 +4748,12 @@ static void SetDebug(wstring message, switchcase& opt, bool& Return,
 {
 	wstring n_{ to_wstring(GlobalMax) }, Input, txt;
 	Return = false;
-	wcout << L"gli estremi dell'intervallo devono essere compresi";
+	wcout << L"Gli estremi dell'intervallo devono essere compresi";
 	wcout << L" tra 1 e " << n_ << L"\n\n";
 
 	// input e controllo valore iniziale
 	ResetAttribute();
-	txt = L"inserisci il valore di inizio della ricerca\n";
+	txt = L"Inserisci il valore di inizio della ricerca\n";
 	do Input = GetUserNum(txt, 1, GlobalMax, true);
 	while (Input.empty());
 	if (Input == L".") {
@@ -4730,7 +4772,7 @@ static void SetDebug(wstring message, switchcase& opt, bool& Return,
 	LowerBound = stoull(Input) + 1;
 
 	// input e controllo valore finale
-	txt = L"inserisci il valore finale della ricerca\n";
+	txt = L"Inserisci il valore finale della ricerca\n";
 	do Input = GetUserNum(txt, 1, GlobalMax, true);
 	while (Input.empty());
 	if (Input == L".") {
@@ -6219,7 +6261,7 @@ static void PrimeNCalculator(ptrdiff_t max, ptrdiff_t min)
 	system("cls");
 	SetConsoleTextAttribute(hConsole, 4);
 	wstring warning{
-		L"ATTENIONE: il tempo rimanente non è accurato all'inizio;"
+		L"ATTENIONE: Il tempo rimanente non è accurato all'inizio;"
 	};
 	warning.append(L" LIMITE DI CALCOLO = " + to_wstring(GlobalMax));
 	if (BARWIDTH + 11 > warning.size()) wcout << warning;
@@ -6251,7 +6293,7 @@ static void PrimeNCalculator(ptrdiff_t max, ptrdiff_t min)
 			// calcolo cifre decimali
 			wostringstream stream;
 			stream << fixed << setprecision(1) << time_seconds;
-			wcout << L"\ntempo rimanente: " << stream.str() << L" [secondi]  ";
+			wcout << L"\nTempo rimanente: " << stream.str() << L" [secondi]  ";
 			if (speed < 75) speed += 5;
 		}
 		iter++;
@@ -10206,18 +10248,18 @@ static void CodeToNumber(switchcase& argc)
 	wstring to_evaluate, ToEvaluate, message;
 	bool ShowErrors{ true }, NecessaryBoundary{ true };
 	SetConsoleTextAttribute(hConsole, 14);
-	wcout << L"il PROGRAMMA traduce una stringa di codice\n\n";
+	wcout << L"Il PROGRAMMA traduce una stringa di codice\n\n";
 	SetConsoleTextAttribute(hConsole, 12);
 
-	wcout << L"il codice non deve avere errori o verranno segnalati\n";
-	wcout << L"il codice deve essere compreso tra <>\n";
-	wcout << L"se sono presenti piu' caratteri '<', '>',\n";
+	wcout << L"Il codice non deve avere errori o verranno segnalati\n";
+	wcout << L"Il codice deve essere compreso tra <>\n";
+	wcout << L"Se sono presenti piu' caratteri '<', '>',\n";
 	wcout << L"verranno considerati solo quelli che compaiono prima\n";
-	wcout << L"unici caratteri non numerici ammessi: '(', ')', '+', '.' \n\n";
+	wcout << L"Unici caratteri non numerici ammessi: '(', ')', '+', '.' \n\n";
 
 	SetConsoleTextAttribute(hConsole, 9);
-	wcout << L"si indichino le cifre incognite con caratteri '_'\n";
-	wcout << L"aggiungendo '$' come primo carattere\n";
+	wcout << L"Si indichino le cifre incognite con caratteri '_'\n";
+	wcout << L"Aggiungendo '$' come primo carattere\n";
 	wcout << L"oppure '\\' o '/' senza <> non vengono mostrati gli errori\n\n";
 	ResetAttribute();
 
@@ -10227,7 +10269,7 @@ static void CodeToNumber(switchcase& argc)
 			message.clear();
 
 			// input e controllo
-			wcout << L"inserire una stringa (f = fine input)\n";
+			wcout << L"Inserire una stringa (f = fine input)\n";
 			wcout << L"per fermare il calcolo premere s\\S\n";
 			getline(wcin, ToEvaluate);
 			if (ToEvaluate == L"f") {
@@ -10301,7 +10343,7 @@ static void CodeToNumber(switchcase& argc)
 		// se il calcolo viene interrotto
 		if (GlobalInterr) {
 			SetConsoleTextAttribute(hConsole, 14);
-			wcout << L"\nfine del calcolo\n\n";
+			wcout << L"\nFine del calcolo\n\n";
 			ResetAttribute();
 		}
 		SetConsoleCursorInfo(hConsole, &cursor);
@@ -10329,13 +10371,13 @@ static wstring ExpandNumber(
 	if (access)
 	{
 		SetConsoleTextAttribute(hConsole, 14);
-		wcout << L"il PROGRAMMA calcola la codifica in serie di un numero\n\n";
+		wcout << L"Il PROGRAMMA calcola la codifica in serie di un numero\n\n";
 		SetConsoleTextAttribute(hConsole, 12);
-		wcout << L"per codificare un numero inserire solo caratteri numerici\n";
-		wcout << L"il numero deve essere compreso tra 1 e 10^50 - 1\n";
-		wcout << L"per decodificare una stringa, aggiungere <> e ricordarsi\n";
+		wcout << L"Per codificare un numero inserire solo caratteri numerici\n";
+		wcout << L"Il numero deve essere compreso tra 1 e 10^50 - 1\n";
+		wcout << L"Per decodificare una stringa, aggiungere <> e ricordarsi\n";
 		wcout << L"di aggiungere la base di decodifica rispettiva all'inizio\n";
-		wcout << L"se non si aggiunge la base, la decodifica verrà effettuata per\n";
+		wcout << L"Se non si aggiunge la base, la decodifica verrà effettuata per\n";
 		wcout << L"tutte le basi da 2 a 16\n";
 		ResetAttribute();
 	}
@@ -10349,7 +10391,7 @@ static wstring ExpandNumber(
 
 			// input
 			SetConsoleTextAttribute(hConsole, 11);
-			wcout << L"\ninserire un numero o una stringa (f = fine input)\n";
+			wcout << L"\nInserire un numero o una stringa (f = fine input)\n";
 			ResetAttribute();
 			getline(wcin, ToEvaluate);
 			for (ptrdiff_t i = ToEvaluate.size() - 1; i >= 0; --i)
@@ -10517,7 +10559,7 @@ static wstring ExpandNumber(
 
 			// output
 			SetConsoleTextAttribute(hConsole, 6);
-			wcout << L"espansione in base " << base << L": ";
+			wcout << L"Espansione in base " << base << L": ";
 			ResetAttribute();
 			wcout << L'<' << output << L">\n";
 		}
@@ -10672,7 +10714,7 @@ static void Repeater(
 		// input e controllo
 		SetConsoleTextAttribute(hConsole, 14);
 		wstring txt{
-			L"inserire un numero tra 2 e " + n_ + L" (1 = fine input)\n"
+			L"Inserire un numero tra 2 e " + n_ + L" (1 = fine input)\n"
 		};
 		ResetAttribute();
 		Input = GetUserNum(txt, 1, GlobalMax, true);
@@ -10740,14 +10782,14 @@ static void Loop(
 		PRINTN = false;
 		items = { 0, 0, 0, 0 };
 		SetConsoleTextAttribute(hConsole, 9);
-		wcout << L"inserisci la stringa di istruzioni, il tipo è $_/_ #_/_\n";
+		wcout << L"Inserisci la stringa di istruzioni, il tipo è $_/_ #_/_\n";
 		wcout << L"per indicare i rapporti somma cifre con numero";
 		wcout << L" e prodotto cifre con numero\n";
 		ResetAttribute();
 
 		bool exit{ false };
 		do {
-			wcout << L"\ninserire la stringa\n";
+			wcout << L"\nInserire la stringa\n";
 			instr = GetLine(Expressions);
 			if (instr == L".") {
 				argc = Random;
@@ -10859,7 +10901,7 @@ static void Loop(
 					// calcolo cifre decimali
 					wostringstream stream;
 					stream << fixed << setprecision(1) << time_seconds;
-					wcout << L"\ntempo rimanente: " << stream.str() << L" [secondi] ";
+					wcout << L"\nTempo rimanente: " << stream.str() << L" [secondi] ";
 				}
 
 				iter++;
@@ -10886,7 +10928,7 @@ static void Loop(
 		SetConsoleCursorInfo(hConsole, &cursor);
 		data.printf();
 		DECLARE_TIME_POINT(end);
-		wcout << L"\ntempo di calcolo = ";
+		wcout << L"\nTempo di calcolo = ";
 		wcout << 1'000 * static_cast<double>(end.QuadPart - begin.QuadPart)
 			/ (ProgramFrequency.QuadPart);
 		wcout << L"[ms]\n\n";
@@ -10899,7 +10941,7 @@ static void Loop(
 		for (ptrdiff_t set = LowerBound; set < UpperBound; ++set)
 			data << NumberData{ CPU(set) };
 		data.printf();
-		wcout << L"\ntempo di calcolo = ";
+		wcout << L"\nTempo di calcolo = ";
 		DECLARE_TIME_POINT(end);
 		wcout << 1'000 * static_cast<double>(end.QuadPart - begin.QuadPart)
 			/ (ProgramFrequency.QuadPart);
@@ -10911,9 +10953,102 @@ static void Loop(
 	Beep(750, 100);
 	Beep(650, 75);
 	Beep(550, 50);
-	wcout << L"premi un tasto per continuare\t\t";
+	wcout << L"Premi un tasto per continuare\t\t";
 	argc = _getch() == L'.' ? Random : NotAssigned;
 	ret;
+}
+
+// programma per risolvere sistemi non lineari oppure parametrici lineari
+static void SystemSolverGeneral(switchcase& argc)
+{
+	setlocale(LC_ALL, "");
+	SetConsoleOutputCP(CP_UTF8);
+	SetConsoleCP(CP_UTF8);
+	wcout.imbue(locale(""));
+	SetConsoleTextAttribute(hConsole, 14);
+
+	// istruzioni
+	wcout << L"NON E' COMPLETO. SEZIONE IN FASE DI SVILUPPO!!!\n\n";
+	wcout << L"Il PROGRAMMA risolve i sistemi in generale\n\n";
+	SetConsoleTextAttribute(hConsole, 12);
+	wcout << L"Premere SHIFT + INVIO per aggiungere una nuova equazione\n";
+	wcout << L"Premere INVIO per confermare\n\n";
+	wcout << L"Per attivare gli esponenti in forma di apice ";
+	wcout << L"scrivere noboolalpha\n";
+	wcout << L"Per disattivare gli esponenti sottoforma di apice ";
+	wcout << L"scrivere boolalpha\n";
+	ResetAttribute();
+
+	for (;;)
+	{
+
+		// input equazioni
+		if (!RunMonitor) goto RETURN;
+		wcout << L"\n\nInserisci un sistema di equazioni\n\n";
+		tensor<wstring> eqs;
+
+		eqs << GetLine(Equations);
+
+		// termine programma
+		if (eqs.last() == L".") {
+			argc = Random;
+			goto RETURN;
+		}
+		argc = ConvertWStringToEnum(eqs.last());
+		ReassigneEnum(argc);
+		if (argc != NotAssigned) {
+			system("cls");
+			SetConsoleTitle(eqs.last().c_str());
+			goto RETURN;
+		}
+
+		if (!(GetAsyncKeyState(VK_SHIFT) & 0x8000)) break;
+		while (GetAsyncKeyState(VK_SHIFT) & 0x8000);
+		wcout << L'\n';
+
+		// riordinamento
+		bool Continue{ false };
+		tensor<wstring> M1, M2;
+		for (auto& eq : eqs) {
+			for (ptrdiff_t i = eq.size() - 1; i >= 0; --i)
+				if (eq.at(i) == L' ' or eq.at(i) == L'\t')
+					eq.erase(i, 1);
+			if (eq == L"=") {
+				Continue = true;
+				break;
+			}
+			size_t pos = eq.find(L'=');
+			if (pos == wstring::npos) {
+				M1 << eq;
+				M2 << L"";
+			}
+			else {
+				M1 << eq.substr(0, pos - 1);
+				M2 << eq.substr(pos + 1, eq.size() - 1);
+			}
+		}
+		if (Continue) continue;
+		
+		// calcolo variabili
+		wstring vars;
+		for (auto& eq : eqs) for (const auto& c : eq) if (isalpha(c)) {
+			bool IsTheVariableSet{ false };
+			for (const auto& var : vars) if (var == c) IsTheVariableSet = true;
+			if (!IsTheVariableSet) vars += c;
+		}
+		vars = L'+' + vars;
+		for (auto& m : M1) m += vars;
+		for (auto& m : M2) m += vars;
+	}
+
+	// invio del segnale per terminare i thread
+	argc = NotAssigned;
+RETURN:
+	{
+		lock_guard<mutex> lk(MonitorMTX);
+		RunMonitor = false;
+	}
+	MonitorCV.notify_all();
 }
 
 // programma per scomporre i polinomi
@@ -10933,19 +11068,21 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 	// istruzioni
 	if (input)
 	{
-		wcout << L"il PROGRAMMA scompone e disegna il grafico dei polinomi\n\n";
+		wcout << L"Il PROGRAMMA scompone e disegna il grafico dei polinomi\n\n";
 		SetConsoleTextAttribute(hConsole, 12);
-		wcout << L"per attivare gli esponenti in forma di apice ";
+		wcout << L"Per attivare gli esponenti in forma di apice ";
 		wcout << L"scrivere noboolalpha\n";
-		wcout << L"per disattivare gli esponenti sottoforma di apice ";
+		wcout << L"Per disattivare gli esponenti sottoforma di apice ";
 		wcout << L"scrivere boolalpha\n\n";
-		wcout << L"per disegnare il grafico aggiungere '\\' all'inizio\n";
+		wcout << L"Per disegnare il grafico aggiungere '\\' all'inizio\n";
 		wcout << L"è possibile eseguire addizioni, sottrazioni, moltiplicazioni\n";
 		wcout << L"e potenze con polinomi molto grandi\n\n";
+		wcout << L"Nel grafico è possibile premere il tasto X per eliminare\n";
+		wcout << L"la funzione oppure il tasto D per calcolare la sua derivata\n\n";
 		SetConsoleTextAttribute(hConsole, 4);
-		wcout << L"attenzione! il programma deduce i polinomi con le parentesi,\n";
-		wcout << L"per calcolarne il valore aggiungere alla fine +1-1\n";
-		wcout << L"per le potenze di numeri includere il numero tra parentesi\n\n";
+		wcout << L"Attenzione! il programma deduce i polinomi con le parentesi,\n";
+		wcout << L"Per calcolarne il valore aggiungere alla fine +1-1\n";
+		wcout << L"Per le potenze di numeri includere il numero tra parentesi\n\n";
 		ResetAttribute();
 	}
 
@@ -10964,7 +11101,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 
 				// input
 				ResetAttribute();
-				wcout << L"inserisci un polinomio in una o più variabili";
+				wcout << L"Inserisci un polinomio in una o più variabili";
 				wcout << L" (0 = fine input)\n";
 				do {
 					Polynomial = GetLine(Polynomials);
@@ -11044,9 +11181,9 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			if (input) {
 			overflow:
 				SetConsoleTextAttribute(hConsole, 2);
-				wcout << L"questo è il polinomio: " << bigHT.str() << L'\n';
+				wcout << L"Questo è il polinomio: " << bigHT.str() << L'\n';
 				SetConsoleTextAttribute(hConsole, 64);
-				wcout << L"il polinomio è troppo grande.";
+				wcout << L"Il polinomio è troppo grande.";
 				ResetAttribute();
 				wcout << L'\n';
 				goto EndOfDecomposition;
@@ -11059,11 +11196,11 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			if (!input) ret {};
 
 			SetConsoleTextAttribute(hConsole, 2);
-			wcout << L"questo è il polinomio: " ;
+			wcout << L"Questo è il polinomio: " ;
 			wcout << PolynomialMultiply<big>(bigHT).str() << L'\n';
 
 			SetConsoleTextAttribute(hConsole, 64);
-			wcout << L"il polinomio contiene dei numeri complessi.";
+			wcout << L"Il polinomio contiene dei numeri complessi.";
 			ResetAttribute();
 			wcout << L'\n';
 			goto EndOfDecomposition;
@@ -11082,14 +11219,14 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		if (input) {
 			SetConsoleTextAttribute(hConsole, 2);
 			if (Polynomial.empty()) Polynomial = L"0";
-			wcout << L"questo è il polinomio: " << Polynomial << L'\n';
+			wcout << L"Questo è il polinomio: " << Polynomial << L'\n';
 		}
 
 		// caso nullo
 		size = HT.size();
 		if (Polynomial == L"0") {
 			ResetAttribute();
-			wcout << "il polinomio non è scomponibile\n";
+			wcout << "Il polinomio non è scomponibile\n";
 			goto EndOfDecomposition;
 		}
 
@@ -11122,7 +11259,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		Polynomial = HT.str();
 		if (HT != size and input) {
 			SetConsoleTextAttribute(hConsole, 12);
-			wcout << L"raccoglimento totale: " << Polynomial << L'\n';
+			wcout << L"Raccoglimento totale: " << Polynomial << L'\n';
 			empty = false;
 		}
 
@@ -11139,7 +11276,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			Polynomial = HT.str();
 			if (Back_T % HT and !Xout and input) {
 				SetConsoleTextAttribute(hConsole, 4);
-				wcout << L"raccoglimento parziale: " << Polynomial << L'\n';
+				wcout << L"Raccoglimento parziale: " << Polynomial << L'\n';
 				empty = false;
 			}
 
@@ -11152,7 +11289,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			Polynomial = HT.str();
 			if (Back_T % HT and !Xout and input) {
 				SetConsoleTextAttribute(hConsole, 3);
-				wcout << L"potenza di binomio scomposta: ";
+				wcout << L"Potenza di binomio scomposta: ";
 				wcout << Polynomial << L'\n';
 				empty = false;
 			}
@@ -11165,7 +11302,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			Polynomial = HT.str();
 			if (Back_T % HT and !Xout and input) {
 				SetConsoleTextAttribute(hConsole, 9);
-				wcout << L"trinomio speciale scomposto: ";
+				wcout << L"Trinomio speciale scomposto: ";
 				wcout << Polynomial << L'\n';
 				empty = false;
 			}
@@ -11192,7 +11329,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			// somma per differenza
 			if (Back_T % HT and !Xout and input) {
 				SetConsoleTextAttribute(hConsole, 5);
-				wcout << L"differenza di quadrati scomposta: ";
+				wcout << L"Differenza di quadrati scomposta: ";
 				wcout << Polynomial << L'\n';
 				empty = false;
 			}
@@ -11225,7 +11362,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			Polynomial = HT.str();
 			if (Back_T % HT and !Xout and input) {
 				SetConsoleTextAttribute(hConsole, 6);
-				wcout << L"applicazione della regola di ruffini: ";
+				wcout << L"Applicazione della regola di ruffini: ";
 				wcout << Polynomial << L'\n';
 				empty = false;
 			}
@@ -11239,7 +11376,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		Polynomial = HT.str();
 		if (Back_T % HT and !Xout and input) {
 			SetConsoleTextAttribute(hConsole, 79);
-			wcout << L"completamento del quadrato: " << Polynomial;
+			wcout << L"Completamento del quadrato: " << Polynomial;
 			ResetAttribute();
 			wcout << L'\n';
 			empty = false;
@@ -11254,7 +11391,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		Polynomial = HT.str();
 		if (Back_T % HT and !Xout and input) {
 			SetConsoleTextAttribute(hConsole, 79);
-			wcout << L"quadrato di trinomio scomposto: " << Polynomial;
+			wcout << L"Quadrato di trinomio scomposto: " << Polynomial;
 			ResetAttribute();
 			wcout << L'\n';
 			empty = false;
@@ -11263,8 +11400,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		// caso vuoto
 		if (empty and !Xout and input) {
 			ResetAttribute();
-			wcout << L"il polinomio non è scomponibile";
-			wcout << L" con i metodi standard\n";
+			wcout << L"Il polinomio non è scomponibile con i metodi standard\n";
 		}
 
 		// caso impossibile
@@ -11316,14 +11452,16 @@ static void DecompFraction(switchcase& argc)
 
 	// istruzioni
 	SetConsoleTextAttribute(hConsole, 14);
-	wcout << L"il PROGRAMMA scompone, semplifica, esegue lo studio del segno\n";
-	wcout << L"e disegna il grafico delle frazioni algebriche\n\n";
+	wcout << L"Il PROGRAMMA scompone, semplifica, esegue lo studio del segno\n";
+	wcout << L"e disegna il grafico delle frazioni algebriche\n";
 	SetConsoleTextAttribute(hConsole, 12);
-	wcout << L"per attivare gli esponenti in forma di apice ";
+	wcout << L"Nel grafico è possibile premere il tasto X per eliminare\n";
+	wcout << L"la funzione oppure il tasto D per calcolare la sua derivata\n\n";
+	wcout << L"Per attivare gli esponenti in forma di apice ";
 	wcout << L"scrivere noboolalpha\n";
-	wcout << L"per disattivare gli esponenti sottoforma di apice ";
+	wcout << L"Per disattivare gli esponenti sottoforma di apice ";
 	wcout << L"scrivere boolalpha\n";
-	wcout << L"per disegnare il grafico aggiungere '\\' all'inizio\n";
+	wcout << L"Per disegnare il grafico aggiungere '\\' all'inizio\n";
 	ResetAttribute();
 
 	for (;;)
@@ -11338,15 +11476,15 @@ static void DecompFraction(switchcase& argc)
 			// input
 			SetConsoleTextAttribute(hConsole, 7);
 			bool wrong{ true };
-			wcout << L"\ninserisci una frazione algebrica (0 = fine input)\n\n";
+			wcout << L"\nInserisci una frazione algebrica (0 = fine input)\n\n";
 			ResetAttribute();
 			GetFraction(numerator, denominator);
+			if (numerator.empty()) numerator = L"0";
+			if (denominator.empty()) denominator = L"1";
 			if (numerator.at(0) == L'\\') {
 				numerator.erase(0, 1);
 				draw = true;
 			}
-			if (numerator.empty()) numerator = L"0";
-			if (denominator.empty()) denominator = L"1";
 
 			if (numerator == L".") {
 				argc = Random;
@@ -11381,7 +11519,7 @@ static void DecompFraction(switchcase& argc)
 			if (numerator == L"0") break;
 			if ((No1 or No2) and wrong) {
 				SetConsoleTextAttribute(hConsole, 4);
-				wcout << L"quella non è una frazione algebrica\n\a";
+				wcout << L"Quella non è una frazione algebrica\n\a";
 				ResetAttribute();
 			}
 
@@ -11391,7 +11529,7 @@ static void DecompFraction(switchcase& argc)
 			{
 				No2 = true;
 				SetConsoleTextAttribute(hConsole, 4);
-				wcout << L"il denominatore non può essere nullo\n\a";
+				wcout << L"Il denominatore non può essere nullo\n\a";
 				ResetAttribute();
 			}
 
@@ -11424,7 +11562,8 @@ static void DecompFraction(switchcase& argc)
 		{
 			wcout << L'\n';
 			SetConsoleTextAttribute(hConsole, 64);
-			wcout << L"input overflow: prova a inserire valori più piccoli";
+			wcout << L"Input overflow: prova a inserire valori più piccoli\n";
+			wcout << L" e non dei numeri complessi!";
 			ResetAttribute();
 			wcout << L'\n';
 			goto insert;
@@ -11628,7 +11767,7 @@ static void DecompFraction(switchcase& argc)
 
 		// output frazioni
 		SetConsoleTextAttribute(hConsole, 10);
-		wcout << L"\nla scomposizione è: ";
+		wcout << L"\nLa scomposizione è: ";
 		SetConsoleTextAttribute(hConsole, 12);
 		bool ShowPlus{ false };
 		int lines{};
@@ -11835,14 +11974,14 @@ static void DecompMatrices(switchcase& argc)
 
 	// istruzioni
 	SetConsoleTextAttribute(hConsole, 14);
-	wcout << L"il PROGRAMMA scompone le matrici\n";
+	wcout << L"Il PROGRAMMA scompone le matrici\n";
 	wcout << L"e calcola determiante, autovalori e autovettori\n\n";
 	SetConsoleTextAttribute(hConsole, 12);
-	wcout << L"sono ammesse solo matrici quadrate da 2x2 a 7x7\n";
-	wcout << L"utilizza CTRL + ALT per inserire una matrice\n";
-	wcout << L"utilizza CTRL + ALT + BACKSPACE per azzerare la matrice\n";
-	wcout << L"premi r per copiare la penultima riga (azzera il determinante)\n";
-	wcout << L"premi z per riempire la matrice con numeri casuali\n\n";
+	wcout << L"Sono ammesse solo matrici quadrate da 2x2 a 7x7\n";
+	wcout << L"Utilizza CTRL + ALT per inserire una matrice\n";
+	wcout << L"Utilizza CTRL + ALT + BACKSPACE per azzerare la matrice\n";
+	wcout << L"Premi r per copiare la penultima riga (azzera il determinante)\n";
+	wcout << L"Premi z per riempire la matrice con numeri casuali\n\n";
 	ResetAttribute();
 	Matrix<> matrix, Mx;
 
@@ -11851,8 +11990,14 @@ static void DecompMatrices(switchcase& argc)
 
 		// input
 		ResetAttribute();
-		wcout << L"Inserisci una matrice\n";
-		while (!matrix.input());
+		wcout << L"Inserisci una matrice\n\n";
+		for (;;) {
+			if (matrix.input()) break;
+			wcout << L'\n';
+			SetConsoleTextAttribute(hConsole, 4);
+			wcout << L"Quella non è una matrice valida\n\n";
+			ResetAttribute();
+		}
 		size_t size{ matrix.size() };
 		if (size == 0) {
 			argc = Random;
@@ -11863,7 +12008,7 @@ static void DecompMatrices(switchcase& argc)
 
 		// output matrice risultato
 		SetConsoleTextAttribute(hConsole, 2);
-		wcout << L"\nQuesta è la matrice: \n";
+		wcout << L"\nQuesta è la matrice: \n\n";
 		matrix.output({ 0, -2 }, __NULL__, 2);
 		wcout << L'\n';
 		ResetAttribute();
@@ -11917,7 +12062,7 @@ static void DecompMatrices(switchcase& argc)
 
 		// decomposizione PLU
 		if (!Break) {
-			wcout << L"decomposizione PLU:\n";
+			wcout << L"Decomposizione PLU:\n";
 			permutator.DisplayWith(lower, upper);
 		}
 
@@ -11949,7 +12094,7 @@ static void DecompMatrices(switchcase& argc)
 
 		// decomposizione QR
 		if (!Break) {
-			wcout << L"decomposizione QR:\n";
+			wcout << L"Decomposizione QR:\n";
 			ortogonal.DisplayWith(Mx);
 		}
 
@@ -11988,7 +12133,7 @@ static void DecompMatrices(switchcase& argc)
 
 		// output decomposizione
 		if (!Break) {
-			wcout << L"decomposizione di cholesky:\n";
+			wcout << L"Decomposizione di cholesky:\n";
 			lower.DisplayWith(lowerT);
 		}
 
@@ -12020,7 +12165,7 @@ static void DecompMatrices(switchcase& argc)
 
 		// decomposizione a valori singolari
 		if (!Break) {
-			wcout << L"decomposizione a valori singolari:\n";
+			wcout << L"Decomposizione a valori singolari:\n";
 			U.DisplayWith(sigma, V);
 		}
 
@@ -12057,7 +12202,7 @@ static void DecompMatrices(switchcase& argc)
 			}
 
 			// output risultati
-			wcout << L"soluzioni del sistema lineare: \n";
+			wcout << L"Soluzioni del sistema lineare: \n";
 			for (size_t i = 0; i < size - 1; ++i)
 				wcout << varlist[i] << L" = " << solutionList[i] << L'\n';
 			wcout << L'\n';
