@@ -3278,7 +3278,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.2.9 ";
+			wcout << L"1.3.3 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -4505,7 +4505,7 @@ static wstring GetLine(tensor<wstring>& sugg, bool ShowSuggestions)
 
 				vel.erase(maxsize - 1);
 				continue;
-			}	
+			}
 
 			// input
 			type c = _getch();
@@ -9467,12 +9467,17 @@ static tensor<tensor<long double>> SystemSolver(tensor<factor<>> functions)
 
 		// calcolo determinanti
 		auto D{ system.det<long double>() };
-		if (D == 0) ret {};
+		tensor<long double> dets;
 		for (size_t i = 0; i < Variables.size(); ++i) {
 			auto mx{ system };
 			mx[i] = KnownTerms;
-			solutions[0] << mx.det() / D;
+			dets << mx.det<long double>();
 		}
+		if (D == 0) {
+			if (dets == tensor<long double>(dets.size(), 0)) ret { { nan("") } };
+			ret { {} };
+		}
+		for (const auto& det : dets) solutions[0] << det / D;
 		ret solutions;
 	}
 
@@ -10968,7 +10973,6 @@ static void SystemSolverGeneral(switchcase& argc)
 	SetConsoleTextAttribute(hConsole, 14);
 
 	// istruzioni
-	wcout << L"NON E' COMPLETO. SEZIONE IN FASE DI SVILUPPO!!!\n\n";
 	wcout << L"Il PROGRAMMA risolve i sistemi in generale\n\n";
 	SetConsoleTextAttribute(hConsole, 12);
 	wcout << L"Premere SHIFT + INVIO per aggiungere una nuova equazione\n";
@@ -10979,15 +10983,27 @@ static void SystemSolverGeneral(switchcase& argc)
 	wcout << L"scrivere boolalpha\n";
 	ResetAttribute();
 
+	tensor<wstring> eqs;
+	bool startover{ true };
 	for (;;)
 	{
+		while (GetAsyncKeyState(VK_SHIFT) & 0x8000 or
+			GetAsyncKeyState(VK_RETURN) & 0x8000);
 
 		// input equazioni
 		if (!RunMonitor) goto RETURN;
-		wcout << L"\n\nInserisci un sistema di equazioni\n\n";
-		tensor<wstring> eqs;
-
-		eqs << GetLine(Equations);
+		if (startover) wcout << L"\nInserisci un sistema di equazioni\n\n";
+		startover = false;
+		auto input{ GetLine(Equations) };
+		if (input == L"boolalpha") {
+			BOOLALPHA = true;
+			continue;
+		}
+		if (input == L"noboolalpha") {
+			BOOLALPHA = false;
+			continue;
+		}
+		eqs << input;
 
 		// termine programma
 		if (eqs.last() == L".") {
@@ -11002,17 +11018,16 @@ static void SystemSolverGeneral(switchcase& argc)
 			goto RETURN;
 		}
 
-		if (!(GetAsyncKeyState(VK_SHIFT) & 0x8000)) break;
-		while (GetAsyncKeyState(VK_SHIFT) & 0x8000);
+		wcout << L'\n';
+		if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) and eqs < 5) continue;
+		bool Continue{ false };
 		wcout << L'\n';
 
 		// riordinamento
-		bool Continue{ false };
 		tensor<wstring> M1, M2;
 		for (auto& eq : eqs) {
 			for (ptrdiff_t i = eq.size() - 1; i >= 0; --i)
-				if (eq.at(i) == L' ' or eq.at(i) == L'\t')
-					eq.erase(i, 1);
+				if (eq.at(i) == L' ' or eq.at(i) == L'\t') eq.erase(i, 1);
 			if (eq == L"=") {
 				Continue = true;
 				break;
@@ -11023,12 +11038,16 @@ static void SystemSolverGeneral(switchcase& argc)
 				M2 << L"";
 			}
 			else {
-				M1 << eq.substr(0, pos - 1);
+				M1 << eq.substr(0, pos);
 				M2 << eq.substr(pos + 1, eq.size() - 1);
 			}
 		}
-		if (Continue) continue;
-		
+		if (Continue) {
+			eqs.clear();
+			startover = true;
+			continue;
+		}
+
 		// calcolo variabili
 		wstring vars;
 		for (auto& eq : eqs) for (const auto& c : eq) if (isalpha(c)) {
@@ -11039,6 +11058,284 @@ static void SystemSolverGeneral(switchcase& argc)
 		vars = L'+' + vars;
 		for (auto& m : M1) m += vars;
 		for (auto& m : M2) m += vars;
+
+		// traduzione
+		wstring savx;
+		polynomial<big> Equations;
+		for (size_t i = 0; i < M1; ++i) {
+
+			// convalidazione
+			wstring eq{ M1[i] + L"-(" + M2[i] + L')' };
+			auto msg{ PolynomialSyntaxDirector(eq) };
+			if (!msg.empty()) {
+				SetConsoleTextAttribute(hConsole, 12);
+				wcout << msg << L"!!\n";
+				ResetAttribute();
+				Continue = true;
+				break;
+			}
+
+			// traduzione
+			auto old{ PolynomialMultiply<big>(GetMonomialsAssister(eq)) };
+			if (Variables == savx or savx.empty()) {
+				savx = Variables;
+				Equations << old;
+				continue;
+			}
+
+			// correzione
+			auto correct{ old };
+			for (size_t i = 0; i < Variables.size(); ++i) {
+				auto pos{ savx.find(Variables.at(i)) };
+				for (size_t j = 0; j < correct; ++j)
+					correct[j].exp[i] = old[j].exp[pos];
+			}
+			Equations << correct;
+			Variables = savx;
+		}
+		eqs.clear();
+		if (Continue) {
+			startover = true;
+			continue;
+		}
+
+		// overflow
+		auto equations{ FromBigToDefault(Equations) };
+		if (equations[0][0].exp[0] == -2) {
+			SetConsoleTextAttribute(hConsole, 12);
+			wcout << L"Il sistema è troppo grande:\n";
+			for (auto& eq : Equations) wcout << eq.str() << L'\n';
+			ResetAttribute();
+			startover = true;
+			continue;
+		}
+
+		// numero di variabili eccessivo
+		if (Variables.size() > equations.size() + 1) {
+			SetConsoleTextAttribute(hConsole, 12);
+			wcout << L"Troppe variabili!!\n";
+			ResetAttribute();
+			startover = true;
+			continue;
+		}
+
+		// numero di variabili minore-uguale al numero di equazioni
+		if (Variables.size() <= equations) {
+			
+			// calcolo soluzioni
+			auto solutions{ SystemSolver(tensor<factor<>>(
+				equations.begin(),
+				equations.begin() + Variables.size()
+			)) };
+			SetConsoleTextAttribute(hConsole, 11);
+			
+			// errore
+			if (solutions.empty()) {
+				wcout << L"Non sono state trovate soluzioni utilizzando";
+				wcout << L" i metodi standard\n";
+				ResetAttribute();
+				startover = true;
+				continue;
+			}
+
+			// sistema impossibile
+			if (solutions[0].empty()) {
+				wcout << L"Il sistema è impossibile\n";
+				ResetAttribute();
+				startover = true;
+				continue;
+			}
+
+			// sistema indeterminato
+			if (isnan(solutions[0][0])) {
+				wcout << L"Il sistema è indeterminato\n";
+				ResetAttribute();
+				startover = true;
+				continue;
+			}
+
+			// selezione
+			for (ptrdiff_t i = solutions.size() - 1; i >= 0; --i)
+				for (size_t j = Variables.size(); j < equations; ++j)
+					if (fabs(equations[j](solutions[i])) > 1e-05)
+					{
+						solutions.erase(solutions.begin() + i);
+						break;
+					}
+			
+			// output soluzioni
+			if (solutions.empty()) {
+				wcout << L"Il sistema è impossibile\n";
+				ResetAttribute();
+				startover = true;
+				continue;
+			}
+			wcout << L"Soluzioni del sistema: \n";
+			for (const auto& sol : solutions) {
+				wcout << L"{\n";
+				for (size_t i = 0; i < Variables.size(); ++i)
+					wcout << L"    " << Variables[i] << L" = " << sol[i] << L'\n';
+				wcout << L"}\n";
+			}
+			ResetAttribute();
+			startover = true;
+			continue;
+		}
+		// sistema parametrico
+
+		// controllo linearità
+		int pIndex{ -1 };
+		size_t ParameterIndex{};
+		for (; ParameterIndex < Variables.size(); ParameterIndex++) {
+			for (const auto& eq : equations) {
+				for (size_t i = 0; i < eq; ++i) {
+					int deg{};
+					for (size_t j = 0; j < Variables.size(); ++j) {
+						if (j == ParameterIndex) continue;
+						deg += eq[i].exp[j];
+					}
+					if (deg > 1) {
+						Continue = true;
+						break;
+					}
+				}
+				if (Continue) break;
+			}
+			if (Continue) {
+				Continue = false;
+				continue;
+			}
+			pIndex = ParameterIndex;
+			break;
+		}
+		if (pIndex < 0) {
+			startover = true;
+			continue;
+		}
+
+		// calcolo termini noti
+		size_t Vsize{ Variables.size() }, I{};
+		tensor<int> null(Vsize, 0);
+		tensor<factor<>> KnownTerms(Vsize);
+		for (size_t i = 0; i < equations;) {
+			if (I == pIndex) {
+				I++;
+				continue;
+			}
+			for (size_t j = 0; j < equations[i]; ++j) {
+				auto exps{ equations[i][j].exp };
+				exps[pIndex] = 0;
+				if (exps == null) {
+					auto mon{ equations[i][j] };
+					mon.coefficient *= -1;
+					KnownTerms[I] << mon;
+				}
+			}
+			i++;
+			I++;
+		}
+
+		// calcolo coefficienti interni
+		I = 0;
+		bool Break{ false };
+		Matrix<factor<>> system(Vsize, tensor<factor<>>(Vsize));
+		for (size_t i = 0; i < equations;) {
+			for (size_t j = 0; j < equations[i]; ++j) {
+				for (size_t k = 0; k < Vsize; ++k) {
+					if (I == pIndex) {
+						I++;
+						Break = true;
+						break;
+					}
+					if (k == pIndex) continue;
+					auto exps{ equations[i][j].exp };
+					exps[k] = 0;
+					exps[pIndex] = 0;
+					if (exps == null) {
+						auto mon{ equations[i][j] };
+						mon.exp[k] = 0;
+						system[k][I] << mon;
+					}
+				}
+				if (Break) break;
+			}
+			if (Break) {
+				Break = false;
+				continue;
+			}
+			I++;
+			i++;
+		}
+		savx = Variables;
+		charVariable = Variables[pIndex];
+
+		// aggiustamento dimensione
+		KnownTerms.erase(KnownTerms.begin() + pIndex);
+		system.erase(system.begin() + pIndex);
+		for (auto& eq : system) eq.erase(eq.begin() + pIndex);
+		
+		// conversione
+		tensor<FACTOR<>> knowns;
+		Matrix<FACTOR<>> System(system.size());
+		for (size_t i = 0; i < system; ++i) for (const auto& pol : system[i])
+			System[i] << To1V(pol);
+		for (const auto& pol : KnownTerms) knowns << To1V(pol);
+
+		// calcolo soluzione
+		tensor<Fraction<>> solve;
+		auto D{ System.det() };
+		tensor<FACTOR<>> dets;
+		for (size_t i = 0; i < Vsize - 1; ++i) {
+			auto mx{ System };
+			mx[i] = knowns;
+			dets << mx.det();
+		}
+		if (D.empty()) {
+			SetConsoleTextAttribute(hConsole, 11);
+			
+			// sistema indeterminato
+			if (dets == tensor<FACTOR<>>(dets.size())) {
+				wcout << L"Il sistema è indeterminato\n";
+				ResetAttribute();
+				startover = true;
+				continue;
+			}
+
+			// sistema impossibile
+			wcout << L"Il sistema è impossibile\n";
+			ResetAttribute();
+			startover = true;
+			continue;
+		}
+		Variables = savx;
+		for (const auto& det : dets)
+			solve << Fraction<>{ { ToXV(det) }, { ToXV(D) } };
+		wcout << L'\n';
+
+		// output
+		bool skipped{ false };
+		for (size_t i = 0; i < Vsize; ++i) {
+			int line;
+			if (i == pIndex) {
+				skipped = true;
+				continue;
+			}
+
+			SetConsoleTextAttribute(hConsole, 11);
+			wcout << Variables[i] << L" = ";
+			_GetCursorPos();
+
+			COORD pos{ csbi.dwCursorPosition };
+			pos.Y--;
+			SetConsoleCursorPosition(hConsole, pos);
+			PrintFraction(1, 1, line, false, solve[i - skipped]);
+			wcout << wstring(L'\n', 4);
+
+			if (i != Vsize - 1) wcout << L'\n';
+		}
+
+		ResetAttribute();
+		startover = true;
 	}
 
 	// invio del segnale per terminare i thread
@@ -12236,8 +12533,6 @@ RETURN:
 	debug messaggi di testo
 	
 	debug systemsolver
-	
-	risoluzione di sistemi non lineari e parametrici lineari
 	
 	operazioni tra frazioni algebriche
 	
