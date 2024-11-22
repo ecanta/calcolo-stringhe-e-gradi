@@ -50,7 +50,7 @@ namespace std_tensor
 		}
 		tensor(const tensor& other) : data(nullptr), capacity(0), count(0)
 		{
-			resize(other.count + 10);
+ 			resize(other.count + 10);
 			count = other.count;
 			for (size_t i = 0; i < count; ++i) data[i] = other.data[i];
 		}
@@ -564,7 +564,8 @@ namespace std_tensor
 			}
 
 			// numeri decimali
-			else if constexpr (_STD is_same_v<T, double>)
+			else if constexpr
+				(_STD is_same_v<T, double> or _STD is_same_v<T, long double>)
 				for (const auto& element : *this)
 				{
 					if (integer(element)) result << _STD setprecision(0);
