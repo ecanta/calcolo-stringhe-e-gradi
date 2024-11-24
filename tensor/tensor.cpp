@@ -31,12 +31,21 @@ namespace std_tensor
 		// metodi privati
 		void resize(size_t new_capacity)
 		{
-			if (capacity > new_capacity) ret;
+			if (capacity > new_capacity)
+			{
+				ret;
+			}
+
 			T* new_data = new T[new_capacity];
-			if (data != nullptr) {
-				for (size_t i = 0; i < count; ++i) new_data[i] = _STD move(data[i]);
+			if (data != nullptr)
+			{
+				for (size_t i = 0; i < count; ++i)
+				{
+					new_data[i] = _STD move(data[i]);
+				}
 				delete[] data;
 			}
+
 			data = new_data;
 			capacity = new_capacity;
 		}
@@ -50,9 +59,12 @@ namespace std_tensor
 		}
 		tensor(const tensor& other) : data(nullptr), capacity(0), count(0)
 		{
- 			resize(other.count + 10);
+			resize(other.count + 10);
 			count = other.count;
-			for (size_t i = 0; i < count; ++i) data[i] = other.data[i];
+			for (size_t i = 0; i < count; ++i)
+			{
+				data[i] = other.data[i];
+			}
 		}
 		tensor(tensor&& other) noexcept :
 			data(other.data),
@@ -64,7 +76,10 @@ namespace std_tensor
 		}
 		tensor(_STD initializer_list<T> init) : tensor()
 		{
-			for (const T& value : init) push_back(value);
+			for (const T& value : init)
+			{
+				push_back(value);
+			}
 		}
 		tensor(size_t size, const T& initial_value)
 			: data(nullptr), capacity(0), count(0)
@@ -86,16 +101,21 @@ namespace std_tensor
 		// assegnazione
 		tensor& operator=(const tensor& other)
 		{
-			if (this != &other) {
+			if (this != &other)
+			{
 				resize(other.count + 10);
-				for (size_t i = 0; i < other.count; ++i) data[i] = other.data[i];
+				for (size_t i = 0; i < other.count; ++i)
+				{
+					data[i] = other.data[i];
+				}
 				count = other.count;
 			}
 			ret *this;
 		}
 		tensor& operator=(tensor&& other) noexcept
 		{
-			if (this != &other) {
+			if (this != &other)
+			{
 				delete[] data;
 				data = other.data;
 				capacity = other.capacity;
@@ -127,22 +147,34 @@ namespace std_tensor
 		// metodi di accesso agli elementi
 		inline T& at(size_t index)
 		{
-			if (index >= count) throw _STD out_of_range("Index out of range!");
+			if (index >= count)
+			{
+				throw _STD out_of_range("Index out of range!");
+			}
 			ret data[index];
 		}
 		inline const T& at(size_t index) const
 		{
-			if (index >= count) throw _STD out_of_range("Index out of range!");
+			if (index >= count)
+			{
+				throw _STD out_of_range("Index out of range!");
+			}
 			ret data[index];
 		}
 		inline T& last()
 		{
-			if (count == 0) throw _STD out_of_range("Tensor is empty!");
+			if (count == 0)
+			{
+				throw _STD out_of_range("Tensor is empty!");
+			}
 			ret data[count - 1];
 		}
 		inline const T& last() const
 		{
-			if (count == 0) throw _STD out_of_range("Tensor is empty!");
+			if (count == 0)
+			{
+				throw _STD out_of_range("Tensor is empty!");
+			}
 			ret data[count - 1];
 		}
 
@@ -153,16 +185,24 @@ namespace std_tensor
 		}
 		tensor erase(size_t pos)
 		{
-			if (pos >= count) throw _STD out_of_range("Index out of range!");
+			if (pos >= count)
+			{
+				throw _STD out_of_range("Index out of range!");
+			}
 			count = pos;
 			ret *this;
 		}
 		tensor erase(size_t pos, size_t n)
 		{
-			if (pos >= count) throw _STD out_of_range("Index out of range");
+			if (pos >= count)
+			{
+				throw _STD out_of_range("Index out of range");
+			}
 			n = _STD min(n, count - pos);
 			for (size_t i = pos; i < count - n; ++i)
+			{
 				data[i] = _STD move(data[i + n]);
+			}
 			count -= n;
 			ret *this;
 		}
@@ -180,25 +220,43 @@ namespace std_tensor
 		// operatori di modifica degli elementi e della dimensione
 		inline void push_back(const T& value)
 		{
-			if (count == capacity) resize(capacity * 2 + 1);
+			if (count == capacity)
+			{
+				resize(capacity * 2 + 1);
+			}
 			data[count++] = value;
 		}
 		inline void pop_back()
 		{
-			if (count == 0) throw _STD out_of_range("Tensor is empty");
+			if (count == 0)
+			{
+				throw _STD out_of_range("Tensor is empty");
+			}
 			count--;
 		}
 		void push_front(const T& value)
 		{
-			if (count == capacity) resize(capacity * 2);
-			for (size_t i = count; i > 0; --i) data[i] = _STD move(data[i - 1]);
+			if (count == capacity)
+			{
+				resize(capacity * 2);
+			}
+			for (size_t i = count; i > 0; --i)
+			{
+				data[i] = _STD move(data[i - 1]);
+			}
 			data[0] = value;
 			count++;
 		}
 		void pop_front()
 		{
-			if (count == 0) throw _STD out_of_range("Tensor is empty");
-			for (size_t i = 0; i < count - 1; ++i) data[i] = _STD move(data[i + 1]);
+			if (count == 0)
+			{
+				throw _STD out_of_range("Tensor is empty");
+			}
+			for (size_t i = 0; i < count - 1; ++i)
+			{
+				data[i] = _STD move(data[i + 1]);
+			}
 			count--;
 		}
 
@@ -234,14 +292,23 @@ namespace std_tensor
 		// operatori push
 		tensor& operator()(size_t n)
 		{
-			if (n >= count) resize(n * 2);
+			if (n >= count)
+			{
+				resize(n * 2);
+			}
 			count = n;
 			ret *this;
 		}
 		tensor& operator()(size_t n, const T& value)
 		{
-			if (n >= count) resize(n * 2);
-			for (size_t i = count; i < n; ++i) data[i] = value;
+			if (n >= count)
+			{
+				resize(n * 2);
+			}
+			for (size_t i = count; i < n; ++i)
+			{
+				data[i] = value;
+			}
 			count = n;
 			ret *this;
 		}
@@ -259,9 +326,17 @@ namespace std_tensor
 		// operatori di uguaglianza
 		_NODISCARD bool operator==(const tensor& other) const
 		{
-			if (count != other.count) ret false;
-			for (size_t i = 0; i < count; ++i) if (data[i] != other.data[i])
+			if (count != other.count)
+			{
 				ret false;
+			}
+			for (size_t i = 0; i < count; ++i)
+			{
+				if (data[i] != other.data[i])
+				{
+					ret false;
+				}
+			}
 			ret true;
 		}
 		_NODISCARD inline bool operator!=(const tensor& other) const
@@ -284,7 +359,10 @@ namespace std_tensor
 		}
 		tensor& operator+=(const tensor other)
 		{
-			for (size_t i = 0; i < other.count; ++i) push_back(other.data[i]);
+			for (size_t i = 0; i < other.count; ++i)
+			{
+				push_back(other.data[i]);
+			}
 			ret *this;
 		}
 
@@ -434,9 +512,14 @@ namespace std_tensor
 			  }
 			  size_t operator-(iterator value) const
 			  {
-				  if (index == value.index) ret 0;
+				  if (index == value.index)
+				  {
+					  ret 0;
+				  }
 				  if (index < value.index)
+				  {
 					  throw _STD out_of_range("Index out of range");
+				  }
 				  ret index - value.index;
 			  }
 
@@ -450,11 +533,11 @@ namespace std_tensor
 			  }
 			  T* operator->()
 			  {
-				  ret&data[index];
+				  ret &data[index];
 			  }
 			  const T* operator->() const
 			  {
-				  ret&data[index];
+				  ret &data[index];
 			  }
 
 			  bool operator==(const iterator& other) const
@@ -493,53 +576,79 @@ namespace std_tensor
 		tensor(iterator first, iterator last) : data(nullptr), capacity(0), count(0)
 		{
 			size_t n = last - first;
-			if (n > count) resize(n);
+			if (n > count)
+			{
+				resize(n);
+			}
 			count = n;
 
-			for (size_t i = 0; i < n; ++i, ++first) data[i] = *first;
+			for (size_t i = 0; i < n; ++i, ++first)
+			{
+				data[i] = *first;
+			}
 		}
 
 		// metodi con gli operatori
 		void erase(iterator it)
 		{
-			if (it == end()) throw _STD out_of_range("Iterator out of range");
+			if (it == end())
+			{
+				throw _STD out_of_range("Iterator out of range");
+			}
 			size_t pos{ it - begin() };
 			for (size_t i = pos; i < count - 1; ++i)
+			{
 				data[i] = _STD move(data[i + 1]);
+			}
 			count--;
 		}
 		void erase(iterator first, iterator last)
 		{
-			if (first == last) ret;
-			size_t start{ first - begin() };
-			size_t end{ last - begin() };
+			if (first == last)
+			{
+				ret;
+			}
+			size_t start{ first - begin() }, end{ last - begin() };
 
 			if (start >= count or end > count or start > end)
+			{
 				throw _STD out_of_range("Invalid iterator range");
+			}
 
 			size_t distance = end - start;
 			for (size_t i = start; i < count - distance; ++i)
+			{
 				data[i] = _STD move(data[i + distance]);
+			}
 
 			count -= distance;
 		}
 		void insert(iterator pos, const T& value)
 		{
 			size_t index = pos - begin();
-			if (count == capacity) resize(capacity * 2);
-
-			for (size_t i = count; i > index; --i) data[i] = _STD move(data[i - 1]);
-
+			if (count == capacity)
+			{
+				resize(capacity * 2);
+			}
+			for (size_t i = count; i > index; --i)
+			{
+				data[i] = _STD move(data[i - 1]);
+			}
 			data[index] = value;
 			count++;
 		}
 		void remove(const T& value)
 		{
 			size_t write{};
-			for (size_t read = 0; read < count; ++read) if (data[read] != value)
+			for (size_t read = 0; read < count; ++read)
 			{
-				if (write != read) data[write] = move(data[read]);
-				write++;
+				if (data[read] != value)
+				{
+					if (write != read) data[write] = move(data[read]);
+					{
+						write++;
+					}
+				}
 			}
 			count = write;
 		}
@@ -551,43 +660,64 @@ namespace std_tensor
 			result << _STD fixed;
 
 			// bool
-			if constexpr (_STD is_same_v<T, bool>) for (const auto& element : *this)
+			if constexpr (_STD is_same_v<T, bool>)
 			{
-				result << element ? L"1" : L"0";
-				result << L", ";
+				for (const auto& element : *this)
+				{
+					result << element ? L"1" : L"0";
+					result << L", ";
+				}
 			}
 
 			// carattere
-			else if constexpr (_STD is_same_v<T, wchar_t>) {
-				for (const auto& element : *this) result << element;
+			else if constexpr (_STD is_same_v<T, wchar_t>)
+			{
+				for (const auto& element : *this)
+				{
+					result << element;
+				}
 				result << L", ";
 			}
 
 			// numeri decimali
 			else if constexpr
 				(_STD is_same_v<T, double> or _STD is_same_v<T, long double>)
+			{
 				for (const auto& element : *this)
 				{
-					if (integer(element)) result << _STD setprecision(0);
+					if (integer(element))
+					{
+						result << _STD setprecision(0);
+					}
 					result << element << L", ";
-					if (integer(element)) result << _STD setprecision(6);
+					if (integer(element))
+					{
+						result << _STD setprecision(6);
+					}
 				}
+			}
 
 			// dati generici
 			else if constexpr (_STD is_integral_v<T>
 				or _STD is_same_v<T, _STD wstring>)
-				for (const auto& element : *this) result << element << L", ";
+			{
+				for (const auto& element : *this)
+				{
+					result << element << L", ";
+				}
+			}
 
 			// niente
 			else ret L"";
 
 			// fine
 			outp = result.str();
-			if (outp.size() >= 2) {
+			if (outp.size() >= 2)
+			{
 				outp.pop_back();
 				outp.pop_back();
 			}
-			ret L'{' + outp + L'}';
+			ret L"{ " + outp + L" }";
 		}
 	};
 
@@ -616,7 +746,8 @@ namespace std_tensor
 
 		tensor_t& operator=(const tensor_t& other)
 		{
-			if (this != &other) {
+			if (this != &other)
+			{
 				is_prime = other.is_prime;
 				list_primes = other.list_primes;
 			}
