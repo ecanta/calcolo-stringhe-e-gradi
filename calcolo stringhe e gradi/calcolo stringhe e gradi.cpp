@@ -193,6 +193,7 @@ enum switchcase
 	Random              ,
 	NotAssigned
 };
+switchcase usefree;
 unordered_map<wstring, switchcase> stringToEnumMap{
 	{ L"cc" , switchcase::DoSimpleCode         },
 	{ L"ccc", switchcase::DoComplexCode        },
@@ -259,7 +260,7 @@ unordered_map<wstring, wstring> ConvertFromSuperScript{
 #pragma endregion
 #pragma region Classes
 
-wstring Variables;
+wstring Variables{ L"x" };
 using _TENSOR tensor, _TENSOR tensor_t;
 
 // numeri grandi con precisione di long double
@@ -1510,7 +1511,10 @@ template<class T = long double>class Fraction
 public:
 	polynomial<T> num, den;
 
-	Fraction() {}
+	Fraction() :
+		num(polynomial<T>{ { { 0, tensor<int>(Variables.size(), 0) } } }),
+		den(polynomial<T>{ { { 1, tensor<int>(Variables.size(), 0) } } })
+	{}
 	Fraction(polynomial<T> numerator, polynomial<T> denominator) :
 		num(numerator), den(denominator) {}
 
@@ -1539,8 +1543,8 @@ public:
 	{
 		Fraction res;
 		res.num = {
-			PolynomialMultiply<T>(num + other.den)
-			- PolynomialMultiply<T>(other.num + den)
+			PolynomialMultiply<T>(num + other.den) -
+			PolynomialMultiply<T>(other.num + den).neg()
 		};
 		res.den = { PolynomialMultiply<T>(den + other.den) };
 		ret res;
@@ -1554,8 +1558,8 @@ public:
 	{
 		Fraction res;
 		res.num = {
+			PolynomialMultiply<T>(num + other.den) -
 			PolynomialMultiply<T>(other.num + den)
-			- PolynomialMultiply<T>(num + other.den)
 		};
 		res.den = { PolynomialMultiply<T>(den + other.den) };
 		ret res;
@@ -2370,7 +2374,7 @@ public:
 
 		// calcolo matrice
 		*this = ObjectOperations(errcode, Displayed, operators, ToConvalidate);
-		ret *this != Matrix{};
+		ret *this != Matrix<_Ty>{};
 	}
 
 	void DisplayWith(const Matrix other) const
@@ -2465,7 +2469,7 @@ public:
 	{
 		if (*this % other) ret {};
 		size_t size{ this->size() };
-		Matrix res(size);
+		Matrix<_Ty> res(size);
 
 		for (size_t i = 0; i < size; ++i) for (size_t j = 0; j < size; ++j) {
 			double scalar_prod{};
@@ -2479,40 +2483,38 @@ public:
 	Matrix& operator*=(const Matrix other)
 	{
 		*this = *this * other;
-		ret *this;
+		ret* this;
 	}
 
 	template<typename T = _Ty> T det()
 	{
-		if constexpr (is_same_v<T, FACTOR<>>)
+		if constexpr (is_same_v<T, factor<>>)
 		{
-			FACTOR<> det;
+			factor<> det;
 			int s = this->size();
 
 			// casi speciali del calcolo del determinante
-			if (s == 1) ret (*this)[0][0];
-			if (s == 2) {
-				auto addend1{ ToXV((*this)[0][0]) * ToXV((*this)[1][1]) };
-				auto addend2{ ToXV((*this)[0][1]) * ToXV((*this)[1][0]) };
-				for (auto& mon : addend2) mon.coefficient *= -1;
-				ret To1V(addend1 - addend2.neg());
+			switch (s) {
+			case 1: ret (*this)[0][0];
+			case 2:
+				ret (*this)[0][0] * (*this)[1][1] - (*this)[0][1] * (*this)[1][0];
 			}
 
 			// caso generale del calcolo del determinante
 			for (size_t i = 0; i < s; ++i) {
 
-				Matrix<FACTOR<>> MX(s - 1);
+				Matrix<factor<>> MX(s - 1);
 				for (size_t I = 0; I < s - 1; ++I) for (size_t J = 0; J < s; ++J)
 				{
 					if (i == J) continue;
 					MX[I] << (*this)[I + 1][J];
 				}
 
-				auto MiddleDet{ ToXV(MX.det()) };
+				auto MiddleDet{ MX.det() };
 				if (MiddleDet != 0) {
-					auto adder{ ToXV((*this)[0][i]) * MiddleDet };
+					auto adder{ (*this)[0][i] * MiddleDet };
 					for (auto& mon : adder) mon.coefficient *= -1;
-					det = To1V(ToXV(det) - adder.neg());
+					det -= adder.neg();
 				}
 			}
 
@@ -2522,10 +2524,12 @@ public:
 			T det{};
 			size_t s{ this->size() };
 
-			// casi speciali
-			if (s == 1) ret (*this)[0][0];
-			if (s == 2)
+			// casi speciali del calcolo del determinante
+			switch (s) {
+			case 1: ret (*this)[0][0];
+			case 2:
 				ret (*this)[0][0] * (*this)[1][1] - (*this)[0][1] * (*this)[1][0];
+			}
 
 			// caso generale
 			for (size_t i = 0; i < s; ++i) {
@@ -2543,16 +2547,16 @@ public:
 			ret det;
 		}
 
-		ret 0;
+		ret T();
 	}
 	
-	Matrix invert()
+	Matrix invert(_Ty det = 0)
 	{
-		Matrix result(this->size());
-		auto det{ this->det() };
-		
+		Matrix<_Ty> result(this->size());
+		if (det == 0) det = this->det();
+
 		// matrice non invertibile
-		if (det == 0) {
+		if (det == _Ty()) {
 			result = *this;
 			result[0][0] = nan("");
 			ret result;
@@ -2577,11 +2581,12 @@ public:
 
 		// inizializzazione
 		size_t s{ this->size() };
-		auto PolynomialMatrix{ Matrix<FACTOR<>>(s, tensor<FACTOR<>>(s)) };
+		Matrix<factor<>> PolynomialMatrix(s, tensor<factor<>>(s));
 		for (size_t i = 0; i < s; ++i) for (size_t j = 0; j < s; ++j)
-			PolynomialMatrix[i][j] << MONOMIAL<>{ 0, (long double)(*this)[i][j] };
+			PolynomialMatrix[i][j]
+				<< monomial<>{ (long double)(*this)[i][j], { 0 } };
 		for (size_t i = 0; i < s; ++i)
-			PolynomialMatrix[i][i] >> MONOMIAL<>{ 1, -1 };
+			PolynomialMatrix[i][i] >> monomial<>{ -1, { 1 } };
 
 		// calcolo autovalori
 		tensor<double> eigenvalues;
@@ -2589,7 +2594,7 @@ public:
 		wstring save_wstring{ Variables };
 		charVariable = L'x';
 		Variables = L"x";
-		auto EigenStrings{ EquationSolver(ToXV(PolynomialMatrix.det())) };
+		auto EigenStrings{ EquationSolver(PolynomialMatrix.det()) };
 		for (auto str : EigenStrings) {
 			str.erase(0, str.find(L'=') + 1);
 			if (str.find(L'i') == wstring::npos) eigenvalues << stod(str);
@@ -2611,9 +2616,9 @@ public:
 	{
 		size_t size{ this->size() };
 		if (EigenV.empty()) EigenV = this->EigenValues();
-		if (EigenV.size() != size) ret{};
+		if (EigenV.size() != size) ret {};
 		tensor<double> result;
-		Matrix eigenvectors(size);
+		Matrix<_Ty> eigenvectors(size);
 
 		// risoluzione sistemi lineari
 		for (size_t i = 0; i < size; ++i) {
@@ -2986,7 +2991,7 @@ static long double WaitingScreen(auto begin, auto end);
 static wstring CTSuperScript(wchar_t input);
 static wstring CFSuperScript(wstring script);
 static void DeduceFromExponents(wstring& str);
-static void GetFraction(wstring& numerator, wstring& denominator);
+static void GetFraction(wstring& numerator, wstring& denominator, COORD& Off);
 static Fraction<> GetFractionAdvanced(wstring& errcode);
 static wstring GetLine(tensor<wstring>& sugg, bool ShowSuggestions = true);
 static wstring GetUserNum
@@ -3068,10 +3073,7 @@ static polynomial<> Ruffini(factor<> vect);
 static polynomial<> CompleteTheSquare(factor<> vect);
 static polynomial<> TrinomialSquare(factor<> vect);
 static FACTOR<> Complementary(POLYNOMIAL<> Polynomial, FACTOR<> factor, int exp);
-static void Simplify(
-	polynomial<>& num, polynomial<>& den,
-	int& ncoeff, int& dcoeff
-);
+static void Simplify(Fraction<>& fr, int& ncoeff, int& dcoeff);
 static void Approximator(tensor<long double>& Equation, long double& root);
 static tensor<wstring> EquationSolver(factor<> equation);
 static tensor<long double> RootExtractor(polynomial<> vect);
@@ -3144,6 +3146,16 @@ static ConsoleStream DisequationSolutionPrinter(
 
 static void PrintFraction
 (int NC, int DC, int& LINE, bool WritePlus, Fraction<> fract);
+static void PrintFractionaryResult
+(
+	int NC, int DC, int& lines, Fraction<> Fract,
+
+	POLYNOMIAL<> NScomp = { {} }, POLYNOMIAL<> DScomp = { {} },
+
+	bool HasMoreVariables = true, bool correct = false,
+
+	tensor<double> roots = {}, tensor<POLYNOMIAL<>> Denominators = {}
+);
 static void CodeToNumber(switchcase& argc);
 static wstring ExpandNumber(
 	switchcase& argc,
@@ -3163,7 +3175,8 @@ static void Loop(
 	bool select = false
 );
 static void SystemSolverGeneral(switchcase& argc);
-static polynomial<> DecompPolynomial(switchcase& argc, wstring polynomial);
+template<typename Type>
+static polynomial<> DecompPolynomial(switchcase& argc, Type Polynomial);
 static void DecompFraction(switchcase& argc);
 static void DecompMatrices(switchcase& argc);
 
@@ -3241,7 +3254,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.3.6 ";
+			wcout << L"1.3.8 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -3473,7 +3486,7 @@ int main()
 				break;
 
 			case FactorPolynomial: Threading = true;
-				calculator = thread(DecompPolynomial, ref(option), L"");
+				calculator = thread(DecompPolynomial<wstring>, ref(option), L"");
 				monitor = thread(MonitorConsoleSize, COORD{ 50, 20}, ref(RunMonitor));
 				break;
 
@@ -4143,7 +4156,7 @@ static void DeduceFromExponents(wstring& str)
 #pragma region Input
 
 // inputa una frazione algebrica
-static void GetFraction(wstring& numerator, wstring& denominator)
+static void GetFraction(wstring& numerator, wstring& denominator, COORD& Off)
 {
 	setlocale(LC_ALL, "");
 	SetConsoleOutputCP(CP_UTF8);
@@ -4167,7 +4180,10 @@ static void GetFraction(wstring& numerator, wstring& denominator)
 	wcout << wstring(10, L'\n');
 	_GetCursorPos();
 	if (csbi.dwCursorPosition.Y >= START.Y)
+	{
+		Off.Y -= 10 - csbi.dwCursorPosition.Y + START.Y;
 		START.Y -= 10 - csbi.dwCursorPosition.Y + START.Y;
+	}
 	SetConsoleCursorPosition(hConsole, START);
 
 	for (;;) {
@@ -4469,6 +4485,7 @@ static Fraction<> GetFractionAdvanced(wstring& errcode)
 {
 
 	// inizio
+	bool start{ true };
 	_GetCursorPos();
 	const wstring OperatorsAllowed{ L"(+-*/=)" };
 	COORD START{ csbi.dwCursorPosition };
@@ -4485,7 +4502,7 @@ static Fraction<> GetFractionAdvanced(wstring& errcode)
 		wstring num_, den_;
 
 		// input operatore
-		if (_kbhit()) {
+		if (_kbhit() and !start) {
 			char c = _getch();
 
 			// termine programma
@@ -4530,6 +4547,7 @@ static Fraction<> GetFractionAdvanced(wstring& errcode)
 			actions << csbi.dwCursorPosition.X;
 			continue;
 		}
+		start = false;
 
 		// frazione
 		_GetCursorPos();
@@ -4540,23 +4558,34 @@ static Fraction<> GetFractionAdvanced(wstring& errcode)
 		SetConsoleCursorPosition(
 			hConsole, { short(csbi.dwCursorPosition.X + 1), START.Y }
 		);
-		GetFraction(num_, den_);
+		GetFraction(num_, den_, START);
+		
+		// uscita
 		if (num_ == L".") {
 			errcode = L"_";
 			ret Fraction<>{};
 		}
+		auto arg{ ConvertWStringToEnum(num_) };
+		ReassigneEnum(arg);
+		if (arg != NotAssigned) {
+			errcode = num_;
+			ret Fraction<>{};
+		}
 
 		// esponenti con gli apici
-		if (num_ == L"boolalpha") {
+		if (num_ == L"boolalpha")
+		{
 			BOOLALPHA = true;
 			continue;
 		}
-		if (num_ == L"noboolalpha") {
+		if (num_ == L"noboolalpha")
+		{
 			BOOLALPHA = false;
 			continue;
 		}
 
 		// push
+		if (num_.empty()) num_ = L"0";
 		Numerators << num_;
 		Denominators << den_;
 		Operators << L"";
@@ -4576,15 +4605,18 @@ static Fraction<> GetFractionAdvanced(wstring& errcode)
 	for (auto& str : un) for (const auto& c : str)
 		if (isalpha(c) and Variables.find(c) == wstring::npos) Variables += c;
 	auto savx{ Variables };
+	tensor<int> null(Variables.size(), 0);
 
 	// traduzione
 	for (size_t i = 0; i < 2 * Numerators.size(); ++i) {
 		bool isnum{ i % 2 == 0 };
 		if (isnum) fractions << Fraction<big>{};
 
+		// scelta stringhe
 		auto str = isnum ? Numerators[i / 2] : Denominators[i / 2];
-		if ((errcode = PolynomialSyntaxDirector(str)).empty()) ret Fraction<>{};
+		if (!(errcode = PolynomialSyntaxDirector(str)).empty()) ret Fraction<>{};
 
+		// traduzione stringhe
 		auto old{ PolynomialMultiply<big>(GetMonomialsAssister(str)) };
 		if (Variables == savx or savx.empty()) {
 			savx = Variables;
@@ -4594,11 +4626,14 @@ static Fraction<> GetFractionAdvanced(wstring& errcode)
 		for (auto& mon : old) mon.exp(savx.size(), 0);
 
 		// correzione
-		auto correct{ old };
+		factor<big> correct;
+		for (const auto& mono : old)
+			correct << monomial<big>{ mono.coefficient, null };
 		for (size_t j = 0; j < Variables.size(); ++j) {
 			auto pos{ savx.find(Variables.at(j)) };
+			if (pos == wstring::npos) continue;
 			for (size_t k = 0; k < correct; ++k)
-				correct[k].exp[j] = old[k].exp[pos];
+				correct[k].exp[pos] = old[k].exp[j];
 		}
 
 		// impostazione
@@ -9258,12 +9293,11 @@ static FACTOR<> Complementary(POLYNOMIAL<> Polynomial, FACTOR<> factor, int exp)
 }
 
 // semplifica numeratore e denominatore in una frazione
-static void Simplify(
-	polynomial<>& num, polynomial<>& den,
-	int& ncoeff, int& dcoeff
-)
+static void Simplify(Fraction<>& fr, int& ncoeff, int& dcoeff)
 {
 	tensor<int> null(Variables.size(), 0);
+	auto& num{ fr.num };
+	auto& den{ fr.den };
 
 	num.open();
 	den.open();
@@ -9364,7 +9398,7 @@ static void PrintFraction
 	if (csbi.dwCursorPosition.Y >= start.Y)
 		start.Y -= 10 - csbi.dwCursorPosition.Y + start.Y;
 	SetConsoleCursorPosition(hConsole, start);
-
+	
 	// calcolo numeratore
 	long double root{};
 	int I{ 1 }, Root{};
@@ -9373,7 +9407,34 @@ static void PrintFraction
 	if (fract.num == 1) if (fract.num[0] == 1)
 		if (fract.num[0][0].exp == null)
 			root = fract.num[0][0].coefficient;
-	if (fract.num.empty()) fract.num = polynomial<> { { { 1, null } } };
+
+	// correzione numeratore
+	bool Empty{ fract.num.empty() }, dontreset{ false };
+	if (Empty) {
+		fract.num = polynomial<>{ { { 1, null } } };
+		dontreset = true;
+	}
+	else {
+		Empty = true;
+		for (const auto& term : fract.num) if (!term.empty()) {
+			Empty = false;
+			break;
+		}
+	}
+	if (Empty and !dontreset) {
+		NC = 0;
+		fract.num = polynomial<>{ { { 0, null } } };
+	}
+
+	// correzione denominatore
+	if (!(Empty = fract.den.empty())) {
+		Empty = true;
+		for (const auto& term : fract.den) if (!term.empty()) {
+			Empty = false;
+			break;
+		}
+	}
+	if (Empty) fract.den = polynomial<>{ { { 1, null } } };
 
 	// calcolo coefficienti e correzione
 	if (root != 0) {
@@ -9460,7 +9521,7 @@ static void PrintFraction
 		(den_.find(L'+') == wstring::npos and den_.find(L'-') == wstring::npos)
 		and den_.find(L'(') != wstring::npos) den_ = L'-' + den_;
 	else if (DC == -1) den_ = L"-(" + den_ + L')';
-	// /
+	// //
 
 	// aggiustamento segni
 	bool both{ true };
@@ -9482,6 +9543,10 @@ static void PrintFraction
 	{
 		den_.erase(0, 1);
 		IsMinus = !IsMinus;
+	}
+	if (NC == 0) {
+		num_ = L"0";
+		den_ = L"1";
 	}
 
 	// calcolo dati
@@ -9530,13 +9595,15 @@ static void PrintFraction
 static void PrintFractionaryResult
 (
 	int NC, int DC, int& lines, Fraction<> Fract,
-	bool correct = false, bool HasMoreVariables = true,
 
-	tensor<double> roots = {},
-	POLYNOMIAL<> NScomp = { {} }, POLYNOMIAL<> DScomp = { {} },
-	tensor<POLYNOMIAL<>> Denominators = {}
+	POLYNOMIAL<> NScomp, POLYNOMIAL<> DScomp,
+
+	bool HasMoreVariables, bool correct,
+
+	tensor<double> roots, tensor<POLYNOMIAL<>> Denominators
 )
 {
+	// inizio
 	tensor<int> null(Variables.size(), 0);
 	bool ShowPlus{ false };
 
@@ -9544,7 +9611,6 @@ static void PrintFractionaryResult
 	Fraction<> Part;
 	Part.num = HasMoreVariables ? Fract.num : ToXV(NScomp);
 	Part.den = HasMoreVariables ? Fract.den : ToXV(DScomp);
-	bool NewPrint{ false };
 	if (correct) {
 		wcout << L"\n\n";
 		for (size_t i = 0; i < Denominators; ++i) {
@@ -9576,13 +9642,12 @@ static void PrintFractionaryResult
 				Part
 			);
 			wcout << L"\n\n";
+			goto EndOfStatement;
 		}
-		else NewPrint = true;
 	}
-	else NewPrint = true;
 
 	// caso di denominatore coefficiente
-	if (abs(DC) != 1 and !Part.num.empty() and NewPrint) {
+	if (abs(DC) != 1 and !Part.num.empty()) {
 		_GetCursorPos();
 		csbi.dwCursorPosition.Y--;
 		SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
@@ -9597,7 +9662,7 @@ static void PrintFractionaryResult
 	}
 
 	// caso di frazione normale
-	else if (abs(DC) != 1 and NScomp.empty() and NewPrint) {
+	else if (abs(DC) != 1 and NScomp.empty()) {
 		_GetCursorPos();
 		csbi.dwCursorPosition.Y--;
 		SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
@@ -9612,13 +9677,13 @@ static void PrintFractionaryResult
 	}
 
 	// caso costante
-	else if (NScomp.empty() and NewPrint) {
+	else if (NScomp.empty()) {
 		if (DC == -1) NC *= -1;
 		wcout << L' ' << NC;
 	}
 
 	// caso fattore
-	else if (NScomp == 1 and NewPrint) {
+	else if (NScomp == 1) {
 		auto output = HasMoreVariables ?
 			Fract.num[0].str() : NScomp[0].str();
 		ElabExponents(output);
@@ -9629,7 +9694,7 @@ static void PrintFractionaryResult
 	}
 
 	// caso polinomio
-	else if (NewPrint) {
+	else {
 		wcout << L' ';
 		HasMoreVariables ? wcout << Fract.num.str() : wcout << NScomp.str();
 	}
@@ -9663,7 +9728,7 @@ static void Approximator(tensor<long double>& Equation, long double& root)
 	auto derivative{ equation.derivate() };
 
 	// calcolo radice
-	const double TOL = 0.000001;
+	const double TOL{ 1e-06 };
 	for (int i = 0; i < 100; ++i) {
 		long double fx{}, dfx{};
 
@@ -9889,7 +9954,7 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 // risolve un sistema non lineare con il metodo di newton-raphson
 static tensor<tensor<long double>> SystemSolver(tensor<factor<>> functions)
 {
-	const double TOL = 0.000001;
+	const double TOL{ 1e-06 };
 	tensor<int> null(Variables.size(), 0);
 
 	// calcolo del grado del sistema
@@ -9948,20 +10013,22 @@ static tensor<tensor<long double>> SystemSolver(tensor<factor<>> functions)
 
 	// calcolo di ogni coppia ordinata
 	tensor<tensor<long double>> solutions;
-	tensor<long double> StarterPoint(Variables.size(), 0);
+	tensor<long double> StarterPoint(Variables.size(), 0.5);
 	for (int i = 0; i < 100 and solutions < degree; ++i) {
 
 		auto solution{ StarterPoint };
 		for (int j = 0; j < 100; ++j) {
 			
-			// valutazione dello jacobiano inverso nel punto
+			// valutazione dello jacobiano nel punto
 			Matrix<> JInvpoint(Variables.size());
 			for (size_t k = 0; k < Variables.size(); ++k)
 				for (size_t l = 0; l < Variables.size(); ++l)
-					JInvpoint[j] << Jacobian[j][l](solution);
-			if (JInvpoint.det<long double>() == 0)
-				for (size_t k = 0; k < Variables.size(); ++k) JInvpoint[k][k]++;
-			JInvpoint = JInvpoint.invert();
+					JInvpoint[k] << Jacobian[k][l](solution);
+
+			// inversione
+			auto determinant{ JInvpoint.det<long double>() };
+			JInvpoint = determinant == 0 ?
+				JInvpoint.invert(1e-03) : JInvpoint.invert(determinant);
 
 			// aggiornamento punto
 			tensor<long double> vect;
@@ -9983,34 +10050,20 @@ static tensor<tensor<long double>> SystemSolver(tensor<factor<>> functions)
 		for (auto& sol : solutions) {
 
 			bool LocalPresent{ true };
-			for (size_t j = 0; j < sol; ++j) if (sol[j] - solution[j] > TOL)
-			{
-				LocalPresent = false;
-				break;
-			}
+			for (size_t j = 0; j < sol; ++j)
+				if (fabs(sol[j] - solution[j]) > 100 * TOL)
+				{
+					LocalPresent = false;
+					break;
+				}
 			if (LocalPresent) {
 				present = true;
 				break;
 			}
 		}
 		if (!present) solutions << solution;
-		
-		// calcolo jacobiano nella soluzione
-		Matrix<> Jpoint(Variables.size());
-		for (size_t j = 0; j < Variables.size(); ++j)
-			for (size_t k = 0; k < Variables.size(); ++k)
-				Jpoint[j] << Jacobian[j][k](solution);
-		if (Jpoint.det() == 0) Jpoint = Matrix<>(
-			Variables.size(), tensor<long double>(Variables.size(), 0)
-		);
-		Jpoint = Jpoint.invert();
 
-		// aggiornamento punto
-		auto eigenvectors{ Jpoint.EigenVectors() };
-		if (eigenvectors.empty()) for (size_t j = 0; j < Variables.size(); ++j)
-			StarterPoint[j] = solution[j] + 0.1 * Jacobian[j][j](solution);
-		else for (size_t j = 0; j < Variables.size(); ++j)
-			StarterPoint[j] = solution[j] + 0.1 * eigenvectors[j][0];
+
 	}
 
 	ret solutions;
@@ -10189,7 +10242,6 @@ static ConsoleStream GetAlgebricSolution(
 		text << Console(roots[i + 1]);
 		if (i + 2 < roots) text << Console(L" V ", 8);
 	}
-	// //
 
 	for (auto& cons : text) ElabExponents(cons.Text);
 	ret text;
@@ -11450,27 +11502,33 @@ static void SystemSolverGeneral(switchcase& argc)
 		while (GetAsyncKeyState(VK_SHIFT) & 0x8000 or
 			GetAsyncKeyState(VK_RETURN) & 0x8000);
 
-		// // input equazioni
+		// input equazioni
 		if (!RunMonitor) goto RETURN;
 		if (startover) {
-			Variables.clear();
+			Variables = L"x";
 			wcout << L"\nInserisci un sistema di equazioni\n\n";
 		}
-
 		startover = false;
 		wstring err;
 		Fraction<> it{ GetFractionAdvanced(err) };
 
-		// termine programma
-		if (it == Fraction<>{
-			polynomial<>{ { { 1, {} } } }, polynomial<>{ { { 0, {} } } }
-		}) {
-			argc = Random;
-			goto RETURN;
-		}
+		// messaggio di errore
+		if (it == Fraction<>{} and !err.empty()) {
 
-		// caso sbagliato
-		if (it == Fraction<>{}) {
+			// uscita
+			argc = ConvertWStringToEnum(err);
+			if (argc != NotAssigned) {
+				system("cls");
+				SetConsoleTitle(err.c_str());
+				goto RETURN;
+			}
+
+			// termine programma
+			if (err == L"_") {
+				argc = Random;
+				goto RETURN;
+			}
+
 			SetConsoleTextAttribute(hConsole, 4);
 			wcout << L"\n\n" << err << L"!!\n";
 			ResetAttribute();
@@ -11480,10 +11538,7 @@ static void SystemSolverGeneral(switchcase& argc)
 			continue;
 		}
 
-		// caso corretto
 		Fractions << it;
-		// //
-
 		if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) and Fractions < 5) continue;
 		bool Continue{ false };
 
@@ -11497,12 +11552,29 @@ static void SystemSolverGeneral(switchcase& argc)
 			startover = true;
 			continue;
 		}
+
+		// traduzione secondaria
 		polynomial<> equations;
 		for (const auto& eq : Fractions) equations << eq.num[0];
+		for (auto& equation : equations) for (auto& mono : equation)
+			mono.exp(Variables.size(), 0);
 
 		// una sola equazione in una variabile
 		if (Variables.size() == Fractions and Fractions == 1) {
+
+			// estrazione radici
+			charVariable = Variables.at(0);
+			Variables = L"x";
 			auto solutions{ RootExtractor(equations) };
+			Variables = wstring(1, charVariable);
+			
+			// rimozione doppi
+			for (ptrdiff_t i = solutions.size() - 1; i >= 0; --i)
+				for (ptrdiff_t j = i - 1; j >= 0; --j)
+					if (solutions[i] == solutions[j])
+						solutions.erase(solutions.begin() + i);
+
+			// output
 			SetConsoleTextAttribute(hConsole, 11);
 			wcout << L"Le soluzioni sono " << solutions.str() << L'\n';
 			ResetAttribute();
@@ -11579,8 +11651,10 @@ static void SystemSolverGeneral(switchcase& argc)
 			wcout << L"Soluzioni del sistema: \n";
 			for (const auto& sol : solutions) {
 				wcout << L"{\n";
-				for (size_t i = 0; i < Variables.size(); ++i)
-					wcout << L"    " << Variables[i] << L" = " << sol[i] << L'\n';
+				for (size_t i = 0; i < Variables.size(); ++i) {
+					wcout << L"    " << Variables.at(i);
+					wcout << L" = " << sol[i] << L'\n';
+				}
 				wcout << L"}\n";
 			}
 			ResetAttribute();
@@ -11592,16 +11666,28 @@ static void SystemSolverGeneral(switchcase& argc)
 		}
 		// sistema parametrico
 
-		// controllo linearità
+		// priorità delle variabili
 		int pIndex{ -1 };
-		size_t ParameterIndex{};
-		for (; ParameterIndex < Variables.size(); ParameterIndex++) {
+		wstring VarOrder;
+		tensor<int> VariablePos;
+		const wstring VariablePriority{ L"xyzuvtsabcd" };
+		for (const auto& var : VariablePriority) {
+			auto pos{ Variables.find(var) };
+			if (pos != wstring::npos) {
+				VarOrder += var;
+				VariablePos << pos;
+			}
+		}
+		ptrdiff_t ParameterIndex = VarOrder.size() - 1;
+
+		// controllo linearità e calcolo parametro
+		for (; ParameterIndex >= 0; --ParameterIndex) {
 			for (const auto& eq : equations) {
 				for (size_t i = 0; i < eq; ++i) {
 					int deg{};
-					for (size_t j = 0; j < Variables.size(); ++j) {
+					for (size_t j = 0; j < VarOrder.size(); ++j) {
 						if (j == ParameterIndex) continue;
-						deg += eq[i].exp[j];
+						deg += eq[i].exp[VariablePos[j]];
 					}
 					if (deg > 1) {
 						Continue = true;
@@ -11614,7 +11700,8 @@ static void SystemSolverGeneral(switchcase& argc)
 				Continue = false;
 				continue;
 			}
-			pIndex = ParameterIndex;
+			pIndex = VariablePos[ParameterIndex];
+			charVariable = Variables.at(pIndex);
 			break;
 		}
 		if (pIndex < 0) {
@@ -11679,28 +11766,41 @@ static void SystemSolverGeneral(switchcase& argc)
 		KnownTerms.erase(KnownTerms.begin() + pIndex);
 		system.erase(system.begin() + pIndex);
 		for (auto& eq : system) eq.erase(eq.begin() + pIndex);
-		
-		// conversione
-		tensor<FACTOR<>> knowns;
-		Matrix<FACTOR<>> System(system.size());
-		for (size_t i = 0; i < system; ++i) for (const auto& pol : system[i])
-			System[i] << To1V(pol);
-		for (const auto& pol : KnownTerms) knowns << To1V(pol);
+		tensor<Fraction<>> solve;
+		tensor<polynomial<>> dets;
 
 		// calcolo soluzione
-		tensor<Fraction<>> solve;
-		auto D{ System.det() };
-		tensor<FACTOR<>> dets;
+		auto D{ DecompPolynomial(usefree, system.det()) };
+		auto ProblematicPoints{ RootExtractor(D) };
+		tensor<long double> Zeros;
 		for (size_t i = 0; i < Vsize - 1; ++i) {
-			auto mx{ System };
-			mx[i] = knowns;
-			dets << mx.det();
+			
+			// calcolo soluzioni del sistema lineare
+			auto mx{ system };
+			mx[i] = KnownTerms;
+			dets << DecompPolynomial(usefree, mx.det());
+			
+			// calcolo zeri
+			auto NewZeros{ RootExtractor(dets.last()) };
+			for (const auto& zero : NewZeros) {
+				
+				Continue = false;
+				for (const auto& OtherZero : Zeros)
+					if (fabs(OtherZero - zero) < 1e-05)
+					{
+						Continue = true;
+						break;
+					}
+
+				if (Continue) continue;
+				Zeros << zero;
+			}
 		}
 		if (D.empty()) {
 			SetConsoleTextAttribute(hConsole, 11);
 			
 			// sistema indeterminato
-			if (dets == tensor<FACTOR<>>(dets.size())) {
+			if (dets == tensor<polynomial<>>(dets.size())) {
 				wcout << L"Il sistema è indeterminato\a\n";
 				ResetAttribute();
 
@@ -11718,8 +11818,7 @@ static void SystemSolverGeneral(switchcase& argc)
 			startover = true;
 			continue;
 		}
-		for (const auto& det : dets)
-			solve << Fraction<>{ { ToXV(det) }, { ToXV(D) } };
+		for (const auto& det : dets) solve << Fraction<>{ det, D };
 		wcout << L'\n';
 
 		// output
@@ -11731,13 +11830,61 @@ static void SystemSolverGeneral(switchcase& argc)
 				continue;
 			}
 
-			// chiamata della funzione di output
+			// scomposizione numeratore e denominatore
+			int ncoeff{ 1 }, dcoeff{ 1 };
+			auto& resolution{ solve[i - skipped] };
+			Simplify(resolution, ncoeff, dcoeff);
+			auto NScomp{ To1V(resolution.num) };
+			auto DScomp{ To1V(resolution.den) };
+			NScomp.close();
+			DScomp.close();
+			for (size_t j = 0; j < NScomp; ++j) NScomp[j].sort();
+			for (size_t j = 0; j < DScomp; ++j) DScomp[j].sort();
+
+			// output
 			SetConsoleTextAttribute(hConsole, 11);
-			wcout << Variables[i] << L" = ";
-			PrintFractionaryResult(1, 1, line, solve[i - skipped]);
+			wcout << Variables.at(i) << L" = ";
+			PrintFractionaryResult(
+				ncoeff,
+				dcoeff,
+				line,
+				resolution,
+				NScomp,
+				DScomp,
+				resolution.num != ToXV(NScomp) or resolution.den != ToXV(DScomp)
+			);
 			wcout << L"\n\n";
 
 			if (i != Vsize - 1) wcout << L'\n';
+		}
+		
+		// output punti problematici
+		bool starting{ true };
+		SetConsoleTextAttribute(hConsole, 6);
+		for (const auto& p : ProblematicPoints) {
+
+			Continue = false;
+			for (const auto& zero : Zeros) if (fabs(p - zero) < 1e-05) {
+
+				// indeterminato
+				if (starting) {
+					starting = false;
+					wcout << L'\n';
+				}
+				wcout << L"SE " << charVariable << L" = " << Handler(to_wstring(p));
+				wcout << L" ALLORA il sistema è indeterminato\n\n";
+
+				Continue = true;
+			}
+			if (Continue) continue;
+
+			// impossibile
+			if (starting) {
+				starting = false;
+				wcout << L'\n';
+			}
+			wcout << L"SE " << charVariable << L" = " << Handler(to_wstring(p));
+			wcout << L" ALLORA il sistema è impossibile\n\n";
 		}
 
 		ResetAttribute();
@@ -11757,7 +11904,8 @@ RETURN:
 }
 
 // programma per scomporre i polinomi
-static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
+template<typename Type = wstring>
+static polynomial<> DecompPolynomial(switchcase& argc, Type Polynomial)
 {
 	setlocale(LC_ALL, "");
 	SetConsoleOutputCP(CP_UTF8);
@@ -11768,10 +11916,11 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 	// variabili
 	wstring pol;
 	polynomial<> HT;
-	bool empty{ true }, Xout{ false }, input { Polynomial.empty() };
+	bool empty{ true }, Xout{ false }, input{ Polynomial == Type() };
+	const constexpr bool CheckSafe{ is_same_v<Type, wstring> };
 
 	// istruzioni
-	if (input)
+	if constexpr (CheckSafe) if (input)
 	{
 		wcout << L"Il PROGRAMMA scompone e disegna il grafico dei polinomi\n\n";
 		SetConsoleTextAttribute(hConsole, 12);
@@ -11794,7 +11943,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 	do {
 		bool draw{ false };
 		if (!RunMonitor) goto RETURN;
-		if (input)
+		if constexpr (CheckSafe) if (input)
 		{
 			empty = true;
 			Xout = false;
@@ -11833,7 +11982,8 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 				}
 
 				// esponenti con gli apici
-				if (Polynomial == L"noboolalpha") {
+				if (Polynomial == L"noboolalpha")
+				{
 					BOOLALPHA = true;
 					wrong = false;
 				}
@@ -11862,76 +12012,88 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			if (Polynomial == L"0") break;
 		}
 
-		// traduzione dell'input utente
 		polynomial<> BackT, Back_T{ HT };
+		polynomial<big> bigHT;
 		tensor<int> null, Null;
+		ptrdiff_t Coeff{ 1 };
 		int size;
-		auto bigHT{ GetMonomialsAssister(Polynomial) };
+		if constexpr (CheckSafe)
+		{
 
-		// semplificazione numeratore denominatore
-		tensor<big> ListOfCoefficients;
-		for (auto fact : bigHT) for (auto mon : fact) if (mon.exp[0] >= 0)
-			ListOfCoefficients << mon.coefficient;
-		big G{ Gcd(ListOfCoefficients + tensor<big>{ LCM }).fabs() };
-		for (auto& fact : bigHT) for (auto& mon : fact) if (mon.exp[0] >= 0)
-			mon.coefficient /= G;
-		LCM /= G;
+			// traduzione dell'input utente
+			bigHT = GetMonomialsAssister(Polynomial);
 
-		if (input) charVariable = Variables.at(0);
-		HT = FromBigToDefault(bigHT);
+			// semplificazione numeratore denominatore
+			tensor<big> ListOfCoefficients;
+			for (auto fact : bigHT) for (auto mon : fact) if (mon.exp[0] >= 0)
+				ListOfCoefficients << mon.coefficient;
+			big G{ Gcd(ListOfCoefficients + tensor<big>{ LCM }).fabs() };
+			for (auto& fact : bigHT) for (auto& mon : fact) if (mon.exp[0] >= 0)
+				mon.coefficient /= G;
+			LCM /= G;
 
-		// se il polinomio troppo grande
-		ptrdiff_t Coeff{ 1 }; 
-		if (HT >= 1) if (HT[0] >= 1) if (HT[0][0].exp[0] == -2) {
-			if (input) {
-			overflow:
+			if (input) charVariable = Variables.at(0);
+			HT = FromBigToDefault(bigHT);
+
+			// se il polinomio troppo grande
+			if (HT >= 1) if (HT[0] >= 1) if (HT[0][0].exp[0] == -2) {
+				if (input) {
+					SetConsoleTextAttribute(hConsole, 2);
+					wcout << L"Questo è il polinomio: " << bigHT.str() << L'\n';
+					SetConsoleTextAttribute(hConsole, 64);
+					wcout << L"Il polinomio è troppo grande.";
+					ResetAttribute();
+					wcout << L'\n';
+					continue;
+				}
+				else ret{};
+			}
+
+			// se sono presenti dei coefficienti complessi
+			if (Variables.find(L'i') != wstring::npos) {
+				if (!input) ret{};
+
 				SetConsoleTextAttribute(hConsole, 2);
-				wcout << L"Questo è il polinomio: " << bigHT.str() << L'\n';
+				wcout << L"Questo è il polinomio: ";
+				wcout << PolynomialMultiply<big>(bigHT).str() << L'\n';
+
 				SetConsoleTextAttribute(hConsole, 64);
-				wcout << L"Il polinomio è troppo grande.";
+				wcout << L"Il polinomio contiene dei numeri complessi.";
 				ResetAttribute();
 				wcout << L'\n';
-				goto EndOfDecomposition;
+				continue;
 			}
-			else ret {};
 		}
 
-		// se sono presenti dei coefficienti complessi
-		if (Variables.find(L'i') != wstring::npos) {
-			if (!input) ret {};
-
-			SetConsoleTextAttribute(hConsole, 2);
-			wcout << L"Questo è il polinomio: " ;
-			wcout << PolynomialMultiply<big>(bigHT).str() << L'\n';
-
-			SetConsoleTextAttribute(hConsole, 64);
-			wcout << L"Il polinomio contiene dei numeri complessi.";
-			ResetAttribute();
-			wcout << L'\n';
-			goto EndOfDecomposition;
-		}
+		// separazione dei template
+		else if constexpr (is_same_v<Type, factor<>>) HT = { Polynomial };
+		else if constexpr (is_same_v<Type, polynomial<>>) HT = Polynomial;
+		wstring _polynomial;
+		if constexpr (CheckSafe) _polynomial = Polynomial;
 
 		// risultato della somma
 		Null(Variables.size(), 0);
 		null(Variables.size(), 0);
 		null[0] = -1;
 		for (const auto& poly_data : HT) if (poly_data.empty()) {
-			Polynomial = L"0";
+			_polynomial = L"0";
 			break;
 		}
-		if (HT.empty()) Polynomial = L"0";
-		else if (Polynomial != L"0") Polynomial = HT.str();
+		if (HT.empty()) _polynomial = L"0";
+		else if (_polynomial != L"0") _polynomial = HT.str();
 		if (input) {
 			SetConsoleTextAttribute(hConsole, 2);
-			if (Polynomial.empty()) Polynomial = L"0";
-			wcout << L"Questo è il polinomio: " << Polynomial << L'\n';
+			if (_polynomial.empty()) _polynomial = L"0";
+			wcout << L"Questo è il polinomio: " << _polynomial << L'\n';
 		}
 
 		// caso nullo
 		size = HT.size();
-		if (Polynomial == L"0") {
-			ResetAttribute();
-			wcout << "Il polinomio non è scomponibile\n";
+		if (_polynomial == L"0") {
+			if (input) {
+				ResetAttribute();
+				wcout << "Il polinomio non è scomponibile\n";
+			}
 			goto EndOfDecomposition;
 		}
 
@@ -11946,7 +12108,15 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 				HT.erase(HT.begin() + i);
 				if (Coeff >= 2'147'483'647 or Coeff <= -2'147'483'647) {
 					if (!input) ret {};
-					goto overflow;
+
+					SetConsoleTextAttribute(hConsole, 2);
+					wcout << L"Questo è il polinomio: " << bigHT.str() << L'\n';
+					SetConsoleTextAttribute(hConsole, 64);
+					wcout << L"Il polinomio è troppo grande.";
+
+					ResetAttribute();
+					wcout << L'\n';
+					continue;
 				}
 			}
 
@@ -11961,10 +12131,10 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 
 		// output raccoglimento totale
 		HT.close();
-		Polynomial = HT.str();
-		if (HT != size and input) {
+		_polynomial = HT.str();
+		if (HT != size and CheckSafe and input) {
 			SetConsoleTextAttribute(hConsole, 12);
-			wcout << L"Raccoglimento totale: " << Polynomial << L'\n';
+			wcout << L"Raccoglimento totale: " << _polynomial << L'\n';
 			empty = false;
 		}
 
@@ -11972,16 +12142,16 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 
 			// raccoglimento parziale
 			Back_T = HT;
-			pol = Polynomial;
+			pol = _polynomial;
 			auto polydata{ HT.last() };
 			polydata.SortByDegree();
 			HT--;
 			HT += Partial(polydata);
 			HT.close();
-			Polynomial = HT.str();
-			if (Back_T % HT and !Xout and input) {
+			_polynomial = HT.str();
+			if (Back_T % HT and !Xout and CheckSafe and input) {
 				SetConsoleTextAttribute(hConsole, 4);
-				wcout << L"Raccoglimento parziale: " << Polynomial << L'\n';
+				wcout << L"Raccoglimento parziale: " << _polynomial << L'\n';
 				empty = false;
 			}
 
@@ -11991,11 +12161,11 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			HT.clear();
 			for (const auto& a : Back_T) HT += Binomial(a);
 			HT.close();
-			Polynomial = HT.str();
-			if (Back_T % HT and !Xout and input) {
+			_polynomial = HT.str();
+			if (Back_T % HT and !Xout and CheckSafe and input) {
 				SetConsoleTextAttribute(hConsole, 3);
 				wcout << L"Potenza di binomio scomposta: ";
-				wcout << Polynomial << L'\n';
+				wcout << _polynomial << L'\n';
 				empty = false;
 			}
 
@@ -12004,11 +12174,11 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			HT.clear();
 			for (const auto& a : Back_T) HT += Trinomial(a);
 			HT.close();
-			Polynomial = HT.str();
-			if (Back_T % HT and !Xout and input) {
+			_polynomial = HT.str();
+			if (Back_T % HT and !Xout and CheckSafe and input) {
 				SetConsoleTextAttribute(hConsole, 9);
 				wcout << L"Trinomio speciale scomposto: ";
-				wcout << Polynomial << L'\n';
+				wcout << _polynomial << L'\n';
 				empty = false;
 			}
 
@@ -12029,13 +12199,13 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 				extend = 1;
 			}
 			HT.close();
-			Polynomial = HT.str();
+			_polynomial = HT.str();
 
 			// somma per differenza
-			if (Back_T % HT and !Xout and input) {
+			if (Back_T % HT and !Xout and CheckSafe and input) {
 				SetConsoleTextAttribute(hConsole, 5);
 				wcout << L"Differenza di quadrati scomposta: ";
-				wcout << Polynomial << L'\n';
+				wcout << _polynomial << L'\n';
 				empty = false;
 			}
 
@@ -12064,24 +12234,24 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 
 			// ruffini
 			HT.close();
-			Polynomial = HT.str();
-			if (Back_T % HT and !Xout and input) {
+			_polynomial = HT.str();
+			if (Back_T % HT and !Xout and CheckSafe and input) {
 				SetConsoleTextAttribute(hConsole, 6);
 				wcout << L"Applicazione della regola di ruffini: ";
-				wcout << Polynomial << L'\n';
+				wcout << _polynomial << L'\n';
 				empty = false;
 			}
-		} while (Polynomial != pol);
+		} while (_polynomial != pol);
 
 		// completamento del quadrato
 		Back_T = HT;
 		HT.clear();
 		for (const auto& a : Back_T) HT += CompleteTheSquare(a);
 		HT.close();
-		Polynomial = HT.str();
-		if (Back_T % HT and !Xout and input) {
+		_polynomial = HT.str();
+		if (Back_T % HT and !Xout and CheckSafe and input) {
 			SetConsoleTextAttribute(hConsole, 79);
-			wcout << L"Completamento del quadrato: " << Polynomial;
+			wcout << L"Completamento del quadrato: " << _polynomial;
 			ResetAttribute();
 			wcout << L'\n';
 			empty = false;
@@ -12093,23 +12263,23 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		for (const auto& a : Back_T) HT += TrinomialSquare(a);
 		
 		HT.close();
-		Polynomial = HT.str();
-		if (Back_T % HT and !Xout and input) {
+		_polynomial = HT.str();
+		if (Back_T % HT and !Xout and CheckSafe and input) {
 			SetConsoleTextAttribute(hConsole, 79);
-			wcout << L"Quadrato di trinomio scomposto: " << Polynomial;
+			wcout << L"Quadrato di trinomio scomposto: " << _polynomial;
 			ResetAttribute();
 			wcout << L'\n';
 			empty = false;
 		}
 
 		// caso vuoto
-		if (empty and !Xout and input) {
+		if (empty and !Xout and CheckSafe and input) {
 			ResetAttribute();
 			wcout << L"Il polinomio non è scomponibile con i metodi standard\n";
 		}
 
 		// caso impossibile
-		if (Xout and input) {
+		if (Xout and CheckSafe and input) {
 			SetConsoleTextAttribute(hConsole, 64);
 			wcout << L"\aX_OUT_OF_RANGE";
 			ResetAttribute();
@@ -12117,7 +12287,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 		}
 
 		// grafico del polinomio
-		if (input and draw) switch (Variables.size()) {
+		if (CheckSafe and input and draw) switch (Variables.size()) {
 		case 1:
 			if (CreateGraph(
 				{ { PolynomialMultiply(HT) }, { { { 1, Null } } } }
@@ -12129,14 +12299,14 @@ static polynomial<> DecompPolynomial(switchcase& argc, wstring Polynomial)
 			break;
 		}
 
-	EndOfDecomposition: if (!input) break;
+	EndOfDecomposition: if (!(CheckSafe and input)) break;
 
-	} while (input);
+	} while (CheckSafe and input);
 
 	// invio del segnale per terminare i thread
 	argc = NotAssigned;
 RETURN:
-	if (input) {
+	if (CheckSafe and input) {
 		{
 			lock_guard<mutex> lk(MonitorMTX);
 			RunMonitor = false;
@@ -12183,7 +12353,8 @@ static void DecompFraction(switchcase& argc)
 			bool wrong{ true };
 			wcout << L"\nInserisci una frazione algebrica (0 = fine input)\n\n";
 			ResetAttribute();
-			GetFraction(numerator, denominator);
+			COORD N;
+			GetFraction(numerator, denominator, N);
 			if (numerator.empty()) numerator = L"0";
 			if (denominator.empty()) denominator = L"1";
 			if (numerator.at(0) == L'\\') {
@@ -12204,11 +12375,13 @@ static void DecompFraction(switchcase& argc)
 			}
 
 			// esponenti con gli apici
-			if (numerator == L"noboolalpha") {
+			if (numerator == L"noboolalpha")
+			{
 				BOOLALPHA = true;
 				wrong = false;
 			}
-			if (numerator == L"boolalpha") {
+			if (numerator == L"boolalpha")
+			{
 				BOOLALPHA = false;
 				wrong = false;
 			}
@@ -12246,16 +12419,15 @@ static void DecompFraction(switchcase& argc)
 		if (numerator == L"0") break;
 
 		// scomposizione polinomi
-		switchcase use;
 		CORRECTION_RATIO = 1;
 		Fraction<> fraction;
-		fraction.num = DecompPolynomial(use, numerator);
+		fraction.num = DecompPolynomial(usefree, numerator);
 
+		// denominatori aggiuntivi
 		big DenMultiplier = LCM;
 		auto savx{ Variables };
-		fraction.den = DecompPolynomial(use, denominator);
-		big NumMultiplier = LCM;
-		big GCD{ Gcd(NumMultiplier, DenMultiplier) };
+		fraction.den = DecompPolynomial(usefree, denominator);
+		big NumMultiplier = LCM, GCD{ Gcd(NumMultiplier, DenMultiplier) };
 		NumMultiplier /= GCD;
 		DenMultiplier /= GCD;
 		auto nummultiplier{ NumMultiplier.Number<long double>() };
@@ -12284,13 +12456,13 @@ static void DecompFraction(switchcase& argc)
 			mon.exp(Variables.size(), 0);
 		auto temp{ fraction.den };
 		for (size_t i = 0; i < fraction.den; ++i)
-			for (size_t j = 0; j < temp[i]; ++j)
-				if (temp[i][j].exp[0] >= 0)
-					for (size_t k = 0; k < Variables.size(); ++k) {
-						auto pos{ oldV.find(Variables.at(k)) };
-						temp[i][j].exp[k] = pos != wstring::npos ?
-							fraction.den[i][j].exp[pos] : 0;
-					}
+			for (size_t j = 0; j < temp[i]; ++j) if (temp[i][j].exp[0] >= 0)
+				for (size_t k = 0; k < Variables.size(); ++k)
+				{
+					auto pos{ oldV.find(Variables.at(k)) };
+					temp[i][j].exp[k] = pos != wstring::npos ?
+						fraction.den[i][j].exp[pos] : 0;
+				}
 		fraction.den = temp;
 		
 		// backup
@@ -12299,7 +12471,7 @@ static void DecompFraction(switchcase& argc)
 		tensor<int> null(Variables.size(), 0);
 
 		// semplificazione fattori
-		Simplify(fraction.num, fraction.den, NCOEFF, DCOEFF);
+		Simplify(fraction, NCOEFF, DCOEFF);
 		NCOEFF *= nummultiplier;
 		DCOEFF *= denmultiplier;
 		LCM = 1;
@@ -12319,6 +12491,7 @@ static void DecompFraction(switchcase& argc)
 		DScomp.close();
 		for (size_t i = 0; i < NScomp; ++i) NScomp[i].sort();
 		for (size_t i = 0; i < DScomp; ++i) DScomp[i].sort();
+
 		if (DScomp <= 1) skip = true;
 		if (!skip) for (auto a : DScomp) for (auto b : a)
 			if (a != 1 and b.degree > 1) skip = true;
@@ -12480,11 +12653,11 @@ static void DecompFraction(switchcase& argc)
 			DCOEFF,
 			lines,
 			fraction,
-			!skip,
-			HasMoreVariables,
-			roots,
 			NScomp,
 			DScomp,
+			HasMoreVariables,
+			!skip,
+			roots,
 			denominators
 		);
 
@@ -12844,8 +13017,6 @@ RETURN:
 // fine del codice -----------------------------------------------------------------
 
 /*	LAVORO DA FARE
-	
-	debug interfaccia frazioni
 	
 	aggiunta denominatori al risolutore di sistemi
 	
