@@ -131,24 +131,28 @@ COORD Min{ 25, 15 };
 LARGE_INTEGER ProgramFrequency;
 
 // strutture locali
-struct compost {
+struct compost
+{
 	ptrdiff_t factors;
 	int exp;
 };
-struct divisor {
+struct divisor
+{
 	ptrdiff_t DivNumber{ 1 };
 	ptrdiff_t DivSum{ 1 };
 	ptrdiff_t DivProduct{ 1 };
 	wstring Div_pr;
 };
-struct digitRatio {
+struct digitRatio
+{
 	int digitSumRatioNum{};
 	int digitSumRatioDen{};
 	int digitProductRatioNum{};
 	int digitProductRatioDen{};
 };
 digitRatio items;
-struct coord {
+struct coord
+{
 	double X;
 	double Y;
 	
@@ -158,7 +162,8 @@ struct coord {
 
 	operator COORD() const
 	{
-		ret {
+		ret
+		{
 			static_cast<short>(X),
 			static_cast<short>(Y)
 		};
@@ -194,7 +199,8 @@ enum switchcase
 	NotAssigned
 };
 switchcase usefree;
-unordered_map<wstring, switchcase> stringToEnumMap{
+unordered_map<wstring, switchcase> stringToEnumMap
+{
 	{ L"cc" , switchcase::DoSimpleCode         },
 	{ L"ccc", switchcase::DoComplexCode        },
 	{ L"cf" , switchcase::DoSimpleFactor       },
@@ -219,7 +225,8 @@ unordered_map<wstring, switchcase> stringToEnumMap{
 	{ L"mtx", switchcase::FactorMatrix         },
 	{ L"rnd", switchcase::Random               }
 };
-unordered_map<switchcase, wstring> enumToStringMap{
+unordered_map<switchcase, wstring> enumToStringMap
+{
 	{ switchcase::DoSimpleCode        , L"cc"  },
 	{ switchcase::DoComplexCode       , L"ccc" },
 	{ switchcase::DoSimpleFactor      , L"cf"  },
@@ -244,7 +251,8 @@ unordered_map<switchcase, wstring> enumToStringMap{
 	{ switchcase::FactorMatrix        , L"mtx" },
 	{ switchcase::Random              , L"rnd" }
 };
-unordered_map<wstring, wstring> ConvertFromSuperScript{
+unordered_map<wstring, wstring> ConvertFromSuperScript
+{
 	{ L"⁰", L"0" },
 	{ L"¹", L"1" },
 	{ L"²", L"2" },
@@ -267,7 +275,8 @@ using _TENSOR tensor, _TENSOR tensor_t;
 class big
 {
 	// dati
-private: tensor<int> Integer;
+private:
+	tensor<int> Integer;
 	bool sign;
 	long double decimal;
 
@@ -279,17 +288,27 @@ private: tensor<int> Integer;
 		str = oss.str();
 		str.erase(0, 2);
 		bool Do{ false };
-		for (ptrdiff_t i = str.size() - 1; i >= 0; --i) {
+		for (ptrdiff_t i = str.size() - 1; i >= 0; --i)
+		{
 			int element = str.at(i) - L'0';
-			if (element != 0) Do = true;
-			if (Do) Integer << element;
+			if (element != 0)
+			{
+				Do = true;
+			}
+			if (Do)
+			{
+				Integer << element;
+			}
 		}
 	}
 
 	big Multiply(const big& value) const
 	{
 		if ((value.Integer[0] == 0 and value.decimal == 0) or
-			(Integer[0] == 0 and decimal == 0)) ret 0;
+			(Integer[0] == 0 and decimal == 0))
+		{
+			ret 0;
+		}
 		big Val = value, This = *this;
 		Val.shift();
 		This.shift();
@@ -299,39 +318,62 @@ private: tensor<int> Integer;
 
 		// moltiplicazione
 		tensor<big> add;
-		for (size_t a = 0; a < Val.Integer.size(); ++a) {
-
+		for (size_t a = 0; a < Val.Integer.size(); ++a)
+		{
 			int factor{ Val.Integer.at(a) };
-			if (factor == 0) continue;
+			if (factor == 0)
+			{
+				continue;
+			}
 			int carry{}, prod{};
 
 			auto _Number{ This.Integer };
-			for (ptrdiff_t i = _Number.size() - 1; i >= 0; --i) {
+			for (ptrdiff_t i = _Number.size() - 1; i >= 0; --i)
+			{
 				prod = (_Number.at(i)) * factor + carry;
 				carry = prod / 10;
 				_Number[i] = prod % 10;
 			}
-			if (carry != 0) _Number >> carry;
+			if (carry != 0)
+			{
+				_Number >> carry;
+			}
 			for (ptrdiff_t i = Val.Integer.size() - a - 2; i >= 0; --i)
+			{
 				_Number << 0;
+			}
 			add << big(_Number);
 		}
 
 		// somma
 		This.Integer.clear();
-		for (auto big : add) This += big;
+		for (auto big : add)
+		{
+			This += big;
+		}
 
 		// cifre decimali
 		int dec{};
 		auto decdigits{ This.Integer };
-		while (decdigits.size() - decprecision < 0) decdigits >> 0;
+		while (decdigits.size() - decprecision < 0)
+		{
+			decdigits >> 0;
+		}
 		This.Integer = decdigits;
-		if (decprecision > 0) This.Integer.erase(decdigits.size() - decprecision);
+		if (decprecision > 0)
+		{
+			This.Integer.erase(decdigits.size() - decprecision);
+		}
 		decdigits.erase(0, decdigits.size() - decprecision);
 		for (size_t i = 0; i < decdigits; ++i)
+		{
 			dec += decdigits[i] * pow(10, decdigits.size() - i - 1);
+		}
 
-		if (This.Integer.empty()) This.Integer = { 0 };
+		if (This.Integer.empty())
+		{
+			This.Integer = { 0 };
+		}
 		This.decimal = dec / pow(10, decprecision);
 		This.sign = sign xor value.sign;
 		ret This;
@@ -341,21 +383,36 @@ public:
 
 	template<typename t> t Number()
 	{
-		if constexpr(is_same_v<t, size_t>) ret nan("");
+		if constexpr (is_same_v<t, size_t>)
+		{
+			ret nan("");
+		}
 		ptrdiff_t val{};
 
 		// calcolo parte intera
-		for (size_t i = 0; i < Integer; ++i) {
+		for (size_t i = 0; i < Integer; ++i)
+		{
 			val += Integer[i] * pow(10, Integer.size() - i - 1);
 			if (val != 0 and
 				(val < numeric_limits<t>::min() or val > numeric_limits<t>::max()))
+			{
 				ret nan("");
+			}
 		}
 		t res = val;
 		
 		// parte decimale e segno
-		if constexpr (is_floating_point_v<t>) res += decimal;
-		if constexpr (is_signed_v<t>) if (sign == NEG) res *= -1;
+		if constexpr (is_floating_point_v<t>)
+		{
+			res += decimal;
+		}
+		if constexpr (is_signed_v<t>)
+		{
+			if (sign == NEG)
+			{
+				res *= -1;
+			}
+		}
 		ret res;
 	}
 
@@ -364,40 +421,76 @@ public:
 	big(int param) : sign(param < 0), Integer(0), decimal(0)
 	{
 		wstring Param{ to_wstring(param) };
-		if (Param.at(0) == L'-') Param.erase(0, 1);
-		for (auto ch : Param) Integer << ch - L'0';
+		if (Param.at(0) == L'-')
+		{
+			Param.erase(0, 1);
+		}
+		for (auto ch : Param)
+		{
+			Integer << ch - L'0';
+		}
 	}
 	big(ptrdiff_t param) : sign(param < 0), Integer(0), decimal(0)
 	{
 		wstring Param{ to_wstring(param) };
-		if (Param.at(0) == L'-') Param.erase(0, 1);
-		for (auto ch : Param) Integer << ch - L'0';
+		if (Param.at(0) == L'-')
+		{
+			Param.erase(0, 1);
+		}
+		for (auto ch : Param)
+		{
+			Integer << ch - L'0';
+		}
 	}
 	big(double param) : sign(param < 0), Integer(0), decimal(0)
 	{
 		int intParam = param;
 		wstring Param{ to_wstring(intParam) };
-		if (Param.at(0) == L'-') Param.erase(0, 1);
-		for (auto ch : Param) Integer << ch - L'0';
+		if (Param.at(0) == L'-')
+		{
+			Param.erase(0, 1);
+		}
+		for (auto ch : Param)
+		{
+			Integer << ch - L'0';
+		}
 		decimal = _STD fabs(param) - _STD fabs(intParam);
 	}
 	big(long double param) : sign(param < 0), Integer(0), decimal(0)
 	{
 		int intParam = param;
 		wstring Param{ to_wstring(intParam) };
-		if (Param.at(0) == L'-') Param.erase(0, 1);
-		for (auto ch : Param) Integer << ch - L'0';
+		if (Param.at(0) == L'-')
+		{
+			Param.erase(0, 1);
+		}
+		for (auto ch : Param)
+		{
+			Integer << ch - L'0';
+		}
 		decimal = _STD fabs(param) - _STD fabs(intParam);
 	}
 	big(tensor<int> Big) : sign(POS), Integer(Big), decimal(0)
 	{
-		if (Integer.empty()) Integer = { 0 };
-		while (Integer > 1 and Integer[0] == 0) --Integer;
+		if (Integer.empty())
+		{
+			Integer = { 0 };
+		}
+		while (Integer > 1 and Integer[0] == 0)
+		{
+			--Integer;
+		}
 	}
 	big(wstring wstr) : sign(POS), Integer(0), decimal(0)
 	{
 		tensor<int> Big;
-		for (auto c : wstr) if (isdigit(c)) Integer << c - L'0';
+		for (auto c : wstr)
+		{
+			if (isdigit(c))
+			{
+				Integer << c - L'0';
+			}
+		}
 	}
 
 	// confronto primario e assegnazione
@@ -424,21 +517,43 @@ public:
 		auto integ{ Integer };
 		auto oth_integ{ other.Integer };
 
-		if (sign and !other.sign) ret true;
-		if (!sign and other.sign) ret false;
+		if (sign and !other.sign)
+		{
+			ret true;
+		}
+		if (!sign and other.sign)
+		{
+			ret false;
+		}
 
-		while (integ[0] == 0) {
-			if (integ <= 1) break;
+		while (integ[0] == 0)
+		{
+			if (integ <= 1)
+			{
+				break;
+			}
 			--integ;
 		}
-		while (oth_integ[0] == 0) {
-			if (oth_integ <= 1) break;
+		while (oth_integ[0] == 0)
+		{
+			if (oth_integ <= 1)
+			{
+				break;
+			}
 			--oth_integ;
 		}
 
-		if (integ % oth_integ) ret (integ < oth_integ) xor sign;
-		for (size_t i = 0; i < integ; ++i) if (integ[i] != oth_integ[i])
-			ret (integ[i] < oth_integ[i]) xor sign;
+		if (integ % oth_integ)
+		{
+			ret (integ < oth_integ) xor sign;
+		}
+		for (size_t i = 0; i < integ; ++i)
+		{
+			if (integ[i] != oth_integ[i])
+			{
+				ret (integ[i] < oth_integ[i]) xor sign;
+			}
+		}
 
 		ret (decimal < other.decimal) xor sign;
 	}
@@ -462,30 +577,48 @@ public:
 		bool carry{ false };
 
 		// segni
-		if (!This.sign and Val.sign) {
+		if (!This.sign and Val.sign)
+		{
 			Val.sign = POS;
 			ret This - Val;
 		}
-		if (This.sign and !Val.sign) {
+		if (This.sign and !Val.sign)
+		{
 			This.sign = POS;
 			ret Val - This;
 		}
-		if (Val.sign and This.sign) Val.sign = POS;
+		if (Val.sign and This.sign)
+		{
+			Val.sign = POS;
+		}
 
 		// ridimensionamento
-		if (This.Integer < Val.Integer) swap(This, Val);
-		while (Val.Integer < This.Integer) Val.Integer >> 0;
+		if (This.Integer < Val.Integer)
+		{
+			swap(This, Val);
+		}
+		while (Val.Integer < This.Integer)
+		{
+			Val.Integer >> 0;
+		}
 
 		// somma
 		This.decimal += Val.decimal;
 		carry = This.decimal >= 10;
-		if (carry) This.decimal--;
-		for (ptrdiff_t i = This.Integer.size() - 1; i >= 0; --i) {
+		if (carry)
+		{
+			This.decimal--;
+		}
+		for (ptrdiff_t i = This.Integer.size() - 1; i >= 0; --i)
+		{
 			int sum = This.Integer[i] + Val.Integer[i] + carry;
 			carry = sum >= 10;
 			This.Integer[i] = sum % 10;
 		}
-		if (carry) This.Integer >> 1;
+		if (carry)
+		{
+			This.Integer >> 1;
+		}
 
 		ret This;
 	}
@@ -512,36 +645,56 @@ public:
 		bool carry{ false };
 
 		// segni
-		if (!This.sign and Val.sign) {
+		if (!This.sign and Val.sign)
+		{
 			Val.sign = POS;
 			ret This + Val;
 		}
-		if (This.sign and !Val.sign) {
+		if (This.sign and !Val.sign)
+		{
 			Val.sign = NEG;
 			ret Val + This;
 		}
-		if (Val.sign and This.sign) Val.sign = POS;
+		if (Val.sign and This.sign)
+		{
+			Val.sign = POS;
+		}
 
 		// ridimensionamento
-		while (This.Integer > Val.Integer) Val.Integer >> 0;
-		while (Val.Integer > This.Integer) This.Integer >> 0;
-		if (This < Val) {
+		while (This.Integer > Val.Integer)
+		{
+			Val.Integer >> 0;
+		}
+		while (Val.Integer > This.Integer)
+		{
+			This.Integer >> 0;
+		}
+		if (This < Val)
+		{
 			swap(This, Val);
 			This.sign = !This.sign;
 		}
 
 		This.decimal -= Val.decimal;
 		carry = This.decimal < 0;
-		if (carry) This.decimal++;
+		if (carry)
+		{
+			This.decimal++;
+		}
 
-		for (ptrdiff_t i = This.Integer.size() - 1; i >= 0; --i) {
+		for (ptrdiff_t i = This.Integer.size() - 1; i >= 0; --i)
+		{
 			int diff = This.Integer[i] - Val.Integer[i] - carry;
 			carry = diff < 0;
 			This.Integer[i] = (diff + 10) % 10;
 		}
 
-		while (This.Integer[0] == 0) {
-			if (This.Integer <= 1) break;
+		while (This.Integer[0] == 0)
+		{
+			if (This.Integer <= 1)
+			{
+				break;
+			}
 			--This.Integer;
 		}
 		ret This;
@@ -566,7 +719,10 @@ public:
 	big operator<<(int shift) const
 	{
 		big result = *this;
-		for (size_t i = 0; i < shift; ++i) result.Integer << 0;
+		for (size_t i = 0; i < shift; ++i)
+		{
+			result.Integer << 0;
+		}
 		ret result;
 	}
 	inline big& operator<<=(int shift)
@@ -577,14 +733,18 @@ public:
 	big operator*(const big& value) const
 	{
 		// casi particolari
-		if (value == 0 or *this == 0) {
+		if (value == 0 or *this == 0)
+		{
 			big result;
 			result.sign = POS;
 			result.Integer = { 0 };
 			result.decimal = 0;
 			ret result;
 		}
-		if (Integer.size() <= 2 or value.Integer.size() <= 2) ret Multiply(value);
+		if (Integer.size() <= 2 or value.Integer.size() <= 2)
+		{
+			ret Multiply(value);
+		}
 		
 		// gestione decimali e segni
 		big This = *this, Value = value;
@@ -596,11 +756,13 @@ public:
 
 		// aggiunta di zeri a sinistra
 		int DecPrecision{};
-		while (This.Integer.size() < n) {
+		while (This.Integer.size() < n)
+		{
 			This.Integer >> 0;
 			DecPrecision--;
 		}
-		while (Value.Integer.size() < n) {
+		while (Value.Integer.size() < n)
+		{
 			Value.Integer >> 0;
 			DecPrecision--;
 		}
@@ -617,7 +779,8 @@ public:
 		result.sign = ResultSign;
 		DecPrecision += This.Integer.size() - Integer.size() +
 			Value.Integer.size() - value.Integer.size();
-		if (DecPrecision > 0) {
+		if (DecPrecision > 0)
+		{
 			tensor<int> DecPart;
 
 			// shift
@@ -625,20 +788,30 @@ public:
 				int i = 0;
 				i < DecPrecision and i < (int)result.Integer.size();
 				++i
-				) DecPart << result.Integer[result.Integer.size() - 1 - i];
+				)
+			{
+				DecPart << result.Integer[result.Integer.size() - 1 - i];
+			}
 			result.Integer.erase(result.Integer.size() - DecPrecision);
 
 			// calcolo
 			long double dec = 0;
 			for (size_t i = 0; i < DecPart.size(); ++i)
+			{
 				dec += DecPart[i] * pow(10, -int(i + 1));
+			}
 			result.decimal = dec;
 		}
 
 		// rimozione zeri inutili
 		while (result.Integer.size() > 1 and result.Integer[0] == 0)
+		{
 			result.Integer.erase(0);
-		if (result.Integer.empty()) result.Integer = { 0 };
+		}
+		if (result.Integer.empty())
+		{
+			result.Integer = { 0 };
+		}
 
 		ret result;
 	}
@@ -651,7 +824,10 @@ public:
 	// divisione intera
 	big operator/(const big& value) const
 	{
-		if (value == 0) throw invalid_argument("Division by zero!");
+		if (value == 0)
+		{
+			throw invalid_argument("Division by zero!");
+		}
 
 		big This = *this, result, current;
 		result.Integer.clear();
@@ -664,10 +840,13 @@ public:
 			int quotient{};
 			current.Integer << This.Integer[i];
 			while (current.Integer > 1 and current.Integer[0] == 0)
+			{
 				--current.Integer;
+			}
 
 			// divisione
-			while (current >= value.fabs()) {
+			while (current >= value.fabs())
+			{
 				current -= value.fabs();
 				quotient++;
 			}
@@ -675,7 +854,10 @@ public:
 		}
 
 		// ridimensionamento
-		while (result.Integer > 1 and result.Integer[0] == 0) --result.Integer;
+		while (result.Integer > 1 and result.Integer[0] == 0)
+		{
+			--result.Integer;
+		}
 		result.decimal = 0;
 		ret result;
 	}
@@ -688,17 +870,22 @@ public:
 	// modulo
 	big operator%(const big& value) const
 	{
-		if (value == 0) throw invalid_argument("Modulo by zero!");
+		if (value == 0)
+		{
+			throw invalid_argument("Modulo by zero!");
+		}
 
 		// segni
 		big This = *this, Val = value;
 		Val.sign = This.sign = POS;
 
 		// calcolo
-		while (This >= Val) {
+		while (This >= Val)
+		{
 			big temp = Val, factor = 1;
 
-			while ((temp << 1) <= This) {
+			while ((temp << 1) <= This)
+			{
 				factor <<= 1;
 				temp <<= 1;
 			}
@@ -717,12 +904,22 @@ public:
 	big operator^(const big& exp) const
 	{
 		big power = 1, NewExp = exp + 1, NewBase = *this;
-		if (*this < 0) NewBase.invert();
-		while (--NewExp > 0) {
-			power *= NewBase;
-			if (power < 0) ret -1;
+		if (*this < 0)
+		{
+			NewBase.invert();
 		}
-		if (exp % 2 == 1 and *this < 0) power.invert();
+		while (--NewExp > 0)
+		{
+			power *= NewBase;
+			if (power < 0)
+			{
+				ret -1;
+			}
+		}
+		if (exp % 2 == 1 and *this < 0)
+		{
+			power.invert();
+		}
 		ret power;
 	}
 	inline big& operator^=(const big& exp)
@@ -751,7 +948,10 @@ public:
 	{
 		bool integ = decimal == 0;
 		decimal = 0;
-		if (integ) (*this)++;
+		if (integ)
+		{
+			(*this)++;
+		}
 		ret *this;
 	}
 	inline big round()
@@ -767,8 +967,12 @@ public:
 	}
 	inline int log(int base)
 	{
-		for (int i = 0;; ++i) {
-			if (*this < base) ret i;
+		for (int i = 0;; ++i)
+		{
+			if (*this < base)
+			{
+				ret i;
+			}
 			*this /= base;
 		}
 	}
@@ -777,12 +981,24 @@ public:
 	wostringstream c_str(int precision) const
 	{
 		wostringstream oss, result;
-		if (sign) result << L'-';
-		for (size_t i = 0; i < Integer; ++i) result << Integer[i];
-		if (precision > 0) oss << setprecision(precision) << decimal;
+		if (sign)
+		{
+			result << L'-';
+		}
+		for (size_t i = 0; i < Integer; ++i)
+		{
+			result << Integer[i];
+		}
+		if (precision > 0)
+		{
+			oss << setprecision(precision) << decimal;
+		}
 		auto str{ oss.str() };
 		str.erase(0, 1);
-		if (!str.empty()) result << L'.' << str;
+		if (!str.empty())
+		{
+			result << L'.' << str;
+		}
 		ret result;
 	}
 	inline wstring str() const
@@ -943,13 +1159,25 @@ public:
 	int degree() const
 	{
 		int sum{};
-		for (size_t i = 0; i < exp; ++i) sum += exp[i];
+		for (size_t i = 0; i < exp; ++i)
+		{
+			sum += exp[i];
+		}
 		ret sum;
 	}
 	bool IsSquare() const
 	{
-		if (!integer(sqrt(fabs(this->coefficient)))) ret false;
-		for (size_t i = 0; i < exp; ++i) if (exp[i] % 2 == 1) ret false;
+		if (!integer(sqrt(fabs(this->coefficient))))
+		{
+			ret false;
+		}
+		for (size_t i = 0; i < exp; ++i)
+		{
+			if (exp[i] % 2 == 1)
+			{
+				ret false;
+			}
+		}
 		ret true;
 	}
 	monomial Root(int order) const
@@ -957,7 +1185,10 @@ public:
 		monomial result;
 
 		result.coefficient = pow(this->coefficient, 1.0 / order);
-		for (size_t i = 0; i < exp; ++i) result.exp << (exp[i] / order);
+		for (size_t i = 0; i < exp; ++i)
+		{
+			result.exp << (exp[i] / order);
+		}
 
 		ret result;
 	}
@@ -982,57 +1213,102 @@ public:
 	}
 	factor(tensor<monomial<T_int>> vect)
 	{
-		for (const auto& value : vect) this->push_back(value);
+		for (const auto& value : vect)
+		{
+			this->push_back(value);
+		}
 	}
 
 	void SortByDegree()
 	{
 		for (size_t i = 0; i < this->size(); ++i)
+		{
 			for (size_t j = i + 1; j < this->size(); ++j)
+			{
 				if (this->at(i).degree() < this->at(j).degree())
+				{
 					swap(this->at(i), this->at(j));
+				}
+			}
+		}
 	}
 	void SortByExponents()
 	{
-		if (this->empty()) ret;
+		if (this->empty())
+		{
+			ret;
+		}
 		size_t size{ Variables.size() };
 		for (size_t i = 0; i < this->size(); ++i)
-			for (size_t j = i + 1; j < this->size(); ++j) {
+		{
+			for (size_t j = i + 1; j < this->size(); ++j)
+			{
 				bool swap{ false };
-				for (size_t k = 0; k < size; ++k) {
-					if (this->at(i).exp[k] > this->at(j).exp[k]) break;
-					if (this->at(i).exp[k] == this->at(j).exp[k]) continue;
+				for (size_t k = 0; k < size; ++k)
+				{
+					if (this->at(i).exp[k] > this->at(j).exp[k])
+					{
+						break;
+					}
+					if (this->at(i).exp[k] == this->at(j).exp[k])
+					{
+						continue;
+					}
 					swap = true;
 					break;
 				}
-				if (swap) ::swap(this->at(i), this->at(j));
+				if (swap)
+				{
+					::swap(this->at(i), this->at(j));
+				}
 			}
+		}
 	}
 	
 	factor derivate(size_t Vpos) const
 	{
 		tensor<int> null(Variables.size(), 0);
-		if (this->empty()) ret { { 0, null } };
+		if (this->empty())
+		{
+			ret { { 0, null } };
+		}
 		auto Derivative{ *this };
-		for (ptrdiff_t i = Derivative.size() - 1; i >= 0; --i) {
-			if (Derivative[i].exp[Vpos] == 0) {
+		for (ptrdiff_t i = Derivative.size() - 1; i >= 0; --i)
+		{
+			if (Derivative[i].exp[Vpos] == 0)
+			{
 				Derivative.erase(Derivative.begin() + i);
 				continue;
 			}
 			Derivative[i].coefficient *= Derivative[i].exp[Vpos]--;
 		}
-		if (Derivative.empty()) ret { { 0, null } };
+		if (Derivative.empty())
+		{
+			ret { { 0, null } };
+		}
 		ret Derivative;
 	}
 
 	T_int operator()(tensor<long double> params) const
 	{
-		if (params > Variables.size()) throw out_of_range("Too many parameters");
-		while (params < Variables.size()) params << 0;
+		if (params > Variables.size())
+		{
+			throw out_of_range("Too many parameters");
+		}
+		while (params < Variables.size())
+		{
+			params << 0;
+		}
 
 		auto This{ *this };
-		for (size_t i = 0; i < Variables.size(); ++i) This = This(params[i], i, 0);
-		if (This.empty()) ret 0;
+		for (size_t i = 0; i < Variables.size(); ++i)
+		{
+			This = This(params[i], i, 0);
+		}
+		if (This.empty())
+		{
+			ret 0;
+		}
 		ret This[0].coefficient / LCM.Number<T_int>();
 	}
 	factor operator()(T_int x, size_t Vpos, int) const;
@@ -1040,14 +1316,19 @@ public:
 	{
 		big X = x, y;
 		for (size_t i = 0; i < this->size(); ++i)
+		{
 			y += (X ^ (*this)[i].exp[Vpos]) * (*this)[i].coefficient;
+		}
 		ret y >= 0;
 	}
 
 	inline factor neg() const
 	{
 		auto This{ *this };
-		for (auto& mon : This) mon.coefficient *= -1;
+		for (auto& mon : This)
+		{
+			mon.coefficient *= -1;
+		}
 		ret This;
 	}
 	inline factor operator-(const factor& other) const;
@@ -1058,10 +1339,13 @@ public:
 	_NODISCARD wstring str(int size = Variables.size()) override
 	{
 		wstring polynomial;
-		for (auto data : *this) {
-
+		for (auto data : *this)
+		{
 			// caso nullo
-			if (data.coefficient == 0) continue;
+			if (data.coefficient == 0)
+			{
+				continue;
+			}
 
 			// aggiunta coefficiente
 			wstring Monomial;
@@ -1070,24 +1354,40 @@ public:
 				or data.exp == tensor<int>(data.exp.size(), 0))
 			{
 				if constexpr (is_same_v<T_int, long double>)
+				{
 					Monomial += to_wstring((int)fabs(data.coefficient));
+				}
 				else if constexpr (is_same_v<T_int, big>)
+				{
 					Monomial += data.coefficient.fabs().str();
+				}
 			}
 
 			// aggiunta variabili ed esponenti
-			for (size_t i = 0; i < Variables.size(); ++i) if (data.exp[i] != 0) {
-				Monomial += size == Variables.size() ?
-					Variables.at(i) : Variables.at(Variables.find(charVariable));
-				if (data.exp[i] > 1)
-					Monomial += L"^" + to_wstring((int)data.exp[i]);
+			for (size_t i = 0; i < Variables.size(); ++i)
+			{
+				if (data.exp[i] != 0)
+				{
+					Monomial += size == Variables.size() ?
+						Variables.at(i) :
+						Variables.at(Variables.find(charVariable));
+					if (data.exp[i] > 1)
+					{
+						Monomial += L"^" + to_wstring((int)data.exp[i]);
+					}
+				}
 			}
-
 			polynomial += Monomial;
 		}
-		if (polynomial.empty()) ret L"0";
-		if (polynomial.at(0) == L'+') polynomial.erase(0, 1);
-
+		
+		if (polynomial.empty())
+		{
+			ret L"0";
+		}
+		if (polynomial.at(0) == L'+')
+		{
+			polynomial.erase(0, 1);
+		}
 		ret polynomial;
 	}
 };
@@ -1109,63 +1409,102 @@ public:
 	}
 	FACTOR(tensor<MONOMIAL<T_int>> vect)
 	{
-		for (const auto& value : vect) this->push_back(value);
+		for (const auto& value : vect)
+		{
+			this->push_back(value);
+		}
 	}
 
 	void sort()
 	{
 		for (size_t i = 0; i < this->size(); ++i)
+		{
 			for (size_t j = i + 1; j < this->size(); ++j)
+			{
 				if (this->at(i).degree < this->at(j).degree)
+				{
 					swap(this->at(i), this->at(j));
+				}
+			}
+		}
 	}
 	void complete(int s)
 	{
 		// riempimento buchi
 		for (ptrdiff_t i = this->size() - 1; i > 0; --i)
+		{
 			for (int j = 1; j < (*this)[i - 1].degree - (*this)[i].degree; ++j)
+			{
 				this->insert(this->begin() + i, { (*this)[i - 1].degree - j, 0 });
+			}
+		}
 
 		// riempimento buchi agli estremi
-		if (this->empty()) for (size_t i = 0; i < s; ++i)
-			this->push_back({ (int)i, 0 });
+		if (this->empty())
+		{
+			for (size_t i = 0; i < s; ++i)
+			{
+				this->push_back({ (int)i, 0 });
+			}
+		}
 		if (this->size() < s)
 		{
 			while ((*this)[0].degree < s - 1)
+			{
 				this->insert(this->begin(), { (*this)[0].degree + 1, 0 });
+			}
 
 			while ((*this)[this->size() - 1].degree > 0)
+			{
 				this->push_back({ (*this)[this->size() - 1].degree - 1, 0 });
+			}
 		}
 	}
 
 	FACTOR derivate() const
 	{
-		if (this->size() == 0) ret { { 0, 0 } };
+		if (this->size() == 0)
+		{
+			ret { { 0, 0 } };
+		}
 		auto Derivative{ *this };
 		Derivative.sort();
 		Derivative.complete(Derivative[0].degree + 1);
-		if (Derivative.size() == 1 and Derivative[0].degree == 0) ret { { 0, 0 } };
+		if (Derivative.size() == 1 and Derivative[0].degree == 0)
+		{
+			ret { { 0, 0 } };
+		}
 		for (size_t j = 0; j < Derivative; ++j)
+		{
 			Derivative[j].coefficient *= Derivative[j].degree--;
+		}
 		Derivative--;
-		if (Derivative.empty()) Derivative = { { 0, (*this)[0].coefficient } };
+		if (Derivative.empty())
+		{
+			Derivative = { { 0, (*this)[0].coefficient } };
+		}
 		ret Derivative;
 	}
 
 	T_int operator()(T_int x) const
 	{
 		T_int fx{};
-		for (size_t i = 0; i < this->size(); ++i) fx += (
-			(*this)[i].coefficient * pow(x, (*this)[i].degree)
+		for (size_t i = 0; i < this->size(); ++i)
+		{
+			fx += (
+				(*this)[i].coefficient * pow(x, (*this)[i].degree)
 			) / LCM.Number<long double>();
+		}
 		ret fx;
 	}
 
 	inline FACTOR neg() const
 	{
 		auto This{ *this };
-		for (auto& mon : This) mon.coefficient *= -1;
+		for (auto& mon : This)
+		{
+			mon.coefficient *= -1;
+		}
 		ret This;
 	}
 	inline FACTOR operator-(const FACTOR& other) const;
@@ -1177,7 +1516,8 @@ public:
 	{
 		factor<T_int> traduction;
 		int _FirstPos = Variables.find(charVariable);
-		for (const auto& Monomial : *this) {
+		for (const auto& Monomial : *this)
+		{
 			monomial<T_int> element;
 			element.coefficient = Monomial.coefficient;
 			element.exp(Variables.size(), 0);
@@ -1191,7 +1531,8 @@ static factor<> ToXV(FACTOR<> vect)
 {
 	factor<> output;
 	int _FirstPos = Variables.find(charVariable);
-	for (const auto& Monomial : vect) {
+	for (const auto& Monomial : vect)
+	{
 		monomial<> element;
 		element.coefficient = Monomial.coefficient;
 		element.exp(Variables.size(), 0);
@@ -1204,10 +1545,14 @@ static FACTOR<> To1V(factor<> vect)
 {
 	FACTOR<> output;
 	int _FirstPos = Variables.find(charVariable);
-	for (const auto& Monomial : vect) {
+	for (const auto& Monomial : vect)
+	{
 		MONOMIAL<> element{ 0, 0 };
 		element.coefficient = Monomial.coefficient;
-		if (_FirstPos != wstring::npos) element.degree = Monomial.exp[_FirstPos];
+		if (_FirstPos != wstring::npos)
+		{
+			element.degree = Monomial.exp[_FirstPos];
+		}
 		output << element;
 	}
 	ret output;
@@ -1234,17 +1579,26 @@ public:
 	}
 	polynomial(tensor<factor<T_int>> vect)
 	{
-		for (const auto& value : vect) this->push_back(value);
+		for (const auto& value : vect)
+		{
+			this->push_back(value);
+		}
 	}
 
 	void open()
 	{
-		for (size_t i = 0; i < this->count; ++i) if ((*this)[i][0].exp[0] == -1)
+		for (size_t i = 0; i < this->count; ++i)
 		{
-			auto repeat = (*this)[i][0].coefficient;
-			this->erase(this->begin() + i);
-			auto push{ (*this)[i] };
-			for (big j = 0; j < repeat - 1; ++j) this->push_front(push);
+			if ((*this)[i][0].exp[0] == -1)
+			{
+				auto repeat = (*this)[i][0].coefficient;
+				this->erase(this->begin() + i);
+				auto push{ (*this)[i] };
+				for (big j = 0; j < repeat - 1; ++j)
+				{
+					this->push_front(push);
+				}
+			}
 		}
 	}
 	void close()
@@ -1252,65 +1606,87 @@ public:
 		tensor<int> modifier(Variables.size());
 		modifier[0] = -1;
 		factor<T_int> CommonFactor;
-		if (this->count != 0) for (size_t i = 0; i < this->count; ++i)
+		if (this->count == 0)
+		{
+			ret;
+		}
+
+		for (size_t i = 0; i < this->count; ++i)
+		{
 			for (ptrdiff_t j = this->count - 1; j > i; --j)
+			{
 				if ((*this)[i] == (*this)[j] and (*this)[i][0].exp[0] >= 0)
 				{
 					CommonFactor = (*this)[i];
-					if (i > 0) {
-
-						// caso con esponente
-						if ((*this)[i - 1].size() == 1 and
-							(*this)[i - 1][0].exp[0] < 0)
-						{
-							(*this)[i - 1][0].coefficient++;
-							this->erase(this->begin() + j);
-						}
-
-						// caso senza esponente
-						else {
-							int setK = 0;
-							this->insert(this->begin() + i, { { 2, modifier } });
-							this->erase(this->begin() + j);
-							for (size_t k = 0; k < this->size(); ++k)
-								if ((*this)[k] == CommonFactor) {
-									setK = k;
-									break;
-								}
-							if ((*this)[i + 1] != CommonFactor)
-								swap((*this)[i + 1], (*this)[setK]);
-						}
-					}
-
+					
 					// caso di eccezione
-					else {
+					if (i <= 0)
+					{
 						this->push_front({ { 2, modifier } });
 						this->erase(this->begin() + j + 1);
+						continue;
+					}
+
+					// caso con esponente
+					if ((*this)[i - 1].size() == 1 and
+						(*this)[i - 1][0].exp[0] < 0)
+					{
+						(*this)[i - 1][0].coefficient++;
+						this->erase(this->begin() + j);
+						continue;
+					}
+
+					// caso senza esponente
+					int setK = 0;
+					this->erase(this->begin() + j);
+					this->insert(this->begin() + i, { { 2, modifier } });
+					for (size_t k = 0; k < this->size(); ++k)
+					{
+						if ((*this)[k] == CommonFactor)
+						{
+							setK = k;
+							break;
+						}
+					}
+					if ((*this)[i + 1] != CommonFactor)
+					{
+						swap((*this)[i + 1], (*this)[setK]);
 					}
 				}
+			}
+		}
 	}
 
 	_NODISCARD wstring str(int size = Variables.size()) override
 	{
-		if (this->count == 0) ret L"0";
+		if (this->count == 0)
+		{
+			ret L"0";
+		}
 
 		wstring output, exp, coeffstr{ L"1" };
 		bool IsAModifier{ false };
-		for (auto T : *this) {
-
+		for (auto T : *this)
+		{
 			// caso di monomio modificatore
-			if (!T[0].exp.empty()) if (T[0].exp[0] < 0) {
+			if (!T[0].exp.empty()) if (T[0].exp[0] < 0)
+			{
 				if constexpr (is_same_v<T_int, long double>)
+				{
 					exp = to_wstring((int)T[0].coefficient);
+				}
 				else if constexpr (is_same_v<T_int, big>)
+				{
 					exp = T[0].coefficient.str();
+				}
 				IsAModifier = true;
 				continue;
 			}
 			auto xout{ T.str(size) };
 
 			// caso con elevamento a potenza
-			if (IsAModifier) {
+			if (IsAModifier)
+			{
 				xout = L"(" + xout + L")^" + exp;
 				IsAModifier = false;
 				output += xout;
@@ -1318,48 +1694,82 @@ public:
 			}
 
 			// caso coefficiente
-			if (T == 1) {
+			if (T == 1)
+			{
 				coeffstr = xout;
 				continue;
 			}
 
 			// caso comune
 			else if ((int)this->size() - (coeffstr != L"1") > 1)
+			{
 				xout = L"(" + xout + L")";
+			}
 			output += xout;
 		}
 		
 		// aggiunta del denominatore
-		if (!output.empty()) output = L'[' + output + L']';
-		else if (LCM != 1) output.clear();
-		else ret ElabExponents(coeffstr);
-		if (LCM.fabs() != 1 or coeffstr != L"1") {
-
+		if (!output.empty())
+		{
+			output = L'[' + output + L']';
+		}
+		else if (LCM != 1)
+		{
+			output.clear();
+		}
+		else
+		{
+			ret ElabExponents(coeffstr);
+		}
+		if (LCM.fabs() != 1 or coeffstr != L"1")
+		{
 			// polinomio piccolo
-			if constexpr (is_same_v<T_int, long double>) {
-				if (LCM.fabs() != 1) output = L'/' + LCM.str() + L']' + output;
+			if constexpr (is_same_v<T_int, long double>)
+			{
+				if (LCM.fabs() != 1)
+				{
+					output = L'/' + LCM.str() + L']' + output;
+				}
 				output = coeffstr + output;
-				if (LCM.fabs() != 1) output = L'[' + output;
+				if (LCM.fabs() != 1)
+				{
+					output = L'[' + output;
+				}
 			}
 
 			// polinomio grande
-			else if constexpr (is_same_v<T_int, big>) {
-				if (LCM.fabs() != 1) {
-					if (!output.empty()) output += L'/';
+			else if constexpr (is_same_v<T_int, big>)
+			{
+				if (LCM.fabs() != 1)
+				{
+					if (!output.empty())
+					{
+						output += L'/';
+					}
 					output = output + L'[' + LCM.str() + L']';
 				}
 				output = coeffstr + output;
 			}
 		}
-		if (LCM < 0) output = L'-' + output;
-		if (output == L"-" and coeffstr == L"1") output = L"-1";
+		if (LCM < 0)
+		{
+			output = L'-' + output;
+		}
+		if (output == L"-" and coeffstr == L"1")
+		{
+			output = L"-1";
+		}
 
 		// eliminazioni parentesi quadre se non sono necessarie
-		else if (output.at(0) == L'[' and Last(output) == L']') {
+		else if (output.at(0) == L'[' and Last(output) == L']')
+		{
 			output.erase(0, 1);
 			output.pop_back();
 			if (output.find(L'[') != wstring::npos and
-				output.find(L']') != wstring::npos) output = L'[' + output + L']';
+				output.find(L']') != wstring::npos)
+			{
+				output = L'[' + output + L']';
+			}
 		}
 
 		ret ElabExponents(output);
@@ -1384,31 +1794,48 @@ public:
 	}
 	POLYNOMIAL(tensor<FACTOR<T_int>> vect)
 	{
-		for (const auto& value : vect) push_back(value);
+		for (const auto& value : vect)
+		{
+			push_back(value);
+		}
 	}
 
 	void open()
 	{
 		polynomial<T_int> NewClass;
-		for (size_t i = 0; i < this->count; ++i) NewClass << ToXV((*this)[i]);
+		for (size_t i = 0; i < this->count; ++i)
+		{
+			NewClass << ToXV((*this)[i]);
+		}
 		NewClass.open();
 		this->clear();
-		for (size_t i = 0; i < NewClass; ++i) this->push_back(To1V(NewClass[i]));
+		for (size_t i = 0; i < NewClass; ++i)
+		{
+			this->push_back(To1V(NewClass[i]));
+		}
 	}
 	void close()
 	{
 		polynomial<T_int> NewClass;
 		for (size_t i = 0; i < this->count; ++i)
+		{
 			NewClass.push_back(ToXV((*this)[i]));
+		}
 		NewClass.close();
 		this->clear();
-		for (size_t i = 0; i < NewClass; ++i) this->push_back(To1V(NewClass[i]));
+		for (size_t i = 0; i < NewClass; ++i)
+		{
+			this->push_back(To1V(NewClass[i]));
+		}
 	}
 
 	_NODISCARD wstring str(int size = Variables.size()) override
 	{
 		polynomial<T_int> traduction;
-		for (const auto& vector : *this) traduction << ToXV(vector);
+		for (const auto& vector : *this)
+		{
+			traduction << ToXV(vector);
+		}
 		ret traduction.str(1);
 	}
 };
@@ -1416,26 +1843,36 @@ public:
 static polynomial<> ToXV(POLYNOMIAL<> vect)
 {
 	polynomial<> output;
-	for (const auto& vector : vect) output << ToXV(vector);
+	for (const auto& vector : vect)
+	{
+		output << ToXV(vector);
+	}
 	ret output;
 }
 static POLYNOMIAL<> To1V(polynomial<> vect)
 {
 	POLYNOMIAL<> output;
-	for (const auto& vector : vect) output << To1V(vector);
+	for (const auto& vector : vect)
+	{
+		output << To1V(vector);
+	}
 	ret output;
 }
 static polynomial<> FromBigToDefault(polynomial<big> BigPolynomial)
 {
 	polynomial<> traduction;
-	for (auto fact : BigPolynomial) {
+	for (auto fact : BigPolynomial)
+	{
 		factor<> element;
-		for (auto mon : fact) {
+		for (auto mon : fact)
+		{
 			monomial<> unity;
 			unity.coefficient = mon.coefficient.Number<long double>();
 
 			if (isnan(unity.coefficient))
+			{
 				ret polynomial<>{ { { 1, tensor<int>(1, -2) } } };
+			}
 			unity.exp = mon.exp;
 			element << unity;
 		}
@@ -1453,7 +1890,8 @@ template <class T_int>
 factor<T_int> factor<T_int>::operator()(T_int x, size_t Vpos, int) const
 {
 	auto This{ *this };
-	for (size_t i = 0; i < this->size(); ++i) {
+	for (size_t i = 0; i < this->size(); ++i)
+	{
 		This[i].coefficient *= pow(x, This[i].exp[Vpos]);
 		This[i].exp[Vpos] = 0;
 	}
@@ -1515,6 +1953,10 @@ public:
 		num(polynomial<T>{ { { 0, tensor<int>(Variables.size(), 0) } } }),
 		den(polynomial<T>{ { { 1, tensor<int>(Variables.size(), 0) } } })
 	{}
+	Fraction(polynomial<T> numerator) :
+		num(numerator),
+		den(polynomial<T>{ { { 1, tensor<int>(Variables.size(), 0) } } })
+	{}
 	Fraction(polynomial<T> numerator, polynomial<T> denominator) :
 		num(numerator), den(denominator) {}
 
@@ -1531,11 +1973,18 @@ public:
 			{ den[0] * factor<>(den[0]) }
 		};
 		bool empty{ true };
-		for (const auto& term : derivative.num) if (!term.empty()) {
-			empty = false;
-			break;
+		for (const auto& term : derivative.num)
+		{
+			if (!term.empty())
+			{
+				empty = false;
+				break;
+			}
 		}
-		if (empty) derivative.num = { { { 0, tensor<int>(Variables.size(), 0) } } };
+		if (empty)
+		{
+			derivative.num = { { { 0, tensor<int>(Variables.size(), 0) } } };
+		}
 		ret derivative;
 	}
 
@@ -1605,8 +2054,14 @@ public:
 	T operator()(tensor<long double> params) const
 	{
 		T res{ 1 };
-		for (size_t i = 0; i < num.size(); ++i) res *= num[i](params);
-		for (size_t i = 0; i < den.size(); ++i) res /= den[i](params);
+		for (size_t i = 0; i < num.size(); ++i)
+		{
+			res *= num[i](params);
+		}
+		for (size_t i = 0; i < den.size(); ++i)
+		{
+			res /= den[i](params);
+		}
 		ret res;
 	}
 	bool operator==(const Fraction& other) const
@@ -1622,12 +2077,17 @@ public:
 			den == polynomial<>{ { {
 					1, tensor<int>(Variables.size(), 0)
 				} } }
-			) ret output;
+		)
+		{
+			ret output;
+		}
 		
 		// frazione complicata
 		if (output.find(L'+') != wstring::npos or
 			output.find(L'-') != wstring::npos)
+		{
 			output = L'(' + output + L')';
+		}
 		output += L" / " + den.str();
 		
 		ret output;
@@ -1638,7 +2098,8 @@ tensor_t PrimeNumbers;
 _STD map<int, wstring> CalculatedData;
 
 // stream
-struct Console {
+struct Console
+{
 	wstring Text;
 	WORD Attribute{ 15 };
 
@@ -1669,18 +2130,27 @@ public:
 	ConsoleStream() {}
 	ConsoleStream(initializer_list<Console> init)
 	{
-		for (const auto& item : init) (*this) << item;
+		for (const auto& item : init)
+		{
+			(*this) << item;
+		}
 	}
 	ConsoleStream operator+(ConsoleStream other) const
 	{
 		auto This{ *this };
-		for (const auto& item : other) This << item;
+		for (const auto& item : other)
+		{
+			This << item;
+		}
 		ret This;
 	}
 
 	inline void output() const
 	{
-		for (int i = 0; i < this->size(); ++i) wcout << (*this)[i];
+		for (int i = 0; i < this->size(); ++i)
+		{
+			wcout << (*this)[i];
+		}
 	}
 	inline void log()
 	{
@@ -1689,7 +2159,10 @@ public:
 	}
 	friend wostream& operator<<(wostream& wos, const ConsoleStream& T)
 	{
-		for (int i = 0; i < T.size(); ++i) wos << T[i];
+		for (int i = 0; i < T.size(); ++i)
+		{
+			wos << T[i];
+		}
 		ret wos;
 	}
 };
@@ -1721,64 +2194,93 @@ public:
 		wcout << wstring(4 * size + 1, L'\n');
 		_GetCursorPos();
 		if (csbi.dwCursorPosition.Y >= begin.Y)
+		{
 			begin.Y -= 4 * size + 1 - csbi.dwCursorPosition.Y + begin.Y;
+		}
 		SetConsoleCursorPosition(hConsole, begin);
 		csbi.dwCursorPosition = begin;
 
 		// calcolo stringhe e trasposizione matrice stringhe
 		tensor<tensor<wstring>> StrMatrix(size), StrDenominators(size);
-		for (size_t i = 0; i < size; ++i) for (size_t j = 0; j < (*this)[i]; ++j)
+		for (size_t i = 0; i < size; ++i)
 		{
-			auto element{ (*this)[j][i] };
+			for (size_t j = 0; j < (*this)[i]; ++j)
+			{
+				auto element{ (*this)[j][i] };
 
-			// elemento intero
-			if (SelectedElement.Y >= 0 or integer(element)) {
-				StrDenominators[i] << L"";
-				StrMatrix[i] << to_wstring((int)element);
-				continue;
-			}
+				// elemento intero
+				if (SelectedElement.Y >= 0 or integer(element))
+				{
+					StrDenominators[i] << L"";
+					StrMatrix[i] << to_wstring((int)element);
+					continue;
+				}
 
-			// elemento decimale
-			int I{ -1 };
-			for (int k = 2; k < 1'000; ++k) if (integer(k * element)) {
-				I = k;
-				break;
-			}
-			if (I == -1) {
-
-				// elemento sottoforma di numero decimale
-				StrMatrix[i] << to_wstring(element);
-				StrDenominators[i] << L"";
-			}
-			else {
-
-				// elemento sottoforma di frazione
-				StrMatrix[i] << to_wstring(int(element * I));
-				StrDenominators[i] << to_wstring(I);
+				// elemento decimale
+				int I{ -1 };
+				for (int k = 2; k < 1'000; ++k)
+				{
+					if (integer(k * element))
+					{
+						I = k;
+						break;
+					}
+				}
+				if (I == -1)
+				{
+					// elemento sottoforma di numero decimale
+					StrMatrix[i] << to_wstring(element);
+					StrDenominators[i] << L"";
+				}
+				else
+				{
+					// elemento sottoforma di frazione
+					StrMatrix[i] << to_wstring(int(element * I));
+					StrDenominators[i] << to_wstring(I);
+				}
 			}
 		}
 
 		// correzione lunghezza stringhe
 		int sum{};
-		for (size_t i = 0; i < size; ++i) {
+		for (size_t i = 0; i < size; ++i)
+		{
 			auto column{ StrMatrix[i] };
 			auto denom{ StrDenominators[i] };
 			int maxlenght{ 3 };
 
 			// calcolo della lunghezza massima e correzione
-			for (auto& num : column) if (num.size() > maxlenght)
-				maxlenght = num.size();
-			for (auto& den : denom) if (den.size() > maxlenght)
-				maxlenght = den.size();
-			for (auto& num : column) if (num.size() < maxlenght) {
-				int TotalLenght = maxlenght - num.size();
-				num = wstring(TotalLenght / 2, L' ') +
-					num + wstring(TotalLenght - TotalLenght / 2, L' ');
+			for (auto& num : column)
+			{
+				if (num.size() > maxlenght)
+				{
+					maxlenght = num.size();
+				}
 			}
-			for (auto& den : denom) if (den.size() < maxlenght) {
-				int TotalLenght = maxlenght - den.size();
-				den = wstring(TotalLenght / 2, L' ') +
-					den + wstring(TotalLenght - TotalLenght / 2, L' ');
+			for (auto& den : denom)
+			{
+				if (den.size() > maxlenght)
+				{
+					maxlenght = den.size();
+				}
+			}
+			for (auto& num : column)
+			{
+				if (num.size() < maxlenght)
+				{
+					int TotalLenght = maxlenght - num.size();
+					num = wstring(TotalLenght / 2, L' ') +
+						num + wstring(TotalLenght - TotalLenght / 2, L' ');
+				}
+			}
+			for (auto& den : denom)
+			{
+				if (den.size() < maxlenght)
+				{
+					int TotalLenght = maxlenght - den.size();
+					den = wstring(TotalLenght / 2, L' ') +
+						den + wstring(TotalLenght - TotalLenght / 2, L' ');
+				}
 			}
 
 			StrMatrix[i] = column;
@@ -1789,25 +2291,38 @@ public:
 
 		// calcolo delle righe con e senza frazioni
 		tensor<bool> HaveTheyFractions(size, false);
-		for (size_t i = 0; i < size; ++i) for (size_t j = 0; j < size; ++j)
-			if (StrDenominators[j][i].at(
-				(StrDenominators[j][i].size() - 1) / 2) != L' '
-				)
+		for (size_t i = 0; i < size; ++i)
+		{
+			for (size_t j = 0; j < size; ++j)
 			{
-				HaveTheyFractions[i] = true;
-				break;
+				if (StrDenominators[j][i].at(
+					(StrDenominators[j][i].size() - 1) / 2) != L' '
+					)
+				{
+					HaveTheyFractions[i] = true;
+					break;
+				}
 			}
+		}
 		int row{};
 		size_t index{};
 
 		// iterazione e stampa matrice
 		int line{};
-		if (extension) extension = sum + 3;
-		for (size_t i = 0; index <= 2 * size; ++i) {
+		if (extension)
+		{
+			extension = sum + 3;
+		}
+		for (size_t i = 0; index <= 2 * size; ++i)
+		{
 
 			// inizio e fine matrice
-			if (index == 2 * size) line = i;
-			if (index == 0 or index == 2 * size) {
+			if (index == 2 * size)
+			{
+				line = i;
+			}
+			if (index == 0 or index == 2 * size)
+			{
 				wcout << L'+' << wstring(sum + 1, L'-') << L'+';
 				csbi.dwCursorPosition.Y++;
 				SetConsoleCursorPosition(
@@ -1819,7 +2334,8 @@ public:
 			wcout << L"| ";
 
 			// calcolo linea di frazione e indice
-			if (index % 2 == 0) {
+			if (index % 2 == 0)
+			{
 				wcout << wstring(sum, L' ') << L'|';
 				index++;
 				csbi.dwCursorPosition.Y++;
@@ -1828,15 +2344,23 @@ public:
 				);
 				continue;
 			}
-			if (HaveTheyFractions[(index - 1) / 2]) row++;
-			if (row == 4) row = 1;
+			if (HaveTheyFractions[(index - 1) / 2])
+			{
+				row++;
+			}
+			if (row == 4)
+			{
+				row = 1;
+			}
 
 			// output elemento (la matrice delle stringhe è trasposta)
-			for (size_t j = 0; j < size; ++j) {
-
+			for (size_t j = 0; j < size; ++j)
+			{
 				// evindenziazione cursore
 				if (j == SelectedElement.X and (index - 1) / 2 == SelectedElement.Y)
+				{
 					SetConsoleTextAttribute(hConsole, 12);
+				}
 
 				// caso senza frazioni
 				auto TempDenominator{ StrDenominators[j][(index - 1) / 2] };
@@ -1853,21 +2377,29 @@ public:
 						SetConsoleTextAttribute(hConsole, 4);
 						wcout << L'.';
 					}
-					else wcout << L' ';
+					else
+					{
+						wcout << L' ';
+					}
 				}
 
 				// caso con almeno una frazione nella riga
-				else switch (row) {
-
+				else switch (row)
+				{
 					// numeratori
 				case 1:
 					if (
 						TempDenominator.at((TempDenominator.size() - 1) / 2)
 						== L' ')
+					{
 						wcout << wstring(
 							StrMatrix[j][(index - 1) / 2].size() + 1, L' '
 						);
-					else wcout << StrMatrix[j][(index - 1) / 2] << L' ';
+					}
+					else
+					{
+						wcout << StrMatrix[j][(index - 1) / 2] << L' ';
+					}
 					break;
 
 					// linee di frazione e numeri
@@ -1880,17 +2412,25 @@ public:
 				case 3:
 					if (TempDenominator.at(
 						(TempDenominator.size() - 1) / 2) == L' ')
+					{
 						wcout << wstring(
 							StrMatrix[j][(index - 1) / 2].size() + 1, L' '
 						);
-					else wcout << StrDenominators[j][(index - 1) / 2] << L' ';
+					}
+					else
+					{
+						wcout << StrDenominators[j][(index - 1) / 2] << L' ';
+					}
 					break;
 				}
 
 				SetConsoleTextAttribute(hConsole, Attribute);
 				wcout << L' ';
 			}
-			if (row == 0 or row == 3) index++;
+			if (row == 0 or row == 3)
+			{
+				index++;
+			}
 
 			// fine riga
 			wcout << L'|';
@@ -1901,7 +2441,8 @@ public:
 		}
 
 		// riposizionamento cursore
-		if (SelectedElement.Y == -2) {
+		if (SelectedElement.Y == -2)
+		{
 			line = max(line, (int)SelectedElement.X);
 			begin.Y += line + 1;
 		}
@@ -1926,7 +2467,9 @@ public:
 		wcout << wstring(29, L'\n');
 		_GetCursorPos();
 		if (csbi.dwCursorPosition.Y >= start.Y)
+		{
 			start.Y -= 29 - csbi.dwCursorPosition.Y + start.Y;
+		}
 		SetConsoleCursorPosition(hConsole, start);
 		csbi.dwCursorPosition = start;
 
@@ -1941,397 +2484,470 @@ public:
 		wstring ToConvalidate;
 		bool Continue{ true }, keep{ false }, skip{ false };
 
-		for (;;) if (_kbhit() or
-			(GetAsyncKeyState(VK_CONTROL) & 0x8000 and
-				GetAsyncKeyState(VK_MENU) & 0x8000))
+		for (;;)
 		{
+			if (_kbhit() or (GetAsyncKeyState(VK_CONTROL) & 0x8000 and
+				GetAsyncKeyState(VK_MENU) & 0x8000))
+			{
 
-			// lettura
-			skip = false;
-			tensor<long double> unit(size_s, 0);
-			int sizemin = size_s, lenght{ 1 }, depth = 2 * size_s + 1;
-			char c = _kbhit() ? tolower(_getch()) : L',';
+				// lettura
+				skip = false;
+				tensor<long double> unit(size_s, 0);
+				int sizemin = size_s, lenght{ 1 }, depth = 2 * size_s + 1;
+				char c = _kbhit() ? tolower(_getch()) : L',';
 
-			// termine
-			switch (c) {
-			case L'.': this->clear();
-				ret true;
-			case L'\r': goto end;
-			case L'\b':
-				operators.last().empty() ?
-					(void)operators-- : operators.last().pop_back();
-				if (!ToConvalidate.empty()) {
-					if (Last(ToConvalidate) == L'\'') Displayed--;
-					ToConvalidate.pop_back();
-				}
-				if (operators.empty()) operators = { {} };
-				goto output;
-			}
-
-			// casi illegali
-			if (c == 0 or c == EscapeCode) {
-				skip = true;
-				continue;
-			}
-			if (operatorsAllowed.find(c) == wstring::npos) continue;
-
-			// aggiunta carattere
-			if (c != L',') {
-				operators.last() += c;
-				ToConvalidate += c;
-				goto output;
-			}
-
-			// calcolo dimensioni minime
-		input:
-			sizemin = 2;
-			unit(size_s, 0);
-			for (const auto& matrix : Displayed) {
-
-				// dimensione minima rispetto alle righe
-				int localmin{ 1 };
-				for (ptrdiff_t i = size_s - 1; i >= 0; --i) if (matrix[i] != unit)
+				// termine
+				switch (c)
 				{
-					localmin = i;
-					break;
-				}
-				if (localmin == size_s) {
-					sizemin = size_s;
-					break;
+				case L'.': this->clear();
+					ret true;
+				case L'\r': goto end;
+				case L'\b':
+					operators.last().empty() ?
+						(void)operators-- : operators.last().pop_back();
+					if (!ToConvalidate.empty())
+					{
+						if (Last(ToConvalidate) == L'\'')
+						{
+							Displayed--;
+						}
+						ToConvalidate.pop_back();
+					}
+					if (operators.empty())
+					{
+						operators = { {} };
+					}
+					goto output;
 				}
 
-				// dimensione minima rispetto alle colonne
-				for (ptrdiff_t i = size_s - 1; i >= 0; --i)
-					for (size_t j = 0; j < size_s; ++j) if (matrix[j][i] != 0)
+				// casi illegali
+				if (c == 0 or c == EscapeCode)
+				{
+					skip = true;
+					continue;
+				}
+				if (operatorsAllowed.find(c) == wstring::npos)
+				{
+					continue;
+				}
+
+				// aggiunta carattere
+				if (c != L',')
+				{
+					operators.last() += c;
+					ToConvalidate += c;
+					goto output;
+				}
+
+				// calcolo dimensioni minime
+			input:
+				sizemin = 2;
+				unit(size_s, 0);
+				for (const auto& matrix : Displayed)
+				{
+					// dimensione minima rispetto alle righe
+					int localmin{ 1 };
+					for (ptrdiff_t i = size_s - 1; i >= 0; --i)
 					{
-						if (localmin < i) localmin = i;
+						if (matrix[i] != unit)
+						{
+							localmin = i;
+							break;
+						}
+					}
+					if (localmin == size_s)
+					{
+						sizemin = size_s;
 						break;
 					}
 
-				if (localmin > sizemin) sizemin = localmin;
-				if (sizemin == size_s) break;
-			}
-
-			// correzione matrice
-			while (GetAsyncKeyState(VK_CONTROL) & 0x8000 and
-				GetAsyncKeyState(VK_MENU) & 0x8000);
-			if (!keep)
-				Displayed << Matrix<_Ty>(size_s, tensor<long double>(size_s, 0));
-			{
-				auto& inputer{ Displayed.last() };
-				Continue = true;
-				keep = false;
-
-				// inizio dell'input principale
-#ifndef BUGS
-				SetConsoleCursorInfo(hConsole, &cursorInfo);
-#endif // BUGS
-				// inizializzazione
-				if (inputer.size() < 2) inputer(2);
-				Matrix<bool> Signs(inputer.size());
-				for (auto& row : inputer) row(inputer.size(), 0);
-				for (auto& row : Signs) row(Signs.size(), POS);
-				for (size_t i = 0; i < inputer; ++i)
-					for (size_t j = 0; j < inputer[i]; ++j)
-						Signs[i][j] = inputer[i][j] < 0;
-				if (inputer[0][0] == 0) inputer[0][0] = 1;
-
-				bool arrow{ false };
-				depth = inputer.output({ 0, 0 }, lenght);
-				COORD IndexAccesser{};
-				wstring MatrixAtIndex;
-				for (;;) {
-					char C;
-
-					// operatori
-					if (GetAsyncKeyState(VK_CONTROL) & 0x8000 and
-						GetAsyncKeyState(VK_MENU))
-						goto inputend;
-
-					if (_kbhit()) {
-						C = tolower(_getch());
-
-						// casi speciali
-						if (C == EscapeCode) {
-							arrow = true;
-							continue;
-						}
-						if (C <= 0) continue;
-						if (arrow) {
-							switch (C) {
-							case L'h': C = L'w';
-								break;
-							case L'p': C = L's';
-								break;
-							case L'm': C = L'd';
-								break;
-							case L'k': C = L'a';
+					// dimensione minima rispetto alle colonne
+					for (ptrdiff_t i = size_s - 1; i >= 0; --i)
+					{
+						for (size_t j = 0; j < size_s; ++j)
+						{
+							if (matrix[j][i] != 0)
+							{
+								if (localmin < i)
+								{
+									localmin = i;
+								}
 								break;
 							}
-							arrow = false;
+						}
+					}
+
+					if (localmin > sizemin)
+					{
+						sizemin = localmin;
+					}
+					if (sizemin == size_s)
+					{
+						break;
+					}
+				}
+
+				// correzione matrice
+				while (GetAsyncKeyState(VK_CONTROL) & 0x8000 and
+					GetAsyncKeyState(VK_MENU) & 0x8000);
+				if (!keep)
+				{
+					Displayed << Matrix<_Ty>(size_s, tensor<long double>(size_s, 0));
+				}
+				{
+					auto& inputer{ Displayed.last() };
+					Continue = true;
+					keep = false;
+
+					// inizio dell'input principale
+	#ifndef BUGS
+					SetConsoleCursorInfo(hConsole, &cursorInfo);
+	#endif // BUGS
+					// inizializzazione
+					if (inputer.size() < 2)
+					{
+						inputer(2);
+					}
+					Matrix<bool> Signs(inputer.size());
+					for (auto& row : inputer)
+					{
+						row(inputer.size(), 0);
+					}
+					for (auto& row : Signs)
+					{
+						row(Signs.size(), POS);
+					}
+					for (size_t i = 0; i < inputer; ++i)
+					{
+						for (size_t j = 0; j < inputer[i]; ++j)
+						{
+							Signs[i][j] = inputer[i][j] < 0;
+						}
+					}
+					if (inputer[0][0] == 0)
+					{
+						inputer[0][0] = 1;
+					}
+
+					bool arrow{ false };
+					depth = inputer.output({ 0, 0 }, lenght);
+					COORD IndexAccesser{};
+					wstring MatrixAtIndex;
+					for (;;)
+					{
+						char C;
+
+						// operatori
+						if (GetAsyncKeyState(VK_CONTROL) & 0x8000 and
+							GetAsyncKeyState(VK_MENU))
+						{
+							goto inputend;
 						}
 
-						// // scelta carattere
-						size_t size;
+						if (_kbhit())
+						{
+							C = tolower(_getch());
 
-						// casi che non modificano la matrice
-						switch (C) {
+							// casi speciali
+							if (C == EscapeCode)
+							{
+								arrow = true;
+								continue;
+							}
+							if (C <= 0)
+							{
+								continue;
+							}
+							if (arrow)
+							{
+								switch (C)
+								{
+								case L'h': C = L'w';
+									break;
+								case L'p': C = L's';
+									break;
+								case L'm': C = L'd';
+									break;
+								case L'k': C = L'a';
+									break;
+								}
+								arrow = false;
+							}
 
-							// wasd per cambiare l'elemento da modificare
-						case L'w':
-							IndexAccesser.Y =
-								(IndexAccesser.Y - 1) % inputer.size();
-							break;
-						case L's':
-							IndexAccesser.Y =
-								(IndexAccesser.Y + 1) % inputer.size();
-							break;
-						case L'a':
-							IndexAccesser.X =
-								(IndexAccesser.X - 1) % inputer.size();
-							break;
-						case L'd':
-							IndexAccesser.X =
-								(IndexAccesser.X + 1) % inputer.size();
-							break;
-						}
+							// // scelta carattere
+							size_t size;
 
-						MatrixAtIndex = to_wstring(
-							(int)inputer[IndexAccesser.Y][IndexAccesser.X]
-						);
+							// casi che non modificano la matrice
+							switch (C)
+							{
+								// wasd per cambiare l'elemento da modificare
+							case L'w':
+								IndexAccesser.Y =
+									(IndexAccesser.Y - 1) % inputer.size();
+								break;
+							case L's':
+								IndexAccesser.Y =
+									(IndexAccesser.Y + 1) % inputer.size();
+								break;
+							case L'a':
+								IndexAccesser.X =
+									(IndexAccesser.X - 1) % inputer.size();
+								break;
+							case L'd':
+								IndexAccesser.X =
+									(IndexAccesser.X + 1) % inputer.size();
+								break;
+							}
 
-						// casi che modificano la matrice
-						switch (C) {
-
-							// L'z' riempie la matrice
-						case L'z': {
-							random_device rng;
-							mt19937 gen(rng());
-							uniform_int_distribution<> dis(-100, 100);
-							for (size_t i = 0; i < inputer; ++i)
-								for (size_t j = 0; j < inputer[i]; ++j)
-									if (inputer[i][j] == 0)
-									{
-										int rand{ dis(gen) };
-										Signs[i][j] = rand < 0;
-										inputer[i][j] = rand;
-									}
-						}
-								 break;
-
-								 // L'r' azzera il determinante
-						case L'r':
-							inputer.last() = inputer[inputer.size() - 2];
 							MatrixAtIndex = to_wstring(
 								(int)inputer[IndexAccesser.Y][IndexAccesser.X]
 							);
-							break;
 
-							// L'\b' cancella un carattere
-						case L'\b':
-							if (MatrixAtIndex == L"0" and
-								Signs[IndexAccesser.Y][IndexAccesser.X])
+							// casi che modificano la matrice
+							switch (C)
 							{
-								Signs[IndexAccesser.Y][IndexAccesser.X] = POS;
-								break;
-							}
-							if (MatrixAtIndex.size() == 1) {
-								MatrixAtIndex = L"0";
-								break;
-							}
-							MatrixAtIndex.pop_back();
-							break;
-
-						case 127:
-							// ctrl + alt + L'\b' cancella tutto
-							if (GetAsyncKeyState(VK_MENU) & 0x8000) {
+								// L'z' riempie la matrice
+							case L'z':
+							{
+								random_device rng;
+								mt19937 gen(rng());
+								uniform_int_distribution<> dis(-100, 100);
 								for (size_t i = 0; i < inputer; ++i)
+								{
 									for (size_t j = 0; j < inputer[i]; ++j)
 									{
-										inputer[i][j] = 0;
-										Signs[i][j] = POS;
+										if (inputer[i][j] == 0)
+										{
+											int rand{ dis(gen) };
+											Signs[i][j] = rand < 0;
+											inputer[i][j] = rand;
+										}
 									}
+								}
+							}
 								break;
+
+								// L'r' azzera il determinante
+							case L'r':
+								inputer.last() = inputer[inputer.size() - 2];
+								MatrixAtIndex = to_wstring(
+									(int)inputer[IndexAccesser.Y][IndexAccesser.X]
+								);
+								break;
+
+								// L'\b' cancella un carattere
+							case L'\b':
+								if (MatrixAtIndex == L"0" and
+									Signs[IndexAccesser.Y][IndexAccesser.X])
+								{
+									Signs[IndexAccesser.Y][IndexAccesser.X] = POS;
+									break;
+								}
+								if (MatrixAtIndex.size() == 1)
+								{
+									MatrixAtIndex = L"0";
+									break;
+								}
+								MatrixAtIndex.pop_back();
+								break;
+
+								// ctrl + alt + L'\b' cancella tutto
+							case 127:
+								if (GetAsyncKeyState(VK_MENU) & 0x8000)
+								{
+									for (size_t i = 0; i < inputer; ++i)
+									{
+										for (size_t j = 0; j < inputer[i]; ++j)
+										{
+											inputer[i][j] = 0;
+											Signs[i][j] = POS;
+										}
+									}
+									break;
+								}
+
+								// ctrl + L'\b' cancella un numero
+								MatrixAtIndex = L"0";
+								Signs[IndexAccesser.Y][IndexAccesser.X] = POS;
+								break;
+
+								// L'>' aumenta la dimensione
+							case L'>':
+								if (inputer > 6)
+								{
+									break;
+								}
+								size = inputer.size() + 1;
+								Signs(size);
+								inputer(size);
+								for (size_t i = 0; i < size; ++i)
+								{
+									inputer[i](size, 0);
+									Signs[i](size, POS);
+								}
+
+								keep = true;
+								goto inputend;
+
+								// L'<' riduce la dimensione
+							case L'<':
+								if (inputer.size() <= max(2, sizemin))
+								{
+									break;
+								}
+								Signs--;
+								inputer--;
+								for (auto& row : Signs)
+								{
+									row--;
+								}
+								for (auto& row : inputer)
+								{
+									row--;
+								}
+								IndexAccesser.X %= inputer.size();
+								IndexAccesser.Y %= inputer.size();
+
+								keep = true;
+								goto inputend;
+
+								// L'\r' invia la matrice
+							case L'\r':
+								Continue = false;
+							inputend:
+								_GetCursorPos();
+								csbi.dwCursorPosition.Y += 2 * inputer.size() + 1;
+								SetConsoleCursorPosition(
+									hConsole, csbi.dwCursorPosition
+								);
+								SetConsoleCursorInfo(hConsole, &cursor);
+								goto exit;
+
+								// termine programma
+							case L'.':
+								SetConsoleCursorInfo(hConsole, &cursor);
+								this->clear();
+								ret true;
+
+							default:
+
+								// aggiunta di carattere numerico o segno
+								if (isdigit(C) or
+									(C == L'-' and MatrixAtIndex == L"0")
+									and !Signs[IndexAccesser.Y][IndexAccesser.X])
+								{
+									if (Signs[IndexAccesser.Y][IndexAccesser.X]
+										and MatrixAtIndex.at(0) != L'-')
+									{
+										MatrixAtIndex = L'-' + MatrixAtIndex;
+									}
+
+									if (C == L'-')
+									{
+										Signs[IndexAccesser.Y][IndexAccesser.X]
+											= NEG;
+									}
+									if (MatrixAtIndex.size() >
+										4 + (MatrixAtIndex.at(0) == L'-'))
+									{
+										break;
+									}
+									if (MatrixAtIndex == L"0")
+									{
+										MatrixAtIndex.clear();
+									}
+									MatrixAtIndex += C;
+								}
 							}
+							// //
 
-							// ctrl + L'\b' cancella un numero
-							MatrixAtIndex = L"0";
-							Signs[IndexAccesser.Y][IndexAccesser.X] = POS;
-							break;
+							// stampa matrice di input
+							inputer[IndexAccesser.Y][IndexAccesser.X] =
+								MatrixAtIndex == L"-" ? 0 : stoi(MatrixAtIndex);
+							_GetCursorPos();
+							auto CursorPos{ csbi.dwCursorPosition };
+							ClearArea(
+								{ (short)(CursorPos.X + 30), (short)(CursorPos.Y + 8) },
+								{ 30, 8 }
+							);
+							depth = inputer.output(IndexAccesser, lenght);
+							SetConsoleCursorInfo(hConsole, &cursor);
+						}
 
-							// L'>' aumenta la dimensione
-						case L'>':
-							if (inputer > 6) break;
-							size = inputer.size() + 1;
-							Signs(size);
-							inputer(size);
-							for (size_t i = 0; i < size; ++i) {
-								inputer[i](size, 0);
-								Signs[i](size, POS);
-							}
-
-							keep = true;
-							goto inputend;
-
-							// L'<' riduce la dimensione
-						case L'<':
-							if (inputer.size() <= max(2, sizemin)) break;
-							Signs--;
-							inputer--;
-							for (auto& row : Signs) row--;
-							for (auto& row : inputer) row--;
-							IndexAccesser.X %= inputer.size();
-							IndexAccesser.Y %= inputer.size();
-
-							keep = true;
-							goto inputend;
-
-							// L'\r' invia la matrice
-						case L'\r':
-							Continue = false;
-						inputend:
+						// uscita dal programma
+						if (!RunMonitor) {
 							_GetCursorPos();
 							csbi.dwCursorPosition.Y += 2 * inputer.size() + 1;
-							SetConsoleCursorPosition(
-								hConsole, csbi.dwCursorPosition
+							SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
+							SetConsoleCursorInfo(hConsole, &cursor);
+
+							*this = Matrix<_Ty>(
+								inputer.size(), tensor<long double>(inputer.size(), 0)
 							);
-							SetConsoleCursorInfo(hConsole, &cursor);
-							goto exit;
-
-							// termine programma
-						case L'.':
-							SetConsoleCursorInfo(hConsole, &cursor);
-							this->clear();
 							ret true;
-
-						default:
-
-							// aggiunta di carattere numerico o segno
-							if (isdigit(C) or (C == L'-' and MatrixAtIndex == L"0")
-								and !Signs[IndexAccesser.Y][IndexAccesser.X])
-							{
-								if (Signs[IndexAccesser.Y][IndexAccesser.X]
-									and MatrixAtIndex.at(0) != L'-')
-									MatrixAtIndex = L'-' + MatrixAtIndex;
-								if (C == L'-')
-									Signs[IndexAccesser.Y][IndexAccesser.X] = NEG;
-								if (MatrixAtIndex.size() >
-									4 + (MatrixAtIndex.at(0) == L'-'))
-									break;
-								if (MatrixAtIndex == L"0") MatrixAtIndex.clear();
-								MatrixAtIndex += C;
-							}
 						}
-						// //
-
-						// stampa matrice di input
-						inputer[IndexAccesser.Y][IndexAccesser.X] =
-							MatrixAtIndex == L"-" ? 0 : stoi(MatrixAtIndex);
-						_GetCursorPos();
-						auto CursorPos{ csbi.dwCursorPosition };
-						ClearArea(
-							{ (short)(CursorPos.X + 30), (short)(CursorPos.Y + 8) },
-							{ 30, 8 }
-						);
-						depth = inputer.output(IndexAccesser, lenght);
-						SetConsoleCursorInfo(hConsole, &cursor);
-					}
-
-					// uscita dal programma
-					if (!RunMonitor) {
-						_GetCursorPos();
-						csbi.dwCursorPosition.Y += 2 * inputer.size() + 1;
-						SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
-						SetConsoleCursorInfo(hConsole, &cursor);
-
-						*this = Matrix<_Ty>(
-							inputer.size(), tensor<long double>(inputer.size(), 0)
-						);
-						ret true;
 					}
 				}
-			}
 
-			// termine dell'input principale
-		exit:
-			if (Displayed.last() ==
-				Matrix<_Ty>(size_s, tensor<long double>(size_s, 0)))
-			{
-				*this = Matrix<_Ty>(size_s, tensor<long double>(size_s, 0));
-				ret true;
-			}
-			while (GetAsyncKeyState(VK_CONTROL) & 0x8000 and
-				GetAsyncKeyState(VK_MENU) & 0x8000);
-			if (!keep) {
-				operators << L"";
-				ToConvalidate += L'\'';
-			}
-
-			// ridimensionamento se richiesto
-			if (keep) for (auto& matrix : Displayed) {
-				size_s = Displayed.last().size();
-				matrix(size_s);
-				for (auto& row : matrix) row(size_s, 0);
-			}
-
-			// termine
-			if (!Continue) {
-			end:
-				_GetCursorPos();
-				auto D = Continue ? depth + 1 : 0;
-				SetConsoleCursorPosition(
-					hConsole, { 0, short(csbi.dwCursorPosition.Y + D) }
-				);
-				break;
-			}
-
-		output:
-#ifndef BUGS
-			SetConsoleCursorInfo(hConsole, &cursorInfo);
-#endif // BUGS
-
-			// pulizia
-			SetConsoleCursorPosition(hConsole, { 0, begin.Y });
-			short extension = csbi.dwSize.X - 1;
-			short limit = csbi.dwCursorPosition.Y + depth + 1;
-			for (short i = begin.Y; i <= limit; ++i)
-				wcout << wstring(extension, L' ') << L'\n';
-
-			// primo output
-			SetConsoleCursorInfo(hConsole, &cursor);
-			SetConsoleCursorPosition(hConsole, begin);
-			_GetCursorPos();
-			SetConsoleCursorPosition(
-				hConsole,
+				// termine dell'input principale
+			exit:
+				if (Displayed.last() ==
+					Matrix<_Ty>(size_s, tensor<long double>(size_s, 0)))
 				{
-					short(csbi.dwCursorPosition.X + 1),
-					short(csbi.dwCursorPosition.Y + depth / 2)
+					*this = Matrix<_Ty>(size_s, tensor<long double>(size_s, 0));
+					ret true;
 				}
-			);
-			wcout << operators[0];
-
-			// output
-			_GetCursorPos();
-			SetConsoleCursorPosition(
-				hConsole, { short(csbi.dwCursorPosition.X + 1), begin.Y }
-			);
-			for (size_t i = 0; i < Displayed.size() - keep; ++i) {
-
-				// controllo iniziale
-				_GetCursorPos();
-				if (csbi.dwSize.X <= csbi.dwCursorPosition.X + 11 * size_s + 1)
+				while (GetAsyncKeyState(VK_CONTROL) & 0x8000 and
+					GetAsyncKeyState(VK_MENU) & 0x8000);
+				if (!keep)
 				{
-					Displayed.erase(i);
-					if (i + 1 < operators) operators.erase(i + 1);
-					int sum{};
-					for (const auto& op : operators) sum += op.size();
-					sum += Displayed.size();
-					if (ToConvalidate.size() > sum) ToConvalidate.erase(sum);
+					operators << L"";
+					ToConvalidate += L'\'';
+				}
+
+				// ridimensionamento se richiesto
+				if (keep)
+				{
+					for (auto& matrix : Displayed)
+					{
+						size_s = Displayed.last().size();
+						matrix(size_s);
+						for (auto& row : matrix)
+						{
+							row(size_s, 0);
+						}
+					}
+				}
+
+				// termine
+				if (!Continue)
+				{
+				end:
+					_GetCursorPos();
+					auto D = Continue ? depth + 1 : 0;
+					SetConsoleCursorPosition(
+						hConsole, { 0, short(csbi.dwCursorPosition.Y + D) }
+					);
 					break;
 				}
-				Displayed[i].output();
 
-				// riposizionamento operatore
+			output:
+	#ifndef BUGS
+				SetConsoleCursorInfo(hConsole, &cursorInfo);
+	#endif // BUGS
+
+				// pulizia
+				SetConsoleCursorPosition(hConsole, { 0, begin.Y });
+				short extension = csbi.dwSize.X - 1;
+				short limit = csbi.dwCursorPosition.Y + depth + 1;
+				for (short i = begin.Y; i <= limit; ++i)
+				{
+					wcout << wstring(extension, L' ') << L'\n';
+				}
+
+				// primo output
+				SetConsoleCursorInfo(hConsole, &cursor);
+				SetConsoleCursorPosition(hConsole, begin);
 				_GetCursorPos();
 				SetConsoleCursorPosition(
 					hConsole,
@@ -2340,29 +2956,80 @@ public:
 						short(csbi.dwCursorPosition.Y + depth / 2)
 					}
 				);
-				if (i + 1 < operators) {
-					if (csbi.dwCursorPosition.X + operators[i + 1].size()
-						>= csbi.dwSize.X)
-					{
-						operators.erase(i + 1);
-						break;
-					}
-					wcout << operators[i + 1];
-				}
+				wcout << operators[0];
 
-				// riposizionamento finale
+				// output
 				_GetCursorPos();
 				SetConsoleCursorPosition(
-					hConsole,
-					{
-						short(csbi.dwCursorPosition.X + 1),
-						short(csbi.dwCursorPosition.Y - depth / 2)
-					}
+					hConsole, { short(csbi.dwCursorPosition.X + 1), begin.Y }
 				);
+				for (size_t i = 0; i < Displayed.size() - keep; ++i)
+				{
+
+					// controllo iniziale
+					_GetCursorPos();
+					if (csbi.dwSize.X <= csbi.dwCursorPosition.X + 11 * size_s + 1)
+					{
+						Displayed.erase(i);
+						if (i + 1 < operators)
+						{
+							operators.erase(i + 1);
+						}
+
+						int sum{};
+						for (const auto& op : operators)
+						{
+							sum += op.size();
+						}
+
+						sum += Displayed.size();
+						if (ToConvalidate.size() > sum)
+						{
+							ToConvalidate.erase(sum);
+						}
+						break;
+					}
+					Displayed[i].output();
+
+					// riposizionamento operatore
+					_GetCursorPos();
+					SetConsoleCursorPosition(
+						hConsole,
+						{
+							short(csbi.dwCursorPosition.X + 1),
+							short(csbi.dwCursorPosition.Y + depth / 2)
+						}
+					);
+					if (i + 1 < operators)
+					{
+						if (csbi.dwCursorPosition.X + operators[i + 1].size()
+							>= csbi.dwSize.X)
+						{
+							operators.erase(i + 1);
+							break;
+						}
+						wcout << operators[i + 1];
+					}
+
+					// riposizionamento finale
+					_GetCursorPos();
+					SetConsoleCursorPosition(
+						hConsole,
+						{
+							short(csbi.dwCursorPosition.X + 1),
+							short(csbi.dwCursorPosition.Y - depth / 2)
+						}
+					);
+				}
+				if (keep)
+				{
+					goto input;
+				}
 			}
-			if (keep) goto input;
 		}
-		if (Displayed.empty()) {
+
+		if (Displayed.empty())
+		{
 			_GetCursorPos();
 			csbi.dwCursorPosition.Y += 2 * size_s + 1;
 			SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
@@ -2382,7 +3049,8 @@ public:
 		_GetCursorPos();
 
 		// console ristretta
-		if (csbi.dwSize.X <= 22 * this->size() + 2) {
+		if (csbi.dwSize.X <= 22 * this->size() + 2)
+		{
 			this->output({ 0, -2 });
 			other.output({ 0, -2 });
 			wcout << L'\n';
@@ -2398,7 +3066,8 @@ public:
 		_GetCursorPos();
 
 		// console ristretta
-		if (csbi.dwSize.X <= 33 * this->size() + 3) {
+		if (csbi.dwSize.X <= 33 * this->size() + 3)
+		{
 			this->output({ 0, -2 });
 			A.output({ 0, -2 });
 			B.output({ 0, -2 });
@@ -2417,8 +3086,12 @@ public:
 	{
 		Matrix result(*this);
 		for (size_t i = 0; i < result; ++i)
+		{
 			for (size_t j = 0; j < other; ++j)
+			{
 				result[i][j] += other[i][j];
+			}
+		}
 		ret result;
 	}
 	Matrix operator+=(const Matrix other)
@@ -2431,7 +3104,12 @@ public:
 	{
 		Matrix result(*this);
 		for (size_t i = 0; i < result; ++i)
-			for (size_t j = 0; j < other; ++j) result[i][j] -= other[i][j];
+		{
+			for (size_t j = 0; j < other; ++j)
+			{
+				result[i][j] -= other[i][j];
+			}
+		}
 		ret result;
 	}
 	Matrix operator-=(const Matrix other)
@@ -2442,12 +3120,18 @@ public:
 
 	tensor<_Ty> operator*(const tensor<_Ty> vector) const
 	{
-		if (vector.size() != this->size()) throw out_of_range("Wrong size!");
+		if (vector.size() != this->size())
+		{
+			throw out_of_range("Wrong size!");
+		}
 		tensor<_Ty> product(vector.size());
-		for (size_t i = 0; i < product; ++i) {
+		for (size_t i = 0; i < product; ++i)
+		{
 			_Ty DotProduct{};
 			for (size_t j = 0; j < product; ++j)
+			{
 				DotProduct += (*this)[i][j] * vector[j];
+			}
 			product[i] = DotProduct;
 		}
 		ret product;
@@ -2456,7 +3140,13 @@ public:
 	Matrix operator*(const _Ty scalar) const
 	{
 		auto This{ *this };
-		for (auto& row : This) for (auto& el : row) el *= scalar;
+		for (auto& row : This)
+		{
+			for (auto& el : row)
+			{
+				el *= scalar;
+			}
+		}
 		ret This;
 	}
 	Matrix& operator*=(const _Ty scalar)
@@ -2467,15 +3157,24 @@ public:
 
 	Matrix operator*(const Matrix other) const
 	{
-		if (*this % other) ret {};
+		if (*this % other)
+		{
+			ret {};
+		}
 		size_t size{ this->size() };
 		Matrix<_Ty> res(size);
 
-		for (size_t i = 0; i < size; ++i) for (size_t j = 0; j < size; ++j) {
-			double scalar_prod{};
-			for (size_t k = 0; k < size; ++k)
-				scalar_prod += (*this)[i][k] * other[k][j];
-			res[i] << scalar_prod;
+		for (size_t i = 0; i < size; ++i)
+		{
+			for (size_t j = 0; j < size; ++j)
+			{
+				double scalar_prod{};
+				for (size_t k = 0; k < size; ++k)
+				{
+					scalar_prod += (*this)[i][k] * other[k][j];
+				}
+				res[i] << scalar_prod;
+			}
 		}
 
 		ret res;
@@ -2483,7 +3182,7 @@ public:
 	Matrix& operator*=(const Matrix other)
 	{
 		*this = *this * other;
-		ret* this;
+		ret *this;
 	}
 
 	template<typename T = _Ty> T det()
@@ -2494,51 +3193,70 @@ public:
 			int s = this->size();
 
 			// casi speciali del calcolo del determinante
-			switch (s) {
+			switch (s)
+			{
 			case 1: ret (*this)[0][0];
 			case 2:
 				ret (*this)[0][0] * (*this)[1][1] - (*this)[0][1] * (*this)[1][0];
 			}
 
 			// caso generale del calcolo del determinante
-			for (size_t i = 0; i < s; ++i) {
-
+			for (size_t i = 0; i < s; ++i)
+			{
 				Matrix<factor<>> MX(s - 1);
-				for (size_t I = 0; I < s - 1; ++I) for (size_t J = 0; J < s; ++J)
+				for (size_t I = 0; I < s - 1; ++I)
 				{
-					if (i == J) continue;
-					MX[I] << (*this)[I + 1][J];
+					for (size_t J = 0; J < s; ++J)
+					{
+						if (i == J)
+						{
+							continue;
+						}
+						MX[I] << (*this)[I + 1][J];
+					}
 				}
 
 				auto MiddleDet{ MX.det() };
-				if (MiddleDet != 0) {
+				if (MiddleDet != 0)
+				{
 					auto adder{ (*this)[0][i] * MiddleDet };
-					for (auto& mon : adder) mon.coefficient *= -1;
+					for (auto& mon : adder)
+					{
+						mon.coefficient *= -1;
+					}
 					det -= adder.neg();
 				}
 			}
 
 			ret det;
 		}
-		if constexpr (is_integral_v<T> or is_floating_point_v<T>) {
+		if constexpr (is_integral_v<T> or is_floating_point_v<T>)
+		{
 			T det{};
 			size_t s{ this->size() };
 
 			// casi speciali del calcolo del determinante
-			switch (s) {
+			switch (s)
+			{
 			case 1: ret (*this)[0][0];
 			case 2:
 				ret (*this)[0][0] * (*this)[1][1] - (*this)[0][1] * (*this)[1][0];
 			}
 
 			// caso generale
-			for (size_t i = 0; i < s; ++i) {
-
+			for (size_t i = 0; i < s; ++i)
+			{
 				Matrix MX(s - 1);
-				for (size_t I = 0; I < s - 1; ++I) for (size_t J = 0; J < s; ++J)
+				for (size_t I = 0; I < s - 1; ++I)
 				{
-					if (i == J) continue;
-					MX[I] << (*this)[I + 1][J];
+					for (size_t J = 0; J < s; ++J)
+					{
+						if (i == J)
+						{
+							continue;
+						}
+						MX[I] << (*this)[I + 1][J];
+					}
 				}
 
 				det += intpow(-1, i) * (*this)[0][i] * MX.det();
@@ -2553,10 +3271,14 @@ public:
 	Matrix invert(_Ty det = 0)
 	{
 		Matrix<_Ty> result(this->size());
-		if (det == 0) det = this->det();
+		if (det == 0)
+		{
+			det = this->det();
+		}
 
 		// matrice non invertibile
-		if (det == _Ty()) {
+		if (det == _Ty())
+		{
 			result = *this;
 			result[0][0] = nan("");
 			ret result;
@@ -2564,14 +3286,18 @@ public:
 
 		// matrice invertibile
 		for (size_t i = 0; i < this->size(); ++i)
+		{
 			for (size_t j = 0; j < this->size(); ++j)
 			{
 				auto second{ *this };
 				second.erase(second.begin() + i);
 				for (size_t k = 0; k < second; ++k)
+				{
 					second[k].erase(second[k].begin() + j);
+				}
 				result[i] << ((i + j) % 2 == 0 ? 1 : -1) * second.det() / det;
 			}
+		}
 
 		ret result;
 	}
@@ -2582,11 +3308,19 @@ public:
 		// inizializzazione
 		size_t s{ this->size() };
 		Matrix<factor<>> PolynomialMatrix(s, tensor<factor<>>(s));
-		for (size_t i = 0; i < s; ++i) for (size_t j = 0; j < s; ++j)
-			PolynomialMatrix[i][j]
-				<< monomial<>{ (long double)(*this)[i][j], { 0 } };
 		for (size_t i = 0; i < s; ++i)
+		{
+			for (size_t j = 0; j < s; ++j)
+			{
+				PolynomialMatrix[i][j]
+					<< monomial<>{ (long double)(*this)[i][j], { 0 } };
+			}
+		}
+
+		for (size_t i = 0; i < s; ++i)
+		{
 			PolynomialMatrix[i][i] >> monomial<>{ -1, { 1 } };
+		}
 
 		// calcolo autovalori
 		tensor<double> eigenvalues;
@@ -2595,16 +3329,26 @@ public:
 		charVariable = L'x';
 		Variables = L"x";
 		auto EigenStrings{ EquationSolver(PolynomialMatrix.det()) };
-		for (auto str : EigenStrings) {
+		for (auto str : EigenStrings)
+		{
 			str.erase(0, str.find(L'=') + 1);
-			if (str.find(L'i') == wstring::npos) eigenvalues << stod(str);
+			if (str.find(L'i') == wstring::npos)
+			{
+				eigenvalues << stod(str);
+			}
 		}
 
 		// ordinamento in ordine decrescente
 		for (size_t i = 0; i < eigenvalues; ++i)
+		{
 			for (size_t j = i + 1; j < eigenvalues; ++j)
+			{
 				if (eigenvalues[i] < eigenvalues[j])
+				{
 					swap(eigenvalues[i], eigenvalues[j]);
+				}
+			}
+		}
 
 		// rispristino e fine
 		charVariable = save_char;
@@ -2615,26 +3359,46 @@ public:
 	Matrix EigenVectors(tensor<double> EigenV = {})
 	{
 		size_t size{ this->size() };
-		if (EigenV.empty()) EigenV = this->EigenValues();
-		if (EigenV.size() != size) ret {};
+		if (EigenV.empty())
+		{
+			EigenV = this->EigenValues();
+		}
+		if (EigenV.size() != size)
+		{
+			ret {};
+		}
 		tensor<double> result;
 		Matrix<_Ty> eigenvectors(size);
 
 		// risoluzione sistemi lineari
-		for (size_t i = 0; i < size; ++i) {
+		for (size_t i = 0; i < size; ++i)
+		{
 
 			// sottrazione autovalore e rimozione fine
 			auto NewMx{ *this };
-			for (size_t j = 0; j < size; ++j) NewMx[j][j] -= EigenV[i];
-			for (size_t j = 0; j < size - 1; ++j) result << -NewMx[j].last();
+			for (size_t j = 0; j < size; ++j)
+			{
+				NewMx[j][j] -= EigenV[i];
+			}
+			for (size_t j = 0; j < size - 1; ++j)
+			{
+				result << -NewMx[j].last();
+			}
 			NewMx--;
-			for (size_t j = 0; j < size - 1; ++j) NewMx[j]--;
+			for (size_t j = 0; j < size - 1; ++j)
+			{
+				NewMx[j]--;
+			}
 			auto Det{ NewMx.det() };
 
 			// calcolo soluzioni e determinanti
-			for (size_t j = 0; j < size - 1; ++j) {
+			for (size_t j = 0; j < size - 1; ++j)
+			{
 				auto NewMatrix{ NewMx };
-				for (size_t k = 0; k < size - 1; ++k) NewMatrix[k][k] = result[k];
+				for (size_t k = 0; k < size - 1; ++k)
+				{
+					NewMatrix[k][k] = result[k];
+				}
 				eigenvectors[i] << NewMatrix.det() / Det;
 			}
 			eigenvectors[i] << 1;
@@ -2642,10 +3406,18 @@ public:
 			// normalizzazione autovettori
 			double norm{};
 			for (size_t j = 0; j < size; ++j)
+			{
 				norm += eigenvectors[i][j] * eigenvectors[i][j];
+			}
 			norm = sqrt(norm);
-			if (isnan(norm)) ret {};
-			for (size_t j = 0; j < size; ++j) eigenvectors[i][j] /= norm;
+			if (isnan(norm))
+			{
+				ret {};
+			}
+			for (size_t j = 0; j < size; ++j)
+			{
+				eigenvectors[i][j] /= norm;
+			}
 		}
 
 		ret eigenvectors;
@@ -2679,12 +3451,18 @@ public:
 
 	int GetScreenX()
 	{
-		if (ScreenX == -1) ProjectPoint({ x, y, z }, ScreenX, ScreenY);
+		if (ScreenX == -1)
+		{
+			ProjectPoint({ x, y, z }, ScreenX, ScreenY);
+		}
 		ret ScreenX;
 	}
 	int GetScreenY()
 	{
-		if (ScreenY == -1) ProjectPoint({ x, y, z }, ScreenX, ScreenY);
+		if (ScreenY == -1)
+		{
+			ProjectPoint({ x, y, z }, ScreenX, ScreenY);
+		}
 		ret ScreenY;
 	}
 	tensor<long double> GetNormalVector() const
@@ -2700,7 +3478,8 @@ public:
 
 	Point__& operator=(const Point__& other)
 	{
-		if (this != &other) {
+		if (this != &other)
+		{
 			ScreenX = other.ScreenX;
 			ScreenY = other.ScreenY;
 			Normal = other.Normal;
@@ -2719,19 +3498,28 @@ public:
 		Normal[2] = 1;
 
 		long double norm{ hypot(Normal[0], Normal[1], Normal[2]) };
-		for (auto& component : Normal) component /= norm;
+		for (auto& component : Normal)
+		{
+			component /= norm;
+		}
 		ret Normal;
 	}
 
 	void Display(int width, COLORREF color)
 	{
 		if (ScreenX == -1 or ScreenY == -1)
+		{
 			ProjectPoint({ x, y, z }, ScreenX, ScreenY);
+		}
 		
 		int w2{ width / 2 };
 		for (int i = -w2; i < width - w2; ++i)
+		{
 			for (int j = -w2; j < width - w2; ++j)
+			{
 				SetPixel(GHDC, ScreenX, ScreenY, color);
+			}
+		}
 	}
 
 	void StdDisplay
@@ -2796,37 +3584,46 @@ public:
 		wcout.imbue(locale(""));
 
 		// stampa numero
-		if (PRINTN) {
+		if (PRINTN)
+		{
 			wcout << L"numero " << number << L":\n";
 			SetConsoleTextAttribute(hConsole, 2);
 			wcout << L"in esadecimale è " << hex << uppercase;
 			wcout << number << L'\n' << dec << nouppercase;
-			if (number - 1 < PrimeNumbers.list_primes) {
+			if (number - 1 < PrimeNumbers.list_primes)
+			{
 				wcout << L"Numero Primo #" << number << L" = ";
 				wcout << PrimeNumbers.list_primes[number - 1] << L'\n';
 			}
 		}
 
 		// stampa dati cifre
-		else if (number >= 10) {
+		else if (number >= 10)
+		{
 
 			// stampa numero
 			if (
 				digit.digitSumRatioNum == 0 and
 				digit.digitProductRatioNum == 0
-				) ret;
+				)
+			{
+				ret;
+			}
+
 			wcout << L"numero " << number << L":\n";
 			SetConsoleTextAttribute(hConsole, 2);
 			wcout << L"in esadecimale è " << hex << uppercase;
 			wcout << number << L'\n' << dec << nouppercase;
-			if (number - 1 < PrimeNumbers.list_primes) {
+			if (number - 1 < PrimeNumbers.list_primes)
+			{
 				wcout << L"Numero Primo #" << number << L" = ";
 				wcout << PrimeNumbers.list_primes[number - 1] << L'\n';
 			}
 			SetConsoleTextAttribute(hConsole, 13);
 
 			// stampa somma cifre
-			if (digit.digitSumRatioNum != 0) {
+			if (digit.digitSumRatioNum != 0)
+			{
 				wcout << L"la somma delle cifre è ";
 				wcout << L'(' << digit.digitSumRatioNum;
 				wcout << L'/' << digit.digitSumRatioDen;
@@ -2834,11 +3631,17 @@ public:
 			}
 
 			// stampa prodotto cifre
-			if (digit.digitProductRatioNum != 0) {
+			if (digit.digitProductRatioNum != 0)
+			{
 				wcout << L"il prodotto delle cifre è ";
-				if (digit.digitProductRatioDen != 1) wcout << L'(';
+				if (digit.digitProductRatioDen != 1)
+				{
+					wcout << L'(';
+				}
+				
 				wcout << digit.digitProductRatioNum;
-				if (digit.digitProductRatioDen != 1) {
+				if (digit.digitProductRatioDen != 1)
+				{
 					wcout << L'/';
 					wcout << digit.digitProductRatioDen;
 					wcout << L')';
@@ -2848,26 +3651,32 @@ public:
 		}
 
 		// stampa stringa
-		if (!code.empty()) {
+		if (!code.empty())
+		{
 			SetConsoleTextAttribute(hConsole, 12);
 			wcout << L"il codice è <" << code << L">\n";
 		}
 
 		// stampa grado e sequenza
-		if (degree != 0) {
+		if (degree != 0)
+		{
 			SetConsoleTextAttribute(hConsole, 4);
 			wcout << L"il grado è " << degree << L'\n';
 			SetConsoleTextAttribute(hConsole, 3);
 			wcout << L"la sequenza del grado è :\n(";
 			for (size_t i = 0; i < sequence.size() - 1; ++i)
+			{
 				wcout << sequence[i] << L", ";
+			}
 			wcout << sequence.last() << L")\n";
 		}
 
-		if (!expression.empty()) {
+		if (!expression.empty())
+		{
 
 			// se il numero è primo
-			if (PrimeNumbers.is_prime[number]) {
+			if (PrimeNumbers.is_prime[number])
+			{
 				SetConsoleTextAttribute(hConsole, 240);
 				wcout << L"il numero è primo";
 				ResetAttribute();
@@ -2875,11 +3684,13 @@ public:
 			}
 
 			// altrimenti stampa scomposizione
-			else {
+			else
+			{
 				SetConsoleTextAttribute(hConsole, 11);
 				wcout << L"la fattorizzazione è ";
 				wcout << expression << L'\n';
-				if (div.DivNumber != 1) {
+				if (div.DivNumber != 1)
+				{
 					SetConsoleTextAttribute(hConsole, 8);
 
 					// stampa numero divisori
@@ -2892,8 +3703,14 @@ public:
 
 					// stampa prodotto divisori
 					wcout << L"il prodotto dei divisori è ";
-					if (div.DivProduct != 1) wcout << div.DivProduct << L'\n';
-					else wcout << div.Div_pr << L'\n';
+					if (div.DivProduct != 1)
+					{
+						wcout << div.DivProduct << L'\n';
+					}
+					else
+					{
+						wcout << div.Div_pr << L'\n';
+					}
 				}
 			}
 
@@ -2910,10 +3727,15 @@ private:
 		int left{ 2 * i + 1 };
 		int right{ 2 * i + 2 };
 		if (left < n and this->at(left).number > this->at(largest).number)
+		{
 			largest = left;
+		}
 		if (right < n and this->at(right).number > this->at(largest).number)
+		{
 			largest = right;
-		if (largest != i) {
+		}
+		if (largest != i)
+		{
 			iter_swap(this->begin() + i, this->begin() + largest);
 			heapify(n, largest);
 		}
@@ -2926,13 +3748,20 @@ public:
 
 	void printf()
 	{
-		for (auto& Data : *this) Data.printf();
+		for (auto& Data : *this)
+		{
+			Data.printf();
+		}
 	}
 	void HeapSort()
 	{
 		int n = this->size();
-		for (ptrdiff_t i = n / 2 - 1; i >= 0; --i) heapify(n, i);
-		for (ptrdiff_t i = n - 1; i > 0; --i) {
+		for (ptrdiff_t i = n / 2 - 1; i >= 0; --i)
+		{
+			heapify(n, i);
+		}
+		for (ptrdiff_t i = n - 1; i > 0; --i)
+		{
 			iter_swap(this->begin(), this->begin() + i);
 			heapify(i, 0);
 		}
@@ -2940,7 +3769,8 @@ public:
 };
 
 // tensori
-tensor<wstring> commands{
+tensor<wstring> commands
+{
 	L"cc" ,
 	L"ccc",
 	L"cf" ,
@@ -2965,8 +3795,9 @@ tensor<wstring> commands{
 	L"mtx",
 	L"rnd"
 };
-tensor<wstring> Numbers, Expressions, Polynomials;
-tensor<wstring> FractionNumerators, FractionDenominators;
+tensor<wstring> Numbers, Polynomials, Expressions;
+tensor<tensor<wstring>> GlobalNumerators, GlobalDenominators, GlobalOperators;
+tensor<tensor<short>> ActionsList;
 
 #pragma endregion
 #pragma region Declarations
@@ -2979,6 +3810,7 @@ template<typename T> static int Gcd(tensor<T> terms);
 static wstring ConvertEnumToWString(switchcase Enum);
 static switchcase ConvertWStringToEnum(wstring str);
 static void ReassigneEnum(switchcase& option);
+static void WriteFraction(wstring Num, wstring Den, COORD START = { -1, -1 });
 static void PrintPFrame
 (double deg, int sides, double radius, COORD WinCenter);
 static void DrawFrame
@@ -2992,7 +3824,10 @@ static wstring CTSuperScript(wchar_t input);
 static wstring CFSuperScript(wstring script);
 static void DeduceFromExponents(wstring& str);
 static void GetFraction(wstring& numerator, wstring& denominator, COORD& Off);
-static Fraction<> GetFractionAdvanced(wstring& errcode);
+#define GRAPHED (1 << 2)
+#define CHANGEDVALUE (1 << 1)
+#define BOOLALPHACHANGED 1
+static Fraction<> GetFractionAdvanced(wstring& errcode, int& BoolData);
 static wstring GetLine(tensor<wstring>& sugg, bool ShowSuggestions = true);
 static wstring GetUserNum
 (wstring txt, ptrdiff_t low, ptrdiff_t high, bool ShowSuggestions);
@@ -3143,7 +3978,6 @@ static ConsoleStream DisequationSolutionPrinter(
 	bool ChangeSign,
 	bool PrintCondition = true
 );
-
 static void PrintFraction
 (int NC, int DC, int& LINE, bool WritePlus, Fraction<> fract);
 static void PrintFractionaryResult
@@ -3254,7 +4088,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.3.8 ";
+			wcout << L"1.4.8 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -3482,12 +4316,12 @@ int main()
 
 			case SolveSystem: Threading = true;
 				calculator = thread(SystemSolverGeneral, ref(option));
-				monitor = thread(MonitorConsoleSize, COORD{ 50, 20 }, ref(RunMonitor));
+				monitor = thread(MonitorConsoleSize, COORD{ 60, 30 }, ref(RunMonitor));
 				break;
 
 			case FactorPolynomial: Threading = true;
 				calculator = thread(DecompPolynomial<wstring>, ref(option), L"");
-				monitor = thread(MonitorConsoleSize, COORD{ 50, 20}, ref(RunMonitor));
+				monitor = thread(MonitorConsoleSize, COORD{ 50, 20 }, ref(RunMonitor));
 				break;
 
 			case FactorFraction: Threading = true;
@@ -3525,6 +4359,7 @@ int main()
 		} while (option != NotAssigned);
 	}
 
+
 	// messaggio
 MB:
 	wcout << L'\a';
@@ -3538,6 +4373,15 @@ MB:
 		L"Microsoft Visual C++ Runtime Library",
 		MB_ABORTRETRYIGNORE | MB_ICONWARNING
 	);
+
+	// pulizia dati globali
+	Numbers.clear();
+	Polynomials.clear();
+	Expressions.clear();
+	GlobalNumerators.clear();
+	GlobalDenominators.clear();
+	GlobalOperators.clear();
+	ActionsList.clear();
 
 	// se l'utente clicca su [riprova]
 	if (ErrMessage == IDRETRY) {
@@ -3786,6 +4630,83 @@ static void ClearArea(COORD WinCenter, COORD Dimensions)
 		FillConsoleOutputCharacter
 		(hConsole, L' ', 2 * Dimensions.X + 1, coord, &written);
 	}
+}
+
+// stampa una frazione di stringhe
+static void WriteFraction(wstring Num, wstring Den, COORD START)
+{
+
+	// ricerca suggerimento giusto
+	wstring command;
+	int spaces = fabs(((int)Num.size() - (int)Den.size()) / 2);
+	bool script = true;
+	if (Num.size() > 0) for (const auto& comma : commands) {
+		command = comma;
+		auto back{ command };
+		if (back.size() == Num.size()) continue;
+		if (back.size() > Num.size()) back.erase(Num.size());
+		if (back == Num) {
+			script = false;
+			break;
+		}
+	}
+
+	// stampa frazione algebrica
+#ifndef BUGS
+	SetConsoleCursorInfo(hConsole, &cursorInfo);
+#endif // BUGS
+	_GetCursorPos();
+	if (START.X < 0) START = csbi.dwCursorPosition;
+	_GetCursorPos();
+
+	SetConsoleCursorPosition(hConsole, START);
+	wstring S(csbi.dwSize.X - START.X, L' ');
+	wcout << S << L'\n';
+	SetConsoleCursorPosition(hConsole, START);
+
+	// caso con numeratore maggiore
+	if (Num.size() > Den.size()) {
+		if (!script) {
+			SetConsoleTextAttribute(hConsole, 6);
+			wcout << command << L'\n';
+			SetConsoleCursorPosition(hConsole, START);
+			ResetAttribute();
+		}
+
+		wcout << Num << L'\n';
+		SetConsoleCursorPosition(hConsole, { START.X, short(START.Y + 1) });
+		wcout << S << L'\n';
+		SetConsoleCursorPosition(hConsole, { START.X, short(START.Y + 1) });
+		wcout << wstring(Num.size(), L'-') << L'\n';
+
+		SetConsoleCursorPosition(hConsole, { START.X, short(START.Y + 2) });
+		wcout << S << L'\n';
+		SetConsoleCursorPosition(hConsole, { START.X, short(START.Y + 2) });
+		wcout << wstring(spaces, L' ') << Den << L'\n';
+	}
+
+	// caso con denominatore maggiore
+	else {
+		if (!script) {
+			SetConsoleTextAttribute(hConsole, 6);
+			wcout << wstring(spaces, L' ') << command << L'\n';
+			SetConsoleCursorPosition(hConsole, START);
+			ResetAttribute();
+		}
+
+		wcout << wstring(spaces, L' ') << Num << L'\n';
+		SetConsoleCursorPosition(hConsole, { START.X, short(START.Y + 1) });
+		wcout << S << L'\n';
+		SetConsoleCursorPosition(hConsole, { START.X, short(START.Y + 1) });
+		wcout << wstring(Den.size(), L'-') << L'\n';
+
+		SetConsoleCursorPosition(hConsole, { START.X, short(START.Y + 2) });
+		wcout << S << L'\n';
+		SetConsoleCursorPosition(hConsole, { START.X, short(START.Y + 2) });
+		wcout << Den << L'\n';
+	}
+
+	wcout << L'\n';
 }
 
 // stampa il poligono
@@ -4169,9 +5090,7 @@ static void GetFraction(wstring& numerator, wstring& denominator, COORD& Off)
 	numerator.clear();
 	denominator.clear();
 	wstring vel, command{ L"rnd" }, Num, Den;
-	bool script{ true }, arrow{ false }, system{ false };
-	bool IsTheCursorAtStart{ true };
-	ptrdiff_t TensorIndex{};
+	bool arrow{ false }, system{ false }, IsTheCursorAtStart{ true };
 
 	// aggiunta di spazio
 	wstring Ncopy{ L"0" }, Dcopy;
@@ -4202,10 +5121,6 @@ static void GetFraction(wstring& numerator, wstring& denominator, COORD& Off)
 			SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
 
 			if (denominator.empty()) denominator = L"1";
-			if (numerator != Ncopy and denominator != Dcopy) {
-				FractionNumerators << numerator;
-				FractionDenominators << denominator;
-			}
 			ret;
 		}
 
@@ -4248,10 +5163,6 @@ static void GetFraction(wstring& numerator, wstring& denominator, COORD& Off)
 				START.Y += 4;
 				SetConsoleCursorPosition(hConsole, START);
 				if (denominator.empty()) denominator = L"1";
-				if (numerator != Ncopy and denominator != Dcopy) {
-					FractionNumerators << numerator;
-					FractionDenominators << denominator;
-				}
 				ret;
 
 				// L'\b' cancella indietro
@@ -4279,26 +5190,6 @@ static void GetFraction(wstring& numerator, wstring& denominator, COORD& Off)
 
 			default: vel = IsTheCursorAtStart ? numerator : denominator;
 				wstring E_Vel = IsTheCursorAtStart ? Num : Den;
-				
-				// suggerimenti
-				if (system and c == 59) { // F1
-					if (FractionNumerators.empty()) break;
-					TensorIndex++;
-					if (TensorIndex >= FractionNumerators) TensorIndex = 0;
-					Ncopy = numerator = FractionNumerators[TensorIndex];
-					Dcopy = denominator = FractionDenominators[TensorIndex];
-					break;
-				}
-				if (system and c == 60) { // F2
-					if (FractionNumerators.empty()) break;
-					TensorIndex--;
-					if (TensorIndex < 0)
-						TensorIndex = FractionNumerators.size() - 1;
-					Ncopy = numerator = FractionNumerators[TensorIndex];
-					Dcopy = denominator = FractionDenominators[TensorIndex];
-					break;
-				}
-				else if (system) break;
 
 				// aggiunta carattere
 				if (!arrow) {
@@ -4383,72 +5274,9 @@ static void GetFraction(wstring& numerator, wstring& denominator, COORD& Off)
 				else denominator = Den;
 			}
 
-			// ricerca suggerimento giusto
-			int spaces = fabs(((int)Num.size() - (int)Den.size()) / 2);
-			script = true;
-			if (Num.size() > 0) for (const auto& comma : commands) {
-				command = comma;
-				auto back{ command };
-				if (back.size() == Num.size()) continue;
-				if (back.size() > Num.size()) back.erase(Num.size());
-				if (back == Num) {
-					script = false;
-					break;
-				}
-			}
-
 			// stampa frazione algebrica
-	#ifndef BUGS
-			SetConsoleCursorInfo(hConsole, &cursorInfo);
-	#endif // BUGS
-			SetConsoleCursorPosition(hConsole, START);
-			_GetCursorPos();
-			wstring S(csbi.dwSize.X - START.X, L' ');
-			S += L'\n';
-			wcout << S;
-			SetConsoleCursorPosition(hConsole, START);
-			
-			// caso con numeratore maggiore
-			if (Num.size() > Den.size()) {
-				if (!script) {
-					SetConsoleTextAttribute(hConsole, 6);
-					wcout << command;
-					SetConsoleCursorPosition(hConsole, START);
-					ResetAttribute();
-				}
-				
-				wcout << Num;
-				SetConsoleCursorPosition(hConsole, { START.X, short(START.Y + 1) });
-				wcout << S;
-				SetConsoleCursorPosition(hConsole, { START.X, short(START.Y + 1) });
-				wcout << wstring(Num.size(), L'-');
-
-				SetConsoleCursorPosition(hConsole, { START.X, short(START.Y + 2) });
-				wcout << S;
-				SetConsoleCursorPosition(hConsole, { START.X, short(START.Y + 2) });
-				wcout << wstring(spaces, L' ') << Den;
-			}
-
-			// caso con denominatore maggiore
-			else {
-				if (!script) {
-					SetConsoleTextAttribute(hConsole, 6);
-					wcout << wstring(spaces, L' ') << command;
-					SetConsoleCursorPosition(hConsole, START);
-					ResetAttribute();
-				}
-
-				wcout << wstring(spaces, L' ') << Num;
-				SetConsoleCursorPosition(hConsole, { START.X, short(START.Y + 1) });
-				wcout << S;
-				SetConsoleCursorPosition(hConsole, { START.X, short(START.Y + 1) });
-				wcout << wstring(Den.size(), L'-');
-				
-				SetConsoleCursorPosition(hConsole, { START.X, short(START.Y + 2) });
-				wcout << S;
-				SetConsoleCursorPosition(hConsole, { START.X, short(START.Y + 2) });
-				wcout << Den;
-			}
+			WriteFraction(Num, Den, START);
+			int spaces = fabs(((int)Num.size() - (int)Den.size()) / 2);
 
 			// reset riga
 			if (c == L'H') IsTheCursorAtStart = true;
@@ -4469,6 +5297,7 @@ static void GetFraction(wstring& numerator, wstring& denominator, COORD& Off)
 				if (Num.size() > Den.size()) startPos.X += spaces;
 				startPos.Y += 2;
 			}
+
 			SetConsoleCursorPosition(hConsole, startPos);
 			SetConsoleCursorInfo(hConsole, &cursor);
 		}
@@ -4481,18 +5310,21 @@ static void GetFraction(wstring& numerator, wstring& denominator, COORD& Off)
 }
 
 // inputa una frazione tramite interfaccia avanzata
-static Fraction<> GetFractionAdvanced(wstring& errcode)
+static Fraction<> GetFractionAdvanced(wstring& errcode, int& BoolData)
 {
 
 	// inizio
-	bool start{ true };
+	BoolData = 0;
+	bool start{ true }, copied{ false }, pasting{ false };
 	_GetCursorPos();
-	const wstring OperatorsAllowed{ L"(+-*/=)" };
+	const wstring OperatorsAllowed{ L"(+-*/=)\\" };
 	COORD START{ csbi.dwCursorPosition };
 	SetConsoleCursorPosition(
 		hConsole, { csbi.dwCursorPosition.X, short(START.Y + 1) }
 	);
 
+	short linetracker{};
+	size_t TensorIndex{}, LocalIndex{};
 	tensor<short> actions{ 0 };
 	tensor<wstring> Numerators, Denominators, Operators{ L"" };
 	for (;;) if (_kbhit() or
@@ -4501,18 +5333,104 @@ static Fraction<> GetFractionAdvanced(wstring& errcode)
 	{
 		wstring num_, den_;
 
+		// output operatore
+		if (pasting) {
+			wcout << GlobalOperators[TensorIndex][LocalIndex];
+
+			// termine scrittura suggerimento
+			if (LocalIndex > GlobalNumerators[TensorIndex].size() - 1) {
+
+				// aggiornamento dati locali
+				Numerators = GlobalNumerators[TensorIndex];
+				Denominators = GlobalDenominators[TensorIndex];
+				Operators = GlobalOperators[TensorIndex];
+				actions = ActionsList[TensorIndex];
+				copied = true;
+				pasting = false;
+				
+				// aggiunta di uno spazio
+				_GetCursorPos();
+				SetConsoleCursorPosition(
+					hConsole,
+					{ short(csbi.dwCursorPosition.X + 1), csbi.dwCursorPosition.Y }
+				);
+
+				continue;
+			}
+		}
+
 		// input operatore
-		if (_kbhit() and !start) {
-			char c = _getch();
+		else if (_kbhit()) {
+
+			// lettura carattere senza consumarlo
+			bool suggest{ false };
+			char c;
+			INPUT_RECORD inptrc;
+			DWORD eventf;
+			for (;;) {
+				PeekConsoleInput(hConsoleInput, &inptrc, 1, &eventf);
+				if (inptrc.EventType == KEY_EVENT
+					and inptrc.Event.KeyEvent.bKeyDown)
+				{
+					c = inptrc.Event.KeyEvent.uChar.UnicodeChar;
+
+					// pressione di F1
+					if (inptrc.Event.KeyEvent.wVirtualKeyCode == VK_F1) {
+						if (TensorIndex > 0) TensorIndex--;
+						else TensorIndex = GlobalOperators.size() - 1;
+						suggest = true;
+						break;
+					}
+
+					// pressione di F2
+					if (inptrc.Event.KeyEvent.wVirtualKeyCode == VK_F2) {
+						if (TensorIndex < GlobalOperators.size() - 1) TensorIndex++;
+						else TensorIndex = 0;
+						suggest = true;
+						break;
+					}
+
+					if (c != 0) break;
+				}
+				ReadConsoleInput(hConsoleInput, &inptrc, 1, &eventf);
+			}
+
+			// aggiornamento dati con i suggerimenti
+			if (suggest) {
+
+				// pulizia iniziale
+				wstring S(csbi.dwCursorPosition.X, L' ');
+				SetConsoleCursorPosition(hConsole, { 0, START.Y });
+				wcout << S;
+				SetConsoleCursorPosition(hConsole, { 0, short(START.Y + 1) });
+				wcout << S;
+				SetConsoleCursorPosition(hConsole, { 0, short(START.Y + 2) });
+				wcout << S;
+				SetConsoleCursorPosition(hConsole, { 0, short(START.Y + 1) });
+
+				c = _getch();
+				linetracker = LocalIndex = 0;
+				pasting = true;
+				continue;
+			}
 
 			// termine programma
-			if (c == L'.') break;
-
+			if (c == L'.') {
+				c = _getch();
+				errcode = L"_";
+				ret Fraction<>{};
+			}
+			
 			// termine input
-			if (c == L'\r') break;
+			if (c == L'\r' and !start) {
+				c = _getch();
+				break;
+			}
 
 			// pulizia
-			if (c == L'\b') {
+			if (c == L'\b' and !start) {
+				copied = false;
+				c = _getch();
 
 				// dati e variabili
 				_GetCursorPos();
@@ -4527,7 +5445,7 @@ static Fraction<> GetFractionAdvanced(wstring& errcode)
 
 				// sovrascrittura
 				auto Cursor{ actions.last() };
-				wstring S(csbi.dwCursorPosition.X - Cursor, L' ');
+				wstring S(csbi.dwCursorPosition.X - Cursor + 1, L' ');
 				SetConsoleCursorPosition(hConsole, { Cursor, START.Y });
 				wcout << S;
 				SetConsoleCursorPosition(hConsole, { Cursor, short(START.Y + 1) });
@@ -4539,26 +5457,52 @@ static Fraction<> GetFractionAdvanced(wstring& errcode)
 			}
 
 			// scrittura
-			if (OperatorsAllowed.find(c) == wstring::npos) continue;
-			Operators.last() += c;
-			wcout << c;
+			copied = false;
+			if (OperatorsAllowed.find(c) != wstring::npos) {
+				c = _getch();
+				Operators.last() += c;
+				wcout << c;
 
-			_GetCursorPos();
-			actions << csbi.dwCursorPosition.X;
-			continue;
+				_GetCursorPos();
+				actions << csbi.dwCursorPosition.X;
+				continue;
+			}
 		}
 		start = false;
+		copied = false;
 
-		// frazione
+		// blocco
 		_GetCursorPos();
 		while (
 			GetAsyncKeyState(VK_CONTROL) & 0x8000 and
 			GetAsyncKeyState(VK_MENU) & 0x8000
-			);
+		);
 		SetConsoleCursorPosition(
 			hConsole, { short(csbi.dwCursorPosition.X + 1), START.Y }
 		);
-		GetFraction(num_, den_, START);
+
+		if (pasting) {
+			
+			// output della frazione
+			WriteFraction(
+				GlobalNumerators[TensorIndex][LocalIndex],
+				GlobalDenominators[TensorIndex][LocalIndex]
+			);
+
+			// aggiornamento
+			linetracker += max(
+				GlobalNumerators[TensorIndex][LocalIndex].size(),
+				GlobalDenominators[TensorIndex][LocalIndex].size()
+			) + 1;
+			LocalIndex++;
+
+			// riposizionamento cursore sulla posizione iniziale
+			SetConsoleCursorPosition(hConsole, { linetracker, short(START.Y + 1) });
+			continue;
+		}
+
+		// input della frazione
+		else GetFraction(num_, den_, START);
 		
 		// uscita
 		if (num_ == L".") {
@@ -4575,11 +5519,13 @@ static Fraction<> GetFractionAdvanced(wstring& errcode)
 		// esponenti con gli apici
 		if (num_ == L"boolalpha")
 		{
+			BoolData = CHANGEDVALUE | BOOLALPHACHANGED;
 			BOOLALPHA = true;
 			continue;
 		}
 		if (num_ == L"noboolalpha")
 		{
+			BoolData = CHANGEDVALUE;
 			BOOLALPHA = false;
 			continue;
 		}
@@ -4597,6 +5543,36 @@ static Fraction<> GetFractionAdvanced(wstring& errcode)
 			hConsole, { csbi.dwCursorPosition.X, short(START.Y + 1) }
 		);
 		if (csbi.dwCursorPosition.Y > START.Y + 2) break;
+	}
+
+	// salvataggio dati
+	if (!copied) {
+		GlobalNumerators << Numerators;
+		GlobalDenominators << Denominators;
+		GlobalOperators << Operators;
+		ActionsList << actions;
+	}
+
+	// eliminazione comandi
+	for (size_t i = 0; i < Numerators; ++i)
+		if (Numerators[i] == L"boolalpha" or Numerators[i] == L"noboolalpha")
+		{
+			Numerators.erase(Numerators.begin() + i);
+			Denominators.erase(Denominators.begin() + i);
+			Operators[i] += Operators[i + 1];
+			Operators.erase(Operators.begin() + i + 1);
+		}
+
+	// controllo caratteri di escape
+	if (!Operators.empty()) if (!Operators[0].empty())
+		if (Operators[0].at(0) == L'\\')
+		{
+			BoolData += 4;
+			Operators[0].erase(0, 1);
+		}
+	for (const auto& op : Operators) if (op.find(L'\\') != wstring::npos) {
+		errcode = L"E' ammesso un carattere di escape solo all'inizio";
+		ret Fraction<>{};
 	}
 
 	// calcolo variabili
@@ -4655,7 +5631,7 @@ static Fraction<> GetFractionAdvanced(wstring& errcode)
 			ret Fraction{};
 		}
 
-		if (Fract.den.empty()) {
+		if (Fract.den[0][0].coefficient == 0) {
 			errcode = L"Il denominatore non può essere nullo";
 			ret Fraction<>{};
 		}
@@ -5541,6 +6517,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 
 			// reset
 		case 'R':
+			enable = false;
 			Zoom = 1;
 			shiftX = 0;
 			shiftY = 0;
@@ -5805,7 +6782,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 				if (Y > 0 and Y <= client.bottom and X > 0 and X <= client.right)
 				{
 					write = true;
-					enable = true;
+					Enable = true;
 					Xcoord << X;
 					Ycoord << Y;
 				}
@@ -10004,19 +10981,25 @@ static tensor<tensor<long double>> SystemSolver(tensor<factor<>> functions)
 		for (const auto& det : dets) solutions[0] << det / D;
 		ret solutions;
 	}
-
-	// calcolo dello jacobiano inverso
-	Matrix<factor<>> Jacobian(Variables.size());
+	
+	// calcolo variabili iniziali
+	tensor<Fraction<>> NewFunctions;
+	for (const auto& funct : functions) NewFunctions << Fraction<>({ funct });
+	tensor<tensor<long double>> solutions;
+	tensor<long double> StarterPoint;
 	for (size_t i = 0; i < Variables.size(); ++i)
-		for (size_t j = 0; j < Variables.size(); ++j)
-			Jacobian[i] << functions[i].derivate(j);
+		StarterPoint << pow(5, 1.0 / (i + 2));
 
 	// calcolo di ogni coppia ordinata
-	tensor<tensor<long double>> solutions;
-	tensor<long double> StarterPoint(Variables.size(), 0.5);
 	for (int i = 0; i < 100 and solutions < degree; ++i) {
 
+		// calcolo dello jacobiano
+		Matrix<Fraction<>> Jacobian(Variables.size());
+		for (size_t i = 0; i < Variables.size(); ++i)
+			for (size_t j = 0; j < Variables.size(); ++j)
+				Jacobian[i] << NewFunctions[i].derivate(j);
 		auto solution{ StarterPoint };
+
 		for (int j = 0; j < 100; ++j) {
 			
 			// valutazione dello jacobiano nel punto
@@ -10033,7 +11016,7 @@ static tensor<tensor<long double>> SystemSolver(tensor<factor<>> functions)
 			// aggiornamento punto
 			tensor<long double> vect;
 			for (size_t k = 0; k < Variables.size(); ++k)
-				vect << functions[k](solution);
+				vect << NewFunctions[k](solution);
 			tensor<long double> updater{ JInvpoint * vect };
 			for (size_t k = 0; k < Variables.size(); ++k)
 				solution[k] -= updater[k];
@@ -10063,7 +11046,17 @@ static tensor<tensor<long double>> SystemSolver(tensor<factor<>> functions)
 		}
 		if (!present) solutions << solution;
 
-
+		// rimozione soluzione dalle funzioni
+		factor<> remover;
+		for (size_t j = 0; j < Variables.size(); ++j) {
+			tensor<int> exponent(Variables.size(), 0);
+			remover << monomial<>{ solution[j] * solution[j], exponent };
+			exponent[j] = 1;
+			remover << monomial<>{ -2 * solution[j], exponent };
+			exponent[j] = 2;
+			remover << monomial<>{ 1, exponent };
+		}
+		for (auto& newfunct : NewFunctions) newfunct.den[0] *= remover;
 	}
 
 	ret solutions;
@@ -10209,10 +11202,9 @@ static ConsoleStream GetAlgebricSolution(
 			}
 		}
 	}
-	if (roots.empty())
-		ret InitialSign == ExpectedSign ?
-			ConsoleStream{ Console(L"per ogni x appartenente a R", 11) } :
-			ConsoleStream{ Console(L"per nessun x", 11) };
+	if (roots.empty()) ret InitialSign == ExpectedSign ?
+		ConsoleStream{ Console(L"per ogni x appartenente a R", 11) } :
+		ConsoleStream{ Console(L"per nessun x", 11) };
 
 	// parte iniziale
 	if (condition) {
@@ -10358,7 +11350,7 @@ static void ParamDisequationMain(
 	if (Unisize > 1) for (int first = 0; first < TableOfMains; ++first)
 		for (int second = first + 1; second < TableOfMains; ++second)
 			TableOfMains[first][second] =
-			(tops[first] * bottoms[second]) - (tops[second] * bottoms[first]);
+				tops[first] * bottoms[second] - tops[second] * bottoms[first];
 	if (FirstTable == TableOfMains) Unisize = 1;
 
 	// calcolo radici
@@ -10367,27 +11359,32 @@ static void ParamDisequationMain(
 		RootSet += RootExtractor({ S });
 	RootSet += AdditionalRoots;
 
-	// ordinamento radici
-	long double RepeatedValue{ RootSet.last() };
-	for (size_t i = 0; i < RootSet; ++i)
-		for (size_t j = i + 1; j < RootSet; ++j)
-			if (RootSet[i] > RootSet[j])
-				swap(RootSet[i], RootSet[j]);
+	if (!RootSet.empty()) {
 
-	// rimozione duplicati
-	for (ptrdiff_t i = RootSet.size() - 2; i >= 0; --i) {
-		if (RootSet[i] == RepeatedValue) {
-			RootSet.erase(RootSet.begin() + i);
-			continue;
+		// ordinamento radici
+		long double RepeatedValue{ RootSet.last() };
+		for (size_t i = 0; i < RootSet; ++i)
+			for (size_t j = i + 1; j < RootSet; ++j)
+				if (RootSet[i] > RootSet[j])
+					swap(RootSet[i], RootSet[j]);
+
+		// rimozione duplicati
+		for (ptrdiff_t i = RootSet.size() - 2; i >= 0; --i) {
+			if (RootSet[i] == RepeatedValue) {
+				RootSet.erase(RootSet.begin() + i);
+				continue;
+			}
+			RepeatedValue = RootSet[i];
 		}
-		RepeatedValue = RootSet[i];
-	}
 
-	// calcolo intervalli
-	RootExamples << RootSet[0] - 1;
-	for (ptrdiff_t i = 0; i < RootSet.size() - 1; ++i)
-		RootExamples << (RootSet[i] + RootSet[i + 1]) / 2.0;
-	RootExamples << RootSet.last() + 1;
+		// calcolo intervalli
+		RootExamples << RootSet[0] - 1;
+		for (ptrdiff_t i = 0; i < RootSet.size() - 1; ++i)
+			RootExamples << (RootSet[i] + RootSet[i + 1]) / 2.0;
+		RootExamples << RootSet.last() + 1;
+
+	}
+	else RootExamples = { 0 };
 
 	// calcolo valori
 	for (size_t i = 0; i < Un; ++i) {
@@ -10697,8 +11694,7 @@ static ConsoleStream DisequationSolutionPrinter(
 	// calcolo dei dati indipendenti dai segni
 	size_t Unisize;
 	tensor<tensor<factor<>>> TableOfMains;
-	tensor<long double> RootSet;
-	tensor<long double> RootExamples;
+	tensor<long double> RootSet, RootExamples;
 	tensor<wstring> vals;
 	ParamDisequationMain(
 		Un,
@@ -10718,23 +11714,37 @@ static ConsoleStream DisequationSolutionPrinter(
 		bool positive = i / 2;
 		if (PrintCondition) Output << dir[i] << Console(L"\n\n");
 
-		Output += GetParametricSolution(
-			parameter,
-			Unisize,
-			Vpos,
-			InitialSign,
-			(positive xor InvertSign) xor ChangeSign,
-			i % 2 == 1,
-			TermsFromDenominator,
-			Num,
-			Den,
-			Parametric,
-			tops,
-			bottoms,
-			TableOfMains,
-			RootSet,
-			RootExamples,
-			vals
+		Output += (
+			RootSet.empty() ?
+
+			// nessuno zero trovato
+			GetAlgebricSolution(
+				vals,
+				TermsFromDenominator,
+				InitialSign,
+				(positive xor InvertSign) xor ChangeSign,
+				i % 2 == 1
+			) + ConsoleStream{ Console(L"\n") } :
+			
+			// caso comune
+			GetParametricSolution(
+				parameter,
+				Unisize,
+				Vpos,
+				InitialSign,
+				(positive xor InvertSign) xor ChangeSign,
+				i % 2 == 1,
+				TermsFromDenominator,
+				Num,
+				Den,
+				Parametric,
+				tops,
+				bottoms,
+				TableOfMains,
+				RootSet,
+				RootExamples,
+				vals
+			)
 		);
 
 		if (PrintCondition) Output << Console(L"\n");
@@ -11510,7 +12520,12 @@ static void SystemSolverGeneral(switchcase& argc)
 		}
 		startover = false;
 		wstring err;
-		Fraction<> it{ GetFractionAdvanced(err) };
+		int data;
+		Fraction<> it{ GetFractionAdvanced(err, data) };
+
+		// messaggi di boolalpha
+		if ((data | CHANGEDVALUE) != data)
+			wcout << (data % 2 ? L"boolalpha\n" : L"noboolalpha\n");
 
 		// messaggio di errore
 		if (it == Fraction<>{} and !err.empty()) {
@@ -11574,6 +12589,12 @@ static void SystemSolverGeneral(switchcase& argc)
 					if (solutions[i] == solutions[j])
 						solutions.erase(solutions.begin() + i);
 
+			// rimozione delle singolarità
+			for (ptrdiff_t i = solutions.size() - 1; i >= 0; --i)
+				for (const auto& fract : Fractions)
+					if (fract.den[0]({ solutions[i] }) < 1e-05)
+						solutions.erase(solutions.begin() + i);
+
 			// output
 			SetConsoleTextAttribute(hConsole, 11);
 			wcout << L"Le soluzioni sono " << solutions.str() << L'\n';
@@ -11594,7 +12615,27 @@ static void SystemSolverGeneral(switchcase& argc)
 				equations.begin() + Variables.size()
 			)) };
 			SetConsoleTextAttribute(hConsole, 11);
+
+			// sistema indeterminato
+			if (isnan(solutions[0][0])) {
+				wcout << L"Il sistema è indeterminato\a\n";
+				ResetAttribute();
+
+				Fractions.clear();
+				equations.clear();
+				startover = true;
+				continue;
+			}
 			
+			// rimozione delle singolarità
+			for (ptrdiff_t i = solutions.size() - 1; i >= 0; --i) {
+				if (solutions[i].empty()) continue;
+
+				for (const auto& fract : Fractions)
+					if (fract.den[0](solutions[i]) < 1e-05)
+						solutions.erase(solutions.begin() + i);
+			}
+
 			// errore
 			if (solutions.empty()) {
 				wcout << L"Non sono state trovate soluzioni utilizzando";
@@ -11610,17 +12651,6 @@ static void SystemSolverGeneral(switchcase& argc)
 			// sistema impossibile
 			if (solutions[0].empty()) {
 				wcout << L"Il sistema è impossibile\a\n";
-				ResetAttribute();
-
-				Fractions.clear();
-				equations.clear();
-				startover = true;
-				continue;
-			}
-
-			// sistema indeterminato
-			if (isnan(solutions[0][0])) {
-				wcout << L"Il sistema è indeterminato\a\n";
 				ResetAttribute();
 
 				Fractions.clear();
@@ -11922,7 +12952,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, Type Polynomial)
 	// istruzioni
 	if constexpr (CheckSafe) if (input)
 	{
-		wcout << L"Il PROGRAMMA scompone e disegna il grafico dei polinomi\n\n";
+		wcout << L"Il PROGRAMMA scompone i polinomi e ne disegna il grafico\n\n";
 		SetConsoleTextAttribute(hConsole, 12);
 		wcout << L"Per attivare gli esponenti in forma di apice ";
 		wcout << L"scrivere noboolalpha\n";
@@ -12046,12 +13076,12 @@ static polynomial<> DecompPolynomial(switchcase& argc, Type Polynomial)
 					wcout << L'\n';
 					continue;
 				}
-				else ret{};
+				else ret {};
 			}
 
 			// se sono presenti dei coefficienti complessi
 			if (Variables.find(L'i') != wstring::npos) {
-				if (!input) ret{};
+				if (!input) ret {};
 
 				SetConsoleTextAttribute(hConsole, 2);
 				wcout << L"Questo è il polinomio: ";
@@ -12328,7 +13358,7 @@ static void DecompFraction(switchcase& argc)
 	// istruzioni
 	SetConsoleTextAttribute(hConsole, 14);
 	wcout << L"Il PROGRAMMA scompone, semplifica, esegue lo studio del segno\n";
-	wcout << L"e disegna il grafico delle frazioni algebriche\n";
+	wcout << L"e disegna il grafico delle frazioni algebriche\n\n";
 	SetConsoleTextAttribute(hConsole, 12);
 	wcout << L"Nel grafico è possibile premere il tasto X per eliminare\n";
 	wcout << L"la funzione oppure il tasto D per calcolare la sua derivata\n\n";
@@ -12341,92 +13371,61 @@ static void DecompFraction(switchcase& argc)
 
 	for (;;)
 	{
-		// input della frazione algebrica
-		wstring numerator, denominator;
-		bool No1{ false }, No2{ false }, skip{ false }, draw{ false };
 	insert:
-		do {
-			draw = false;
+		bool skip{ false }, draw{ false };
+		while (GetAsyncKeyState(VK_SHIFT) & 0x8000 or
+			GetAsyncKeyState(VK_RETURN) & 0x8000);
 
-			// input
-			SetConsoleTextAttribute(hConsole, 7);
-			bool wrong{ true };
-			wcout << L"\nInserisci una frazione algebrica (0 = fine input)\n\n";
-			ResetAttribute();
-			COORD N;
-			GetFraction(numerator, denominator, N);
-			if (numerator.empty()) numerator = L"0";
-			if (denominator.empty()) denominator = L"1";
-			if (numerator.at(0) == L'\\') {
-				numerator.erase(0, 1);
-				draw = true;
+		// input frazione
+		if (!RunMonitor) goto RETURN;
+		ResetAttribute();
+		Variables = L"x";
+		wcout << L"\nInserisci una frazione algebrica (0 = fine input)\n\n";
+		wstring err;
+		int data;
+		Fraction<> it{ GetFractionAdvanced(err, data) };
+
+		// controllo dati aggiuntivi
+		if ((data | CHANGEDVALUE) == data)
+			wcout << (data % 2 ? L"boolalpha\n" : L"noboolalpha\n");
+		if ((data | GRAPHED) == data) draw = true;
+
+		// messaggio di errore
+		if (it == Fraction<>{} and !err.empty()) {
+
+			// uscita
+			argc = ConvertWStringToEnum(err);
+			if (argc != NotAssigned) {
+				system("cls");
+				SetConsoleTitle(err.c_str());
+				goto RETURN;
 			}
 
-			if (numerator == L".") {
+			// termine programma
+			if (err == L"_") {
 				argc = Random;
 				goto RETURN;
 			}
-			argc = ConvertWStringToEnum(numerator);
-			ReassigneEnum(argc);
-			if (argc != NotAssigned) {
-				system("cls");
-				SetConsoleTitle(numerator.c_str());
-				goto RETURN;
-			}
 
-			// esponenti con gli apici
-			if (numerator == L"noboolalpha")
-			{
-				BOOLALPHA = true;
-				wrong = false;
-			}
-			if (numerator == L"boolalpha")
-			{
-				BOOLALPHA = false;
-				wrong = false;
-			}
-			if (!wrong) wcout << numerator << L'\n';
+			SetConsoleTextAttribute(hConsole, 4);
+			wcout << L"\n\n" << err << L"!!\n";
+			ResetAttribute();
+			continue;
+		}
 
-			// controllo
-			No1 = !PolynomialSyntaxDirector(numerator).empty();
-			No2 = !PolynomialSyntaxDirector(denominator).empty()
-				or denominator == L"0";
-
-			// messaggi di errore
-			if (numerator == L"0") break;
-			if ((No1 or No2) and wrong) {
-				SetConsoleTextAttribute(hConsole, 4);
-				wcout << L"Quella non è una frazione algebrica\n\a";
-				ResetAttribute();
-			}
-
-			// denominatore nullo
-			if (!No1 and !No2) if (GetMonomialsAssister(denominator)
-				== polynomial<big>{ {} })
-			{
-				No2 = true;
-				SetConsoleTextAttribute(hConsole, 4);
-				wcout << L"Il denominatore non può essere nullo\n\a";
-				ResetAttribute();
-			}
-
-			// numeratore nullo
-			if (!No1 and !No2 and numerator != L"0")
-				if (GetMonomialsAssister(numerator)
-					== polynomial<big>{ {} }) numerator = L"0";
-
-		} while (No1 or No2);
-		if (numerator == L"0") break;
+		// uscita
+		if (!it.num.empty()) if (!it.num[0].empty())
+			if (it.num[0][0].coefficient == 0) break;
 
 		// scomposizione polinomi
 		CORRECTION_RATIO = 1;
 		Fraction<> fraction;
-		fraction.num = DecompPolynomial(usefree, numerator);
+		fraction.num = DecompPolynomial(usefree, it.num);
 
 		// denominatori aggiuntivi
 		big DenMultiplier = LCM;
 		auto savx{ Variables };
-		fraction.den = DecompPolynomial(usefree, denominator);
+		fraction.den = DecompPolynomial(usefree, it.den);
 		big NumMultiplier = LCM, GCD{ Gcd(NumMultiplier, DenMultiplier) };
 		NumMultiplier /= GCD;
 		DenMultiplier /= GCD;
@@ -12637,8 +13636,7 @@ static void DecompFraction(switchcase& argc)
 		// output del segno della frazione
 		auto DiseqSol{
 			DisequationSolutionPrinter(
-				fraction.num, fraction.den,
-				15, NCOEFF < 0 or DCOEFF < 0
+				fraction.num, fraction.den, 15, NCOEFF < 0 or DCOEFF < 0
 			)
 		};
 		if (!DiseqSol.empty()) wcout << L'\n' << DiseqSol << L'\n';
@@ -13018,31 +14016,22 @@ RETURN:
 
 /*	LAVORO DA FARE
 	
-	aggiunta denominatori al risolutore di sistemi
-	
-	debug matrici
-	debug messaggi di testo
 	debug systemsolver
-	debug delle disequazioni (specialmente se con tre o più termini)
+	debug generale
 	
-	algoritmo di FFT
+	ottimizzazione generica O(n^2) --> O(n*log(n))
 	
 	aggiunta valori sui tratti degli assi e frecce
 	
-	nel grafico:
-		intersezione tra due rette
-		retta dato il coefficiente angolare e il punto
-		distanza punto-retta
-		distanza tra due rette
-		area triangolo
+	upgrade generico del grafico
 	
 	polinomi a coefficienti complessi
 	
-	operazioni ricorsive polinomiali infinite
-	
-	radicali e operazioni con i radicali
-	
 LAVORO MOLTO DIFFICILE
+	
+	operazioni ricorsive polinomiali infinite
+	radicali e operazioni con i radicali
+
 	trasparenza e linee tratteggiate
 	effetti per il colore
 	calcolo sulla GPU
