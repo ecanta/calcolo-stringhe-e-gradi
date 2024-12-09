@@ -367,19 +367,19 @@ namespace std_tensor
 		}
 
 		// operatori di confronto tra tensori
-		_NODISCARD inline bool operator<(const tensor& other) const
+		_NODISCARD virtual inline bool operator<(const tensor& other) const
 		{
 			ret count < other.count;
 		}
-		_NODISCARD inline bool operator<=(const tensor& other) const
+		_NODISCARD virtual inline bool operator<=(const tensor& other) const
 		{
 			ret count <= other.count;
 		}
-		_NODISCARD inline bool operator>(const tensor& other) const
+		_NODISCARD virtual inline bool operator>(const tensor& other) const
 		{
 			ret count > other.count;
 		}
-		_NODISCARD inline bool operator>=(const tensor& other) const
+		_NODISCARD virtual inline bool operator>=(const tensor& other) const
 		{
 			ret count >= other.count;
 		}

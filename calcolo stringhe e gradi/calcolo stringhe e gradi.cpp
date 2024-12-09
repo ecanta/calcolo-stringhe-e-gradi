@@ -13,7 +13,7 @@
 #define IMPROVE __pragma(optimize("on" , on ))
 
 // macro di definizione
-#define BUGS
+///#define BUGS
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #define _USE_MATH_DEFINES
@@ -1944,6 +1944,9 @@ FACTOR<T_int>::operator*=(const FACTOR& other)
 	ret *this;
 }
 
+// frazioni
+template<typename T> T ObjectOperations
+(wstring& errcode, tensor<T> list, tensor<wstring> ops, wstring disposition = L"");
 template<class T = long double>class Fraction
 {
 public:
@@ -2093,7 +2096,402 @@ public:
 		ret output;
 	}
 };
+class key : public tensor<int>
+{
+public:
+	using tensor<int>::tensor;
 
+	key(tensor<int> val)
+	{
+		this->count = 0;
+		for (const auto& el : val) *this << el;
+	}
+
+	// nuovi operatori di confronto
+	_NODISCARD inline bool operator<(const tensor& other) const override
+	{
+		// base
+		if (*this == other)
+		{
+			ret false;
+		}
+
+		// iterazione
+		auto min_size{ min(this->size(), other.size()) };
+		for (size_t i = 0; i < min_size; ++i)
+		{
+			if ((*this)[i] == other[i]) continue;
+			if ((*this)[i] < other[i]) ret true;
+			if ((*this)[i] > other[i]) ret false;
+		}
+
+		// eccezione
+		ret this->size() < other.size();
+	}
+	_NODISCARD inline bool operator<=(const tensor& other) const override
+	{
+		ret *this < other or *this == other;
+	}
+	_NODISCARD inline bool operator>(const tensor& other) const override
+	{
+		ret !(*this < other) and *this != other;
+	}
+	_NODISCARD inline bool operator>=(const tensor& other) const override
+	{
+		ret !(*this < other);
+	}
+};
+class Expression
+{
+private:
+	_STD map<key, wstring> terms, operators;
+	tensor<key> lines;
+
+	_STD map<key, COORD> dimensions, positions;
+
+public:
+	Expression() {};
+
+	size_t depth() const
+	{
+		size_t sizemax{};
+
+		for (const auto& item : terms)
+		{
+			if (sizemax < item.first)
+			{
+				sizemax = item.first.size();
+			}
+		}
+
+		ret sizemax;
+	}
+
+	void clean()
+	{
+		tensor<key> keys, ops;
+
+		// ricerca nodi non terminali
+		for (const auto& item : terms)
+		{
+			if (terms.find(item.first + 0) != terms.end())
+			{
+				keys << item.first;
+			}
+		}
+
+		// prima eliminazione
+		for (const auto& Key : keys)
+		{
+			terms.erase(Key);
+		}
+		keys.clear();
+
+		// ricerca nodi sbagliati
+		for (const auto& line : lines)
+		{
+			for (
+				int last = 2;
+				operators.find(line + last) != operators.end();
+				++last
+				)
+			{
+				auto Tensor{ line + last };
+				if (terms.find(Tensor) != terms.end())
+				{
+					keys << Tensor;
+				}
+				ops << Tensor;
+			}
+		}
+
+		// seconda eliminazione
+		for (const auto& Key : keys)
+		{
+			terms.erase(Key);
+		}
+		for (const auto& op : ops)
+		{
+			operators.erase(op);
+		}
+	}
+
+	tensor<key> underbranch(key node) const
+	{
+		tensor<key> output;
+		if (operators.find(node) == operators.end())
+		{
+			ret {};
+		}
+
+		for (
+			int last = 0;
+			operators.find(node + last) != operators.end();
+			++last
+			)
+		{
+			output << node + last;
+		}
+		ret output;
+	}
+	
+	void add(key where, wstring what, wstring op = L"+")
+	{
+		// calcolo nodo superiore
+		auto New{ where };
+		if (!New.empty())
+		{
+			New.last() > 0 ? New.last()-- : New--;
+		}
+
+		// oggetto vuoto
+		if (terms.empty() and New.empty())
+		{
+			terms[{}] = what;
+			if (op == L"f")
+			{
+				lines << key();
+			}
+			else
+			{
+				operators[{}] = op;
+			}
+			ret;
+		}
+
+		// aggiunta nodi intermedi
+		auto node{ where };
+		do
+		{
+			node.last() > 0 ? node.last()-- : node--;
+			if (operators.find(node) == operators.end())
+			{
+				operators[node] = L"+";
+			}
+		}
+		while (!node.empty());
+
+		// correzione operatore quando ci sono le frazioni
+		if (op == L"f")
+		{
+			auto _new{ where };
+			_new--;
+			operators[_new] = L"f";
+			operators[_new + 0] = L"+";
+			operators[_new + 1] = L"+";
+		}
+		
+		// push
+		terms[where] = what;
+		if (op == L"f")
+		{
+			where--;
+			lines << where;
+		}
+		else
+		{
+			operators[where] = op;
+		}
+
+		clean();
+	}
+
+	COORD GetExtension(key node = {})
+	{
+		// fine ricorsione
+		if (terms.find(node) != terms.end())
+		{
+			ret dimensions[node] = COORD{ short(terms[node].size()), 1 };
+		}
+
+		// caso con frazione
+		bool fraction{ false };
+		for (const auto& line : lines)
+		{
+			if (line == node)
+			{
+				fraction = false;
+				break;
+			}
+		}
+		if (fraction)
+		{
+			// ricorsione
+			COORD num{ GetExtension(node + 0) }, den{ GetExtension(node + 1) };
+			COORD result{ max(num.X, den.X), short(num.Y + den.Y + 1) };
+
+			// assegnazione
+			dimensions[node] = result;
+			ret result;
+		}
+
+		// caso con operazioni di termini diversi
+		auto branch{ underbranch(node) };
+		tensor<COORD> branchcoords;
+		for (const auto& index : branch)
+		{
+			branchcoords << GetExtension(index);
+		}
+
+		// calcolo coordinate con le formule
+		COORD result{};
+		for (const auto& coord_ : branchcoords)
+		{
+			if (result.Y < coord_.Y)
+			{
+				result.Y = coord_.Y;
+			}
+		}
+		for (int i = -1; i <= branch.last().last(); ++i)
+		{
+			key Key{ node + i };
+			if (i >= 0)
+			{
+				result.X += dimensions[branch[i]].X;
+			}
+			if (operators.find(Key) != operators.end())
+			{
+				result.X += operators[Key].size() + 2;
+			}
+		}
+
+		ret result;
+	}
+
+	void out()
+	{
+		// calcolo dimensioni
+		if (dimensions.empty())
+		{
+			GetExtension();
+		}
+		if (dimensions.empty())
+		{
+			ret;
+		}
+		key node;
+		tensor<COORD> FractionLinesPos;
+		tensor<short> FractionLinesLenght;
+
+		// iterazione su ogni singolo nodo
+		positions[{}] = { 0, 0 };
+		for (;;)
+		{
+			// ottenimento dati calcolati in precedenza
+			auto directordim{ dimensions[node] };
+			auto directorpos{ positions[node] };
+
+			// caso con una frazione
+			bool fraction{ false };
+			for (const auto& index : lines)
+			{
+				if (index == node)
+				{
+					fraction = true;
+					break;
+				}
+			}
+			if (fraction)
+			{
+				// calcolo posizioni
+				positions[node + 0] = COORD{
+					short(
+						directorpos.X +
+						(directordim.X - dimensions[node + 0].X) / 2
+					),
+					directorpos.Y
+				};
+				positions[node + 1] = COORD{
+					short(
+						directorpos.X +
+						(directordim.X - dimensions[node + 1].X) / 2
+					),
+					short(directorpos.Y + dimensions[node + 0].Y + 1)
+				};
+
+				// creazione delle linee di frazione
+				FractionLinesPos << COORD{
+					directorpos.X, short(directorpos.Y + dimensions[node + 0].Y)
+				};
+				FractionLinesLenght << directordim.X;
+			}
+
+			// caso con sequenza di operazioni
+			bool start{ true };
+			auto branch{ underbranch(node) };
+			tensor<short> lenghts(branch.size()), widths(branch.size());
+			
+			// calcolo ordinate
+			for (size_t i = 0; i < branch; ++i)
+			{
+				widths[i] = (directordim.Y - dimensions[branch[i]].Y) / 2;
+			}
+
+			// calcolo ascisse a intervalli
+			for (size_t i = 0; i < branch; ++i)
+			{
+				lenghts[i] = start ? 1 : 2;
+				auto accesser{ branch[i] };
+				lenghts[i] += dimensions[accesser].X;
+				accesser.last()--;
+				lenghts[i] += operators[accesser].size();
+			}
+
+			// calcolo ascisse dirette
+			for (size_t i = 1; i < lenghts; ++i)
+			{
+				lenghts[i] += lenghts[i - 1];
+			}
+
+			// assegnazione
+			for (size_t i = 0; i < branch; ++i)
+			{
+				positions[branch[i]] = COORD{
+					short(lenghts[i] - dimensions[branch[i]].X),
+					widths[i]
+				};
+			}
+
+			// scelta nodo successivo
+			if (terms.find(node) != terms.end())
+			{
+				node.last()++;
+				continue;
+			}
+			if (operators.find(node) != operators.end())
+			{
+				node << 0;
+				continue;
+			}
+			if (node == 1)
+			{
+				break;
+			}
+			node--;
+			node.last()++;
+		}
+
+		// output linee di frazione
+		for (size_t i = 0; i < FractionLinesPos; ++i)
+		{
+			SetConsoleCursorPosition(hConsole, FractionLinesPos[i]);
+			wcout << wstring(L'-', FractionLinesLenght[i]) << L'\n';
+		}
+
+		// output stringhe
+		for (const auto& Key : operators)
+		{
+			// filtro
+			if (terms.find(Key.first) == terms.end())
+			{
+				continue;
+			}
+
+			SetConsoleCursorPosition(hConsole, positions[Key.first]);
+			wcout << terms[Key.first] << L'\n';
+		}
+	}
+};
 tensor_t PrimeNumbers;
 _STD map<int, wstring> CalculatedData;
 
@@ -2122,6 +2520,7 @@ struct Console
 		ret wos;
 	}
 };
+
 class ConsoleStream : public tensor<Console>
 {
 public:
@@ -2172,8 +2571,6 @@ ConsoleStream ConsoleText;
 static void SendCtrlPlusMinus(bool plus);
 static ptrdiff_t intpow(ptrdiff_t base, int exp);
 static void ClearArea(COORD WinCenter, COORD Dimensions);
-template <typename T> T ObjectOperations
-(wstring& errcode, tensor<T> list, tensor<wstring> ops, wstring disposition = L"");
 template<typename _Ty = long double> class Matrix : public tensor<tensor<_Ty>>
 {
 public:
@@ -3810,7 +4207,8 @@ template<typename T> static int Gcd(tensor<T> terms);
 static wstring ConvertEnumToWString(switchcase Enum);
 static switchcase ConvertWStringToEnum(wstring str);
 static void ReassigneEnum(switchcase& option);
-static void WriteFraction(wstring Num, wstring Den, COORD START = { -1, -1 });
+static void WriteFraction
+(wstring Num, wstring Den, wstring& command, COORD START = { -1, -1 });
 static void PrintPFrame
 (double deg, int sides, double radius, COORD WinCenter);
 static void DrawFrame
@@ -4025,6 +4423,20 @@ int main()
 	SetConsoleCP(CP_UTF8);
 	wcout.imbue(locale(""));
 
+	////////////////////////////////////////////////////////////////////////////////
+	Expression tester;
+
+	tester.add({ 0, 0 }, L"1");
+	tester.add({ 0, 1, 0 }, L"x²-1");
+	tester.add({ 0, 1, 1 }, L"2x", L"f");
+	tester.add({ 1, 0 }, L"2", L"f");
+	tester.add({ 1, 1, 0 }, L"1", L"*");
+	tester.add({ 1, 1, 1 }, L"5", L"f");
+	
+	tester.out();
+	_getch();
+	////////////////////////////////////////////////////////////////////////////////
+
 	// avvio
 	QueryPerformanceFrequency(&ProgramFrequency);
 	Beep(1'000, 50);
@@ -4088,7 +4500,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.4.8 ";
+			wcout << L"1.5.3 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -4633,11 +5045,10 @@ static void ClearArea(COORD WinCenter, COORD Dimensions)
 }
 
 // stampa una frazione di stringhe
-static void WriteFraction(wstring Num, wstring Den, COORD START)
+static void WriteFraction(wstring Num, wstring Den, wstring& command, COORD START)
 {
 
 	// ricerca suggerimento giusto
-	wstring command;
 	int spaces = fabs(((int)Num.size() - (int)Den.size()) / 2);
 	bool script = true;
 	if (Num.size() > 0) for (const auto& comma : commands) {
@@ -5115,7 +5526,7 @@ static void GetFraction(wstring& numerator, wstring& denominator, COORD& Off)
 				GetAsyncKeyState(VK_MENU));
 
 			_GetCursorPos();
-			csbi.dwCursorPosition.X++;
+			csbi.dwCursorPosition.X += diff + 1;
 			IsTheCursorAtStart ?
 				csbi.dwCursorPosition.Y++ : csbi.dwCursorPosition.Y--;
 			SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
@@ -5275,7 +5686,7 @@ static void GetFraction(wstring& numerator, wstring& denominator, COORD& Off)
 			}
 
 			// stampa frazione algebrica
-			WriteFraction(Num, Den, START);
+			WriteFraction(Num, Den, command, START);
 			int spaces = fabs(((int)Num.size() - (int)Den.size()) / 2);
 
 			// reset riga
@@ -5484,9 +5895,11 @@ static Fraction<> GetFractionAdvanced(wstring& errcode, int& BoolData)
 		if (pasting) {
 			
 			// output della frazione
+			wstring no_use;
 			WriteFraction(
 				GlobalNumerators[TensorIndex][LocalIndex],
-				GlobalDenominators[TensorIndex][LocalIndex]
+				GlobalDenominators[TensorIndex][LocalIndex],
+				no_use
 			);
 
 			// aggiornamento
@@ -9326,6 +9739,14 @@ template<typename T> T ObjectOperations
 		auto local_apostrophes{ LocalApostrophes };
 		for (ptrdiff_t i = part.size() - 1; i >= 0; --i) switch (part.at(i))
 		{
+		case L'f':
+			part.erase(i, 1);
+			list[local_apostrophes + 1] = list[local_apostrophes + 1].invert();
+			if (isnan(list[local_apostrophes + 1])) {
+				errcode = L"Divisione per zero";
+				ret T();
+			}
+			break;
 		case L'/':
 			part.erase(i, 1);
 			list[local_apostrophes + 1] = list[local_apostrophes + 1].invert();
@@ -9498,7 +9919,8 @@ static tensor<tensor<long double>> FromPolynomialToPos(
 		for (size_t i = 0; i < vect; ++i) {
 			int index;
 			if (KnVarPos >= 0) index = vect[i].exp[KnVarPos] / KnownSeq[KnVarPos];
-			else index = CorrectSize - vect[i].exp[StartIndex] / DirectorSeq[StartIndex];
+			else index = CorrectSize - vect[i].exp[StartIndex]
+				/ DirectorSeq[StartIndex];
 			if (index < 0) {
 				skip = true;
 				break;
@@ -9514,6 +9936,18 @@ static tensor<tensor<long double>> FromPolynomialToPos(
 		VKnownSeq << KnownSeq;
 	}
 
+	// ordinamento soluzioni
+	for (size_t i = 0; i < result; ++i)
+		for (size_t j = i + 1; j < result; ++j)
+			if (result[i] < result[j])
+			{
+				swap(result[i], result[j]);
+				swap(CorrectSizes[i], CorrectSizes[j]);
+				swap(VDirectorTerm[i], VDirectorTerm[j]);
+				swap(VKnownTerm[i], VKnownTerm[j]);
+				swap(VDirectorSeq[i], VDirectorSeq[j]);
+				swap(VKnownSeq[i], VKnownSeq[j]);
+			}
 	ret result;
 }
 
@@ -12506,6 +12940,7 @@ static void SystemSolverGeneral(switchcase& argc)
 	ResetAttribute();
 
 	bool startover{ true };
+	tensor<wstring> VariablesDisposition;
 	tensor<Fraction<>> Fractions;
 	for (;;)
 	{
@@ -12522,9 +12957,10 @@ static void SystemSolverGeneral(switchcase& argc)
 		wstring err;
 		int data;
 		Fraction<> it{ GetFractionAdvanced(err, data) };
+		VariablesDisposition << Variables;
 
 		// messaggi di boolalpha
-		if ((data | CHANGEDVALUE) != data)
+		if ((data | CHANGEDVALUE) != data and data > 0)
 			wcout << (data % 2 ? L"boolalpha\n" : L"noboolalpha\n");
 
 		// messaggio di errore
@@ -12553,11 +12989,51 @@ static void SystemSolverGeneral(switchcase& argc)
 			continue;
 		}
 
+		// ultima operazione di input
 		Fractions << it;
 		if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) and Fractions < 5) continue;
 		bool Continue{ false };
 
+		// riempimento buchi nelle disposizioni
+		wstring complete;
+		for (auto& disp : VariablesDisposition) for (const auto& ch : disp)
+			if (complete.find(ch) == wstring::npos) complete += ch;
+		for (auto& disp : VariablesDisposition) for (const auto& ch : complete)
+			if (disp.find(ch) == wstring::npos) disp += ch;
+		
+		// allocazione di memoria in più
+		for (auto& fraction : Fractions) {
+			for (auto& fact : fraction.num) for (auto& mon : fact)
+				mon.exp(complete.size());
+			for (auto& fact : fraction.den) for (auto& mon : fact)
+				mon.exp(complete.size());
+		}
+
+		// ridisposizione
+		tensor<int> ExpNull(complete.size(), 0);
+		for (size_t i = 0; i < 2 * Fractions.size(); ++i) {
+			if (VariablesDisposition[i / 2] == complete) continue;
+
+			// preparazione polinomi
+			auto& old = i % 2 ? Fractions[i / 2].den : Fractions[i / 2].num;
+			polynomial<> correct(old.size());
+			for (size_t j = 0; j < correct; ++j) for (const auto& mono : old[j])
+				correct[j] << monomial<>{ mono.coefficient, ExpNull };
+
+			// correzione esponenti
+			for (size_t j = 0; j < VariablesDisposition[i / 2].size(); ++j) {
+				auto pos{ complete.find(VariablesDisposition[i / 2].at(j)) };
+				if (pos == wstring::npos) continue;
+				for (size_t k = 0; k < correct; ++k)
+					for (size_t l = 0; l < correct[k]; ++l)
+						correct[k][l].exp[pos] = old[k][l].exp[j];
+			}
+
+			old = correct;
+		}
+
 		// numero di variabili eccessivo
+		VariablesDisposition.clear();
 		if (Variables.size() > Fractions.size() + 1) {
 			SetConsoleTextAttribute(hConsole, 12);
 			wcout << L"Troppe variabili!!\a\n";
@@ -12592,7 +13068,7 @@ static void SystemSolverGeneral(switchcase& argc)
 			// rimozione delle singolarità
 			for (ptrdiff_t i = solutions.size() - 1; i >= 0; --i)
 				for (const auto& fract : Fractions)
-					if (fract.den[0]({ solutions[i] }) < 1e-05)
+					if (fabs(fract.den[0]({ solutions[i] })) < 1e-05)
 						solutions.erase(solutions.begin() + i);
 
 			// output
@@ -13395,6 +13871,7 @@ static void DecompFraction(switchcase& argc)
 
 			// uscita
 			argc = ConvertWStringToEnum(err);
+			ReassigneEnum(argc);
 			if (argc != NotAssigned) {
 				system("cls");
 				SetConsoleTitle(err.c_str());
