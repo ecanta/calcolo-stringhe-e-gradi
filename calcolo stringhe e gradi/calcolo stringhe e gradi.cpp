@@ -13,7 +13,7 @@
 #define IMPROVE __pragma(optimize("on" , on ))
 
 // macro di definizione
-///#define BUGS
+#define BUGS
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #define _USE_MATH_DEFINES
@@ -2144,27 +2144,29 @@ public:
 class Expression
 {
 private:
-	_STD map<key, wstring> terms, operators;
-	tensor<key> lines;
+	bool activator;
+
+	_STD map<key, wstring> terms{ { {}, L"" } };
+	tensor<key> lines, lister{ {} };
+
+	tensor<COORD> FractionLinesPos;
+	tensor<short> FractionLinesLenght;
 
 	_STD map<key, COORD> dimensions, positions;
 
 public:
-	Expression() {};
+	Expression() : activator(false) {};
 
-	size_t depth() const
+	bool contains(key index) const
 	{
-		size_t sizemax{};
-
-		for (const auto& item : terms)
+		for (size_t i = 0; i < lister; ++i)
 		{
-			if (sizemax < item.first)
+			if (lister[i] == index)
 			{
-				sizemax = item.first.size();
+				ret true;
 			}
 		}
-
-		ret sizemax;
+		ret false;
 	}
 
 	void clean()
@@ -2190,11 +2192,7 @@ public:
 		// ricerca nodi sbagliati
 		for (const auto& line : lines)
 		{
-			for (
-				int last = 2;
-				operators.find(line + last) != operators.end();
-				++last
-				)
+			for (int last = 2; contains(line + last); ++last)
 			{
 				auto Tensor{ line + last };
 				if (terms.find(Tensor) != terms.end())
@@ -2212,91 +2210,109 @@ public:
 		}
 		for (const auto& op : ops)
 		{
-			operators.erase(op);
+			for (size_t i = 0; i < lister; ++i)
+			{
+				if (lister[i] == op)
+				{
+					lister.erase(lister.begin() + i);
+				}
+			}
 		}
 	}
 
 	tensor<key> underbranch(key node) const
 	{
 		tensor<key> output;
-		if (operators.find(node) == operators.end())
+		if (!contains(node))
 		{
 			ret {};
 		}
 
-		for (
-			int last = 0;
-			operators.find(node + last) != operators.end();
-			++last
-			)
+		for (int last = 0; contains(node + last); ++last)
 		{
 			output << node + last;
 		}
 		ret output;
 	}
 	
-	void add(key where, wstring what, wstring op = L"+")
+	void Insert(key where, wstring Num = L"", wstring Den = L"@")
 	{
-		// calcolo nodo superiore
-		auto New{ where };
-		if (!New.empty())
+		// ottenimento ramo principale
+		activator = true;
+		key branch{ where };
+		branch--;
+
+		// iterazione per trovare elementi del ramo
+		for (auto& ind : lister)
 		{
-			New.last() > 0 ? New.last()-- : New--;
+			// esclusione elementi maggiori
+			if (ind <= branch)
+			{
+				continue;
+			}
+
+			// esclusione elementi di rami diversi
+			bool Continue{ false };
+			for (size_t i = 0; i < branch.size(); ++i)
+			{
+				if (ind[i] != branch[i])
+				{
+					Continue = true;
+					break;
+				}
+			}
+			if (Continue)
+			{
+				continue;
+			}
+
+			// spostamento elementi che seguono la posizione in avanti
+			if (ind[branch.size()] >= where.last())
+			{
+				auto old{ ind };
+				ind[branch.size()]++;
+
+				// spostamento delle linee di frazione
+				for (auto& line : lines)
+				{
+					if (line == old)
+					{
+						line = ind;
+						break;
+					}
+				}
+
+				// spostamento anche nei nodi terminali
+				if (terms.find(old) != terms.end())
+				{
+					auto temp{ terms[old] };
+					terms.erase(old);
+					terms[ind] = temp;
+				}
+			}
 		}
 
-		// oggetto vuoto
-		if (terms.empty() and New.empty())
+		// inserimento stringa
+		if (Den == L"@")
 		{
-			terms[{}] = what;
-			if (op == L"f")
-			{
-				lines << key();
-			}
-			else
-			{
-				operators[{}] = op;
-			}
-			ret;
+			lister << where;
+			terms[where] = Num;
 		}
 
-		// aggiunta nodi intermedi
-		auto node{ where };
-		do
-		{
-			node.last() > 0 ? node.last()-- : node--;
-			if (operators.find(node) == operators.end())
-			{
-				operators[node] = L"+";
-			}
-		}
-		while (!node.empty());
-
-		// correzione operatore quando ci sono le frazioni
-		if (op == L"f")
-		{
-			auto _new{ where };
-			_new--;
-			operators[_new] = L"f";
-			operators[_new + 0] = L"+";
-			operators[_new + 1] = L"+";
-		}
-		
-		// push
-		terms[where] = what;
-		if (op == L"f")
-		{
-			where--;
-			lines << where;
-		}
+		// inserimento frazione
 		else
 		{
-			operators[where] = op;
+			lines << where;
+			lister << where << where + 0 << where + 1;
+			terms[where + 0] = Num;
+			terms[where + 1] = Den;
 		}
-
+		
+		// pulizia
 		clean();
 	}
 
-	COORD GetExtension(key node = {})
+	COORD GetDimensions(key node = {})
 	{
 		// fine ricorsione
 		if (terms.find(node) != terms.end())
@@ -2310,15 +2326,22 @@ public:
 		{
 			if (line == node)
 			{
-				fraction = false;
+				fraction = true;
 				break;
 			}
 		}
 		if (fraction)
 		{
 			// ricorsione
-			COORD num{ GetExtension(node + 0) }, den{ GetExtension(node + 1) };
+			COORD num{ GetDimensions(node + 0) }, den{ GetDimensions(node + 1) };
 			COORD result{ max(num.X, den.X), short(num.Y + den.Y + 1) };
+
+			// aumento dimensione se la frazione è di ordine superiore
+			if (terms.find(node + 0) == terms.end() or
+				terms.find(node + 1) == terms.end())
+			{
+				result.X += 2;
+			}
 
 			// assegnazione
 			dimensions[node] = result;
@@ -2330,7 +2353,7 @@ public:
 		tensor<COORD> branchcoords;
 		for (const auto& index : branch)
 		{
-			branchcoords << GetExtension(index);
+			branchcoords << GetDimensions(index);
 		}
 
 		// calcolo coordinate con le formule
@@ -2349,33 +2372,28 @@ public:
 			{
 				result.X += dimensions[branch[i]].X;
 			}
-			if (operators.find(Key) != operators.end())
-			{
-				result.X += operators[Key].size() + 2;
-			}
 		}
 
+		dimensions[node] = result;
 		ret result;
 	}
 
-	void out()
+	void GetPositions()
 	{
 		// calcolo dimensioni
-		if (dimensions.empty())
+		if (dimensions.empty() or activator)
 		{
-			GetExtension();
+			GetDimensions();
 		}
 		if (dimensions.empty())
 		{
 			ret;
 		}
-		key node;
-		tensor<COORD> FractionLinesPos;
-		tensor<short> FractionLinesLenght;
 
 		// iterazione su ogni singolo nodo
+		key node;
 		positions[{}] = { 0, 0 };
-		for (;;)
+		if (activator) for (;;)
 		{
 			// ottenimento dati calcolati in precedenza
 			auto directordim{ dimensions[node] };
@@ -2414,42 +2432,48 @@ public:
 					directorpos.X, short(directorpos.Y + dimensions[node + 0].Y)
 				};
 				FractionLinesLenght << directordim.X;
+
+				// correzione dati per frazioni grandi
+				if (terms.find(node + 0) == terms.end() or
+					terms.find(node + 1) == terms.end())
+				{
+					FractionLinesLenght.last() += 2;
+				}
 			}
 
 			// caso con sequenza di operazioni
-			bool start{ true };
-			auto branch{ underbranch(node) };
-			tensor<short> lenghts(branch.size()), widths(branch.size());
-			
-			// calcolo ordinate
-			for (size_t i = 0; i < branch; ++i)
+			else
 			{
-				widths[i] = (directordim.Y - dimensions[branch[i]].Y) / 2;
-			}
+				bool start{ true };
+				auto branch{ underbranch(node) };
+				tensor<short> lenghts(branch.size()), widths(branch.size());
 
-			// calcolo ascisse a intervalli
-			for (size_t i = 0; i < branch; ++i)
-			{
-				lenghts[i] = start ? 1 : 2;
-				auto accesser{ branch[i] };
-				lenghts[i] += dimensions[accesser].X;
-				accesser.last()--;
-				lenghts[i] += operators[accesser].size();
-			}
+				// calcolo ordinate
+				for (size_t i = 0; i < branch; ++i)
+				{
+					widths[i] = (directordim.Y - dimensions[branch[i]].Y) / 2;
+				}
 
-			// calcolo ascisse dirette
-			for (size_t i = 1; i < lenghts; ++i)
-			{
-				lenghts[i] += lenghts[i - 1];
-			}
+				// calcolo ascisse a intervalli
+				for (size_t i = 0; i < branch; ++i)
+				{
+					lenghts[i] = (start ? 0 : 1) + dimensions[branch[i]].X;
+				}
 
-			// assegnazione
-			for (size_t i = 0; i < branch; ++i)
-			{
-				positions[branch[i]] = COORD{
-					short(lenghts[i] - dimensions[branch[i]].X),
-					widths[i]
-				};
+				// calcolo ascisse dirette
+				for (size_t i = 1; i < lenghts; ++i)
+				{
+					lenghts[i] += lenghts[i - 1];
+				}
+
+				// assegnazione
+				for (size_t i = 0; i < branch; ++i)
+				{
+					positions[branch[i]] = COORD{
+						short(lenghts[i] - dimensions[branch[i]].X),
+						widths[i]
+					};
+				}
 			}
 
 			// scelta nodo successivo
@@ -2458,7 +2482,7 @@ public:
 				node.last()++;
 				continue;
 			}
-			if (operators.find(node) != operators.end())
+			if (contains(node))
 			{
 				node << 0;
 				continue;
@@ -2470,26 +2494,62 @@ public:
 			node--;
 			node.last()++;
 		}
+	}
+
+	void out()
+	{
+		// console
+		setlocale(LC_ALL, "");
+		SetConsoleOutputCP(CP_UTF8);
+		SetConsoleCP(CP_UTF8);
+		wcout.imbue(locale(""));
+
+		// calcolo dimensioni
+		if (positions.empty() or activator)
+		{
+			GetPositions();
+		}
+		if (positions.empty())
+		{
+			ret;
+		}
+		activator = false;
 
 		// output linee di frazione
 		for (size_t i = 0; i < FractionLinesPos; ++i)
 		{
 			SetConsoleCursorPosition(hConsole, FractionLinesPos[i]);
-			wcout << wstring(L'-', FractionLinesLenght[i]) << L'\n';
+			wcout << wstring(FractionLinesLenght[i], L'-') << L'\n';
 		}
 
 		// output stringhe
-		for (const auto& Key : operators)
+		for (const auto& Key : lister)
 		{
 			// filtro
-			if (terms.find(Key.first) == terms.end())
+			if (terms.find(Key) == terms.end())
 			{
 				continue;
 			}
 
-			SetConsoleCursorPosition(hConsole, positions[Key.first]);
-			wcout << terms[Key.first] << L'\n';
+			SetConsoleCursorPosition(hConsole, positions[Key]);
+			wcout << terms[Key] << L'\n';
 		}
+	}
+
+	COORD CursorPosition()
+	{
+		ret { 0, 0 };
+	}
+
+	Fraction<> stdexport()
+	{
+		ret {};
+	}
+
+	Fraction<> in()
+	{
+		out();
+		ret stdexport();
 	}
 };
 tensor_t PrimeNumbers;
@@ -4425,14 +4485,19 @@ int main()
 
 	////////////////////////////////////////////////////////////////////////////////
 	Expression tester;
-
-	tester.add({ 0, 0 }, L"1");
-	tester.add({ 0, 1, 0 }, L"x²-1");
-	tester.add({ 0, 1, 1 }, L"2x", L"f");
-	tester.add({ 1, 0 }, L"2", L"f");
-	tester.add({ 1, 1, 0 }, L"1", L"*");
-	tester.add({ 1, 1, 1 }, L"5", L"f");
 	
+	tester.Insert({ 0 },    L"("            );
+	tester.Insert({ 1 },    L"2x",    L"y+3");
+	tester.Insert({ 2 },    L" - "          );
+	tester.Insert({ 3 },    L"1",     L"2"  );
+	tester.Insert({ 4 },    L"4xy + "       );
+	tester.Insert({ 5 },    L"",      L""   );
+	tester.Insert({ 5, 0 }, L"2",     L"3"  );
+	tester.Insert({ 5, 1 }, L"25x^2", L"3"  );
+	tester.Insert({ 6 },    L") * ("        );
+	tester.Insert({ 7 },    L"2",     L"5x" );
+	tester.Insert({ 8 },    L")^2"          );
+
 	tester.out();
 	_getch();
 	////////////////////////////////////////////////////////////////////////////////
