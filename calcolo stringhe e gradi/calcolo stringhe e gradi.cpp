@@ -2096,6 +2096,7 @@ public:
 		ret output;
 	}
 };
+static void ClearArea(COORD WinCenter, COORD Dimensions);
 class key : public tensor<int>
 {
 public:
@@ -2171,21 +2172,38 @@ public:
 
 	void clean()
 	{
+		// controllo sul nodo maggiore
 		tensor<key> keys, ops;
+		if (terms.find({}) != terms.end())
+		{
+			terms.erase(key());
+		}
 
 		// ricerca nodi non terminali
-		for (const auto& item : terms)
+		for (const auto& item : lister)
 		{
-			if (terms.find(item.first + 0) != terms.end())
+			auto term{ item };
+			if (terms.find(item + 0) != terms.end())
 			{
-				keys << item.first;
+				for (;;)
+				{
+					keys << term;
+					if (term.empty())
+					{
+						break;
+					}
+					term--;
+				}
 			}
 		}
 
 		// prima eliminazione
 		for (const auto& Key : keys)
 		{
-			terms.erase(Key);
+			if (terms.find(Key) != terms.end())
+			{
+				terms.erase(Key);
+			}
 		}
 		keys.clear();
 
@@ -2304,8 +2322,9 @@ public:
 		{
 			lines << where;
 			lister << where << where + 0 << where + 1;
-			terms[where + 0] = Num;
-			terms[where + 1] = Den;
+			lister << where + 0 + 0 << where + 1 + 0;
+			terms[where + 0 + 0] = Num;
+			terms[where + 1 + 0] = Den;
 		}
 		
 		// pulizia
@@ -2337,8 +2356,8 @@ public:
 			COORD result{ max(num.X, den.X), short(num.Y + den.Y + 1) };
 
 			// aumento dimensione se la frazione è di ordine superiore
-			if (terms.find(node + 0) == terms.end() or
-				terms.find(node + 1) == terms.end())
+			if (terms.find(node + 0 + 0) == terms.end() or
+				terms.find(node + 1 + 0) == terms.end())
 			{
 				result.X += 2;
 			}
@@ -2350,6 +2369,10 @@ public:
 
 		// caso con operazioni di termini diversi
 		auto branch{ underbranch(node) };
+		if (branch.empty())
+		{
+			ret COORD();
+		}
 		tensor<COORD> branchcoords;
 		for (const auto& index : branch)
 		{
@@ -2393,7 +2416,11 @@ public:
 		// iterazione su ogni singolo nodo
 		key node;
 		positions[{}] = { 0, 0 };
-		if (activator) for (;;)
+		if (!activator)
+		{
+			ret;
+		}
+		for (;;)
 		{
 			// ottenimento dati calcolati in precedenza
 			auto directordim{ dimensions[node] };
@@ -2434,8 +2461,8 @@ public:
 				FractionLinesLenght << directordim.X;
 
 				// correzione dati per frazioni grandi
-				if (terms.find(node + 0) == terms.end() or
-					terms.find(node + 1) == terms.end())
+				if (terms.find(node + 0 + 0) == terms.end() or
+					terms.find(node + 1 + 0) == terms.end())
 				{
 					FractionLinesLenght.last() += 2;
 				}
@@ -2470,8 +2497,8 @@ public:
 				for (size_t i = 0; i < branch; ++i)
 				{
 					positions[branch[i]] = COORD{
-						short(lenghts[i] - dimensions[branch[i]].X),
-						widths[i]
+						short(directorpos.X + lenghts[i] - dimensions[branch[i]].X),
+						short(directorpos.Y + widths[i])
 					};
 				}
 			}
@@ -2536,20 +2563,183 @@ public:
 		}
 	}
 
-	COORD CursorPosition()
+	COORD CursorPosition(key at)
 	{
-		ret { 0, 0 };
-	}
+		// calcolo dimensioni
+		if (positions.empty() or activator)
+		{
+			GetPositions();
+		}
+		if (positions.empty())
+		{
+			ret COORD();
+		}
+		activator = false;
 
-	Fraction<> stdexport()
-	{
-		ret {};
+		ret COORD{
+			short(positions[at].X + dimensions[at].X),
+			short(positions[at].Y + dimensions[at].Y / 2)
+		};
 	}
 
 	Fraction<> in()
 	{
+		using type = char;
+		int EscapeCode;
+		if constexpr (is_same_v<type, char>)
+		{
+			EscapeCode = -32;
+		}
+		else
+		{
+			EscapeCode = 224;
+		}
+
+		////
+		Insert({ 0 }, L"(");
+		Insert({ 1 }, L"2x", L"y+3");
+		Insert({ 2 }, L" - ");
+		Insert({ 3 }, L"1", L"2");
+		Insert({ 4 }, L"4xy + ");
+		Insert({ 5 }, L"", L"");
+		Insert({ 5, 0, 0 }, L"2", L"3");
+		Insert({ 5, 1, 0 }, L"25x^2", L"3");
+		Insert({ 6 }, L") * (");
+		Insert({ 7 }, L"2", L"5x");
+		Insert({ 8 }, L")^2");
+		////
+
 		out();
-		ret stdexport();
+		bool arrow{ false };
+		key CursorIndex({ 8 });
+
+		// ciclo dei comandi
+		for (;;)
+		{
+			// aggiunta frazione
+			if (GetAsyncKeyState(VK_CONTROL) & 0x8000 and
+				GetAsyncKeyState(VK_MENU) & 0x8000)
+			{
+				// blocco
+				while (GetAsyncKeyState(VK_CONTROL) & 0x8000 and
+					GetAsyncKeyState(VK_MENU) & 0x8000);
+
+				// aggiunta termini
+				CursorIndex.last()++;
+				lines << CursorIndex;
+				lister << CursorIndex;
+				lister << CursorIndex + 0 << CursorIndex + 0 + 0;
+				lister << CursorIndex + 1 << CursorIndex + 1 + 0;
+				
+				// pulizia e aggiornamento cursore
+				terms[CursorIndex + 1 + 0] = L"";
+				CursorIndex << 0 << 0;
+				terms[CursorIndex] = L"";
+				clean();
+			}
+
+			// fine inserimento frazione
+			if (GetAsyncKeyState(VK_CONTROL) & 0x8000 and
+				GetAsyncKeyState(VK_SHIFT) & 0x8000)
+			{
+				// blocco
+				while (GetAsyncKeyState(VK_CONTROL) & 0x8000 and
+					GetAsyncKeyState(VK_SHIFT) & 0x8000);
+
+				// nessuna frazione
+				if (CursorIndex.size() < 2)
+				{
+					continue;
+				}
+
+				// aggiornamento cursore
+				CursorIndex--;
+				CursorIndex.last()++;
+
+				// aggiunta termini
+				lister << CursorIndex;
+				terms[CursorIndex] = L"";
+			}
+		
+			// tasti
+			if (_kbhit())
+			{
+				// lettura
+				char c = _getch();
+				
+				// carattere illegale
+				if (c == L'@')
+				{
+					continue;
+				}
+
+				// frecce
+				if (c == EscapeCode)
+				{
+					arrow = true;
+					continue;
+				}
+				if (arrow)
+				{
+					// frazione assente
+					if (CursorIndex.size() < 2)
+					{
+						continue;
+					}
+
+					// spostamento numeratore - denominatore
+					if (c == L'H')
+					{
+						CursorIndex[CursorIndex.size() - 2] = 0;
+					}
+					else if (c == L'P')
+					{
+						CursorIndex[CursorIndex.size() - 2] = 1;
+					}
+
+					arrow = false;
+					continue;
+				}
+
+				switch (c)
+				{
+				case L'\b':
+					break;
+				case L'\r':
+					ret stdexport();
+				}
+
+				if (terms.find(CursorIndex) != terms.end())
+				{
+					terms[CursorIndex] += c;
+				}
+
+				// pulizia oggetto e aggiornamento
+				clean();
+				activator = true;
+				
+				// pulizia console e scrittura
+				ClearArea(
+					{
+						short(positions[{}].X + dimensions[{}].X / 2),
+						short(positions[{}].Y + dimensions[{}].Y / 2)
+					},
+					{
+						short(dimensions[{}].X / 2),
+						short(dimensions[{}].Y / 2)
+					}
+				);
+				out();
+			}
+			
+			auto position{ CursorPosition(CursorIndex) };
+			SetConsoleCursorPosition(hConsole, position);
+		}
+	}
+
+	Fraction<> stdexport()
+	{
+		ret Fraction<>{};
 	}
 };
 tensor_t PrimeNumbers;
@@ -2630,7 +2820,6 @@ ConsoleStream ConsoleText;
 // matrici
 static void SendCtrlPlusMinus(bool plus);
 static ptrdiff_t intpow(ptrdiff_t base, int exp);
-static void ClearArea(COORD WinCenter, COORD Dimensions);
 template<typename _Ty = long double> class Matrix : public tensor<tensor<_Ty>>
 {
 public:
@@ -4485,20 +4674,7 @@ int main()
 
 	////////////////////////////////////////////////////////////////////////////////
 	Expression tester;
-	
-	tester.Insert({ 0 },    L"("            );
-	tester.Insert({ 1 },    L"2x",    L"y+3");
-	tester.Insert({ 2 },    L" - "          );
-	tester.Insert({ 3 },    L"1",     L"2"  );
-	tester.Insert({ 4 },    L"4xy + "       );
-	tester.Insert({ 5 },    L"",      L""   );
-	tester.Insert({ 5, 0 }, L"2",     L"3"  );
-	tester.Insert({ 5, 1 }, L"25x^2", L"3"  );
-	tester.Insert({ 6 },    L") * ("        );
-	tester.Insert({ 7 },    L"2",     L"5x" );
-	tester.Insert({ 8 },    L")^2"          );
-
-	tester.out();
+	tester.in();
 	_getch();
 	////////////////////////////////////////////////////////////////////////////////
 
@@ -4551,7 +4727,7 @@ int main()
 	for (;;)
 	{
 		if (!LockPrimeNumbersInput) {
-			Start:
+		Start:
 			system("cls");
 			SetConsoleTitle(L"schermata START");
 
@@ -4565,7 +4741,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.5.3 ";
+			wcout << L"1.5.5 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
