@@ -18,6 +18,13 @@
 #define WIN32_LEAN_AND_MEAN
 #define _USE_MATH_DEFINES
 
+// macro di switch
+#ifndef BUGS
+#define HIDECURSOR SetConsoleCursorInfo(hConsole, &cursorInfo)
+#else // BUGS
+#define HIDECURSOR
+#endif // BUGS
+
 // macro di rinominazione
 #define POS false
 #define NEG true
@@ -57,7 +64,7 @@
 
 #ifdef BUGS
 RUIN UNOPT
-#else
+#else // BUGS
 IMPROVE OPT
 #endif // BUGS
 
@@ -2406,12 +2413,18 @@ public:
 		// calcolo dimensioni
 		if (dimensions.empty() or activator)
 		{
+			dimensions.clear();
 			GetDimensions();
 		}
 		if (dimensions.empty())
 		{
 			ret;
 		}
+
+		// reset
+		positions.clear();
+		FractionLinesPos.clear();
+		FractionLinesLenght.clear();
 
 		// iterazione su ogni singolo nodo
 		key node;
@@ -2509,7 +2522,7 @@ public:
 				node.last()++;
 				continue;
 			}
-			if (contains(node))
+			if (contains(node) or node.empty())
 			{
 				node << 0;
 				continue;
@@ -2523,13 +2536,21 @@ public:
 		}
 	}
 
-	void out()
+	void out(COORD StarterCoord = { -1, -1 })
 	{
 		// console
 		setlocale(LC_ALL, "");
 		SetConsoleOutputCP(CP_UTF8);
 		SetConsoleCP(CP_UTF8);
 		wcout.imbue(locale(""));
+		HIDECURSOR;
+
+		// parametro di default
+		if (StarterCoord.X == -1)
+		{
+			_GetCursorPos();
+			StarterCoord = csbi.dwCursorPosition;
+		}
 
 		// calcolo dimensioni
 		if (positions.empty() or activator)
@@ -2545,6 +2566,9 @@ public:
 		// output linee di frazione
 		for (size_t i = 0; i < FractionLinesPos; ++i)
 		{
+			FractionLinesPos[i].X += StarterCoord.X;
+			FractionLinesPos[i].Y += StarterCoord.Y;
+			
 			SetConsoleCursorPosition(hConsole, FractionLinesPos[i]);
 			wcout << wstring(FractionLinesLenght[i], L'-') << L'\n';
 		}
@@ -2558,9 +2582,17 @@ public:
 				continue;
 			}
 
-			SetConsoleCursorPosition(hConsole, positions[Key]);
+			// calcolo posizione
+			auto pos{ positions[Key] };
+			pos.X += StarterCoord.X;
+			pos.Y += StarterCoord.Y;
+
+			// output
+			SetConsoleCursorPosition(hConsole, pos);
 			wcout << terms[Key] << L'\n';
 		}
+
+		SetConsoleCursorInfo(hConsole, &cursor);
 	}
 
 	COORD CursorPosition(key at)
@@ -2584,6 +2616,8 @@ public:
 
 	Fraction<> in()
 	{
+
+		// carattere per le frecce
 		using type = char;
 		int EscapeCode;
 		if constexpr (is_same_v<type, char>)
@@ -2609,7 +2643,10 @@ public:
 		Insert({ 8 }, L")^2");
 		////
 
-		out();
+		// dati vari
+		_GetCursorPos();
+		auto begin{ csbi.dwCursorPosition };
+		out(begin);
 		bool arrow{ false };
 		key CursorIndex({ 8 });
 
@@ -2635,6 +2672,7 @@ public:
 				terms[CursorIndex + 1 + 0] = L"";
 				CursorIndex << 0 << 0;
 				terms[CursorIndex] = L"";
+				activator = true;
 				clean();
 			}
 
@@ -2653,12 +2691,13 @@ public:
 				}
 
 				// aggiornamento cursore
-				CursorIndex--;
-				CursorIndex.last()++;
+				CursorIndex -= 2;
+ 				CursorIndex.last()++;
 
 				// aggiunta termini
 				lister << CursorIndex;
 				terms[CursorIndex] = L"";
+				activator = true;
 			}
 		
 			// tasti
@@ -2701,17 +2740,99 @@ public:
 					continue;
 				}
 
+				// switch tasti
 				switch (c)
 				{
+					// backspace
 				case L'\b':
-					break;
-				case L'\r':
-					ret stdexport();
-				}
 
-				if (terms.find(CursorIndex) != terms.end())
+					// rimozione carattere dall'ultimo termine
+					if (terms.find(CursorIndex) != terms.end())
+					{
+						if (!terms[CursorIndex].empty())
+						{
+							terms[CursorIndex].pop_back();
+							break;
+						}
+					}
+
+					// ctrl + backspace
+				case 127:
 				{
-					terms[CursorIndex] += c;
+					// nulla
+					if (CursorIndex[0] < 1)
+					{
+						break;
+					}
+
+					// rimozione di tutti i termini sottostanti al nodo
+					auto New{ CursorIndex };
+					bool ExecLoop{ true };
+					tensor<tensor<key>> container{ lines, lister };
+				loop:
+					for (ptrdiff_t i = container[ExecLoop].size() - 1; i >= 0; --i)
+					{
+						// caso semplice
+						if (container[ExecLoop][i].size() < New.size())
+						{
+							continue;
+						}
+
+						// controllo corrispondenza
+						bool ContinueLoop{ false };
+						for (size_t j = 0; j < New; ++j)
+						{
+							if (New[j] != container[ExecLoop][i][j])
+							{
+								ContinueLoop = true;
+								break;
+							}
+						}
+						if (ContinueLoop)
+						{
+							continue;
+						}
+
+						// rimozione
+						if (ExecLoop)
+						{
+							if (terms.find(container[1][i]) != terms.end())
+							{
+								terms.erase(container[1][i]);
+							}
+						}
+						container[ExecLoop].erase(container[ExecLoop].begin() + i);
+					}
+
+					// ridirezionamento sul loop per cancellare le linee di frazione
+					if (ExecLoop)
+					{
+						ExecLoop = false;
+						
+						if (New.size() < 2)
+						{
+							break;
+						}
+						New -= 2;
+						
+						goto loop;
+					}
+
+					CursorIndex.last()--;
+					lines = container[0];
+					lister = container[1];
+				}
+					break;
+
+					// conferma
+				case L'\r': ret stdexport();
+
+					// aggiunta carattere
+				default:
+					if (terms.find(CursorIndex) != terms.end())
+					{
+						terms[CursorIndex] += c;
+					}
 				}
 
 				// pulizia oggetto e aggiornamento
@@ -2721,18 +2842,20 @@ public:
 				// pulizia console e scrittura
 				ClearArea(
 					{
-						short(positions[{}].X + dimensions[{}].X / 2),
-						short(positions[{}].Y + dimensions[{}].Y / 2)
+						short(dimensions[{}].X / 2 + begin.X),
+						short(dimensions[{}].Y / 2 + begin.Y)
 					},
 					{
 						short(dimensions[{}].X / 2),
 						short(dimensions[{}].Y / 2)
 					}
 				);
-				out();
+				out(begin);
 			}
 			
 			auto position{ CursorPosition(CursorIndex) };
+			position.X += begin.X;
+			position.Y += begin.Y;
 			SetConsoleCursorPosition(hConsole, position);
 		}
 	}
@@ -3241,14 +3364,12 @@ public:
 					Displayed << Matrix<_Ty>(size_s, tensor<long double>(size_s, 0));
 				}
 				{
+					// inizio dell'input principale
 					auto& inputer{ Displayed.last() };
 					Continue = true;
 					keep = false;
+					HIDECURSOR;
 
-					// inizio dell'input principale
-	#ifndef BUGS
-					SetConsoleCursorInfo(hConsole, &cursorInfo);
-	#endif // BUGS
 					// inizializzazione
 					if (inputer.size() < 2)
 					{
@@ -3577,10 +3698,7 @@ public:
 					break;
 				}
 
-			output:
-	#ifndef BUGS
-				SetConsoleCursorInfo(hConsole, &cursorInfo);
-	#endif // BUGS
+			output: HIDECURSOR;
 
 				// pulizia
 				SetConsoleCursorPosition(hConsole, { 0, begin.Y });
@@ -4673,9 +4791,12 @@ int main()
 	wcout.imbue(locale(""));
 
 	////////////////////////////////////////////////////////////////////////////////
-	Expression tester;
-	tester.in();
-	_getch();
+	wcout << L"inserisci una frazione algebrica.\n";
+	SetConsoleTextAttribute(hConsole, 12);
+	wcout << L"Per inserire una singola frazione premere CTRL + ALT\n";
+	wcout << L"Per terminare l'inserimento di una frazione premere CTRL + SHIFT\n";
+	ResetAttribute();
+	Expression().in();
 	////////////////////////////////////////////////////////////////////////////////
 
 	// avvio
@@ -4792,9 +4913,7 @@ int main()
 			if (global != 0) {
 				DECLARE_TIME_POINT(begin);
 				GlobalMax = global;
-#ifndef BUGS
-				SetConsoleCursorInfo(hConsole, &cursorInfo);
-#endif // BUGS
+				HIDECURSOR;
 				PrimeNCalculator(GlobalMax + 1'000, OldGlobalMax);
 
 				DECLARE_TIME_POINT(end);
@@ -5274,8 +5393,7 @@ static void ClearArea(COORD WinCenter, COORD Dimensions)
 	_GetCursorPos();
 	DWORD written;
 	COORD coord{
-		(short)(WinCenter.X - Dimensions.X),
-		(short)(WinCenter.Y - Dimensions.Y)
+		short(WinCenter.X - Dimensions.X), short(WinCenter.Y - Dimensions.Y)
 	};
 
 	for (int y = WinCenter.Y; y <= WinCenter.Y + 2 * Dimensions.Y; ++y) {
@@ -5304,9 +5422,7 @@ static void WriteFraction(wstring Num, wstring Den, wstring& command, COORD STAR
 	}
 
 	// stampa frazione algebrica
-#ifndef BUGS
-	SetConsoleCursorInfo(hConsole, &cursorInfo);
-#endif // BUGS
+	HIDECURSOR;
 	_GetCursorPos();
 	if (START.X < 0) START = csbi.dwCursorPosition;
 	_GetCursorPos();
@@ -6475,9 +6591,7 @@ static wstring GetLine(tensor<wstring>& sugg, bool ShowSuggestions)
 				wcout << L'\r' << wstring(maxsize, L' ');
 				script = true;
 			}
-#ifndef BUGS
-			SetConsoleCursorInfo(hConsole, &cursorInfo);
-#endif // BUGS
+			HIDECURSOR;
 			if (ShowSuggestions and !vel.empty())
 
 				// ricerca suggerimento giusto
@@ -12525,10 +12639,7 @@ static void CodeToNumber(switchcase& argc)
 			computing = true;
 		}
 		Cv.notify_all();
-
-#ifndef BUGS
-		SetConsoleCursorInfo(hConsole, &cursorInfo);
-#endif // BUGS
+		HIDECURSOR;
 
 		// dichiarazione ed esecuzione dei thread
 		thread ComputationThread([=]() {
@@ -13068,9 +13179,8 @@ static void Loop(
 	system("cls");
 	_GetCursorPos();
 	const int Barwidth{ csbi.dwSize.X - 11 };
-#ifndef BUGS
-	SetConsoleCursorInfo(hConsole, &cursorInfo);
-#endif // BUGS
+	HIDECURSOR;
+
 	if (datalenght >= 1'000) {
 		int iter{};
 		atomic<long double> Progress{};
