@@ -44,16 +44,6 @@
 #define Last(x)    (x).at((x).size() - 1)
 #define _SQ(x)     x * x
 
-// pragma warning
-#ifndef BUGS
-#pragma	warning (disable : 4244) // conversione, possibile perdita di dati
-#pragma	warning (disable : 4267) // conversione, possibile perdita di dati
-#pragma warning (disable : 4348) // ridefinizione di un parametro predefinito
-#pragma	warning (disable : 4715) // non tutti i percorsi restituiscono un valore
-#pragma	warning (disable : 6001) // utilizzo di memoria non inizializzata
-#pragma	warning (disable : 28182) // dereferenziazione del puntatore null
-#endif
-
 // messaggi
 #pragma message("COMPILAZIONE IN CORSO")
 #pragma message("COMPILAZIONE IN CORSO")
@@ -2217,9 +2207,9 @@ public:
 		// ricerca nodi sbagliati
 		for (const auto& line : lines)
 		{
-			for (int last = 2; contains(line + last); ++last)
+			for (int Last = 2; contains(line + Last); ++Last)
 			{
-				auto Tensor{ line + last };
+				auto Tensor{ line + Last };
 				if (terms.find(Tensor) != terms.end())
 				{
 					keys << Tensor;
@@ -2253,9 +2243,9 @@ public:
 			ret {};
 		}
 
-		for (int last = 0; contains(node + last); ++last)
+		for (int Last = 0; contains(node + Last); ++Last)
 		{
-			output << node + last;
+			output << node + Last;
 		}
 		ret output;
 	}
@@ -2343,7 +2333,16 @@ public:
 		// fine ricorsione
 		if (terms.find(node) != terms.end())
 		{
-			ret dimensions[node] = COORD{ short(terms[node].size()), 1 };
+			auto str{ terms[node] };
+			auto size{ str.size() };
+			for (ptrdiff_t i = 0; i < (int)str.size() - 1; ++i)
+			{
+				if (str.at(i) == L'^' and isdigit(str.at(i + 1)))
+				{
+					size--;
+				}
+			}
+			ret dimensions[node] = COORD{ short(size), 1 };
 		}
 
 		// caso con frazione
@@ -2546,11 +2545,12 @@ public:
 		HIDECURSOR;
 
 		// parametro di default
+		_GetCursorPos();
 		if (StarterCoord.X == -1)
 		{
-			_GetCursorPos();
 			StarterCoord = csbi.dwCursorPosition;
 		}
+		auto SizeLimit{ csbi.dwSize };
 
 		// calcolo dimensioni
 		if (positions.empty() or activator)
@@ -2564,16 +2564,25 @@ public:
 		activator = false;
 
 		// output linee di frazione
+		SetConsoleTextAttribute(hConsole, 10);
 		for (size_t i = 0; i < FractionLinesPos; ++i)
 		{
 			FractionLinesPos[i].X += StarterCoord.X;
 			FractionLinesPos[i].Y += StarterCoord.Y;
 			
+			// testo fuori dalla console
+			if (FractionLinesPos[i].X + FractionLinesLenght[i] >= SizeLimit.X
+				or FractionLinesPos[i].Y >= SizeLimit.Y)
+			{
+				continue;
+			}
+
 			SetConsoleCursorPosition(hConsole, FractionLinesPos[i]);
 			wcout << wstring(FractionLinesLenght[i], L'-') << L'\n';
 		}
 
 		// output stringhe
+		ResetAttribute();
 		for (const auto& Key : lister)
 		{
 			// filtro
@@ -2587,9 +2596,16 @@ public:
 			pos.X += StarterCoord.X;
 			pos.Y += StarterCoord.Y;
 
+			// testo fuori dalla console
+			if (pos.X + terms[Key].size() >= SizeLimit.X or pos.Y >= SizeLimit.Y)
+			{
+				continue;
+			}
+
 			// output
 			SetConsoleCursorPosition(hConsole, pos);
-			wcout << terms[Key] << L'\n';
+			auto write{ terms[Key] };
+			wcout << ElabExponents(write) << L'\n';
 		}
 
 		SetConsoleCursorInfo(hConsole, &cursor);
@@ -2616,7 +2632,6 @@ public:
 
 	Fraction<> in()
 	{
-
 		// carattere per le frecce
 		using type = char;
 		int EscapeCode;
@@ -2629,7 +2644,7 @@ public:
 			EscapeCode = 224;
 		}
 
-		////
+		//// blocco temporaneo di debug
 		Insert({ 0 }, L"(");
 		Insert({ 1 }, L"2x", L"y+3");
 		Insert({ 2 }, L" - ");
@@ -2643,9 +2658,11 @@ public:
 		Insert({ 8 }, L")^2");
 		////
 
-		// dati vari
+		// aggiunta di spazio
 		_GetCursorPos();
-		auto begin{ csbi.dwCursorPosition };
+		wcout << wstring(csbi.dwSize.Y, L'\n');
+		COORD begin{};
+		SetConsoleCursorPosition(hConsole, begin);
 		out(begin);
 		bool arrow{ false };
 		key CursorIndex({ 8 });
@@ -2692,7 +2709,7 @@ public:
 
 				// aggiornamento cursore
 				CursorIndex -= 2;
- 				CursorIndex.last()++;
+				CursorIndex.last()++;
 
 				// aggiunta termini
 				lister << CursorIndex;
@@ -2743,6 +2760,10 @@ public:
 				// switch tasti
 				switch (c)
 				{
+					// termine programma
+				case L'.':
+					ret Fraction<>{ polynomial<>{ { { 0, { -3 } } } }, {} };
+
 					// backspace
 				case L'\b':
 
@@ -2752,7 +2773,10 @@ public:
 						if (!terms[CursorIndex].empty())
 						{
 							terms[CursorIndex].pop_back();
-							break;
+							if (!terms[CursorIndex].empty())
+							{
+								break;
+							}
 						}
 					}
 
@@ -2808,13 +2832,6 @@ public:
 					if (ExecLoop)
 					{
 						ExecLoop = false;
-						
-						if (New.size() < 2)
-						{
-							break;
-						}
-						New -= 2;
-						
 						goto loop;
 					}
 
@@ -2829,24 +2846,33 @@ public:
 
 					// aggiunta carattere
 				default:
+					
+					// aggiunta in un termine già esistente
 					if (terms.find(CursorIndex) != terms.end())
 					{
 						terms[CursorIndex] += c;
+						break;
 					}
-				}
 
+					// aggiunta di un nuovo termine
+					CursorIndex.last()++;
+					lister << CursorIndex;
+					terms[CursorIndex] = wstring(1, c);
+				}
+				
 				// pulizia oggetto e aggiornamento
 				clean();
 				activator = true;
-				
+				_GetCursorPos();
+
 				// pulizia console e scrittura
 				ClearArea(
 					{
-						short(dimensions[{}].X / 2 + begin.X),
+						short(csbi.dwSize.X + begin.X / 2),
 						short(dimensions[{}].Y / 2 + begin.Y)
 					},
 					{
-						short(dimensions[{}].X / 2),
+						short(csbi.dwSize.X - begin.X / 2),
 						short(dimensions[{}].Y / 2)
 					}
 				);
@@ -4796,7 +4822,10 @@ int main()
 	wcout << L"Per inserire una singola frazione premere CTRL + ALT\n";
 	wcout << L"Per terminare l'inserimento di una frazione premere CTRL + SHIFT\n";
 	ResetAttribute();
-	Expression().in();
+	if (Expression().in() == Fraction<>{ polynomial<>{ { { 0, { -3 } } } }, {} })
+	{
+		ret -111;
+	}
 	////////////////////////////////////////////////////////////////////////////////
 
 	// avvio
@@ -4862,7 +4891,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.5.5 ";
+			wcout << L"1.5.6 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -7850,7 +7879,7 @@ static LRESULT CALLBACK WindowProcessor3D(
 		// pressione tasto sinistro
 	case WM_LBUTTONDOWN:
 		enable = true;
-		Window3Data::Current = Coords = lParam;
+		Window3Data::Current = Window3Data::Coords = lParam;
 		ret 0;
 
 		// rilascio tasto sinistro
@@ -10365,14 +10394,13 @@ static factor<T_int> PolynomialMultiply(polynomial<T_int> Polynomial)
 		factor<T_int> Temp;
 		monomial<T_int> temp;
 
-		for (auto A : Polynomial[0])
-			for (auto B : Polynomial[1]) {
-				temp.coefficient = A.coefficient * B.coefficient;
-				temp.exp.clear();
-				for (size_t i = 0; i < Variables.size(); ++i)
-					temp.exp << A.exp[i] + B.exp[i];
-				Temp << temp;
-			}
+		for (auto A : Polynomial[0]) for (auto B : Polynomial[1]) {
+			temp.coefficient = A.coefficient * B.coefficient;
+			temp.exp.clear();
+			for (size_t i = 0; i < Variables.size(); ++i)
+				temp.exp << A.exp[i] + B.exp[i];
+			Temp << temp;
+		}
 		--(--Polynomial);
 		Polynomial >> Temp;
 	}
@@ -11784,9 +11812,9 @@ static tensor<tensor<long double>> SystemSolver(tensor<factor<>> functions)
 
 		// calcolo dello jacobiano
 		Matrix<Fraction<>> Jacobian(Variables.size());
-		for (size_t i = 0; i < Variables.size(); ++i)
-			for (size_t j = 0; j < Variables.size(); ++j)
-				Jacobian[i] << NewFunctions[i].derivate(j);
+		for (size_t j = 0; j < Variables.size(); ++j)
+			for (size_t k = 0; k < Variables.size(); ++k)
+				Jacobian[j] << NewFunctions[j].derivate(k);
 		auto solution{ StarterPoint };
 
 		for (int j = 0; j < 100; ++j) {
