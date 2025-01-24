@@ -2471,13 +2471,6 @@ public:
 					directorpos.X, short(directorpos.Y + dimensions[node + 0].Y)
 				};
 				FractionLinesLenght << directordim.X;
-
-				// correzione dati per frazioni grandi
-				if (terms.find(node + 0 + 0) == terms.end() or
-					terms.find(node + 1 + 0) == terms.end())
-				{
-					FractionLinesLenght.last() += 2;
-				}
 			}
 
 			// caso con sequenza di operazioni
@@ -2624,17 +2617,26 @@ public:
 		}
 		activator = false;
 
+		if (at.last() < 0)
+		{
+			at.last() = 0;
+			ret COORD{
+				short(positions[at].X),
+				short(positions[at].Y + dimensions[at].Y / 2)
+			};
+		}
+
 		ret COORD{
 			short(positions[at].X + dimensions[at].X),
 			short(positions[at].Y + dimensions[at].Y / 2)
 		};
 	}
-
+	
 	Fraction<> in()
 	{
 		// carattere per le frecce
 		using type = char;
-		int EscapeCode;
+		int EscapeCode, diff{};
 		if constexpr (is_same_v<type, char>)
 		{
 			EscapeCode = -32;
@@ -2737,20 +2739,171 @@ public:
 				}
 				if (arrow)
 				{
-					// frazione assente
-					if (CursorIndex.size() < 2)
+					switch (c)
 					{
-						continue;
-					}
+						// freccia sinistra
+					case 'K': {
 
-					// spostamento numeratore - denominatore
-					if (c == L'H')
-					{
-						CursorIndex[CursorIndex.size() - 2] = 0;
+						bool ExecuteMove{ false };
+						if (terms.find(CursorIndex) != terms.end())
+						{
+							// spostamento all'interno di un termine
+							wstring current{ terms[CursorIndex] };
+							ElabExponents(current);
+							if (diff < current.size())
+							{
+								diff++;
+								break;
+							}
+
+							// cursore all'inizio
+							if (CursorIndex == key{ 0 })
+							{
+								break;
+							}
+							
+							// cursore all'inizio di numeratore o denominatore
+							if (CursorIndex.last() == 0)
+							{
+								ExecuteMove = true;
+							}
+						}
+
+						if (CursorIndex.last() < 0 or ExecuteMove)
+						{
+							// spostamento verso l'esterno della frazione
+							if (CursorIndex[CursorIndex.size() - 2] == 0)
+							{
+								CursorIndex[CursorIndex.size() - 2] = 1;
+								CursorIndex--;
+								CursorIndex = underbranch(CursorIndex).last();
+								diff = 0;
+								break;
+							}
+
+							// spostamento verso il numeratore
+							if (CursorIndex[CursorIndex.size() - 2] == 1)
+							{
+								CursorIndex -= 2;
+								CursorIndex.last()--;
+								diff = 0;
+								break;
+							}
+						}
+
+						// spostamento verso il denominatore
+						CursorIndex.last()--;
+						CursorIndex = underbranch(CursorIndex + 0).last();
+						diff = 0;
 					}
-					else if (c == L'P')
-					{
+						break;
+
+						// freccia destra
+					case 'M': {
+						if (terms.find(CursorIndex) != terms.end())
+						{
+							// spostamento all'interno di un termine
+							if (diff > 0)
+							{
+								diff--;
+								break;
+							}
+
+							// cursore alla fine
+							if (CursorIndex == underbranch({}).last())
+							{
+								break;
+							}
+
+							// cursore alla fine di numeratore o denominatore
+							auto branch{ CursorIndex };
+							branch--;
+							if (CursorIndex == underbranch(branch).last())
+							{
+								// spostamento verso il numeratore
+								if (CursorIndex[CursorIndex.size() - 2] == 1)
+								{
+									CursorIndex[CursorIndex.size() - 2] = 0;
+									CursorIndex.last() = 0;
+									if (terms.find(CursorIndex) == terms.end())
+									{
+										CursorIndex.last() = -1;
+										diff = 0;
+									}
+									else
+									{
+										wstring current{ terms[CursorIndex] };
+										ElabExponents(current);
+										diff = current.size();
+									}
+									break;
+								}
+
+								// spostamento verso l'esterno della frazione
+								if (CursorIndex[CursorIndex.size() - 2] == 0)
+								{
+									CursorIndex -= 2;
+									CursorIndex.last()++;
+
+									wstring current{ terms[CursorIndex] };
+									ElabExponents(current);
+									diff = current.size();
+									break;
+								}
+							}
+						}
+
+						// spostamento verso il denominatore
+						CursorIndex.last()++;
+						CursorIndex << 1 << 0;
+						if (terms.find(CursorIndex) == terms.end())
+						{
+							CursorIndex.last() = -1;
+						}
+						else
+						{
+							wstring current{ terms[CursorIndex] };
+							ElabExponents(current);
+							diff = current.size();
+						}
+					}
+						break;
+
+						// spostamento da denominatore a numeratore
+					case 'H': {
+						if (CursorIndex.size() < 2)
+						{
+							continue;
+						}
+						CursorIndex[CursorIndex.size() - 2] = 0;
+						CursorIndex.last() = 0;
+
+						wstring current{ terms[CursorIndex] };
+						ElabExponents(current);
+						if (diff > current.size())
+						{
+							diff = current.size();
+						}
+					}
+						break;
+
+						// spostamento da numeratore a denominatore
+					case 'P': {
+						if (CursorIndex.size() < 2)
+						{
+							continue;
+						}
 						CursorIndex[CursorIndex.size() - 2] = 1;
+						CursorIndex.last() = 0;
+
+						wstring current{ terms[CursorIndex] };
+						ElabExponents(current);
+						if (diff > current.size())
+						{
+							diff = current.size();
+						}
+					}
+						break;
 					}
 
 					arrow = false;
@@ -2773,6 +2926,10 @@ public:
 						if (!terms[CursorIndex].empty())
 						{
 							terms[CursorIndex].pop_back();
+							if (diff > 0)
+							{
+								diff--;
+							}
 							if (!terms[CursorIndex].empty())
 							{
 								break;
@@ -2879,8 +3036,9 @@ public:
 				out(begin);
 			}
 			
+			// posizionamento del cursore
 			auto position{ CursorPosition(CursorIndex) };
-			position.X += begin.X;
+			position.X += begin.X - diff;
 			position.Y += begin.Y;
 			SetConsoleCursorPosition(hConsole, position);
 		}
@@ -2888,6 +3046,31 @@ public:
 
 	Fraction<> stdexport()
 	{
+		int sizemax{};
+		for (const auto& Key : lister)
+		{
+			if (sizemax < Key.size())
+			{
+				sizemax = Key.size();
+			}
+		}
+
+		// pensa a come fare l'iterazione.
+
+		// riduci le frazioni stack in divisione di frazioni
+
+		// traduci tutte le frazioni (nuova funzione molto utile)
+
+		// per ogni termine polinomiale
+
+			// gestisci gli esponenti
+			
+			// suddividilo in operatori e polinomi tradotti
+
+		// usa ObjectOperations
+
+		// cancella gli inputer vecchi e sostituiscili
+
 		ret Fraction<>{};
 	}
 };
@@ -4891,7 +5074,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.5.6 ";
+			wcout << L"1.5.8 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
