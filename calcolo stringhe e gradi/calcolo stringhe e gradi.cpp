@@ -2094,6 +2094,36 @@ public:
 	}
 };
 static void ClearArea(COORD WinCenter, COORD Dimensions);
+template<typename T> void GeneralizedHeapify(tensor<T>& arr, int n, int i)
+{
+	int largest{ i }, left{ 2 * i + 1 }, right{ 2 * i + 2 };
+	if (left < n and arr[left] > arr[largest])
+	{
+		largest = left;
+	}
+	if (right < n and arr[right] > arr[largest])
+	{
+		largest = right;
+	}
+	if (largest != i)
+	{
+		swap(arr[i], arr[largest]);
+		GeneralizedHeapify(arr, n, largest);
+	}
+}
+template<typename T> void GeneralizedHeapSort(tensor<T>& arr)
+{
+	auto n{ arr.size() };
+	for (ptrdiff_t i = n / 2 - 1; i >= 0; --i)
+	{
+		GeneralizedHeapify(arr, n, i);
+	}
+	for (ptrdiff_t i = n - 1; i > 0; --i)
+	{
+		swap(arr[0], arr[i]);
+		GeneralizedHeapify(arr, i, 0);
+	}
+}
 class key : public tensor<int>
 {
 public:
@@ -2326,6 +2356,129 @@ public:
 		
 		// pulizia
 		clean();
+	}
+
+	void Remove(key node)
+	{
+		// rimozione di tutti i termini sottostanti al nodo
+		auto New{ node };
+		bool ExecLoop{ true };
+		tensor<tensor<bool>> shifted{
+			tensor<bool>(lines.size(), false), tensor<bool>(lister.size(), false)
+		};
+		auto remove{ shifted };
+		tensor<tensor<key>> container{ lines, lister };
+	loop:
+		for (size_t i = 0; i < container[ExecLoop]; ++i)
+		{
+			// caso semplice
+			if (container[ExecLoop][i].size() < New.size())
+			{
+				continue;
+			}
+
+			// controllo corrispondenza
+			bool ContinueLoop{ false };
+			for (size_t j = 0; j < New; ++j)
+			{
+				// shift
+				if (j == New.size() - 1 and New[j] < container[ExecLoop][i][j])
+				{
+					shifted[ExecLoop][i] = true;
+					ContinueLoop = true;
+					break;
+				}
+
+				// ricerca
+				if (New[j] != container[ExecLoop][i][j])
+				{
+					ContinueLoop = true;
+					break;
+				}
+			}
+			if (ContinueLoop)
+			{
+				continue;
+			}
+
+			remove[ExecLoop][i] = true;
+		}
+
+		if (ExecLoop)
+		{
+
+			// rimozione nei termini
+			for (size_t i = 0; i < container[1]; ++i)
+			{
+				if (terms.find(container[1][i]) != terms.end() and remove[1][i])
+				{
+					terms.erase(container[1][i]);
+				}
+			}
+
+			// // esecuzione shift nei termini
+
+			// ordinamento chiavi
+			tensor<key> ListOfKeys;
+			for (size_t i = 0; i < container[1]; ++i)
+			{
+				if (shifted[1][i])
+				{
+					ListOfKeys << container[1][i];
+				}
+			}
+			if (ListOfKeys > 1)
+			{
+				GeneralizedHeapSort(ListOfKeys);
+			}
+
+			// sostituzione
+			for (size_t i = 0; i < ListOfKeys; ++i)
+			{
+				if (terms.find(ListOfKeys[i]) != terms.end())
+				{
+					auto location{ ListOfKeys[i] };
+					auto temp{ terms[location] };
+					terms.erase(location);
+					location[node.size() - 1]--;
+					terms[location] = temp;
+				}
+			}
+
+			// //
+		}
+		
+		for (
+			ptrdiff_t i = container[ExecLoop].size() - 1;
+			i >= 0;
+			--i
+			)
+		{
+			// rimozione
+			if (remove[ExecLoop][i])
+			{
+				container[ExecLoop].erase(
+					container[ExecLoop].begin() + i
+				);
+				continue;
+			}
+			
+			// salto
+			if (shifted[ExecLoop][i])
+			{
+				container[ExecLoop][i][node.size() - 1]--;
+			}
+		}
+
+		// ridirezionamento
+		if (ExecLoop)
+		{
+			ExecLoop = false;
+			goto loop;
+		}
+
+		lines = container[0];
+		lister = container[1];
 	}
 
 	COORD GetDimensions(key node = {})
@@ -2686,7 +2839,7 @@ public:
 				lister << CursorIndex;
 				lister << CursorIndex + 0 << CursorIndex + 0 + 0;
 				lister << CursorIndex + 1 << CursorIndex + 1 + 0;
-				
+
 				// pulizia e aggiornamento cursore
 				terms[CursorIndex + 1 + 0] = L"";
 				CursorIndex << 0 << 0;
@@ -2718,13 +2871,13 @@ public:
 				terms[CursorIndex] = L"";
 				activator = true;
 			}
-		
+
 			// tasti
 			if (_kbhit())
 			{
 				// lettura
 				char c = _getch();
-				
+
 				// carattere illegale
 				if (c == L'@')
 				{
@@ -2742,8 +2895,8 @@ public:
 					switch (c)
 					{
 						// freccia sinistra
-					case 'K': {
-
+					case L'K':
+					{
 						bool ExecuteMove{ false };
 						if (terms.find(CursorIndex) != terms.end())
 						{
@@ -2761,7 +2914,7 @@ public:
 							{
 								break;
 							}
-							
+
 							// cursore all'inizio di numeratore o denominatore
 							if (CursorIndex.last() == 0)
 							{
@@ -2796,10 +2949,11 @@ public:
 						CursorIndex = underbranch(CursorIndex + 0).last();
 						diff = 0;
 					}
-						break;
+					break;
 
-						// freccia destra
-					case 'M': {
+					// freccia destra
+					case L'M':
+					{
 						if (terms.find(CursorIndex) != terms.end())
 						{
 							// spostamento all'interno di un termine
@@ -2867,10 +3021,66 @@ public:
 							diff = current.size();
 						}
 					}
+					break;
+
+					// canc
+					case L'S':
+
+						// rimozione carattere dall'ultimo termine
+						if (terms.find(CursorIndex) != terms.end())
+						{
+							if (!terms[CursorIndex].empty())
+							{
+								terms[CursorIndex].pop_back();
+								if (diff > 0)
+								{
+									diff--;
+								}
+								if (!terms[CursorIndex].empty())
+								{
+									break;
+								}
+							}
+						}
+
+						// ctrl + canc
+					case -109:
+
+						// nulla da cancellare
+						if (CursorIndex.last() >=
+							underbranch(key(CursorIndex) -= 1).last().last())
+						{
+							break;
+						}
+
+						// rimozione
+						CursorIndex.last()++;
+						Remove(CursorIndex);
+						break;
+
+						// ctrl + freccia sinistra
+					case L's':
+						if (terms.find(CursorIndex) != terms.end())
+						{
+							wstring current{ terms[CursorIndex] };
+							ElabExponents(current);
+							diff = current.size();
+						}
+
+						break;
+
+						// ctrl + freccia destra
+					case L't':
+						if (terms.find(CursorIndex) != terms.end())
+						{
+							diff = 0;
+						}
+
 						break;
 
 						// spostamento da denominatore a numeratore
-					case 'H': {
+					case L'H':
+					{
 						if (CursorIndex.size() < 2)
 						{
 							continue;
@@ -2885,10 +3095,11 @@ public:
 							diff = current.size();
 						}
 					}
-						break;
+					break;
 
-						// spostamento da numeratore a denominatore
-					case 'P': {
+					// spostamento da numeratore a denominatore
+					case L'P':
+					{
 						if (CursorIndex.size() < 2)
 						{
 							continue;
@@ -2903,7 +3114,7 @@ public:
 							diff = current.size();
 						}
 					}
-						break;
+					break;
 					}
 
 					arrow = false;
@@ -2923,87 +3134,62 @@ public:
 					// rimozione carattere dall'ultimo termine
 					if (terms.find(CursorIndex) != terms.end())
 					{
-						if (!terms[CursorIndex].empty())
+						if (terms[CursorIndex].empty())
+						{
+							// rimozione termine
+							terms.erase(CursorIndex);
+							for (ptrdiff_t i = lister.size() - 1; i >= 0; --i)
+							{
+								if (lister[i] == CursorIndex)
+								{
+									lister.erase(lister.begin() + i);
+									break;
+								}
+							}
+
+							// aggiornamento
+							CursorIndex.last()--;
+							diff = 0;
+						}
+						else
 						{
 							terms[CursorIndex].pop_back();
 							if (diff > 0)
 							{
 								diff--;
 							}
-							if (!terms[CursorIndex].empty())
-							{
-								break;
-							}
+							break;
 						}
 					}
 
 					// ctrl + backspace
 				case 127:
-				{
+
 					// nulla
-					if (CursorIndex[0] < 1)
+					if (CursorIndex.last() < 0)
 					{
 						break;
 					}
 
-					// rimozione di tutti i termini sottostanti al nodo
-					auto New{ CursorIndex };
-					bool ExecLoop{ true };
-					tensor<tensor<key>> container{ lines, lister };
-				loop:
-					for (ptrdiff_t i = container[ExecLoop].size() - 1; i >= 0; --i)
-					{
-						// caso semplice
-						if (container[ExecLoop][i].size() < New.size())
-						{
-							continue;
-						}
-
-						// controllo corrispondenza
-						bool ContinueLoop{ false };
-						for (size_t j = 0; j < New; ++j)
-						{
-							if (New[j] != container[ExecLoop][i][j])
-							{
-								ContinueLoop = true;
-								break;
-							}
-						}
-						if (ContinueLoop)
-						{
-							continue;
-						}
-
-						// rimozione
-						if (ExecLoop)
-						{
-							if (terms.find(container[1][i]) != terms.end())
-							{
-								terms.erase(container[1][i]);
-							}
-						}
-						container[ExecLoop].erase(container[ExecLoop].begin() + i);
-					}
-
-					// ridirezionamento sul loop per cancellare le linee di frazione
-					if (ExecLoop)
-					{
-						ExecLoop = false;
-						goto loop;
-					}
-
+					// rimozione
+					Remove(CursorIndex);
 					CursorIndex.last()--;
-					lines = container[0];
-					lister = container[1];
-				}
+
+					// aggiunta di un posto per il cursore
+					if (CursorIndex.last() < 0)
+					{
+						CursorIndex.last()++;
+						lister << CursorIndex;
+						terms[CursorIndex] = L"";
+					}
 					break;
 
 					// conferma
-				case L'\r': ret stdexport();
+				case L'\r': ret Export();
 
 					// aggiunta carattere
 				default:
-					
+
 					// aggiunta in un termine già esistente
 					if (terms.find(CursorIndex) != terms.end())
 					{
@@ -3016,7 +3202,7 @@ public:
 					lister << CursorIndex;
 					terms[CursorIndex] = wstring(1, c);
 				}
-				
+
 				// pulizia oggetto e aggiornamento
 				clean();
 				activator = true;
@@ -3035,7 +3221,7 @@ public:
 				);
 				out(begin);
 			}
-			
+
 			// posizionamento del cursore
 			auto position{ CursorPosition(CursorIndex) };
 			position.X += begin.X - diff;
@@ -3044,7 +3230,7 @@ public:
 		}
 	}
 
-	Fraction<> stdexport()
+	Fraction<> Export()
 	{
 		int sizemax{};
 		for (const auto& Key : lister)
@@ -5074,7 +5260,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.5.8 ";
+			wcout << L"1.6.0 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -7496,7 +7682,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 			ret 0;
 
 			// reset
-		case 'R':
+		case L'R':
 			enable = false;
 			Zoom = 1;
 			shiftX = 0;
@@ -7504,13 +7690,13 @@ static LRESULT CALLBACK WindowProcessor2D(
 			break;
 
 			// traslazione
-		case 'D': shiftX += 10;
+		case L'D': shiftX += 10;
 			break;
-		case 'A': shiftX -= 10;
+		case L'A': shiftX -= 10;
 			break;
-		case 'W': shiftY += 10;
+		case L'W': shiftY += 10;
 			break;
-		case 'S': shiftY -= 10;
+		case L'S': shiftY -= 10;
 			break;
 
 			// zoom
@@ -7520,7 +7706,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 			break;
 
 			// ctrl + y
-		case 'Y': {
+		case L'Y': {
 			if ((GetKeyState(VK_CONTROL) & 0x8000) == 0 or gIndex + 1 >= memory)
 				ret 0;
 			gIndex++;
@@ -7539,7 +7725,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 			ret 0;
 
 			// ctrl + z
-		case 'Z': {
+		case L'Z': {
 			if ((GetKeyState(VK_CONTROL) & 0x8000) == 0 or gIndex <= 0)
 				ret 0;
 			gIndex--;
@@ -8123,29 +8309,29 @@ static LRESULT CALLBACK WindowProcessor3D(
 			ret 0;
 
 			// reset
-		case 'R':
+		case L'R':
 			Theta = M_PI / 4;
 			Phi = M_PI / 3;
 			Zoom = 1;
 			break;
 
 			// movimento
-		case 'A':
+		case L'A':
 			Theta += M_PI / 36;
 			if (Theta < 0) Theta += 2 * M_PI;
 			if (Theta > 2 * M_PI) Theta -= 2 * M_PI;
 			break;
-		case 'D':
+		case L'D':
 			Theta -= M_PI / 36;
 			if (Theta < 0) Theta += 2 * M_PI;
 			if (Theta > 2 * M_PI) Theta -= 2 * M_PI;
 			break;
-		case 'W':
+		case L'W':
 			Phi += M_PI / 36;
 			if (Phi < 0) Phi += 2 * M_PI;
 			if (Phi > 2 * M_PI) Phi -= 2 * M_PI;
 			break;
-		case 'S':
+		case L'S':
 			Phi -= M_PI / 36;
 			if (Phi < 0) Phi += 2 * M_PI;
 			if (Phi > 2 * M_PI) Phi -= 2 * M_PI;
@@ -9451,9 +9637,9 @@ static wstring NumberCodeSyntax(wstring ToEvaluate)
 	// ricerca del bilancio tra le parentesi
 	for (size_t i = 0; i < ToEvaluate.size(); ++i) {
 		switch (ToEvaluate.at(i)) {
-		case '(': ParenthesisBalance++;
+		case L'(': ParenthesisBalance++;
 			break;
-		case ')': ParenthesisBalance--;
+		case L')': ParenthesisBalance--;
 			break;
 		}
 		if (ParenthesisBalance < 0) ret L"Le parentesi sono invertite";
