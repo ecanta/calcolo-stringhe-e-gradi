@@ -271,12 +271,33 @@ using _TENSOR tensor, _TENSOR tensor_t;
 // numeri grandi con precisione di long double
 class big
 {
-	// dati
 private:
+
+	// dati
 	tensor<int> Integer;
 	bool sign;
 	long double decimal;
 
+	// funzioni minori
+	void construct(ptrdiff_t param)
+	{
+		tensor<int> temp;
+		while (param > 0)
+		{
+			temp << param % 10;
+			param /= 10;
+		}
+		if (temp.empty())
+		{
+			temp = { 0 };
+		}
+		auto size{ temp.size() };
+
+		for (ptrdiff_t i = size - 1; i >= 0; --i)
+		{
+			Integer << temp[i];
+		}
+	}
 	void shift()
 	{
 		wstring str;
@@ -297,6 +318,123 @@ private:
 				Integer << element;
 			}
 		}
+	}
+
+	// confronti
+	bool compare(const big& A, const big& B) const
+	{
+		auto integ{ A.Integer };
+		auto oth_integ{ B.Integer };
+
+		while (integ > 1 and integ[0] == 0)
+		{
+			--integ;
+		}
+		while (oth_integ > 1 and oth_integ[0] == 0)
+		{
+			--oth_integ;
+		}
+
+		if (integ % oth_integ)
+		{
+			ret integ < oth_integ;
+		}
+		for (size_t i = 0; i < integ; ++i)
+		{
+			if (integ[i] != oth_integ[i])
+			{
+				ret integ[i] < oth_integ[i];
+			}
+		}
+
+		ret A.decimal < B.decimal;
+	}
+
+	// addizione e sottrazione
+	big Add(const big& __This, const big& __Val, bool changesign) const
+	{
+		big This(__This), Val(__Val);
+		if (changesign)
+		{
+			This.sign = !This.sign;
+		}
+		bool carry;
+
+		// ridimensionamento
+		if (This.Integer < Val.Integer)
+		{
+			swap(This, Val);
+		}
+		Val.Integer.insert(
+			Val.Integer.begin(),
+			This.Integer.size() - Val.Integer.size(),
+			0
+		);
+
+		// somma
+		This.decimal += Val.decimal;
+		This.decimal -= (carry = This.decimal >= 1);
+		for (ptrdiff_t i = This.Integer.size() - 1; i >= 0; --i)
+		{
+			This.Integer[i] += Val.Integer[i] + carry;
+			This.Integer[i] -= 10 * (carry = This.Integer[i] >= 10);
+		}
+
+		// riporto
+		if (carry)
+		{
+			This.Integer >> 1;
+		}
+		ret This;
+	}
+	big Sub(const big& __This, const big& __Val, bool changesign) const
+	{
+		big This(__This), Val(__Val);
+		if (changesign)
+		{
+			This.sign = !This.sign;
+		}
+		bool carry;
+
+		// ridimensionamento
+		Val.Integer.insert(
+			Val.Integer.begin(),
+			This.Integer.size() - Val.Integer.size(),
+			0
+		);
+
+		// differenza
+		This.decimal -= Val.decimal;
+		This.decimal += (carry = This.decimal < 0);
+		for (ptrdiff_t i = This.Integer.size() - 1; i >= 0; --i)
+		{
+			This.Integer[i] -= Val.Integer[i] + carry;
+			This.Integer[i] += 10 * (carry = This.Integer[i] < 0);
+		}
+
+		// rimozione zeri iniziali
+		while (This.Integer > 1 and This.Integer[0] == 0)
+		{
+			--This.Integer;
+		}
+		ret This;
+	}
+	big AlgebricOperation1(const big& A, const big& B, bool sign) const
+	{
+		// addizione tra valori assoluti
+		if (!(A.sign xor B.sign xor sign))
+		{
+			ret Add(A, B, false);
+		}
+
+		// zero
+		if (A.Integer == B.Integer and A.decimal == B.decimal)
+		{
+			ret 0;
+		}
+
+		// sottrazione tra valori assoluti
+		ret compare(A, B) ? Sub(B, A, sign) : Sub(A, B, !sign);
 	}
 
 	big Multiply(const big& value) const
@@ -377,7 +515,6 @@ private:
 	}
 
 public:
-
 	template<typename t> t Number()
 	{
 		if constexpr (is_same_v<t, size_t>)
@@ -397,7 +534,7 @@ public:
 			}
 		}
 		t res = val;
-		
+
 		// parte decimale e segno
 		if constexpr (is_floating_point_v<t>)
 		{
@@ -417,55 +554,25 @@ public:
 	big() : sign(POS), Integer(0), decimal(0) {}
 	big(int param) : sign(param < 0), Integer(0), decimal(0)
 	{
-		wstring Param{ to_wstring(param) };
-		if (Param.at(0) == L'-')
-		{
-			Param.erase(0, 1);
-		}
-		for (auto ch : Param)
-		{
-			Integer << ch - L'0';
-		}
+		construct(abs(param));
 	}
 	big(ptrdiff_t param) : sign(param < 0), Integer(0), decimal(0)
 	{
-		wstring Param{ to_wstring(param) };
-		if (Param.at(0) == L'-')
-		{
-			Param.erase(0, 1);
-		}
-		for (auto ch : Param)
-		{
-			Integer << ch - L'0';
-		}
+		construct(abs(param));
 	}
 	big(double param) : sign(param < 0), Integer(0), decimal(0)
 	{
-		int intParam = param;
-		wstring Param{ to_wstring(intParam) };
-		if (Param.at(0) == L'-')
-		{
-			Param.erase(0, 1);
-		}
-		for (auto ch : Param)
-		{
-			Integer << ch - L'0';
-		}
-		decimal = _STD fabs(param) - _STD fabs(intParam);
+		param = _STD fabs(param);
+		auto Intpart{ static_cast<ptrdiff_t>(param) };
+		decimal = param - Intpart;
+		construct(Intpart);
 	}
 	big(long double param) : sign(param < 0), Integer(0), decimal(0)
 	{
-		int intParam = param;
-		wstring Param{ to_wstring(intParam) };
-		if (Param.at(0) == L'-')
-		{
-			Param.erase(0, 1);
-		}
-		for (auto ch : Param)
-		{
-			Integer << ch - L'0';
-		}
-		decimal = _STD fabs(param) - _STD fabs(intParam);
+		param = _STD fabs(param);
+		auto Intpart{ static_cast<ptrdiff_t>(param) };
+		decimal = param - Intpart;
+		construct(Intpart);
 	}
 	big(tensor<int> Big) : sign(POS), Integer(Big), decimal(0)
 	{
@@ -483,7 +590,7 @@ public:
 		tensor<int> Big;
 		for (auto c : wstr)
 		{
-			if (isdigit(c))
+			if (iswdigit(c))
 			{
 				Integer << c - L'0';
 			}
@@ -493,6 +600,11 @@ public:
 	// confronto primario e assegnazione
 	big& operator=(const big& other)
 	{
+		if (this == &other)
+		{
+			ret *this;
+		}
+
 		sign = other.sign;
 		Integer = other.Integer;
 		decimal = other.decimal;
@@ -511,48 +623,7 @@ public:
 	// confronto secondario
 	bool operator<(const big& other) const
 	{
-		auto integ{ Integer };
-		auto oth_integ{ other.Integer };
-
-		if (sign and !other.sign)
-		{
-			ret true;
-		}
-		if (!sign and other.sign)
-		{
-			ret false;
-		}
-
-		while (integ[0] == 0)
-		{
-			if (integ <= 1)
-			{
-				break;
-			}
-			--integ;
-		}
-		while (oth_integ[0] == 0)
-		{
-			if (oth_integ <= 1)
-			{
-				break;
-			}
-			--oth_integ;
-		}
-
-		if (integ % oth_integ)
-		{
-			ret (integ < oth_integ) xor sign;
-		}
-		for (size_t i = 0; i < integ; ++i)
-		{
-			if (integ[i] != oth_integ[i])
-			{
-				ret (integ[i] < oth_integ[i]) xor sign;
-			}
-		}
-
-		ret (decimal < other.decimal) xor sign;
+		ret(sign xor other.sign) ? sign : (compare(*this, other) xor sign);
 	}
 	inline bool operator<=(const big& other) const
 	{
@@ -570,54 +641,7 @@ public:
 	// addizione
 	big operator+(const big& value) const
 	{
-		big Val = value, This = *this;
-		bool carry{ false };
-
-		// segni
-		if (!This.sign and Val.sign)
-		{
-			Val.sign = POS;
-			ret This - Val;
-		}
-		if (This.sign and !Val.sign)
-		{
-			This.sign = POS;
-			ret Val - This;
-		}
-		if (Val.sign and This.sign)
-		{
-			Val.sign = POS;
-		}
-
-		// ridimensionamento
-		if (This.Integer < Val.Integer)
-		{
-			swap(This, Val);
-		}
-		while (Val.Integer < This.Integer)
-		{
-			Val.Integer >> 0;
-		}
-
-		// somma
-		This.decimal += Val.decimal;
-		carry = This.decimal >= 10;
-		if (carry)
-		{
-			This.decimal--;
-		}
-		for (ptrdiff_t i = This.Integer.size() - 1; i >= 0; --i)
-		{
-			int sum = This.Integer[i] + Val.Integer[i] + carry;
-			carry = sum >= 10;
-			This.Integer[i] = sum % 10;
-		}
-		if (carry)
-		{
-			This.Integer >> 1;
-		}
-
-		ret This;
+		ret AlgebricOperation1(*this, value, POS);
 	}
 	inline big& operator+=(const big& value)
 	{
@@ -638,63 +662,7 @@ public:
 	// sottrazione
 	big operator-(const big& value) const
 	{
-		big Val = value, This = *this;
-		bool carry{ false };
-
-		// segni
-		if (!This.sign and Val.sign)
-		{
-			Val.sign = POS;
-			ret This + Val;
-		}
-		if (This.sign and !Val.sign)
-		{
-			Val.sign = NEG;
-			ret Val + This;
-		}
-		if (Val.sign and This.sign)
-		{
-			Val.sign = POS;
-		}
-
-		// ridimensionamento
-		while (This.Integer > Val.Integer)
-		{
-			Val.Integer >> 0;
-		}
-		while (Val.Integer > This.Integer)
-		{
-			This.Integer >> 0;
-		}
-		if (This < Val)
-		{
-			swap(This, Val);
-			This.sign = !This.sign;
-		}
-
-		This.decimal -= Val.decimal;
-		carry = This.decimal < 0;
-		if (carry)
-		{
-			This.decimal++;
-		}
-
-		for (ptrdiff_t i = This.Integer.size() - 1; i >= 0; --i)
-		{
-			int diff = This.Integer[i] - Val.Integer[i] - carry;
-			carry = diff < 0;
-			This.Integer[i] = (diff + 10) % 10;
-		}
-
-		while (This.Integer[0] == 0)
-		{
-			if (This.Integer <= 1)
-			{
-				break;
-			}
-			--This.Integer;
-		}
-		ret This;
+		ret AlgebricOperation1(*this, value, NEG);
 	}
 	inline big& operator-=(const big& value)
 	{
@@ -742,7 +710,7 @@ public:
 		{
 			ret Multiply(value);
 		}
-		
+
 		// gestione decimali e segni
 		big This = *this, Value = value;
 		bool ResultSign = This.sign xor Value.sign;
@@ -910,7 +878,7 @@ public:
 			power *= NewBase;
 			if (power < 0)
 			{
-				ret -1;
+				ret - 1;
 			}
 		}
 		if (exp % 2 == 1 and *this < 0)
@@ -1011,22 +979,22 @@ public:
 big LCM(1);
 
 // numeri complessi
-class complex
+template<typename Ty> class complex
 {
 public:
 
 	// dati
-	double RealPart;
-	double ImaginaryPart;
-	double norm() const
+	Ty RealPart;
+	Ty ImaginaryPart;
+	Ty norm() const
 	{
 		ret sqrt(RealPart * RealPart + ImaginaryPart * ImaginaryPart);
 	}
 
 	// costruttori
 	complex() : RealPart(0), ImaginaryPart(0) {}
-	complex(double real) : RealPart(real), ImaginaryPart(0) {}
-	complex(double real, double imag) : RealPart(real), ImaginaryPart(imag) {}
+	complex(Ty real) : RealPart(real), ImaginaryPart(0) {}
+	complex(Ty real, Ty imag) : RealPart(real), ImaginaryPart(imag) {}
 
 	// metodi matematici
 	inline complex conjugate() const
@@ -1089,10 +1057,8 @@ public:
 	// moltiplicazione e divisione
 	complex operator*(complex value) const
 	{
-		double a{ RealPart };
-		double b{ ImaginaryPart };
-		double c{ value.RealPart };
-		double d{ value.ImaginaryPart };
+		Ty a{ RealPart }, b{ ImaginaryPart };
+		Ty c{ value.RealPart }, d{ value.ImaginaryPart };
 
 		ret complex(
 			a * c - b * d,
@@ -1106,10 +1072,8 @@ public:
 	}
 	complex operator/(complex value) const
 	{
-		double a{ RealPart };
-		double b{ ImaginaryPart };
-		double c{ value.RealPart };
-		double d{ value.ImaginaryPart };
+		Ty a{ RealPart }, b{ ImaginaryPart };
+		Ty c{ value.RealPart }, d{ value.ImaginaryPart };
 
 		ret complex(
 			(a * c + b * d) / (c * c + d * d),
@@ -1123,15 +1087,26 @@ public:
 	}
 
 	// output
-	wstring c_str() const
+	wstring str() const
 	{
 		wostringstream output;
-		output << setprecision(10) << L'(' << RealPart << L' ';
-		ImaginaryPart > 0 ? output << L'+' : output << L'-';
-		output << L" i" << fabs(ImaginaryPart) << L')';
+		if (ImaginaryPart)
+		{
+			output << setprecision(10) << L'(';
+		}
+		output << RealPart;
+		if (ImaginaryPart)
+		{
+			ImaginaryPart > 0 ? output << L" +" : output << L" -";
+			output << L" i" << fabs(ImaginaryPart) << L')';
+		}
 		ret output.str();
 	}
 };
+template<typename Ty> static complex<Ty> InitExponentialForm(Ty radius, Ty angle)
+{
+	ret complex<Ty>(radius * cos(angle), -radius * sin(angle));
+}
 
 // monomi
 template<typename T_int = long double>struct MONOMIAL {
@@ -2488,11 +2463,14 @@ public:
 		{
 			auto str{ terms[node] };
 			auto size{ str.size() };
-			for (ptrdiff_t i = 0; i < (int)str.size() - 1; ++i)
+			if (BOOLALPHA)
 			{
-				if (str.at(i) == L'^' and isdigit(str.at(i + 1)))
+				for (ptrdiff_t i = 0; i < (int)str.size() - 1; ++i)
 				{
-					size--;
+					if (str.at(i) == L'^' and isdigit(str.at(i + 1)))
+					{
+						size--;
+					}
 				}
 			}
 			ret dimensions[node] = COORD{ short(size), 1 };
@@ -2800,17 +2778,17 @@ public:
 		}
 
 		//// blocco temporaneo di debug
-		Insert({ 0 }, L"(");
-		Insert({ 1 }, L"2x", L"y+3");
-		Insert({ 2 }, L" - ");
-		Insert({ 3 }, L"1", L"2");
-		Insert({ 4 }, L"4xy + ");
-		Insert({ 5 }, L"", L"");
-		Insert({ 5, 0, 0 }, L"2", L"3");
-		Insert({ 5, 1, 0 }, L"25x^2", L"3");
-		Insert({ 6 }, L") * (");
-		Insert({ 7 }, L"2", L"5x");
-		Insert({ 8 }, L")^2");
+		// Insert({ 0 }, L"(");
+		// Insert({ 1 }, L"2x", L"y+3");
+		// Insert({ 2 }, L" - ");
+		// Insert({ 3 }, L"1", L"2");
+		// Insert({ 4 }, L"4xy + ");
+		Insert({ 0 }, L"", L"");
+		Insert({ 0, 0, 0 }, L"2", L"3");
+		Insert({ 0, 1, 0 }, L"25x^2", L"3");
+		// Insert({ 6 }, L") * (");
+		// Insert({ 7 }, L"2", L"5x");
+		// Insert({ 8 }, L")^2");
 		////
 
 		// aggiunta di spazio
@@ -2820,7 +2798,7 @@ public:
 		SetConsoleCursorPosition(hConsole, begin);
 		out(begin);
 		bool arrow{ false };
-		key CursorIndex({ 8 });
+		key CursorIndex({ 0 });
 
 		// ciclo dei comandi
 		for (;;)
@@ -2848,7 +2826,7 @@ public:
 				clean();
 			}
 
-			// fine inserimento frazione
+			// switch boolalpha
 			if (GetAsyncKeyState(VK_CONTROL) & 0x8000 and
 				GetAsyncKeyState(VK_SHIFT) & 0x8000)
 			{
@@ -2856,19 +2834,7 @@ public:
 				while (GetAsyncKeyState(VK_CONTROL) & 0x8000 and
 					GetAsyncKeyState(VK_SHIFT) & 0x8000);
 
-				// nessuna frazione
-				if (CursorIndex.size() < 2)
-				{
-					continue;
-				}
-
-				// aggiornamento cursore
-				CursorIndex -= 2;
-				CursorIndex.last()++;
-
-				// aggiunta termini
-				lister << CursorIndex;
-				terms[CursorIndex] = L"";
+				BOOLALPHA = !BOOLALPHA;
 				activator = true;
 			}
 
@@ -3207,7 +3173,10 @@ public:
 				clean();
 				activator = true;
 				_GetCursorPos();
+			}
 
+			if (activator)
+			{
 				// pulizia console e scrittura
 				ClearArea(
 					{
@@ -3221,7 +3190,7 @@ public:
 				);
 				out(begin);
 			}
-
+				
 			// posizionamento del cursore
 			auto position{ CursorPosition(CursorIndex) };
 			position.X += begin.X - diff;
@@ -3232,18 +3201,145 @@ public:
 
 	Fraction<> Export()
 	{
-		int sizemax{};
-		for (const auto& Key : lister)
+		// eliminazione spazi bianchi
+		for (auto& term : terms)
 		{
-			if (sizemax < Key.size())
+			auto& str{ term.second };
+			for (ptrdiff_t i = str.size() - 1; i >= 0; --i)
 			{
-				sizemax = Key.size();
+				if (str.at(i) == L' ' or str.at(i) == L'\t')
+				{
+					str.erase(i, 1);
+				}
 			}
 		}
 
-		// pensa a come fare l'iterazione.
+		// semplificazione profondità
+		int sizemax, index;
+		for (;;)
+		{
+			if (lines.empty())
+			{
+				break;
+			}
 
-		// riduci le frazioni stack in divisione di frazioni
+			// ricerca di una frazione doppia
+			sizemax = index = 0;
+			for (size_t i = 0; i < lines; ++i)
+			{
+				if (sizemax < lines[i].size())
+				{
+					sizemax = lines[i].size();
+					index = i;
+				}
+			}
+			if (sizemax == 1)
+			{
+				break;
+			}
+			auto main{ lines[index] };
+			int delta{};
+			main -= 2;
+
+			// salvataggio numeratore e denominatore
+			tensor<tensor<key>> fractal{ {}, {} };
+			for (const auto& Key : terms)
+			{
+				// caso semplice
+				if (Key.first.size() < main)
+				{
+					continue;
+				}
+
+				// accertamento nodo appartenente
+				bool Continue{ false };
+				for (size_t i = 0; i < main; ++i)
+				{
+					if (Key.first[i] != main[i])
+					{
+						Continue = true;
+						break;
+					}
+				}
+				if (Continue)
+				{
+					continue;
+				}
+
+				fractal[Key.first[main.size()]] << Key.first;
+			}
+			
+			// operazioni iniziali
+			GeneralizedHeapSort(fractal[0]);
+			GeneralizedHeapSort(fractal[1]);
+			Insert(main, L"(");
+
+			// aggiunta numeratore
+			bool skip{ false };
+			for (size_t i = 0; i < fractal[0]; ++i)
+			{
+				if (skip)
+				{
+					skip = false;
+					continue;
+				}
+
+				// termine semplice
+				delta++;
+				main.last()++;
+				if (fractal[0][i] == sizemax)
+				{
+					fractal[0][i][main.size() - 1] += delta;
+					Insert(main, terms[fractal[0][i]]);
+					continue;
+				}
+
+				// frazione
+				fractal[0][i][main.size() - 1] += delta;
+				fractal[0][i + 1][main.size() - 1] += delta;
+				Insert(main, terms[fractal[0][i]], terms[fractal[0][i + 1]]);
+				skip = true;
+			}
+
+			// aggiunta denominatore
+			delta++;
+			main.last()++;
+			Insert(main, L")/(");
+			skip = false;
+			for (size_t i = 0; i < fractal[1]; ++i)
+			{
+				if (skip)
+				{
+					skip = false;
+					continue;
+				}
+
+				// termine semplice
+				delta++;
+				main.last()++;
+				if (fractal[1][i] == sizemax)
+				{
+					fractal[1][i][main.size() - 1] += delta;
+					Insert(main, terms[fractal[1][i]]);
+					continue;
+				}
+
+				// frazione
+				fractal[1][i][main.size() - 1] += delta;
+				fractal[1][i + 1][main.size() - 1] += delta;
+				Insert(main, terms[fractal[1][i]], terms[fractal[1][i + 1]]);
+				skip = true;
+			}
+
+			// operazioni finali
+			main.last()++;
+			Insert(main, L")");
+			main.last()++;
+			Remove(main);
+			clean();
+		}
+
+
 
 		// traduci tutte le frazioni (nuova funzione molto utile)
 
@@ -5189,7 +5285,7 @@ int main()
 	wcout << L"inserisci una frazione algebrica.\n";
 	SetConsoleTextAttribute(hConsole, 12);
 	wcout << L"Per inserire una singola frazione premere CTRL + ALT\n";
-	wcout << L"Per terminare l'inserimento di una frazione premere CTRL + SHIFT\n";
+	wcout << L"Per cambiare lo stato degli esponenti premere CTRL + SHIFT\n";
 	ResetAttribute();
 	if (Expression().in() == Fraction<>{ polynomial<>{ { { 0, { -3 } } } }, {} })
 	{
@@ -5260,7 +5356,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.6.0 ";
+			wcout << L"1.6.1 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -12010,13 +12106,13 @@ static tensor<wstring> EquationSolver(factor<> Equation)
 			// radici complesse
 			else {
 				_push = factor<>{ { 1, VDirectorSeq[0] } }.str() + L" != "
-					+ complex(half_root_sum, sqrt(-delta_4)).c_str();
+					+ complex<double>(half_root_sum, sqrt(-delta_4)).str();
 				if (VKnownSeq[0] != null)
 					_push += factor<>{ { 1, VKnownSeq[0] } }.str();
 				answer << _push;
 
 				_push = factor<>{ { 1, VDirectorSeq[0] } }.str() + L" != "
-					+ complex(half_root_sum, -sqrt(-delta_4)).c_str();
+					+ complex<double>(half_root_sum, -sqrt(-delta_4)).str();
 				if (VKnownSeq[0] != null)
 					_push += factor<>{ { 1, VKnownSeq[0] } }.str();
 				answer << _push;
@@ -15234,8 +15330,8 @@ RETURN:
 #pragma endregion
 
 // file natvis                                54  righe
-// tensor.cpp                                 760 righe
-/// totale righe non presenti in questo file: 814
+// tensor.cpp                                 791 righe
+/// totale righe non presenti in questo file: 845
 
 // fine del codice -----------------------------------------------------------------
 

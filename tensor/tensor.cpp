@@ -637,7 +637,30 @@ namespace std_tensor
 			data[index] = value;
 			count++;
 		}
-		void remove(const T& value)
+		void insert(iterator pos, size_t amount, const T& value)
+		{
+			if (amount == 0)
+			{
+				ret;
+			}
+
+			size_t index = pos - begin();
+			if (count + amount >= capacity)
+			{
+				resize((count + amount) * 2);
+			}
+
+			for (ptrdiff_t i = count; i >= index; --i)
+			{
+				data[i + amount] = _STD move(data[i]);
+			}
+			for (size_t i = 0; i < amount; ++i)
+			{
+				data[index + i] = value;
+			}
+			count += amount;
+		}
+		static void remove(const T& value)
 		{
 			size_t write{};
 			for (size_t read = 0; read < count; ++read)
@@ -707,8 +730,16 @@ namespace std_tensor
 				}
 			}
 
-			// niente
-			else ret L"";
+			// qualcosa
+			else
+			{
+				// nel caso...
+				// for (const auto& element : *this)
+				// {
+				// 	result << element.str() << L", ";
+				// }
+				ret L"";
+			}
 
 			// fine
 			outp = result.str();
