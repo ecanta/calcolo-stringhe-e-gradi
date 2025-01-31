@@ -86,7 +86,6 @@ IMPROVE OPT
 #include <unordered_map>
 #include <utility>
 #include <Windows.h>
-
 #include "../tensor/tensor.cpp"
 
 // namespace globali
@@ -267,6 +266,192 @@ unordered_map<wstring, wstring> ConvertFromSuperScript
 
 wstring Variables{ L"x" };
 using _TENSOR tensor, _TENSOR tensor_t;
+
+// numeri complessi
+template<typename Ty> class complex
+{
+public:
+
+	// dati
+	Ty RealPart;
+	Ty ImaginaryPart;
+	Ty norm() const
+	{
+		ret sqrt(RealPart * RealPart + ImaginaryPart * ImaginaryPart);
+	}
+
+	// costruttori
+	complex() : RealPart(0), ImaginaryPart(0) {}
+	complex(Ty real) : RealPart(real), ImaginaryPart(0) {}
+	complex(Ty real, Ty imag) : RealPart(real), ImaginaryPart(imag) {}
+
+	// metodi matematici
+	inline complex conjugate() const
+	{
+		ret complex(RealPart, -ImaginaryPart);
+	}
+	inline complex opposite() const
+	{
+		ret complex(-RealPart, -ImaginaryPart);
+	}
+
+	// addizione
+	complex operator+(complex value) const
+	{
+		ret complex(
+			RealPart + value.RealPart,
+			ImaginaryPart + value.ImaginaryPart
+		);
+	}
+	inline complex& operator+=(complex value)
+	{
+		*this = *this + value;
+		ret *this;
+	}
+	inline complex& operator++()
+	{
+		*this = *this + 1;
+		ret *this;
+	}
+	inline complex& operator++(int)
+	{
+		*this = *this + 1;
+		ret *this;
+	}
+
+	// sottrazione
+	complex operator-(complex value) const
+	{
+		ret complex(
+			RealPart - value.RealPart,
+			ImaginaryPart - value.ImaginaryPart
+		);
+	}
+	inline complex& operator-=(complex value)
+	{
+		*this = *this - value;
+		ret *this;
+	}
+	inline complex& operator--()
+	{
+		*this = *this - 1;
+		ret *this;
+	}
+	inline complex& operator--(int)
+	{
+		*this = *this - 1;
+		ret *this;
+	}
+
+	// moltiplicazione e divisione
+	complex operator*(complex value) const
+	{
+		Ty a{ RealPart }, b{ ImaginaryPart };
+		Ty c{ value.RealPart }, d{ value.ImaginaryPart };
+
+		ret complex(
+			a * c - b * d,
+			b * c + a * d
+		);
+	}
+	inline complex& operator*=(complex value)
+	{
+		*this = *this * value;
+		ret *this;
+	}
+	complex operator/(complex value) const
+	{
+		Ty a{ RealPart }, b{ ImaginaryPart };
+		Ty c{ value.RealPart }, d{ value.ImaginaryPart };
+
+		ret complex(
+			(a * c + b * d) / (c * c + d * d),
+			(b * c - a * d) / (c * c + d * d)
+		);
+	}
+	inline complex operator/=(complex value)
+	{
+		*this = *this / value;
+		ret *this;
+	}
+
+	// output
+	wstring str() const
+	{
+		wostringstream output;
+		if (ImaginaryPart)
+		{
+			output << setprecision(10) << L'(';
+		}
+		output << RealPart;
+		if (ImaginaryPart)
+		{
+			ImaginaryPart > 0 ? output << L" +" : output << L" -";
+			output << L" i" << fabs(ImaginaryPart) << L')';
+		}
+		ret output.str();
+	}
+};
+template<typename Ty> static complex<Ty> InitExponentialForm(Ty radius, Ty angle)
+{
+	ret complex<Ty>(radius * cos(angle), -radius * sin(angle));
+}
+tensor<complex<long double>> Omega, OmegaInv;
+static tensor<complex<long double>>
+FFT(tensor<complex<long double>> input, bool inverse)
+{
+	// calcolo dell'incremento
+	auto N{ input.size() };
+	auto& omega{ inverse ? OmegaInv : Omega };
+	int Ratio = omega.empty() ? 1 : N / (2 * omega.size());
+
+	// calcolo degli omega
+	if (Ratio > 1 or omega.empty())
+	{
+		for (size_t i = 0; i < N / 2; i += Ratio)
+		{
+			omega << (inverse ?
+				InitExponentialForm<long double>(
+					1 / N, 2 * M_PI * i / N
+				) :
+				InitExponentialForm<long double>(
+					1, -2 * M_PI * i / N
+				)
+			);
+		}
+	}
+
+	// caso base
+	if (N == 1)
+	{
+		ret input;
+	}
+
+	// altro caso base
+	if (N == 2)
+	{
+		ret{ input[0] + input[1], input[0] - input[1] };
+	}
+
+	// suddivisione
+	tensor<complex<long double>> Even, Odd, output(N);
+	for (size_t i = 0; i < N; ++i)
+	{
+		(i % 2 ? Odd : Even) << input[i];
+	}
+	Even = FFT(Even, false);
+	Odd = FFT(Odd, false);
+
+	// formula ricorsiva
+	auto step{ 2 * Omega.size() / N };
+	for (size_t i = 0; i < N / 2; ++i)
+	{
+		output[i] = Even[i] + Omega[step * i] * Odd[i];
+		output[i + N / 2] = Even[i] - Omega[step * i] * Odd[i];
+	}
+
+	ret output;
+}
 
 // numeri grandi con precisione di long double
 class big
@@ -695,7 +880,61 @@ public:
 		*this = *this << shift;
 		ret *this;
 	}
-	big operator*(const big& value) const
+	big operator*(const big& other) const
+	{
+		// calcolo dimensione
+		size_t N{ 1 };
+		auto sizeA{ Integer.size() };
+		auto sizeB{ other.Integer.size() };
+		while (N < sizeA + sizeB)
+		{
+			N <<= 1;
+		}
+
+		// preparazione tensori
+		tensor<complex<long double>> A(N), B(N);
+		for (size_t i = 0; i < sizeA; ++i)
+		{
+			A[i] = complex<long double>(Integer[i]);
+		}
+		for (size_t i = 0; i < sizeB; ++i)
+		{
+			B[i] = complex<long double>(other.Integer[i]);
+		}
+
+		// trasformata di fourier veloce
+		A = FFT(A, false);
+		B = FFT(B, false);
+
+		// moltiplicazione
+		for (size_t i = 0; i < N; ++i) A[i] *= B[i];
+		
+		// traduzione
+		A = FFT(A, true);
+		for (size_t i = 0; i < N; ++i) A[i] = A[i].conjugate() / N;
+
+		// conversione
+		big result;
+		ptrdiff_t carry{};
+		result.Integer(N);
+		for (size_t i = 0; i < N; ++i)
+		{
+			ptrdiff_t value = _STD round(A[i].RealPart) + carry;
+			result.Integer[i] = value % 10;
+			carry = value / 10;
+		}
+
+		// Rimuovi zeri inutili
+		while (result.Integer > 1 and result.Integer.last() == 0)
+		{
+			result.Integer--;
+		}
+		result.sign = sign == other.sign;
+
+		ret result;
+	}
+
+	big operator*(big& value) const
 	{
 		// casi particolari
 		if (value == 0 or *this == 0)
@@ -825,6 +1064,27 @@ public:
 		}
 		result.decimal = 0;
 		ret result;
+
+		// if (value == 0)
+		// {
+		// 	throw invalid_argument("Division by zero!");
+		// }
+		// 
+		// // metodo di newton-raphson
+		// big old, result = 0.0001;
+		// for (;;)
+		// {
+		// 	old = result;
+		// 	result = result * 2 - value * result * result;
+		// 	if ((result - old).fabs() < 1e-17)
+		// 	{
+		// 		break;
+		// 	}
+		// }
+		// 
+		// auto output{ (*this) * result };
+		// output.decimal = 0;
+		// ret output;
 	}
 	inline big& operator/=(const big& value)
 	{
@@ -978,138 +1238,9 @@ public:
 };
 big LCM(1);
 
-// numeri complessi
-template<typename Ty> class complex
-{
-public:
-
-	// dati
-	Ty RealPart;
-	Ty ImaginaryPart;
-	Ty norm() const
-	{
-		ret sqrt(RealPart * RealPart + ImaginaryPart * ImaginaryPart);
-	}
-
-	// costruttori
-	complex() : RealPart(0), ImaginaryPart(0) {}
-	complex(Ty real) : RealPart(real), ImaginaryPart(0) {}
-	complex(Ty real, Ty imag) : RealPart(real), ImaginaryPart(imag) {}
-
-	// metodi matematici
-	inline complex conjugate() const
-	{
-		ret complex(RealPart, -ImaginaryPart);
-	}
-	inline complex opposite() const
-	{
-		ret complex(-RealPart, -ImaginaryPart);
-	}
-
-	// addizione
-	complex operator+(complex value) const
-	{
-		ret complex(
-			RealPart + value.RealPart,
-			ImaginaryPart + value.ImaginaryPart
-		);
-	}
-	inline complex& operator+=(complex value)
-	{
-		*this = *this + value;
-		ret *this;
-	}
-	inline complex& operator++()
-	{
-		*this = *this + 1;
-		ret *this;
-	}
-	inline complex& operator++(int)
-	{
-		*this = *this + 1;
-		ret *this;
-	}
-
-	// sottrazione
-	complex operator-(complex value) const
-	{
-		ret complex(
-			RealPart - value.RealPart,
-			ImaginaryPart - value.ImaginaryPart
-		);
-	}
-	inline complex& operator-=(complex value)
-	{
-		*this = *this - value;
-		ret *this;
-	}
-	inline complex& operator--()
-	{
-		*this = *this - 1;
-		ret *this;
-	}
-	inline complex& operator--(int)
-	{
-		*this = *this - 1;
-		ret *this;
-	}
-
-	// moltiplicazione e divisione
-	complex operator*(complex value) const
-	{
-		Ty a{ RealPart }, b{ ImaginaryPart };
-		Ty c{ value.RealPart }, d{ value.ImaginaryPart };
-
-		ret complex(
-			a * c - b * d,
-			b * c + a * d
-		);
-	}
-	inline complex& operator*=(complex value)
-	{
-		*this = *this * value;
-		ret *this;
-	}
-	complex operator/(complex value) const
-	{
-		Ty a{ RealPart }, b{ ImaginaryPart };
-		Ty c{ value.RealPart }, d{ value.ImaginaryPart };
-
-		ret complex(
-			(a * c + b * d) / (c * c + d * d),
-			(b * c - a * d) / (c * c + d * d)
-		);
-	}
-	inline complex operator/=(complex value)
-	{
-		*this = *this / value;
-		ret *this;
-	}
-
-	// output
-	wstring str() const
-	{
-		wostringstream output;
-		if (ImaginaryPart)
-		{
-			output << setprecision(10) << L'(';
-		}
-		output << RealPart;
-		if (ImaginaryPart)
-		{
-			ImaginaryPart > 0 ? output << L" +" : output << L" -";
-			output << L" i" << fabs(ImaginaryPart) << L')';
-		}
-		ret output.str();
-	}
-};
-template<typename Ty> static complex<Ty> InitExponentialForm(Ty radius, Ty angle)
-{
-	ret complex<Ty>(radius * cos(angle), -radius * sin(angle));
-}
-
 // monomi
-template<typename T_int = long double>struct MONOMIAL {
+template<typename T_int = long double>struct MONOMIAL
+{
 	int degree;
 	T_int coefficient;
 	bool operator == (const MONOMIAL& other) const
@@ -5282,16 +5413,19 @@ int main()
 	wcout.imbue(locale(""));
 
 	////////////////////////////////////////////////////////////////////////////////
-	wcout << L"inserisci una frazione algebrica.\n";
-	SetConsoleTextAttribute(hConsole, 12);
-	wcout << L"Per inserire una singola frazione premere CTRL + ALT\n";
-	wcout << L"Per cambiare lo stato degli esponenti premere CTRL + SHIFT\n";
-	ResetAttribute();
-	if (Expression().in() == Fraction<>{ polynomial<>{ { { 0, { -3 } } } }, {} })
-	{
-		ret -111;
-	}
+	// wcout << L"inserisci una frazione algebrica.\n";
+	// SetConsoleTextAttribute(hConsole, 12);
+	// wcout << L"Per inserire una singola frazione premere CTRL + ALT\n";
+	// wcout << L"Per cambiare lo stato degli esponenti premere CTRL + SHIFT\n";
+	// ResetAttribute();
+	// if (Expression().in() == Fraction<>{ polynomial<>{ { { 0, { -3 } } } }, {} })
+	// {
+	// 	ret -111;
+	// }
 	////////////////////////////////////////////////////////////////////////////////
+
+	wcout << big(1212) * big(3333);
+	_getch();
 
 	// avvio
 	QueryPerformanceFrequency(&ProgramFrequency);
@@ -5356,7 +5490,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.6.1 ";
+			wcout << L"1.6.3 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -5397,8 +5531,7 @@ int main()
 			else global = stoull(G);
 			if (global < 10'000'000) {
 				if (!start and global == 0) LockPrimeNumbersInput = true;
-				if (start) global = 10'000'000;
-				else global = 0;
+				global = start ? 10'000'000 : 0;
 			}
 			ResetAttribute();
 

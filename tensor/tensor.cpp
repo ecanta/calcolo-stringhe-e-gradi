@@ -650,7 +650,7 @@ namespace std_tensor
 				resize((count + amount) * 2);
 			}
 
-			for (ptrdiff_t i = count; i >= index; --i)
+			for (ptrdiff_t i = count - 1; i >= (ptrdiff_t)index; --i)
 			{
 				data[i + amount] = _STD move(data[i]);
 			}
