@@ -17,6 +17,11 @@ friend bool operator
 
 namespace std_tensor
 {
+	// metafunzioni necessarie
+	template<class T, class = void> struct has_str_method : std::false_type {};
+	template<class T>
+	struct has_str_method<T, std::void_t<decltype(std::declval<T>().str())>>
+		: std::true_type {};
 
 	// tensor, una variante ottimizzata di ::std::vector
 	template<class T>class tensor
@@ -731,13 +736,17 @@ namespace std_tensor
 			}
 
 			// qualcosa
+			else if constexpr (has_str_method<T>::value)
+			{
+				for (auto& element : *this)
+				{
+					result << element.str() << L", ";
+				}
+			}
+
+			// niente
 			else
 			{
-				// nel caso...
-				// for (const auto& element : *this)
-				// {
-				// 	result << element.str() << L", ";
-				// }
 				ret L"";
 			}
 
@@ -749,6 +758,12 @@ namespace std_tensor
 				outp.pop_back();
 			}
 			ret L"{ " + outp + L" }";
+		}
+
+		friend _STD wostream& operator<<(_STD wostream& os, tensor& obj)
+		{
+			os << obj.str();
+			ret os;
 		}
 	};
 

@@ -386,71 +386,136 @@ public:
 		output << RealPart;
 		if (ImaginaryPart)
 		{
-			ImaginaryPart > 0 ? output << L" +" : output << L" -";
-			output << L" i" << fabs(ImaginaryPart) << L')';
+			ImaginaryPart > 0 ? output << L" + " : output << L" - ";
+			if (!integer(ImaginaryPart))
+			{
+				output << L'i';
+			}
+
+			if (fabs(ImaginaryPart) != 1)
+			{
+				output << fabs(ImaginaryPart);
+			}
+
+			if (integer(ImaginaryPart))
+			{
+				output << L'i';
+			}
+			output << L')';
 		}
 		ret output.str();
+	}
+
+	friend wostream& operator<<(wostream& os, const complex& obj)
+	{
+		os << obj.str();
+		ret os;
 	}
 };
 template<typename Ty> static complex<Ty> InitExponentialForm(Ty radius, Ty angle)
 {
-	ret complex<Ty>(radius * cos(angle), -radius * sin(angle));
+	ret complex<Ty>(radius * cos(angle), radius * sin(angle));
 }
-tensor<complex<long double>> Omega, OmegaInv;
-static tensor<complex<long double>>
-FFT(tensor<complex<long double>> input, bool inverse)
-{
-	// calcolo dell'incremento
-	auto N{ input.size() };
-	auto& omega{ inverse ? OmegaInv : Omega };
-	int Ratio = omega.empty() ? 1 : N / (2 * omega.size());
 
-	// calcolo degli omega
-	if (Ratio > 1 or omega.empty())
+// algoritmo di cooley-tukey per la trasformata di fourier veloce
+#define MOVE_DOWN 0
+#define MOVE_SIDE 1
+#define MOVE_UP 2
+tensor<complex<long double>> Omega;
+static void FFT(tensor<complex<long double>>& List, bool inverse = false)
+{
+	// invarianza
+	if (List == 1)
 	{
-		for (size_t i = 0; i < N / 2; i += Ratio)
+		ret;
+	}
+
+	// calcolo di omega
+	auto N{ List.size() };
+	tensor<complex<long double>> Helper(N);
+	if (Omega < N)
+	{
+		auto omega{ Omega };
+		Omega.clear();
+		size_t Ratio = omega.empty() ? 1 : N / (2 * omega.size());
+		for (size_t i = 0; i < N / 2; ++i)
 		{
-			omega << (inverse ?
-				InitExponentialForm<long double>(
-					1 / N, 2 * M_PI * i / N
-				) :
-				InitExponentialForm<long double>(
-					1, -2 * M_PI * i / N
-				)
-			);
+			Omega << (i % Ratio == 0 and !omega.empty() ? omega[i / Ratio] :
+				InitExponentialForm<long double>(1, -2 * M_PI * i / N));
 		}
 	}
 
-	// caso base
-	if (N == 1)
+	// iterazione non ricorsiva
+	int StarterIndex{}, Step = N / 2, command{};
+	for (;;)
 	{
-		ret input;
-	}
+		// caso base
+		if (N == 2 * Step)
+		{
+			auto FinalIndex{ StarterIndex + Step };
+			auto temp{ List[StarterIndex] - List[FinalIndex] };
+			List[StarterIndex] += List[FinalIndex];
+			List[FinalIndex] = temp;
+		}
 
-	// altro caso base
-	if (N == 2)
-	{
-		ret{ input[0] + input[1], input[0] - input[1] };
-	}
+		// fusione delle FFT inferiori
+		else
+		{
+			int i{};
+			auto OmegaStep{ 2 * Step * Omega.size() / N };
+			for (size_t I = StarterIndex; I < N / 2; I += Step)
+			{
+				auto W = inverse ?
+					Omega[OmegaStep * i].conjugate() : Omega[OmegaStep * i];
 
-	// suddivisione
-	tensor<complex<long double>> Even, Odd, output(N);
-	for (size_t i = 0; i < N; ++i)
-	{
-		(i % 2 ? Odd : Even) << input[i];
-	}
-	Even = FFT(Even, false);
-	Odd = FFT(Odd, false);
+				Helper[I + N / 2] = List[2 * I - StarterIndex]
+					- W * List[2 * I - StarterIndex + Step];
 
-	// formula ricorsiva
-	auto step{ 2 * Omega.size() / N };
-	for (size_t i = 0; i < N / 2; ++i)
-	{
-		output[i] = Even[i] + Omega[step * i] * Odd[i];
-		output[i + N / 2] = Even[i] - Omega[step * i] * Odd[i];
-	}
+				Helper[I] = List[2 * I - StarterIndex]
+					+ W * List[2 * I - StarterIndex + Step];
 
-	ret output;
+				i++;
+			}
+			for (size_t I = StarterIndex; I < N; I += Step)
+			{
+				List[I] = Helper[I];
+			}
+		}
+
+		// vari spostamenti
+		if (command == MOVE_UP)
+		{
+			// uscita
+			if (Step == 1)
+			{
+				ret;
+			}
+
+			// spostamento in fondo al nodo parallelo
+			if (Step > 2 * StarterIndex)
+			{
+				command = MOVE_DOWN;
+				StarterIndex += Step / 2;
+				Step = N / 2;
+				continue;
+			}
+
+			// spostamento verso l'alto
+			StarterIndex -= (Step /= 2);
+		}
+
+		// spostamento verso l'alto
+		if (command == MOVE_SIDE)
+		{
+			command = MOVE_UP;
+			StarterIndex -= (Step /= 2);
+			continue;
+		}
+
+		// spostamento parallelo
+		command = MOVE_SIDE;
+		StarterIndex += Step / 2;
+	}
 }
 
 // numeri grandi con precisione di long double
@@ -622,6 +687,7 @@ private:
 		ret compare(A, B) ? Sub(B, A, sign) : Sub(A, B, !sign);
 	}
 
+	// moltiplicazione
 	big Multiply(const big& value) const
 	{
 		if ((value.Integer[0] == 0 and value.decimal == 0) or
@@ -697,6 +763,61 @@ private:
 		This.decimal = dec / pow(10, decprecision);
 		This.sign = sign xor value.sign;
 		ret This;
+	}
+	big FFT_Multiplication(const big& value) const
+	{
+		// calcolo dimensione
+		size_t N{ 1 };
+		auto sizeA{ Integer.size() };
+		auto sizeB{ value.Integer.size() };
+		while (N < sizeA + sizeB)
+		{
+			N <<= 1;
+		}
+
+		// preparazione tensori
+		tensor<complex<long double>> A(N), B(N);
+		for (size_t i = 0; i < sizeA; ++i)
+		{
+			A[i] = complex<long double>(Integer[sizeA - i - 1]);
+		}
+		for (size_t i = 0; i < sizeB; ++i)
+		{
+			B[i] = complex<long double>(value.Integer[sizeB - i - 1]);
+		}
+
+		// operazioni con le trasformate di fourier veloci
+		FFT(A);
+		FFT(B);
+		for (size_t i = 0; i < N; ++i)
+		{
+			A[i] *= B[i];
+		}
+		FFT(A, true);
+		for (auto& num : A)
+		{
+			num /= N;
+		}
+
+		// conversione
+		big result;
+		ptrdiff_t carry{};
+		result.Integer(N);
+		for (size_t i = 0; i < N; ++i)
+		{
+			ptrdiff_t value = _STD round(A[i].RealPart) + carry;
+			result.Integer[N - i - 1] = value % 10;
+			carry = value / 10;
+		}
+
+		// rimozione zeri inutili
+		while (result.Integer > 1 and result.Integer[0] == 0)
+		{
+			--result.Integer;
+		}
+		result.sign = sign xor value.sign;
+
+		ret result;
 	}
 
 public:
@@ -880,61 +1001,7 @@ public:
 		*this = *this << shift;
 		ret *this;
 	}
-	big operator*(const big& other) const
-	{
-		// calcolo dimensione
-		size_t N{ 1 };
-		auto sizeA{ Integer.size() };
-		auto sizeB{ other.Integer.size() };
-		while (N < sizeA + sizeB)
-		{
-			N <<= 1;
-		}
-
-		// preparazione tensori
-		tensor<complex<long double>> A(N), B(N);
-		for (size_t i = 0; i < sizeA; ++i)
-		{
-			A[i] = complex<long double>(Integer[i]);
-		}
-		for (size_t i = 0; i < sizeB; ++i)
-		{
-			B[i] = complex<long double>(other.Integer[i]);
-		}
-
-		// trasformata di fourier veloce
-		A = FFT(A, false);
-		B = FFT(B, false);
-
-		// moltiplicazione
-		for (size_t i = 0; i < N; ++i) A[i] *= B[i];
-		
-		// traduzione
-		A = FFT(A, true);
-		for (size_t i = 0; i < N; ++i) A[i] = A[i].conjugate() / N;
-
-		// conversione
-		big result;
-		ptrdiff_t carry{};
-		result.Integer(N);
-		for (size_t i = 0; i < N; ++i)
-		{
-			ptrdiff_t value = _STD round(A[i].RealPart) + carry;
-			result.Integer[i] = value % 10;
-			carry = value / 10;
-		}
-
-		// Rimuovi zeri inutili
-		while (result.Integer > 1 and result.Integer.last() == 0)
-		{
-			result.Integer--;
-		}
-		result.sign = sign == other.sign;
-
-		ret result;
-	}
-
-	big operator*(big& value) const
+	big operator*(const big& value) const
 	{
 		// casi particolari
 		if (value == 0 or *this == 0)
@@ -945,80 +1012,29 @@ public:
 			result.decimal = 0;
 			ret result;
 		}
-		if (Integer.size() <= 2 or value.Integer.size() <= 2)
-		{
-			ret Multiply(value);
-		}
 
-		// gestione decimali e segni
-		big This = *this, Value = value;
-		bool ResultSign = This.sign xor Value.sign;
-		Value.sign = This.sign = POS;
-		This.shift();
-		Value.shift();
-		size_t n = max(This.Integer.size(), Value.Integer.size()), m = n / 2;
+		////////////////////////----------------------------------------------------
+		// // // TESTER // // //
 
-		// aggiunta di zeri a sinistra
-		int DecPrecision{};
-		while (This.Integer.size() < n)
-		{
-			This.Integer >> 0;
-			DecPrecision--;
-		}
-		while (Value.Integer.size() < n)
-		{
-			Value.Integer >> 0;
-			DecPrecision--;
-		}
+		steady_clock::time_point begin = steady_clock::now();
+		big A = FFT_Multiplication(value);
+		steady_clock::time_point end = steady_clock::now();
+		wcout << "FFT: ";
+		wcout << duration_cast<microseconds>(end - begin).count() << L'\n';
 
-		// algoritmo di karatsuba
-		big a1 = tensor<int>(This.Integer.begin(), This.Integer.begin() + m);
-		big a0 = tensor<int>(This.Integer.begin() + m, This.Integer.end());
-		big b1 = tensor<int>(Value.Integer.begin(), Value.Integer.begin() + m);
-		big b0 = tensor<int>(Value.Integer.begin() + m, Value.Integer.end());
-		big p = a1 * b1, q = a0 * b0, s = (a1 + a0) * (b1 + b0);
-		big result = (p << (2 * (n - m))) + ((s - p - q) << (n - m)) + q;
+		// begin = steady_clock::now();
+		// big B = Multiply(value);
+		// end = steady_clock::now();
+		// wcout << "Normal: ";
+		// wcout << duration_cast<microseconds>(end - begin).count() << L'\n';
 
-		// ripristino segno e decimali
-		result.sign = ResultSign;
-		DecPrecision += This.Integer.size() - Integer.size() +
-			Value.Integer.size() - value.Integer.size();
-		if (DecPrecision > 0)
-		{
-			tensor<int> DecPart;
+		wcout << L'\n';
+		ret A;
 
-			// shift
-			for (
-				int i = 0;
-				i < DecPrecision and i < (int)result.Integer.size();
-				++i
-				)
-			{
-				DecPart << result.Integer[result.Integer.size() - 1 - i];
-			}
-			result.Integer.erase(result.Integer.size() - DecPrecision);
-
-			// calcolo
-			long double dec = 0;
-			for (size_t i = 0; i < DecPart.size(); ++i)
-			{
-				dec += DecPart[i] * pow(10, -int(i + 1));
-			}
-			result.decimal = dec;
-		}
-
-		// rimozione zeri inutili
-		while (result.Integer.size() > 1 and result.Integer[0] == 0)
-		{
-			result.Integer.erase(0);
-		}
-		if (result.Integer.empty())
-		{
-			result.Integer = { 0 };
-		}
-
-		ret result;
+		// // // TESTER // // //----------------------------------------------------
+		////////////////////////
 	}
+
 	inline big& operator*=(const big& value)
 	{
 		*this = *this * value;
@@ -1230,9 +1246,9 @@ public:
 	{
 		ret c_str(0).str();
 	}
-	friend wostream& operator<<(wostream& os, const big& Big)
+	friend wostream& operator<<(wostream& os, const big& obj)
 	{
-		os << Big.str();
+		os << obj.str();
 		ret os;
 	}
 };
@@ -1493,6 +1509,12 @@ public:
 		}
 		ret polynomial;
 	}
+
+	friend wostream& operator<<(wostream& os, factor& obj)
+	{
+		os << obj.str();
+		ret os;
+	}
 };
 template<typename T_int = long double>class FACTOR : public tensor<MONOMIAL<T_int>>
 {
@@ -1628,6 +1650,12 @@ public:
 			traduction << element;
 		}
 		ret traduction.str(1);
+	}
+
+	friend wostream& operator<<(wostream& os, const FACTOR& obj)
+	{
+		os << obj.str();
+		ret os;
 	}
 };
 static factor<> ToXV(FACTOR<> vect)
@@ -1877,6 +1905,12 @@ public:
 
 		ret ElabExponents(output);
 	}
+
+	friend wostream& operator<<(wostream& os, polynomial& obj)
+	{
+		os << obj.str();
+		ret os;
+	}
 };
 template<typename T_int = long double>class POLYNOMIAL
 	: public tensor<FACTOR<T_int>>
@@ -1940,6 +1974,12 @@ public:
 			traduction << ToXV(vector);
 		}
 		ret traduction.str(1);
+	}
+
+	friend wostream& operator<<(wostream& os, const POLYNOMIAL& obj)
+	{
+		os << obj.str();
+		ret os;
 	}
 };
 
@@ -2076,7 +2116,7 @@ public:
 	{
 		Fraction derivative{
 			{ num[0].derivate(Vpos) * den[0] - num[0] * den[0].derivate(Vpos) },
-			{ den[0] * factor<>(den[0]) }
+			{ den[0] * factor<T>(den[0]) }
 		};
 		bool empty{ true };
 		for (const auto& term : derivative.num)
@@ -2180,7 +2220,7 @@ public:
 		// frazione semplice
 		wstring output{ num.str() };
 		if (
-			den == polynomial<>{ { {
+			den == polynomial<T>{ { {
 					1, tensor<int>(Variables.size(), 0)
 				} } }
 		)
@@ -2197,6 +2237,12 @@ public:
 		output += L" / " + den.str();
 		
 		ret output;
+	}
+
+	friend wostream& operator<<(wostream& os, const Fraction& obj)
+	{
+		os << obj.str();
+		ret os;
 	}
 };
 static void ClearArea(COORD WinCenter, COORD Dimensions);
@@ -5422,10 +5468,27 @@ int main()
 	// {
 	// 	ret -111;
 	// }
-	////////////////////////////////////////////////////////////////////////////////
+	
+	srand(time(NULL));
+	for (int digitnumber = 3;; ++digitnumber) {
+		tensor<int> A(digitnumber), B(digitnumber);
 
-	wcout << big(1212) * big(3333);
-	_getch();
+		wcout << "numero di cifre: " << digitnumber << L'\n';
+		for (auto& I : A) I = rand() % 10;
+		for (auto& I : B) I = rand() % 10;
+
+		big first(A), second(B);
+		auto product = first * second;
+
+		if (digitnumber % 50 == 0) {
+			wcout << first << L'\n';
+			wcout << L" * \n";
+			wcout << second << L'\n';
+			wcout << L" = \n";
+			wcout << product << L'\n';
+		}
+	}
+	////////////////////////////////////////////////////////////////////////////////
 
 	// avvio
 	QueryPerformanceFrequency(&ProgramFrequency);
@@ -5490,7 +5553,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.6.3 ";
+			wcout << L"1.6.4 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -12086,10 +12149,7 @@ static void PrintFractionaryResult
 	}
 
 	// caso polinomio
-	else {
-		wcout << L' ';
-		HasMoreVariables ? wcout << Fract.num.str() : wcout << NScomp.str();
-	}
+	else wcout << L' ' << (HasMoreVariables ? Fract.num.str() : NScomp.str());
 
 EndOfStatement:
 
@@ -14050,7 +14110,7 @@ static void SystemSolverGeneral(switchcase& argc)
 
 			// output
 			SetConsoleTextAttribute(hConsole, 11);
-			wcout << L"Le soluzioni sono " << solutions.str() << L'\n';
+			wcout << L"Le soluzioni sono " << solutions << L'\n';
 			ResetAttribute();
 
 			Fractions.clear();
@@ -14522,7 +14582,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, Type Polynomial)
 			if (HT >= 1) if (HT[0] >= 1) if (HT[0][0].exp[0] == -2) {
 				if (input) {
 					SetConsoleTextAttribute(hConsole, 2);
-					wcout << L"Questo è il polinomio: " << bigHT.str() << L'\n';
+					wcout << L"Questo è il polinomio: " << bigHT << L'\n';
 					SetConsoleTextAttribute(hConsole, 64);
 					wcout << L"Il polinomio è troppo grande.";
 					ResetAttribute();
@@ -14593,7 +14653,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, Type Polynomial)
 					if (!input) ret {};
 
 					SetConsoleTextAttribute(hConsole, 2);
-					wcout << L"Questo è il polinomio: " << bigHT.str() << L'\n';
+					wcout << L"Questo è il polinomio: " << bigHT << L'\n';
 					SetConsoleTextAttribute(hConsole, 64);
 					wcout << L"Il polinomio è troppo grande.";
 
@@ -15412,11 +15472,11 @@ static void DecompMatrices(switchcase& argc)
 		auto maindet{ matrix.det() };
 		wcout << L"Determinante: " << maindet << L'\n';
 		auto eigenvalues{ matrix.EigenValues() };
-		wcout << L"Autovalori reali: " << eigenvalues.str() << L'\n';
+		wcout << L"Autovalori reali: " << eigenvalues << L'\n';
 		auto eigenvectors{ matrix.EigenVectors(eigenvalues) };
 		if (eigenvectors == size) {
 			wcout << L"Autovettori reali: \n";
-			for (auto vector : eigenvectors) wcout << vector.str() << L'\n';
+			for (auto vector : eigenvectors) wcout << vector << L'\n';
 			wcout << L'\n';
 		}
 
@@ -15463,8 +15523,8 @@ RETURN:
 #pragma endregion
 
 // file natvis                                54  righe
-// tensor.cpp                                 791 righe
-/// totale righe non presenti in questo file: 845
+// tensor.cpp                                 806 righe
+/// totale righe non presenti in questo file: 860
 
 // fine del codice -----------------------------------------------------------------
 
