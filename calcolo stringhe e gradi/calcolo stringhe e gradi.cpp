@@ -418,9 +418,6 @@ template<typename Ty> static complex<Ty> InitExponentialForm(Ty radius, Ty angle
 }
 
 // algoritmo di cooley-tukey per la trasformata di fourier veloce
-#define MOVE_DOWN 0
-#define MOVE_SIDE 1
-#define MOVE_UP 2
 tensor<complex<long double>> Omega;
 static void FFT(tensor<complex<long double>>& List, bool inverse = false)
 {
@@ -432,7 +429,6 @@ static void FFT(tensor<complex<long double>>& List, bool inverse = false)
 
 	// calcolo di omega
 	auto N{ List.size() };
-	tensor<complex<long double>> Helper(N);
 	if (Omega < N)
 	{
 		auto omega{ Omega };
@@ -445,76 +441,41 @@ static void FFT(tensor<complex<long double>>& List, bool inverse = false)
 		}
 	}
 
-	// iterazione non ricorsiva
-	int StarterIndex{}, Step = N / 2, command{};
-	for (;;)
+	// bit reversal
+	size_t j{};
+	for (size_t i = 0; i < N; ++i)
 	{
-		// caso base
-		if (N == 2 * Step)
+		auto bit{ N / 2 };
+		while (j >= bit)
 		{
-			auto FinalIndex{ StarterIndex + Step };
-			auto temp{ List[StarterIndex] - List[FinalIndex] };
-			List[StarterIndex] += List[FinalIndex];
-			List[FinalIndex] = temp;
+			j -= bit;
+			bit /= 2;
 		}
 
-		// fusione delle FFT inferiori
-		else
+		j += bit;
+		if (i < j)
 		{
-			int i{};
-			auto OmegaStep{ 2 * Step * Omega.size() / N };
-			for (size_t I = StarterIndex; I < N / 2; I += Step)
+			swap(List[i], List[j]);
+		}
+	}
+
+	// calcolo FFT
+	for (size_t step = 2; step <= N; step *= 2)
+	{
+		auto OmegaStep{ Omega.size() * step / N };
+
+		for (size_t i = 0; i < N; i += step)
+		{
+			for (size_t j = 0; j < step / 2; ++j)
 			{
-				auto W = inverse ?
-					Omega[OmegaStep * i].conjugate() : Omega[OmegaStep * i];
+				auto k{ i + j };
+				auto even{ List[k] };
+				auto product{ Omega[OmegaStep * j] * List[k + step / 2] };
 
-				Helper[I + N / 2] = List[2 * I - StarterIndex]
-					- W * List[2 * I - StarterIndex + Step];
-
-				Helper[I] = List[2 * I - StarterIndex]
-					+ W * List[2 * I - StarterIndex + Step];
-
-				i++;
-			}
-			for (size_t I = StarterIndex; I < N; I += Step)
-			{
-				List[I] = Helper[I];
+				List[k] = even + product;
+				List[k + step / 2] = even - product;
 			}
 		}
-
-		// vari spostamenti
-		if (command == MOVE_UP)
-		{
-			// uscita
-			if (Step == 1)
-			{
-				ret;
-			}
-
-			// spostamento in fondo al nodo parallelo
-			if (Step > 2 * StarterIndex)
-			{
-				command = MOVE_DOWN;
-				StarterIndex += Step / 2;
-				Step = N / 2;
-				continue;
-			}
-
-			// spostamento verso l'alto
-			StarterIndex -= (Step /= 2);
-		}
-
-		// spostamento verso l'alto
-		if (command == MOVE_SIDE)
-		{
-			command = MOVE_UP;
-			StarterIndex -= (Step /= 2);
-			continue;
-		}
-
-		// spostamento parallelo
-		command = MOVE_SIDE;
-		StarterIndex += Step / 2;
 	}
 }
 
@@ -603,7 +564,7 @@ private:
 	// addizione e sottrazione
 	big Add(const big& __This, const big& __Val, bool changesign) const
 	{
-		big This(__This), Val(__Val);
+		big This = __This, Val = __Val;
 		if (changesign)
 		{
 			This.sign = !This.sign;
@@ -639,7 +600,7 @@ private:
 	}
 	big Sub(const big& __This, const big& __Val, bool changesign) const
 	{
-		big This(__This), Val(__Val);
+		big This = __This, Val = __Val;
 		if (changesign)
 		{
 			This.sign = !This.sign;
@@ -728,14 +689,14 @@ private:
 			{
 				_Number << 0;
 			}
-			add << big(_Number);
+			add << _Number;
 		}
 
 		// somma
 		This.Integer.clear();
-		for (auto big : add)
+		for (auto Big : add)
 		{
-			This += big;
+			This += Big;
 		}
 
 		// cifre decimali
@@ -805,9 +766,14 @@ private:
 		result.Integer(N);
 		for (size_t i = 0; i < N; ++i)
 		{
-			ptrdiff_t value = _STD round(A[i].RealPart) + carry;
-			result.Integer[N - i - 1] = value % 10;
-			carry = value / 10;
+			ptrdiff_t cur = _STD round(A[i].RealPart) + carry;
+			if (cur < 0)
+			{
+				cur += 10;
+				carry--;
+			}
+			carry = cur / 10;
+			result.Integer[N - i - 1] = cur % 10;
 		}
 
 		// rimozione zeri inutili
@@ -1019,8 +985,8 @@ public:
 		steady_clock::time_point begin = steady_clock::now();
 		big A = FFT_Multiplication(value);
 		steady_clock::time_point end = steady_clock::now();
-		wcout << "FFT: ";
-		wcout << duration_cast<microseconds>(end - begin).count() << L'\n';
+		// wcout << "FFT: ";
+		// wcout << duration_cast<microseconds>(end - begin).count() << L'\n';
 
 		// begin = steady_clock::now();
 		// big B = Multiply(value);
@@ -1028,7 +994,9 @@ public:
 		// wcout << "Normal: ";
 		// wcout << duration_cast<microseconds>(end - begin).count() << L'\n';
 
-		wcout << L'\n';
+		// wcout << L'\n';
+
+		wcout << *this << L" * " << value << L" = " << A << L'\n';
 		ret A;
 
 		// // // TESTER // // //----------------------------------------------------
@@ -5469,25 +5437,28 @@ int main()
 	// 	ret -111;
 	// }
 	
-	srand(time(NULL));
-	for (int digitnumber = 3;; ++digitnumber) {
-		tensor<int> A(digitnumber), B(digitnumber);
+	big(2) * big(10);
+	_getch();
 
-		wcout << "numero di cifre: " << digitnumber << L'\n';
-		for (auto& I : A) I = rand() % 10;
-		for (auto& I : B) I = rand() % 10;
-
-		big first(A), second(B);
-		auto product = first * second;
-
-		if (digitnumber % 50 == 0) {
-			wcout << first << L'\n';
-			wcout << L" * \n";
-			wcout << second << L'\n';
-			wcout << L" = \n";
-			wcout << product << L'\n';
-		}
-	}
+	///srand(time(NULL));
+	///for (int digitnumber = 3;; ++digitnumber) {
+	///	tensor<int> A(digitnumber), B(digitnumber);
+	///
+	///	wcout << "numero di cifre: " << digitnumber << L'\n';
+	///	for (auto& I : A) I = rand() % 10;
+	///	for (auto& I : B) I = rand() % 10;
+	///
+	///	big first = A, second = B;
+	///	auto product = first * second;
+	///
+	///	if (digitnumber % 50 == 0) {
+	///		wcout << first << L'\n';
+	///		wcout << L" * \n";
+	///		wcout << second << L'\n';
+	///		wcout << L" = \n";
+	///		wcout << product << L'\n';
+	///	}
+	///}
 	////////////////////////////////////////////////////////////////////////////////
 
 	// avvio
@@ -10363,7 +10334,7 @@ static factor<big> GetMonomials(wstring pol)
 			part.erase(0, 1);
 			if (part.empty()) break;
 		}
-		big Coeff = 0;
+		big Coeff;
 		for (size_t j = 0; j < coeff.size(); ++j) {
 			Coeff += coeff.at(j) - '0';
 			if (j < coeff.size() - 1) Coeff *= 10;
@@ -13620,7 +13591,7 @@ static wstring ExpandNumber(
 								add << NewPart;
 							}
 						add << part;
-						big sum = 0;
+						big sum;
 						for (const auto& num : add) sum += num;
 
 						// calcolo coefficiente
@@ -13663,7 +13634,7 @@ static wstring ExpandNumber(
 					add << part;
 				}
 			add << toevaluate;
-			big LastSum = 0;
+			big LastSum;
 			for (const auto& num : add) LastSum += num;
 
 			// output finale
@@ -15530,10 +15501,11 @@ RETURN:
 
 /*	LAVORO DA FARE
 	
+	ottimizzazione generica O(n^2) --> O(n*log(n))
+	operazioni ricorsive polinomiali infinite
+	
 	debug systemsolver
 	debug generale
-	
-	ottimizzazione generica O(n^2) --> O(n*log(n))
 	
 	aggiunta valori sui tratti degli assi e frecce
 	
@@ -15543,7 +15515,6 @@ RETURN:
 	
 LAVORO MOLTO DIFFICILE
 	
-	operazioni ricorsive polinomiali infinite
 	radicali e operazioni con i radicali
 
 	trasparenza e linee tratteggiate
