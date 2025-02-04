@@ -429,6 +429,7 @@ static void FFT(tensor<complex<long double>>& List, bool inverse = false)
 
 	// calcolo di omega
 	auto N{ List.size() };
+	tensor<complex<long double>> Helper(N);
 	if (Omega < N)
 	{
 		auto omega{ Omega };
@@ -442,38 +443,51 @@ static void FFT(tensor<complex<long double>>& List, bool inverse = false)
 	}
 
 	// bit reversal
-	size_t j{};
-	for (size_t i = 0; i < N; ++i)
+	for (size_t ind = 0; ind < N / 2; ++ind)
 	{
-		auto bit{ N / 2 };
-		while (j >= bit)
+		size_t shifter{ 1 }, k{ 1 };
+		do
 		{
-			j -= bit;
-			bit /= 2;
+			k <<= 1;
+			if ((ind | shifter) == ind)
+			{
+				k |= 1;
+			}
 		}
+		while ((shifter <<= 1) < N);
+		k -= N;
 
-		j += bit;
-		if (i < j)
+		if (k != ind)
 		{
-			swap(List[i], List[j]);
+			swap(List[k], List[ind]);
 		}
 	}
 
 	// calcolo FFT
-	for (size_t step = 2; step <= N; step *= 2)
+	for (size_t Size = 2; Size <= N; Size <<= 1)
 	{
-		auto OmegaStep{ Omega.size() * step / N };
+		auto OmegaStep = 2 * Omega.size() / Size;
 
-		for (size_t i = 0; i < N; i += step)
+		for (size_t i = 0; i < N; i += Size)
 		{
-			for (size_t j = 0; j < step / 2; ++j)
+			// calcolo dati
+			for (size_t j = 0; j < Size / 2; ++j)
 			{
 				auto k{ i + j };
-				auto even{ List[k] };
-				auto product{ Omega[OmegaStep * j] * List[k + step / 2] };
+				auto product = (
+					inverse ?
+					Omega[OmegaStep * j].conjugate() : Omega[OmegaStep * j]
+				) * List[k + Size / 2];
 
-				List[k] = even + product;
-				List[k + step / 2] = even - product;
+				Helper[k] = List[k] + product;
+				Helper[k + Size / 2] = List[k] - product;
+			}
+
+			// trasferimento dati
+			for (size_t j = 0; j < Size; ++j)
+			{
+				auto k{ i + j };
+				List[k] = Helper[k];
 			}
 		}
 	}
@@ -5436,29 +5450,34 @@ int main()
 	// {
 	// 	ret -111;
 	// }
-	
-	big(2) * big(10);
+
+	// tensor<complex<long double>>oo{ 3, 7, 12, 5, 9, 14, 6, 8 };
+	// FFT(oo, true);
+	// wcout << oo;
+
+	// big(66158) * big(96622);
+
 	_getch();
 
-	///srand(time(NULL));
-	///for (int digitnumber = 3;; ++digitnumber) {
-	///	tensor<int> A(digitnumber), B(digitnumber);
-	///
-	///	wcout << "numero di cifre: " << digitnumber << L'\n';
-	///	for (auto& I : A) I = rand() % 10;
-	///	for (auto& I : B) I = rand() % 10;
-	///
-	///	big first = A, second = B;
-	///	auto product = first * second;
-	///
-	///	if (digitnumber % 50 == 0) {
-	///		wcout << first << L'\n';
-	///		wcout << L" * \n";
-	///		wcout << second << L'\n';
-	///		wcout << L" = \n";
-	///		wcout << product << L'\n';
-	///	}
-	///}
+	/// srand(time(NULL));
+	/// for (int digitnumber = 3;; ++digitnumber) {
+	/// 	tensor<int> A(digitnumber), B(digitnumber);
+	/// 
+	/// 	wcout << "numero di cifre: " << digitnumber << L'\n';
+	/// 	for (auto& I : A) I = rand() % 10;
+	/// 	for (auto& I : B) I = rand() % 10;
+	/// 
+	/// 	big first = A, second = B;
+	/// 	auto product = first * second;
+	/// 
+	/// 	if (digitnumber % 50 == 0) {
+	/// 		wcout << first << L'\n';
+	/// 		wcout << L" * \n";
+	/// 		wcout << second << L'\n';
+	/// 		wcout << L" = \n";
+	/// 		wcout << product << L'\n';
+	/// 	}
+	/// }
 	////////////////////////////////////////////////////////////////////////////////
 
 	// avvio
