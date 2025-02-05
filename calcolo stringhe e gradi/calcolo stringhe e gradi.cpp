@@ -65,6 +65,7 @@ IMPROVE OPT
 #include <cmath>
 #include <condition_variable>
 #include <conio.h>
+#include <ctime>
 #include <iomanip>
 #include <iostream>
 #include <io.h>
@@ -443,7 +444,7 @@ static void FFT(tensor<complex<long double>>& List, bool inverse = false)
 	}
 
 	// bit reversal
-	for (size_t ind = 0; ind < N / 2; ++ind)
+	for (size_t ind = 0; ind < N; ++ind)
 	{
 		size_t shifter{ 1 }, k{ 1 };
 		do
@@ -457,7 +458,7 @@ static void FFT(tensor<complex<long double>>& List, bool inverse = false)
 		while ((shifter <<= 1) < N);
 		k -= N;
 
-		if (k != ind)
+		if (k > ind)
 		{
 			swap(List[k], List[ind]);
 		}
@@ -523,29 +524,6 @@ private:
 			Integer << temp[i];
 		}
 	}
-	void shift()
-	{
-		wstring str;
-		wostringstream oss;
-		oss << fixed << setprecision(25) << decimal;
-		str = oss.str();
-		str.erase(0, 2);
-		bool Do{ false };
-		for (ptrdiff_t i = str.size() - 1; i >= 0; --i)
-		{
-			int element = str.at(i) - L'0';
-			if (element != 0)
-			{
-				Do = true;
-			}
-			if (Do)
-			{
-				Integer << element;
-			}
-		}
-	}
-
-	// confronti
 	bool compare(const big& A, const big& B) const
 	{
 		auto integ{ A.Integer };
@@ -663,102 +641,60 @@ private:
 	}
 
 	// moltiplicazione
-	big Multiply(const big& value) const
-	{
-		if ((value.Integer[0] == 0 and value.decimal == 0) or
-			(Integer[0] == 0 and decimal == 0))
-		{
-			ret 0;
-		}
-		big Val = value, This = *this;
-		Val.shift();
-		This.shift();
-		int decprecision = Val.Integer.size() - value.Integer.size()
-			+ This.Integer.size() - Integer.size();
-		Val.sign = This.sign = POS;
-
-		// moltiplicazione
-		tensor<big> add;
-		for (size_t a = 0; a < Val.Integer.size(); ++a)
-		{
-			int factor{ Val.Integer.at(a) };
-			if (factor == 0)
-			{
-				continue;
-			}
-			int carry{}, prod{};
-
-			auto _Number{ This.Integer };
-			for (ptrdiff_t i = _Number.size() - 1; i >= 0; --i)
-			{
-				prod = (_Number.at(i)) * factor + carry;
-				carry = prod / 10;
-				_Number[i] = prod % 10;
-			}
-			if (carry != 0)
-			{
-				_Number >> carry;
-			}
-			for (ptrdiff_t i = Val.Integer.size() - a - 2; i >= 0; --i)
-			{
-				_Number << 0;
-			}
-			add << _Number;
-		}
-
-		// somma
-		This.Integer.clear();
-		for (auto Big : add)
-		{
-			This += Big;
-		}
-
-		// cifre decimali
-		int dec{};
-		auto decdigits{ This.Integer };
-		while (decdigits.size() - decprecision < 0)
-		{
-			decdigits >> 0;
-		}
-		This.Integer = decdigits;
-		if (decprecision > 0)
-		{
-			This.Integer.erase(decdigits.size() - decprecision);
-		}
-		decdigits.erase(0, decdigits.size() - decprecision);
-		for (size_t i = 0; i < decdigits; ++i)
-		{
-			dec += decdigits[i] * pow(10, decdigits.size() - i - 1);
-		}
-
-		if (This.Integer.empty())
-		{
-			This.Integer = { 0 };
-		}
-		This.decimal = dec / pow(10, decprecision);
-		This.sign = sign xor value.sign;
-		ret This;
-	}
 	big FFT_Multiplication(const big& value) const
 	{
-		// calcolo dimensione
-		size_t N{ 1 };
+		// calcolo tensori dei decimali
+		tensor<int> decA, decB;
+		auto decimalA{ decimal };
+		auto decimalB{ value.decimal };
+		while (decimalA != 0)
+		{
+			decimalA *= 10;
+			decA << decimalA;
+			decimalA -= decA.last();
+		}
+		while (decimalB != 0)
+		{
+			decimalB *= 10;
+			decB << decimalB;
+			decimalB -= decB.last();
+		}
+
+		// calcolo variabili importanti
+		auto DA{ decA.size() };
+		auto DB{ decB.size() };
 		auto sizeA{ Integer.size() };
 		auto sizeB{ value.Integer.size() };
-		while (N < sizeA + sizeB)
+		auto sumA{ sizeA + DA };
+		auto sumB{ sizeB + DB };
+		auto sizeT{ sumA + sumB };
+
+		// calcolo dimensione
+		size_t N{ 1 };
+		while (N < sizeT)
 		{
 			N <<= 1;
 		}
 
-		// preparazione tensori
+		// aggiunta parte decimale
 		tensor<complex<long double>> A(N), B(N);
-		for (size_t i = 0; i < sizeA; ++i)
+		for (size_t i = 0; i < DA; ++i)
 		{
-			A[i] = complex<long double>(Integer[sizeA - i - 1]);
+			A[i] = complex<long double>(decA[DA - i - 1]);
 		}
-		for (size_t i = 0; i < sizeB; ++i)
+		for (size_t i = 0; i < DB; ++i)
 		{
-			B[i] = complex<long double>(value.Integer[sizeB - i - 1]);
+			B[i] = complex<long double>(decB[DB - i - 1]);
+		}
+
+		// preparazione tensori
+		for (size_t i = DA; i < sumA; ++i)
+		{
+			A[i] = complex<long double>(Integer[sumA - i - 1]);
+		}
+		for (size_t i = DB; i < sumB; ++i)
+		{
+			B[i] = complex<long double>(value.Integer[sumB - i - 1]);
 		}
 
 		// operazioni con le trasformate di fourier veloci
@@ -781,22 +717,40 @@ private:
 		for (size_t i = 0; i < N; ++i)
 		{
 			ptrdiff_t cur = _STD round(A[i].RealPart) + carry;
-			if (cur < 0)
-			{
-				cur += 10;
-				carry--;
-			}
-			carry = cur / 10;
+			carry = (cur += 10 * (cur < 0)) / 10;
 			result.Integer[N - i - 1] = cur % 10;
 		}
 
-		// rimozione zeri inutili
-		while (result.Integer > 1 and result.Integer[0] == 0)
+		// calcolo parte decimale
+		auto& Int{ result.Integer };
+		auto& Dec{ result.decimal };
+		size_t decprecision{ DA + DB };
+		if (decprecision != 0)
 		{
-			--result.Integer;
+			for (ptrdiff_t i = 1; i <= decprecision; ++i)
+			{
+				Dec = (Dec + Int[N - i]) / 10;
+			}
+			Int.erase(N - decprecision);
 		}
-		result.sign = sign xor value.sign;
 
+		// rimozione zeri inutili
+		auto it{ Int.begin() };
+		auto rend{ Int.end() };
+		while (*it == 0 and it != rend)
+		{
+			++it;
+		}
+		Int.erase(Int.begin(), it);
+
+		// tensore vuoto
+		if (Int.empty())
+		{
+			Int = { 0 };
+		}
+
+		// calcolo segno
+		result.sign = sign xor value.sign;
 		ret result;
 	}
 
@@ -966,21 +920,52 @@ public:
 		ret *this;
 	}
 
-	// moltiplicazione
+	// shifting
 	big operator<<(int shift) const
 	{
 		big result = *this;
-		for (size_t i = 0; i < shift; ++i)
+		for (ptrdiff_t i = 0; i < shift; ++i)
 		{
-			result.Integer << 0;
+			result.decimal *= 10;
+			result.Integer << result.decimal;
+			result.decimal -= result.Integer.last();
 		}
 		ret result;
 	}
 	inline big& operator<<=(int shift)
 	{
-		*this = *this << shift;
+		for (ptrdiff_t i = 0; i < shift; ++i)
+		{
+			decimal *= 10;
+			Integer << decimal;
+			decimal -= Integer.last();
+		}
 		ret *this;
 	}
+	big operator>>(int shift) const
+	{
+		big result = *this;
+		for (ptrdiff_t i = 0; i < shift; ++i)
+		{
+			result.decimal += Integer.last();
+			result.decimal /= 10;
+		}
+		shift >= result.Integer.size() ?
+			result.Integer = { 0 } : result.Integer -= shift;
+		ret result;
+	}
+	inline big& operator>>=(int shift)
+	{
+		for (ptrdiff_t i = 0; i < shift; ++i)
+		{
+			decimal += Integer.last();
+			decimal /= 10;
+		}
+		shift >= Integer.size() ? Integer = { 0 } : Integer -= shift;
+		ret* this;
+	}
+
+	// moltiplicazione
 	big operator*(const big& value) const
 	{
 		// casi particolari
@@ -999,24 +984,13 @@ public:
 		steady_clock::time_point begin = steady_clock::now();
 		big A = FFT_Multiplication(value);
 		steady_clock::time_point end = steady_clock::now();
-		// wcout << "FFT: ";
-		// wcout << duration_cast<microseconds>(end - begin).count() << L'\n';
-
-		// begin = steady_clock::now();
-		// big B = Multiply(value);
-		// end = steady_clock::now();
-		// wcout << "Normal: ";
-		// wcout << duration_cast<microseconds>(end - begin).count() << L'\n';
-
-		// wcout << L'\n';
-
-		wcout << *this << L" * " << value << L" = " << A << L'\n';
+		wcout << "tempo: ";
+		wcout << duration_cast<microseconds>(end - begin).count() << L"\n\n";
 		ret A;
 
 		// // // TESTER // // //----------------------------------------------------
 		////////////////////////
 	}
-
 	inline big& operator*=(const big& value)
 	{
 		*this = *this * value;
@@ -1030,59 +1004,109 @@ public:
 		{
 			throw invalid_argument("Division by zero!");
 		}
-
-		big This = *this, result, current;
-		result.Integer.clear();
-		result.sign = This.sign != value.sign;
+		big result;
 
 		// divisione lunga
-		for (size_t i = 0; i < This.Integer; ++i)
+		if (value.Integer > 10)
 		{
-			// correzione
-			int quotient{};
-			current.Integer << This.Integer[i];
-			while (current.Integer > 1 and current.Integer[0] == 0)
-			{
-				--current.Integer;
-			}
+			big This = *this, current;
+			result.sign = This.sign xor value.sign;
 
-			// divisione
-			while (current >= value.fabs())
+			for (size_t i = 0; i < This.Integer; ++i)
 			{
-				current -= value.fabs();
-				quotient++;
+				// push
+				int quotient{};
+				current.Integer << This.Integer[i];
+
+				// rimozione zeri inutili
+				auto it{ current.Integer.begin() };
+				auto rend{ current.Integer.end() };
+				while (*it == 0 and it != rend)
+				{
+					++it;
+				}
+				current.Integer.erase(current.Integer.begin(), it);
+
+				// tensore vuoto
+				if (current.Integer.empty())
+				{
+					current.Integer = { 0 };
+				}
+
+				// divisione
+				while (current >= value.fabs())
+				{
+					current -= value.fabs();
+					quotient++;
+				}
+				result.Integer << quotient;
 			}
-			result.Integer << quotient;
 		}
 
-		// ridimensionamento
-		while (result.Integer > 1 and result.Integer[0] == 0)
+		else
 		{
-			--result.Integer;
-		}
-		result.decimal = 0;
-		ret result;
+			// metodo di newton-raphson
+			big old, New = 1;
+			for (;;)
+			{
+				bool FirstIter{ true };
+				old = result = New;
+				do
+				{
+					if (!FirstIter)
+					{
+						result >>= 1;
+					}
 
-		// if (value == 0)
-		// {
-		// 	throw invalid_argument("Division by zero!");
-		// }
-		// 
-		// // metodo di newton-raphson
-		// big old, result = 0.0001;
-		// for (;;)
-		// {
-		// 	old = result;
-		// 	result = result * 2 - value * result * result;
-		// 	if ((result - old).fabs() < 1e-17)
-		// 	{
-		// 		break;
-		// 	}
-		// }
-		// 
-		// auto output{ (*this) * result };
-		// output.decimal = 0;
-		// ret output;
+					New = result * 2 - value * result * result;
+					FirstIter = false;
+				}
+				while (New.sign or New == 0);
+			
+				if ((New - old).fabs() < 1e-17)
+				{
+					break;
+				}
+			}
+		}
+		
+		// rimozione zeri inutili
+		auto it{ result.Integer.begin() };
+		auto rend{ result.Integer.end() };
+		while (*it == 0 and it != rend)
+		{
+			++it;
+		}
+		result.Integer.erase(result.Integer.begin(), it);
+
+		// tensore vuoto
+		if (result.Integer.empty())
+		{
+			result.Integer = { 0 };
+		}
+
+		// arrotondamento
+		auto output = value.Integer > 10 ? result : (*this) * result;
+		if (_STD round(output.decimal) == 1)
+		{
+			output.Integer.last()++;
+		}
+		for (ptrdiff_t i = output.Integer.size() - 1; i > 0; --i)
+		{
+			if (output.Integer[i] < 10)
+			{
+				break;
+			}
+			output.Integer[i] = 0;
+			output.Integer[i - 1]++;
+		}
+		if (output.Integer[0] == 10)
+		{
+			output.Integer[0] = 0;
+			output.Integer >> 1;
+		}
+
+		ret output;
 	}
 	inline big& operator/=(const big& value)
 	{
@@ -1220,13 +1244,13 @@ public:
 		str.erase(0, 1);
 		if (!str.empty())
 		{
-			result << L'.' << str;
+			result << str;
 		}
 		ret result;
 	}
 	inline wstring str() const
 	{
-		ret c_str(0).str();
+		ret c_str(6).str();
 	}
 	friend wostream& operator<<(wostream& os, const big& obj)
 	{
@@ -5451,33 +5475,26 @@ int main()
 	// 	ret -111;
 	// }
 
-	// tensor<complex<long double>>oo{ 3, 7, 12, 5, 9, 14, 6, 8 };
-	// FFT(oo, true);
-	// wcout << oo;
+	mt19937 rng(time(nullptr));
+	uniform_int_distribution<int> dist(0, 9);
+	for (int digitnumber = 3;; ++digitnumber) {
+		tensor<int> A(digitnumber), B(digitnumber);
+		wcout << L"numero di cifre: " << digitnumber << L'\n';
 
-	// big(66158) * big(96622);
+		for (auto& I : A) I = dist(rng);
+		for (auto& I : B) I = dist(rng);
 
-	_getch();
+		big first(A), second(B);
+		auto product = first * second;
 
-	/// srand(time(NULL));
-	/// for (int digitnumber = 3;; ++digitnumber) {
-	/// 	tensor<int> A(digitnumber), B(digitnumber);
-	/// 
-	/// 	wcout << "numero di cifre: " << digitnumber << L'\n';
-	/// 	for (auto& I : A) I = rand() % 10;
-	/// 	for (auto& I : B) I = rand() % 10;
-	/// 
-	/// 	big first = A, second = B;
-	/// 	auto product = first * second;
-	/// 
-	/// 	if (digitnumber % 50 == 0) {
-	/// 		wcout << first << L'\n';
-	/// 		wcout << L" * \n";
-	/// 		wcout << second << L'\n';
-	/// 		wcout << L" = \n";
-	/// 		wcout << product << L'\n';
-	/// 	}
-	/// }
+		if (digitnumber % 50 == 0) {
+			wcout << first << L'\n';
+			wcout << L" * \n";
+			wcout << second << L'\n';
+			wcout << L" = \n";
+			wcout << product << L'\n';
+		}
+	}
 	////////////////////////////////////////////////////////////////////////////////
 
 	// avvio
