@@ -622,10 +622,10 @@ private:
 		}
 		ret This;
 	}
-	big AlgebricOperation1(const big& A, const big& B, bool sign) const
+	big AlgebricOperation1(const big& A, const big& B, bool Sign) const
 	{
 		// addizione tra valori assoluti
-		if (!(A.sign xor B.sign xor sign))
+		if (!(A.sign xor B.sign xor Sign))
 		{
 			ret Add(A, B, false);
 		}
@@ -637,7 +637,7 @@ private:
 		}
 
 		// sottrazione tra valori assoluti
-		ret compare(A, B) ? Sub(B, A, sign) : Sub(A, B, !sign);
+		ret compare(A, B) ? Sub(B, A, Sign) : Sub(A, B, !Sign);
 	}
 
 	// moltiplicazione
@@ -2251,6 +2251,8 @@ public:
 		ret os;
 	}
 };
+
+// algoritmi di ordinamento veloci
 static void ClearArea(COORD WinCenter, COORD Dimensions);
 template<typename T> void GeneralizedHeapify(tensor<T>& arr, int n, int i)
 {
@@ -2282,6 +2284,10 @@ template<typename T> void GeneralizedHeapSort(tensor<T>& arr)
 		GeneralizedHeapify(arr, i, 0);
 	}
 }
+
+// classe per gestire termini polinomiali e frazioni annidati
+static tensor<Fraction<big>> GetManyFractions
+(tensor<wstring> numerators, tensor<wstring> denominators, wstring& errcode);
 class key : public tensor<int>
 {
 public:
@@ -2329,6 +2335,7 @@ public:
 };
 class Expression
 {
+	using ReturnedFractionType = big;
 private:
 	bool activator;
 
@@ -2602,7 +2609,7 @@ public:
 					terms[location] = temp;
 				}
 			}
-
+			
 			// //
 		}
 		
@@ -2658,7 +2665,7 @@ public:
 			}
 			ret dimensions[node] = COORD{ short(size), 1 };
 		}
-
+		
 		// caso con frazione
 		bool fraction{ false };
 		for (const auto& line : lines)
@@ -2946,7 +2953,7 @@ public:
 		};
 	}
 	
-	Fraction<> in()
+	Fraction<ReturnedFractionType> in(wstring& errorcode)
 	{
 		// carattere per le frecce
 		using type = char;
@@ -3275,7 +3282,9 @@ public:
 				{
 					// termine programma
 				case L'.':
-					ret Fraction<>{ polynomial<>{ { { 0, { -3 } } } }, {} };
+					ret Fraction<ReturnedFractionType>{
+						polynomial<ReturnedFractionType>{ { { 0, { -3 } } } }, {}
+					};
 
 					// backspace
 				case L'\b':
@@ -3334,7 +3343,7 @@ public:
 					break;
 
 					// conferma
-				case L'\r': ret Export();
+				case L'\r': ret Export(errorcode);
 
 					// aggiunta carattere
 				default:
@@ -3382,7 +3391,7 @@ public:
 		}
 	}
 
-	Fraction<> Export()
+	Fraction<ReturnedFractionType> Export(wstring& errorcode)
 	{
 		// eliminazione spazi bianchi
 		for (auto& term : terms)
@@ -3451,7 +3460,7 @@ public:
 
 				fractal[Key.first[main.size()]] << Key.first;
 			}
-			
+
 			// operazioni iniziali
 			GeneralizedHeapSort(fractal[0]);
 			GeneralizedHeapSort(fractal[1]);
@@ -3522,21 +3531,143 @@ public:
 			clean();
 		}
 
+		// suddivisione termini
+		bool FractionFirst{ true };
+		tensor<wstring> Opers, Tops, Bottoms;
+		for (key ind = { 0 }; terms.find(ind) != terms.end()
+			or terms.find(ind + 0) != terms.end(); ++ind.last())
+		{
 
+			// per garantire di avere un operatore all'inizio
+			if (!ind[0])
+			{
+				if (FractionFirst = terms.find(ind) == terms.end())
+				{
+					Opers << L"";
+				}
+			}
 
-		// traduci tutte le frazioni (nuova funzione molto utile)
-
-		// per ogni termine polinomiale
-
-			// gestisci gli esponenti
+			// aggiunta dei termini frazionari
+			if ((ind[0] + FractionFirst) % 2)
+			{
+				Tops << terms[ind + tensor<int>{ 0, 0 }];
+				Bottoms << terms[ind + tensor<int>{ 0, 1 }];
+				continue;
+			}
+			// frazione dei termini polinomiali
 			
-			// suddividilo in operatori e polinomi tradotti
+			tensor<wstring> opers, strings;
+			auto pol{ terms[ind] };
 
-		// usa ObjectOperations
+			// calcolo distribuzione del bilancio delle parentesi
+			int balance{}, min{};
+			tensor<size_t> indeces;
+			tensor<int> distribution;
+			for (size_t i = 0; i < pol.size(); ++i)
+			{
+				switch (pol.at(i))
+				{
+				case L'(':
+					distribution << ++balance;
+					indeces << i;
+					break;
+				case L')':
+					distribution << --balance;
+					indeces << i;
+					break;
+				}
 
-		// cancella gli inputer vecchi e sostituiscili
+				if (min > distribution.last())
+				{
+					min = distribution.last();
+				}
+			}
 
-		ret Fraction<>{};
+			// calcolo del nucleo polinomiale
+			size_t FirstIndex{}, LastIndex{};
+			for (size_t i = 0; i < distribution; ++i)
+			{
+				if (distribution[i] == 0)
+				{
+					FirstIndex = indeces[distribution[i]];
+					break;
+				}
+			}
+			for (ptrdiff_t i = 0; i >= 0; --i)
+			{
+				if (distribution[i] == 0)
+				{
+					LastIndex = indeces[distribution[i]];
+					break;
+				}
+			}
+
+			// calcolo delle regioni a bilancio comune
+			tensor<size_t> left, right;
+			for (size_t i = LastIndex; i < distribution; ++i)
+			{
+				if (distribution[i] + 1 < right)
+				{
+					right--;
+					continue;
+				}
+				if (distribution[i] + 1 != right)
+				{
+					right << indeces[i];
+				}
+			}
+			for (ptrdiff_t i = FirstIndex; i >= 0; --i)
+			{
+				if (distribution[i] + 1 < right)
+				{
+					left--;
+					continue;
+				}
+				if (distribution[i] + 1 != right)
+				{
+					left << indeces[i];
+				}
+			}
+			auto Final{ left + right };
+
+			// ritaglio delle suddivisioni
+			for (ptrdiff_t i = Final.size() - 1; i >= 0; --i)
+			{
+				opers << wstring(1, pol.at(Final[i]));
+				auto temp{ pol };
+				temp.erase(0, 1);
+				strings >> temp;
+				pol.erase(i);
+			}
+
+			// fusione operatori
+			for (ptrdiff_t i = strings.size() - 1; i >= 0; --i)
+			{
+				if (strings.empty())
+				{
+					strings.erase(strings.begin() + i);
+					opers[i] += opers[i + 1];
+					opers.erase(opers.begin() + (i + 1));
+				}
+			}
+
+			// aggiunta
+			Tops += strings;
+			Opers += opers;
+			Bottoms += tensor<wstring>(strings.size(), L"1");
+		}
+
+		// traduzione delle stringhe
+		tensor<Fraction<big>> FractionList{
+			GetManyFractions(Tops, Bottoms, errorcode)
+		};
+		if (!errorcode.empty())
+		{
+			ret Fraction<ReturnedFractionType>();
+		}
+
+		// operazioni tra frazioni
+		ret ObjectOperations(errorcode, FractionList, Opers);
 	}
 };
 tensor_t PrimeNumbers;
@@ -4995,6 +5126,11 @@ public:
 	divisor div;
 	digitRatio digit;
 
+	strong_ordering operator<=>(const NumberData& other) const
+	{
+		ret number <=> other.number;
+	}
+
 	NumberData() = default;
 	NumberData(
 		ptrdiff_t num,
@@ -5154,55 +5290,6 @@ public:
 
 		}
 		ResetAttribute();
-	}
-};
-class NumberDataTensor : public tensor<NumberData>
-{
-private:
-	void heapify(int n, int i)
-	{
-		int largest{ i };
-		int left{ 2 * i + 1 };
-		int right{ 2 * i + 2 };
-		if (left < n and this->at(left).number > this->at(largest).number)
-		{
-			largest = left;
-		}
-		if (right < n and this->at(right).number > this->at(largest).number)
-		{
-			largest = right;
-		}
-		if (largest != i)
-		{
-			iter_swap(this->begin() + i, this->begin() + largest);
-			heapify(n, largest);
-		}
-	}
-public:
-	NumberDataTensor() : tensor<NumberData>() {}
-	NumberDataTensor(initializer_list<NumberData> init) :
-		tensor<NumberData>(init)
-	{}
-
-	void printf()
-	{
-		for (auto& Data : *this)
-		{
-			Data.printf();
-		}
-	}
-	void HeapSort()
-	{
-		int n = this->size();
-		for (ptrdiff_t i = n / 2 - 1; i >= 0; --i)
-		{
-			heapify(n, i);
-		}
-		for (ptrdiff_t i = n - 1; i > 0; --i)
-		{
-			iter_swap(this->begin(), this->begin() + i);
-			heapify(i, 0);
-		}
 	}
 };
 
@@ -5465,36 +5552,14 @@ int main()
 	wcout.imbue(locale(""));
 
 	////////////////////////////////////////////////////////////////////////////////
-	// wcout << L"inserisci una frazione algebrica.\n";
-	// SetConsoleTextAttribute(hConsole, 12);
-	// wcout << L"Per inserire una singola frazione premere CTRL + ALT\n";
-	// wcout << L"Per cambiare lo stato degli esponenti premere CTRL + SHIFT\n";
-	// ResetAttribute();
-	// if (Expression().in() == Fraction<>{ polynomial<>{ { { 0, { -3 } } } }, {} })
-	// {
-	// 	ret -111;
-	// }
-
-	mt19937 rng(time(nullptr));
-	uniform_int_distribution<int> dist(0, 9);
-	for (int digitnumber = 3;; ++digitnumber) {
-		tensor<int> A(digitnumber), B(digitnumber);
-		wcout << L"numero di cifre: " << digitnumber << L'\n';
-
-		for (auto& I : A) I = dist(rng);
-		for (auto& I : B) I = dist(rng);
-
-		big first(A), second(B);
-		auto product = first * second;
-
-		if (digitnumber % 50 == 0) {
-			wcout << first << L'\n';
-			wcout << L" * \n";
-			wcout << second << L'\n';
-			wcout << L" = \n";
-			wcout << product << L'\n';
-		}
-	}
+	wcout << L"inserisci una frazione algebrica.\n";
+	SetConsoleTextAttribute(hConsole, 12);
+	wcout << L"Per inserire una singola frazione premere CTRL + ALT\n";
+	wcout << L"Per cambiare lo stato degli esponenti premere CTRL + SHIFT\n";
+	ResetAttribute();
+	wstring errcode;
+	if (Expression().in(errcode)
+		== Fraction<big>{ polynomial<big>{ { { 0, { -3 } } } }, {} }) ret -111;
 	////////////////////////////////////////////////////////////////////////////////
 
 	// avvio
@@ -5560,7 +5625,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.6.4 ";
+			wcout << L"1.6.5 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -6531,7 +6596,7 @@ static void DeduceFromExponents(wstring& str)
 		if (unscript != script) {
 			str.erase(i, 1);
 			str.insert(str.begin() + i, L'^');
-			str.insert(str.begin() + i + 1, unscript.at(0));
+			str.insert(str.begin() + (i + 1), unscript.at(0));
 		}
 	}
 }
@@ -6933,8 +6998,7 @@ static Fraction<> GetFractionAdvanced(wstring& errcode, int& BoolData)
 				continue;
 			}
 		}
-		start = false;
-		copied = false;
+		copied = start = false;
 
 		// blocco
 		_GetCursorPos();
@@ -7027,7 +7091,7 @@ static Fraction<> GetFractionAdvanced(wstring& errcode, int& BoolData)
 			Numerators.erase(Numerators.begin() + i);
 			Denominators.erase(Denominators.begin() + i);
 			Operators[i] += Operators[i + 1];
-			Operators.erase(Operators.begin() + i + 1);
+			Operators.erase(Operators.begin() + (i + 1));
 		}
 
 	// controllo caratteri di escape
@@ -7530,6 +7594,7 @@ static void UserInputThread()
 
 #pragma endregion
 
+// funzioni essenziali per la grafica
 #pragma region BasicWindows
 
 RECT ClientRect;
@@ -11687,7 +11752,7 @@ static polynomial<> TrinomialSquare(factor<> vect)
 				ABterm == monomial<>{} or
 				ACterm == monomial<>{} or
 				BCterm == monomial<>{}
-				) continue;
+			) continue;
 			// //
 
 			// calcolo segni
@@ -11721,6 +11786,60 @@ static polynomial<> TrinomialSquare(factor<> vect)
 // funzioni utili per lavorare con le frazioni algebriche
 #pragma region Algebric
 
+// traduce le frazioni e coordina le loro variabili
+static tensor<Fraction<big>> GetManyFractions
+(tensor<wstring> numerators, tensor<wstring> denominators, wstring& errcode)
+{
+	// controllo
+	if (numerators % denominators) ret {};
+	Variables.clear();
+
+	// calcolo variabili
+	tensor<Fraction<big>> fractions;
+	auto un{ numerators + denominators };
+	for (auto& str : un) for (const auto& c : str)
+		if (isalpha(c) and Variables.find(c) == wstring::npos) Variables += c;
+	auto savx{ Variables };
+	tensor<int> null(Variables.size(), 0);
+
+	// traduzione
+	for (size_t i = 0; i < un; ++i) {
+		bool isnum{ i % 2 == 0 };
+		if (isnum) fractions << Fraction<big>{};
+
+		// scelta stringhe
+		auto str = isnum ? numerators[i / 2] : denominators[i / 2];
+		if (!(errcode = PolynomialSyntaxDirector(str)).empty()) ret {};
+
+		// traduzione stringhe
+		auto old{ PolynomialMultiply<big>(GetMonomialsAssister(str)) };
+		if (Variables == savx or savx.empty()) {
+			savx = Variables;
+			isnum ? fractions.last().num = { old } : fractions.last().den = { old };
+			continue;
+		}
+		for (auto& mon : old) mon.exp(savx.size(), 0);
+
+		// correzione
+		factor<big> correct;
+		for (const auto& mono : old)
+			correct << monomial<big>{ mono.coefficient, null };
+		for (size_t j = 0; j < Variables.size(); ++j) {
+			auto pos{ savx.find(Variables.at(j)) };
+			if (pos == wstring::npos) continue;
+			for (size_t k = 0; k < correct; ++k)
+				correct[k].exp[pos] = old[k].exp[j];
+		}
+
+		// impostazione
+		isnum ?
+			fractions.last().num = { correct } : fractions.last().den = { correct };
+		Variables = savx;
+	}
+
+	ret fractions;
+}
+
 // calcola il complementario di un fattore rispetto a un polinomio
 static FACTOR<> Complementary(POLYNOMIAL<> Polynomial, FACTOR<> factor, int exp)
 {
@@ -11744,10 +11863,10 @@ static FACTOR<> Complementary(POLYNOMIAL<> Polynomial, FACTOR<> factor, int exp)
 			}
 			if (Polynomial[i - 1][0].coefficient - exp < 1) {
 				Polynomial.erase(Polynomial.begin() + i);
-				Polynomial.erase(Polynomial.begin() + i - 1);
+				Polynomial.erase(Polynomial.begin() + (i - 1));
 				break;
 			}
-			Polynomial.erase(Polynomial.begin() + i - 1);
+			Polynomial.erase(Polynomial.begin() + (i - 1));
 			break;
 		}
 
@@ -12167,7 +12286,6 @@ EndOfStatement:
 	cursorP.Y--;
 	SetConsoleCursorPosition(hConsole, cursorP);
 }
-
 
 #pragma endregion
 
@@ -12668,9 +12786,9 @@ static ConsoleStream GetAlgebricSolution(
 				(!SamePart and (T0 xor T1))
 				)
 			{
-				roots.erase(roots.begin() + i + 1);
+				roots.erase(roots.begin() + (i + 1));
 				roots.erase(roots.begin() + i);
-				ItsFromDenominator.erase(ItsFromDenominator.begin() + i + 1);
+				ItsFromDenominator.erase(ItsFromDenominator.begin() + (i + 1));
 				ItsFromDenominator.erase(ItsFromDenominator.begin() + i);
 				i--;
 				continue;
@@ -13770,7 +13888,7 @@ static void Loop(
 	wcout.imbue(locale(""));
 
 	wstring n_{ to_wstring(GlobalMax) }, Input, txt;
-	NumberDataTensor data;
+	tensor<NumberData> data;
 	ptrdiff_t LowerBound, UpperBound, datalenght;
 	bool Return;
 
@@ -13917,7 +14035,7 @@ static void Loop(
 
 		// multithreading
 		thread t1([&data]() {
-			data.HeapSort();
+			GeneralizedHeapSort(data);
 			lock_guard<mutex> lock(mtx);
 			IsDone = true;
 			cv.notify_one();
@@ -13930,7 +14048,7 @@ static void Loop(
 
 		// stampa risultati
 		SetConsoleCursorInfo(hConsole, &cursor);
-		data.printf();
+		for (auto& member : data) member.printf();
 		DECLARE_TIME_POINT(end);
 		wcout << L"\nTempo di calcolo = ";
 		wcout << 1'000 * static_cast<double>(end.QuadPart - begin.QuadPart)
@@ -13944,7 +14062,7 @@ static void Loop(
 		DECLARE_TIME_POINT(begin);
 		for (ptrdiff_t set = LowerBound; set < UpperBound; ++set)
 			data << NumberData{ CPU(set) };
-		data.printf();
+		for (auto& member : data) member.printf();
 		wcout << L"\nTempo di calcolo = ";
 		DECLARE_TIME_POINT(end);
 		wcout << 1'000 * static_cast<double>(end.QuadPart - begin.QuadPart)
@@ -15064,7 +15182,7 @@ static void DecompFraction(switchcase& argc)
 					NewScomp.insert(NewScomp.begin() + i, { { 1, 1 } });
 					NewScomp.insert(NewScomp.begin() + i, {
 						{ -1, (long double)DScomp[i][0].degree }
-						});
+					});
 					complementaries << Complementary(NewScomp, NewScomp[i + 1], j);
 				}
 
@@ -15538,7 +15656,7 @@ RETURN:
 /*	LAVORO DA FARE
 	
 	ottimizzazione generica O(n^2) --> O(n*log(n))
-	operazioni ricorsive polinomiali infinite
+	operazioni iterative polinomiali infinite
 	
 	debug systemsolver
 	debug generale
