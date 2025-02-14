@@ -2451,53 +2451,36 @@ public:
 		activator = true;
 		key branch{ where };
 		branch--;
+		auto branchsize = branch.empty() ? 0 : branch.size() - 1;
 
-		// iterazione per trovare elementi del ramo
-		for (auto& ind : lister)
+		// spostamento delle linee di frazione
+		for (auto& line : lines)
 		{
-			// esclusione elementi maggiori
-			if (ind <= branch)
+			if (where <= line and where.size() <= line.size()
+				and key(line)(branchsize) + where.last() == where)
 			{
-				continue;
+				line[branch.size()]++;
 			}
+		}
 
-			// esclusione elementi di rami diversi
-			bool Continue{ false };
-			for (size_t i = 0; i < branch.size(); ++i)
+		// spostamento nodi
+		for (ptrdiff_t i = lister.size() - 1; i >= 0; --i)
+		{
+			auto& ind{ lister[i] };
+
+			if (where <= ind and where.size() <= ind.size()
+				and key(ind)(branchsize) + where.last() == where)
 			{
-				if (ind[i] != branch[i])
+				if (terms.find(ind) != terms.end())
 				{
-					Continue = true;
-					break;
-				}
-			}
-			if (Continue)
-			{
-				continue;
-			}
-
-			// spostamento elementi che seguono la posizione in avanti
-			if (ind[branch.size()] >= where.last())
-			{
-				auto old{ ind };
-				ind[branch.size()]++;
-
-				// spostamento delle linee di frazione
-				for (auto& line : lines)
-				{
-					if (line == old)
-					{
-						line = ind;
-						break;
-					}
-				}
-
-				// spostamento anche nei nodi terminali
-				if (terms.find(old) != terms.end())
-				{
-					auto temp{ terms[old] };
-					terms.erase(old);
+					auto temp{ terms[ind] };
+					terms.erase(ind);
+					ind[branch.size()]++;
 					terms[ind] = temp;
+				}
+				else
+				{
+					ind[branch.size()]++;
 				}
 			}
 		}
@@ -2968,17 +2951,17 @@ public:
 		}
 
 		//// blocco temporaneo di debug
-		// Insert({ 0 }, L"(");
-		// Insert({ 1 }, L"2x", L"y+3");
-		// Insert({ 2 }, L" - ");
-		// Insert({ 3 }, L"1", L"2");
-		// Insert({ 4 }, L"4xy + ");
-		Insert({ 0 }, L"", L"");
-		Insert({ 0, 0, 0 }, L"2", L"3");
-		Insert({ 0, 1, 0 }, L"25x^2", L"3");
-		// Insert({ 6 }, L") * (");
-		// Insert({ 7 }, L"2", L"5x");
-		// Insert({ 8 }, L")^2");
+		Insert({ 0 }, L"(");
+		Insert({ 1 }, L"2x", L"y+3");
+		Insert({ 2 }, L" - ");
+		Insert({ 3 }, L"1", L"2");
+		Insert({ 4 }, L"4xy + ");
+		Insert({ 5 }, L"", L"");
+		Insert({ 5, 0, 0 }, L"2", L"3");
+		Insert({ 5, 1, 0 }, L"25x^2", L"3");
+		Insert({ 6 }, L") * (");
+		Insert({ 7 }, L"2", L"5x");
+		Insert({ 8 }, L")^2");
 		////
 
 		// aggiunta di spazio
@@ -2988,7 +2971,7 @@ public:
 		SetConsoleCursorPosition(hConsole, begin);
 		out(begin);
 		bool arrow{ false };
-		key CursorIndex({ 0 });
+		key CursorIndex({ 8 });
 
 		// ciclo dei comandi
 		for (;;)
@@ -3430,6 +3413,7 @@ public:
 				break;
 			}
 			auto main{ lines[index] };
+			lines.erase(lines.begin() + index);
 			int delta{};
 			main -= 2;
 
@@ -3531,11 +3515,42 @@ public:
 			clean();
 		}
 
+		// calcolo dimensione espressione
+		int Size{};
+		for (const auto& item : terms)
+		{
+			if (Size < item.first[sizemax - 1])
+			{
+				Size = item.first[sizemax - 1];
+			}
+		}
+
+		// fusione termini polinomiali
+		bool activated{ false };
+		for (int i = Size; i >= 0; --i)
+		{
+			if (terms.find({ i }) == terms.end())
+			{
+				activated = false;
+				continue;
+			}
+
+			if (!activated)
+			{
+				activated = true;
+				continue;
+			}
+
+			terms[{ i }] += terms[{ i + 1 }];
+			Remove({ i + 1 });
+			activated = false;
+			Size--;
+		}
+
 		// suddivisione termini
 		bool FractionFirst{ true };
 		tensor<wstring> Opers, Tops, Bottoms;
-		for (key ind = { 0 }; terms.find(ind) != terms.end()
-			or terms.find(ind + 0) != terms.end(); ++ind.last())
+		for (key ind = { 0 }; ind[0] <= Size; ++ind.last())
 		{
 
 			// per garantire di avere un operatore all'inizio
@@ -3551,7 +3566,7 @@ public:
 			if ((ind[0] + FractionFirst) % 2)
 			{
 				Tops << terms[ind + tensor<int>{ 0, 0 }];
-				Bottoms << terms[ind + tensor<int>{ 0, 1 }];
+				Bottoms << terms[ind + tensor<int>{ 1, 0 }];
 				continue;
 			}
 			// frazione dei termini polinomiali
@@ -3560,7 +3575,7 @@ public:
 			auto pol{ terms[ind] };
 
 			// calcolo distribuzione del bilancio delle parentesi
-			int balance{}, min{};
+			int balance{};
 			tensor<size_t> indeces;
 			tensor<int> distribution;
 			for (size_t i = 0; i < pol.size(); ++i)
@@ -3576,35 +3591,46 @@ public:
 					indeces << i;
 					break;
 				}
-
-				if (min > distribution.last())
+			}
+			
+			// traslazione
+			int min = distribution.empty() ? 0 : distribution[0];
+			for (size_t i = 1; i < distribution; ++i)
+			{
+				if (min > distribution[i])
 				{
-					min = distribution.last();
+					min = distribution[i];
 				}
+			}
+			for (auto& Balance : distribution)
+			{
+				Balance -= min;
 			}
 
 			// calcolo del nucleo polinomiale
-			size_t FirstIndex{}, LastIndex{};
+			size_t FirstIndex{}, fi{}, LastIndex{}, li{};
 			for (size_t i = 0; i < distribution; ++i)
 			{
 				if (distribution[i] == 0)
 				{
-					FirstIndex = indeces[distribution[i]];
+					FirstIndex = indeces[i];
+					fi = i;
 					break;
 				}
 			}
-			for (ptrdiff_t i = 0; i >= 0; --i)
+			for (ptrdiff_t i = distribution.size() - 1; i >= 0; --i)
 			{
 				if (distribution[i] == 0)
 				{
-					LastIndex = indeces[distribution[i]];
+					LastIndex = indeces[i];
+					li = i;
 					break;
 				}
 			}
 
 			// calcolo delle regioni a bilancio comune
 			tensor<size_t> left, right;
-			for (size_t i = LastIndex; i < distribution; ++i)
+			for (size_t i = li; i < distribution; ++i)
 			{
 				if (distribution[i] + 1 < right)
 				{
@@ -3616,14 +3642,23 @@ public:
 					right << indeces[i];
 				}
 			}
-			for (ptrdiff_t i = FirstIndex; i >= 0; --i)
+			for (ptrdiff_t i = fi; i >= 0; --i)
 			{
-				if (distribution[i] + 1 < right)
+				if (indeces.empty())
+				{
+					break;
+				}
+				if (indeces[i] == FirstIndex and indeces[i] == LastIndex)
+				{
+					continue;
+				}
+
+				if (distribution[i] + 1 < left)
 				{
 					left--;
 					continue;
 				}
-				if (distribution[i] + 1 != right)
+				if (distribution[i] + 1 != left)
 				{
 					left << indeces[i];
 				}
@@ -3633,17 +3668,23 @@ public:
 			// ritaglio delle suddivisioni
 			for (ptrdiff_t i = Final.size() - 1; i >= 0; --i)
 			{
-				opers << wstring(1, pol.at(Final[i]));
-				auto temp{ pol };
-				temp.erase(0, 1);
-				strings >> temp;
-				pol.erase(i);
+				/// AAAAAAAAAAAAAAAAAAAAAHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+			}
+			
+			// casi particolari
+			if (!strings.empty())
+			{
+				--strings;
+			}
+			if (opers.empty())
+			{
+				opers << pol;
 			}
 
 			// fusione operatori
 			for (ptrdiff_t i = strings.size() - 1; i >= 0; --i)
 			{
-				if (strings.empty())
+				if (strings[i].empty())
 				{
 					strings.erase(strings.begin() + i);
 					opers[i] += opers[i + 1];
