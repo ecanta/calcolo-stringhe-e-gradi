@@ -977,19 +977,7 @@ public:
 			result.decimal = 0;
 			ret result;
 		}
-
-		////////////////////////----------------------------------------------------
-		// // // TESTER // // //
-
-		steady_clock::time_point begin = steady_clock::now();
-		big A = FFT_Multiplication(value);
-		steady_clock::time_point end = steady_clock::now();
-		wcout << "tempo: ";
-		wcout << duration_cast<microseconds>(end - begin).count() << L"\n\n";
-		ret A;
-
-		// // // TESTER // // //----------------------------------------------------
-		////////////////////////
+		ret FFT_Multiplication(value);
 	}
 	inline big& operator*=(const big& value)
 	{
@@ -2950,20 +2938,6 @@ public:
 			EscapeCode = 224;
 		}
 
-		//// blocco temporaneo di debug
-		Insert({ 0 }, L"(");
-		Insert({ 1 }, L"2x", L"y+3");
-		Insert({ 2 }, L" - ");
-		Insert({ 3 }, L"1", L"2");
-		Insert({ 4 }, L"4xy + ");
-		Insert({ 5 }, L"", L"");
-		Insert({ 5, 0, 0 }, L"2", L"3");
-		Insert({ 5, 1, 0 }, L"25x^2", L"3");
-		Insert({ 6 }, L") * (");
-		Insert({ 7 }, L"2", L"5x");
-		Insert({ 8 }, L")^2");
-		////
-
 		// aggiunta di spazio
 		_GetCursorPos();
 		wcout << wstring(csbi.dwSize.Y, L'\n');
@@ -2971,7 +2945,8 @@ public:
 		SetConsoleCursorPosition(hConsole, begin);
 		out(begin);
 		bool arrow{ false };
-		key CursorIndex({ 8 });
+		Insert({ 0 }, L"");
+		key CursorIndex({ 0 });
 
 		// ciclo dei comandi
 		for (;;)
@@ -3668,34 +3643,95 @@ public:
 			// ritaglio delle suddivisioni
 			for (ptrdiff_t i = Final.size() - 1; i >= 0; --i)
 			{
-				/// AAAAAAAAAAAAAAAAAAAAAHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+				auto temp{ pol };
+				temp.erase(0, Final[i] + 1);
+				strings >> temp;
+				opers >> wstring(1, pol.at(Final[i]));
+				pol.erase(Final[i]);
 			}
-			
-			// casi particolari
-			if (!strings.empty())
+			strings >> pol;
+			opers >> L"" << L"";
+
+			// separazione operatori di primo livello
+			wstring checker{ L"+-*/" };
+			tensor<wstring> newstrings, newoperators;
+			for (size_t i = 0; i < strings; ++i)
 			{
-				--strings;
+				// aggiunta operatori già calcolati
+				newoperators << opers[i];
+
+				auto Pol{ strings[i] };
+				size_t corrector{};
+				int ParenthesisBalance{};
+				for (size_t j = 0; j < Pol.size(); ++j)
+				{
+					// calcolo livello
+					switch (Pol.at(j))
+					{
+					case L')': ParenthesisBalance--;
+						break;
+					case L'(': ParenthesisBalance++;
+						break;
+					}
+					if (ParenthesisBalance)
+					{
+						continue;
+					}
+
+					// spezzettamento degli operatori comuni
+					if (checker.find(Pol.at(j)) != wstring::npos)
+					{
+						newoperators << wstring(1, Pol.at(j));
+						
+						auto temp{ Pol };
+						temp.erase(j - corrector);
+						newstrings << temp;
+						
+						Pol.erase(0, j - corrector + 1);
+						corrector += j;
+						continue;
+					}
+
+					// spostamento degli esponenti negli operatori
+					if (Pol.at(j - corrector) == L'^')
+					{
+						if (j - corrector == Pol.size() - 1)
+						{
+							break;
+						}
+						if (!isdigit(Pol.at(j - corrector + 1)))
+						{
+							break;
+						}
+
+						newoperators <<
+							(L"^" + wstring(1, Pol.at(j - corrector + 1)));
+						newstrings << L"";
+						Pol.erase(j - corrector, 2);
+						corrector += 2;
+					}
+				}
+
+				// aggiunta termine finale
+				newstrings << Pol;
 			}
-			if (opers.empty())
-			{
-				opers << pol;
-			}
+			newoperators << opers.last();
 
 			// fusione operatori
-			for (ptrdiff_t i = strings.size() - 1; i >= 0; --i)
+			for (ptrdiff_t i = newstrings.size() - 1; i >= 0; --i)
 			{
-				if (strings[i].empty())
+				if (newstrings[i].empty())
 				{
-					strings.erase(strings.begin() + i);
-					opers[i] += opers[i + 1];
-					opers.erase(opers.begin() + (i + 1));
+					newstrings.erase(newstrings.begin() + i);
+					newoperators[i] += newoperators[i + 1];
+					newoperators.erase(newoperators.begin() + (i + 1));
 				}
 			}
 
 			// aggiunta
-			Tops += strings;
-			Opers += opers;
-			Bottoms += tensor<wstring>(strings.size(), L"1");
+			Tops += newstrings;
+			Opers += newoperators;
+			Bottoms += tensor<wstring>(newstrings.size(), L"1");
 		}
 
 		// traduzione delle stringhe
@@ -5033,6 +5069,39 @@ public:
 		ret eigenvectors;
 	}
 };
+template<typename T> T EmptyProduct(T shape)
+{
+	if constexpr (is_same_v<T, Fraction<>>)
+	{
+		ret Fraction<>{
+			polynomial<>{ { { 1, tensor<int>(Variables.size(), 0) } } },
+			polynomial<>{ { { 1, tensor<int>(Variables.size(), 0) } } }
+		};
+	}
+	if constexpr (is_same_v<T, Fraction<big>>)
+	{
+		ret Fraction<big>{
+			polynomial<big>{ { { 1, tensor<int>(Variables.size(), 0) } } },
+			polynomial<big>{ { { 1, tensor<int>(Variables.size(), 0) } } }
+		};
+	}
+	if constexpr (is_same_v<T, Matrix<>>)
+	{
+		auto Result{ shape };
+		for (size_t i = 0; i < shape; ++i)
+		{
+			for (size_t j = 0; j < shape; ++j)
+			{
+				shape[i][j] = 0;
+			}
+		}
+		for (size_t i = 0; i < shape; ++i)
+		{
+			shape[i][i] = 1;
+		}
+		ret Result;
+	}
+}
 
 // punti
 HDC GHDC;
@@ -5593,14 +5662,25 @@ int main()
 	wcout.imbue(locale(""));
 
 	////////////////////////////////////////////////////////////////////////////////
-	wcout << L"inserisci una frazione algebrica.\n";
-	SetConsoleTextAttribute(hConsole, 12);
-	wcout << L"Per inserire una singola frazione premere CTRL + ALT\n";
-	wcout << L"Per cambiare lo stato degli esponenti premere CTRL + SHIFT\n";
-	ResetAttribute();
-	wstring errcode;
-	if (Expression().in(errcode)
-		== Fraction<big>{ polynomial<big>{ { { 0, { -3 } } } }, {} }) ret -111;
+	while (true)
+	{
+		system("cls");
+		wcout << L"inserisci una frazione algebrica.\n";
+		SetConsoleTextAttribute(hConsole, 12);
+		wcout << L"Per inserire una singola frazione premere CTRL + ALT\n";
+		wcout << L"Per cambiare lo stato degli esponenti premere CTRL + SHIFT\n";
+		ResetAttribute();
+		
+		wstring errcode;
+		Fraction<big> RES;
+		if ((RES = Expression().in(errcode))
+			== Fraction<big>{ polynomial<big>{ { { 0, { -3 } } } }, {} }) ret -111;
+		
+		system("cls");
+		wcout << RES.str();
+		sleep_for(seconds(2));
+		if (_kbhit()) break;
+	}
 	////////////////////////////////////////////////////////////////////////////////
 
 	// avvio
@@ -5666,7 +5746,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.6.5 ";
+			wcout << L"1.6.6 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -10790,6 +10870,12 @@ static polynomial<big> GetMonomialsAssister(wstring pol)
 template<typename T> T ObjectOperations
 (wstring& errcode, tensor<T> list, tensor<wstring> ops, wstring disposition)
 {
+	if (list.empty()) {
+		errcode = L"Risultato nullo";
+		ret T();
+	}
+	auto shape{ list[0] };
+
 	// caso di disposizione non calcolata in precedenza
 	if (disposition.empty()) {
 		for (size_t i = 0; i < ops; ++i) disposition += ops[i] + L'\'';
@@ -10797,9 +10883,24 @@ template<typename T> T ObjectOperations
 			errcode = L'_';
 			ret T();
 		}
-		disposition.pop_back();
+		if (ops.size() != list.size()) disposition.pop_back();
 	}
 	bool stay{ true };
+
+	// correzione bilancio totale delle parentesi
+	int TemporaryBalance{};
+	for (size_t i = 0; i < disposition.size(); ++i) switch (disposition.at(i)) {
+	case L'(': TemporaryBalance++;
+		break;
+	case L')': TemporaryBalance--;
+		break;
+	}
+	
+	if (TemporaryBalance < 0) {
+		errcode = L"Le parentesi sono sbilanciate";
+		ret T();
+	}
+	if (TemporaryBalance > 0) disposition += wstring(TemporaryBalance, L')');
 
 	// segni di uguaglianza
 	int occurrences{};
@@ -10818,6 +10919,107 @@ template<typename T> T ObjectOperations
 		disposition += L')';
 	}
 
+	// casi particolari esponenti
+	if (!disposition.empty()) {
+		if (disposition.at(0) == L'^') {
+			errcode = L"Gli esponenti non possono stare all'inizio";
+			ret T();
+		}
+		if (Last(disposition) == L'^') {
+			errcode = L"Gli esponenti non possono stare alla fine";
+			ret T();
+		}
+	}
+
+	// espansione esponenti
+	for (ptrdiff_t i = 1; i < (ptrdiff_t)disposition.size() - 1; ++i) {
+		if (disposition.at(i) == L'^') {
+			if (disposition.at(i - 1) != L')') {
+				errcode = L"Errore negli esponenti";
+				ret T();
+			}
+
+			// gestione del bilancio delle parentesi
+			int exp = disposition.at(i + 1) - L'0', balance{};
+			ptrdiff_t I{ -1 };
+			for (ptrdiff_t j = i - 1; j >= 0; --j) {
+				switch (disposition.at(j)) {
+				case L'(': balance--;
+					break;
+				case L')': balance++;
+					break;
+				}
+				if (balance == 0) {
+					I = j;
+					break;
+				}
+			}
+			if (I < 0) {
+				errcode = L"Manca una parentesi";
+				ret T();
+			}
+
+			if (i - I <= 2) {
+				errcode = L"Base vuota";
+				ret T();
+			}
+
+			// calcolo porzione di lista da ripetere
+			bool StopUpdatingFirst{ false };
+			size_t FirstPointer{}, LastPointer{};
+			for (size_t j = 0; j < i - 1; ++j) {
+				if (disposition.at(j) != L'\'') continue;
+				
+				LastPointer++;
+				if (StopUpdatingFirst) continue;
+				FirstPointer++;
+				if (j > I) StopUpdatingFirst = true;
+			}
+			FirstPointer--;
+			LastPointer--;
+			disposition.erase(i, 2);
+			i--;
+			
+			// esponente nullo
+			if (exp == 0) {
+				disposition.erase(I, i - I + 1);
+				disposition.insert(disposition.begin() + I, L'\'');
+				list.erase(FirstPointer, LastPointer - FirstPointer + 1);
+				list.insert(list.begin() + FirstPointer, EmptyProduct<T>(shape));
+				i = I;
+				continue;
+			}
+			if (exp == 1) continue;
+
+			// esponente non nullo
+			auto StringRepeater{ disposition.substr(I, i - I + 1) };
+			tensor<T> TensorRepeater(
+				list.begin() + FirstPointer,
+				list.begin() + LastPointer + 1
+			);
+			size_t StrIndex = i + 1, TnsIndex{ LastPointer + 1 };
+			for (int j = 0; j < exp - 1; ++j) {
+
+				for (size_t k = 0; k < StringRepeater.size(); ++k)
+					disposition.insert(
+						disposition.begin() + StrIndex,
+						StringRepeater.at(StringRepeater.size() - k - 1)
+					);
+				
+
+				for (size_t k = 0; k < TensorRepeater.size(); ++k)
+					list.insert(
+						list.begin() + TnsIndex,
+						TensorRepeater.at(TensorRepeater.size() - k - 1)
+					);
+
+				StrIndex += StringRepeater.size();
+				TnsIndex += TensorRepeater.size();
+			}
+			i = StrIndex - 1;
+		}
+	}
+
 	// calcolo principale
 	for (;;) {
 		int Apostrophes{}, apostrophes{};
@@ -10827,39 +11029,34 @@ template<typename T> T ObjectOperations
 			disposition.find(L')') == wstring::npos) stay = false;
 
 		// loop per trovare una regione senza parentesi
-		bool change{ false };
+		bool Break{ false };
 		int balance{}, start{ -1 }, end = disposition.size();
 		if (stay) for (size_t i = 0; i < disposition.size(); ++i) {
 
 			// aggiornamento puntatori
 			switch (disposition.at(i)) {
 			case L'(':
-				change = true;
+				apostrophes = Apostrophes;
 				start = i;
 				balance++;
-				apostrophes = Apostrophes;
 				break;
 			case L')':
-				if (balance == 1) end = i;
 				if (balance == 0) {
 					errcode = L"Le parentesi sono invertite";
 					ret T();
 				}
-				balance--;
+				end = i;
+				Break = true;
 				break;
 			case L'\'': Apostrophes++;
 			}
 
-			if (balance == 0 and change) {
+			if (Break) {
 				part = disposition.substr(start + 1, end - start - 1);
 				break;
 			}
 		}
 		else part = disposition;
-		if (balance != 0) {
-			errcode = L"Le parentesi sono sbilanciate";
-			ret T();
-		}
 		if (start + 1 == end) {
 			errcode = L"Manca un fattore";
 			ret T();
