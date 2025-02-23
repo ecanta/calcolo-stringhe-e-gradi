@@ -1684,7 +1684,10 @@ static FACTOR<> To1V(factor<> vect)
 }
 
 // polinomi completi
+static wstring CTSuperScript(wchar_t input);
+static wstring CFSuperScript(wstring script);
 static wstring ElabExponents(wstring& str);
+static void DeduceFromExponents(wstring& str);
 template<typename T_int = long double>class polynomial
 	: public tensor<factor<T_int>>
 {
@@ -2890,6 +2893,10 @@ public:
 			// output
 			SetConsoleCursorPosition(hConsole, pos);
 			auto write{ terms[Key] };
+			if (write == L"\a")
+			{
+				write = L" ";
+			}
 			wcout << ElabExponents(write) << L'\n';
 		}
 
@@ -2928,7 +2935,7 @@ public:
 	{
 		// carattere per le frecce
 		using type = char;
-		int EscapeCode, diff{};
+		int EscapeCode, diff{ 1 };
 		if constexpr (is_same_v<type, char>)
 		{
 			EscapeCode = -32;
@@ -2938,6 +2945,24 @@ public:
 			EscapeCode = 224;
 		}
 
+		// preparazione oggetto
+		terms.clear();
+		terms[{ 0, 0, 0 }] = terms[{ 0, 1, 0 }] = L"\a";
+		terms[{ 1 }] = L"";
+		lister = {
+			{},
+			{ 0 },
+			{ 1 },
+			{ 0, 0 },
+			{ 0, 1 },
+			{ 0, 0, 0 },
+			{ 0, 1, 0 },
+			{ 1, 0 }
+		};
+		lines = { { 0 } };
+		activator = true;
+		key CursorIndex({ 0, 0, 0 });
+
 		// aggiunta di spazio
 		_GetCursorPos();
 		wcout << wstring(csbi.dwSize.Y, L'\n');
@@ -2945,8 +2970,6 @@ public:
 		SetConsoleCursorPosition(hConsole, begin);
 		out(begin);
 		bool arrow{ false };
-		Insert({ 0 }, L"");
-		key CursorIndex({ 0 });
 
 		// ciclo dei comandi
 		for (;;)
@@ -2960,16 +2983,30 @@ public:
 					GetAsyncKeyState(VK_MENU) & 0x8000);
 
 				// aggiunta termini
+				if (terms[CursorIndex] == L"\a")
+				{
+					terms[CursorIndex] = L"+ ";
+				}
+				else if (CursorIndex.last() >= 0)
+				{
+					terms[CursorIndex] += L" ";
+				}
 				CursorIndex.last()++;
 				lines << CursorIndex;
 				lister << CursorIndex;
 				lister << CursorIndex + 0 << CursorIndex + 0 + 0;
 				lister << CursorIndex + 1 << CursorIndex + 1 + 0;
+				auto Cursor{ CursorIndex };
+				Cursor.last()++;
+				lister << Cursor;
+				terms[Cursor] = L"";
 
 				// pulizia e aggiornamento cursore
-				terms[CursorIndex + 1 + 0] = L"";
+				terms[CursorIndex + 1 + 0] = L"\a";
 				CursorIndex << 0 << 0;
-				terms[CursorIndex] = L"";
+				terms[CursorIndex] = L"\a";
+				terms[Cursor] = L"";
+				diff = 1;
 				activator = true;
 				clean();
 			}
@@ -3038,6 +3075,11 @@ public:
 
 						if (CursorIndex.last() < 0 or ExecuteMove)
 						{
+							if (CursorIndex.size() <= 1)
+							{
+								break;
+							}
+
 							// spostamento verso l'esterno della frazione
 							if (CursorIndex[CursorIndex.size() - 2] == 0)
 							{
@@ -3140,25 +3182,31 @@ public:
 					// canc
 					case L'S':
 
-						// rimozione carattere dall'ultimo termine
-						if (terms.find(CursorIndex) != terms.end())
+						// rimozione carattere dall termine
+						if (diff > 0)
 						{
-							if (!terms[CursorIndex].empty())
+							terms[CursorIndex].erase(
+								terms[CursorIndex].size() - diff, 1
+							);
+							if (diff > 0)
 							{
-								terms[CursorIndex].pop_back();
-								if (diff > 0)
-								{
-									diff--;
-								}
-								if (!terms[CursorIndex].empty())
-								{
-									break;
-								}
+								diff--;
 							}
+							break;
 						}
+						__fallthrough;
 
 						// ctrl + canc
 					case -109:
+
+						// eliminazione caratteri in avanti
+						if (diff > 0)
+						{
+							terms[CursorIndex].erase(
+								terms[CursorIndex].size() - diff
+							);
+							break;
+						}
 
 						// nulla da cancellare
 						if (CursorIndex.last() >=
@@ -3231,6 +3279,7 @@ public:
 					break;
 					}
 
+					activator = true;
 					arrow = false;
 					continue;
 				}
@@ -3247,36 +3296,30 @@ public:
 					// backspace
 				case L'\b':
 
-					// rimozione carattere dall'ultimo termine
-					if (terms.find(CursorIndex) != terms.end())
+					// rimozione carattere dal termine
+					if (terms[CursorIndex].size() > diff)
 					{
-						if (terms[CursorIndex].empty())
-						{
-							// rimozione termine
-							terms.erase(CursorIndex);
-							for (ptrdiff_t i = lister.size() - 1; i >= 0; --i)
-							{
-								if (lister[i] == CursorIndex)
-								{
-									lister.erase(lister.begin() + i);
-									break;
-								}
-							}
+						terms[CursorIndex].erase(
+							terms[CursorIndex].size() - diff - 1, 1
+						);
+						break;
+					}
 
-							// aggiornamento
-							CursorIndex.last()--;
-							diff = 0;
-						}
-						else
+					// rimozione termine
+					terms.erase(CursorIndex);
+					for (ptrdiff_t i = lister.size() - 1; i >= 0; --i)
+					{
+						if (lister[i] == CursorIndex)
 						{
-							terms[CursorIndex].pop_back();
-							if (diff > 0)
-							{
-								diff--;
-							}
+							lister.erase(lister.begin() + i);
 							break;
 						}
 					}
+
+					// aggiornamento
+					CursorIndex.last()--;
+					diff = 0;
+					__fallthrough;
 
 					// ctrl + backspace
 				case 127:
@@ -3284,6 +3327,15 @@ public:
 					// nulla
 					if (CursorIndex.last() < 0)
 					{
+						break;
+					}
+
+					// eliminazione caratteri all'indietro
+					if (diff > 0)
+					{
+						terms[CursorIndex].erase(
+							0, terms[CursorIndex].size() - diff
+						);
 						break;
 					}
 
@@ -3306,17 +3358,44 @@ public:
 					// aggiunta carattere
 				default:
 
-					// aggiunta in un termine già esistente
-					if (terms.find(CursorIndex) != terms.end())
+					// frazione vuota ma visualizzata
+					if (terms[CursorIndex] == L"\a")
 					{
-						terms[CursorIndex] += c;
+						terms[CursorIndex] = wstring(1, c);
+						diff = 0;
 						break;
 					}
 
-					// aggiunta di un nuovo termine
-					CursorIndex.last()++;
-					lister << CursorIndex;
-					terms[CursorIndex] = wstring(1, c);
+					// appena fuori dalla frazione
+					if (terms[CursorIndex].empty() and CursorIndex.last() > 0)
+					{
+						terms[CursorIndex] += L" ";
+					}
+
+					// all'interno del termine
+					auto vel{ terms[CursorIndex] };
+					auto new_diff{ (int)vel.size() - diff };
+					ElabExponents(vel);
+					auto copy{ vel };
+
+					// calcolo differenza in più
+					copy.erase(0, vel.size() - diff);
+					for (const auto& ch : copy)
+					{
+						if (CFSuperScript(wstring(1, ch)) != wstring(1, ch))
+						{
+							new_diff--;
+						}
+					}
+
+					// aggiunta
+					if (new_diff < 0)
+					{
+						new_diff = 0;
+					}
+					vel = vel.substr(0, new_diff) + wstring(1, c)
+						+ vel.substr(new_diff, vel.size());
+					terms[CursorIndex] = vel;
 				}
 
 				// pulizia oggetto e aggiornamento
@@ -3365,7 +3444,7 @@ public:
 		}
 
 		// semplificazione profondità
-		int sizemax, index;
+		int sizemax{ 1 }, index;
 		for (;;)
 		{
 			if (lines.empty())
@@ -3383,8 +3462,9 @@ public:
 					index = i;
 				}
 			}
-			if (sizemax == 1)
+			if (sizemax <= 1)
 			{
+				sizemax = 1;
 				break;
 			}
 			auto main{ lines[index] };
@@ -3518,7 +3598,6 @@ public:
 
 			terms[{ i }] += terms[{ i + 1 }];
 			Remove({ i + 1 });
-			activated = false;
 			Size--;
 		}
 
@@ -3527,7 +3606,6 @@ public:
 		tensor<wstring> Opers, Tops, Bottoms;
 		for (key ind = { 0 }; ind[0] <= Size; ++ind.last())
 		{
-
 			// per garantire di avere un operatore all'inizio
 			if (!ind[0])
 			{
@@ -5456,9 +5534,6 @@ static void CS_CenterPrinter();
 static void CS_CornerPrinter();
 static void ProgressBar(long double ratio, double barWidth);
 static long double WaitingScreen(auto begin, auto end);
-static wstring CTSuperScript(wchar_t input);
-static wstring CFSuperScript(wstring script);
-static void DeduceFromExponents(wstring& str);
 static void GetFraction(wstring& numerator, wstring& denominator, COORD& Off);
 #define GRAPHED (1 << 2)
 #define CHANGEDVALUE (1 << 1)
@@ -5746,7 +5821,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.6.6 ";
+			wcout << L"1.6.8 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -9943,7 +10018,8 @@ static wstring PolynomialSyntax(wstring pol)
 // gestisce la convalidazione di un polinomio con le parentesi
 static wstring PolynomialSyntaxDirector(wstring pol)
 {
-	
+	if (pol.empty()) ret L"";
+
 	// controllo asterischi
 	if (pol.at(0) == L'*' or Last(pol) == L'*')
 		ret L"Manca un termine";
