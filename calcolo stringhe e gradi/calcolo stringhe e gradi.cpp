@@ -624,6 +624,18 @@ private:
 	}
 	big AlgebricOperation1(const big& A, const big& B, bool Sign) const
 	{
+		// addendo nullo
+		if (B == 0)
+		{
+			ret A;
+		}
+		if (A == 0)
+		{
+			auto result{ B };
+			result.sign = Sign;
+			ret result;
+		}
+
 		// addizione tra valori assoluti
 		if (!(A.sign xor B.sign xor Sign))
 		{
@@ -2931,7 +2943,7 @@ public:
 		};
 	}
 	
-	Fraction<ReturnedFractionType> in(wstring& errorcode)
+	Fraction<ReturnedFractionType> in(wstring& errorcode, short starterY = 0)
 	{
 		// carattere per le frecce
 		using type = char;
@@ -2962,11 +2974,13 @@ public:
 		lines = { { 0 } };
 		activator = true;
 		key CursorIndex({ 0, 0, 0 });
-
+		
 		// aggiunta di spazio
 		_GetCursorPos();
-		wcout << wstring(csbi.dwSize.Y, L'\n');
-		COORD begin{};
+		wcout << wstring(
+			csbi.dwSize.Y + csbi.dwCursorPosition.Y - starterY - 10, L'\n'
+		);
+		COORD begin{ 0, starterY };
 		SetConsoleCursorPosition(hConsole, begin);
 		out(begin);
 		bool arrow{ false };
@@ -3296,12 +3310,29 @@ public:
 					// backspace
 				case L'\b':
 
+					if (terms[CursorIndex] == L"\a")
+					{
+						break;
+					}
+
 					// rimozione carattere dal termine
 					if (terms[CursorIndex].size() > diff)
 					{
-						terms[CursorIndex].erase(
-							terms[CursorIndex].size() - diff - 1, 1
-						);
+						auto vel{ terms[CursorIndex] };
+						ElabExponents(vel);
+						if (vel.size() > 1 and vel.size() - diff > 0)
+						{
+							vel.erase(vel.size() - 1 - diff, 1);
+							DeduceFromExponents(vel);
+							terms[CursorIndex] = vel;
+							break;
+						}
+						
+						if (vel.size() == 1 and diff == 0)
+						{
+							terms[CursorIndex] = L"\a";
+							diff = 1;
+						}
 						break;
 					}
 
@@ -3353,7 +3384,11 @@ public:
 					break;
 
 					// conferma
-				case L'\r': ret Export(errorcode);
+				case L'\r':
+					SetConsoleCursorPosition(
+						hConsole, { 0, short(begin.Y + dimensions[{}].Y + 1) }
+					);
+					ret Export(errorcode);
 
 					// aggiunta carattere
 				default:
@@ -3375,10 +3410,11 @@ public:
 					// all'interno del termine
 					auto vel{ terms[CursorIndex] };
 					auto new_diff{ (int)vel.size() - diff };
+					auto backup{ vel };
 					ElabExponents(vel);
-					auto copy{ vel };
 
 					// calcolo differenza in più
+					auto copy{ vel };
 					copy.erase(0, vel.size() - diff);
 					for (const auto& ch : copy)
 					{
@@ -3393,8 +3429,8 @@ public:
 					{
 						new_diff = 0;
 					}
-					vel = vel.substr(0, new_diff) + wstring(1, c)
-						+ vel.substr(new_diff, vel.size());
+					vel = backup.substr(0, new_diff) + wstring(1, c)
+						+ backup.substr(new_diff, backup.size());
 					terms[CursorIndex] = vel;
 				}
 
@@ -3434,6 +3470,11 @@ public:
 		for (auto& term : terms)
 		{
 			auto& str{ term.second };
+			if (str == L"\a")
+			{
+				str = L"";
+				continue;
+			}
 			for (ptrdiff_t i = str.size() - 1; i >= 0; --i)
 			{
 				if (str.at(i) == L' ' or str.at(i) == L'\t')
@@ -5737,24 +5778,23 @@ int main()
 	wcout.imbue(locale(""));
 
 	////////////////////////////////////////////////////////////////////////////////
+	wcout << L"inserisci una frazione algebrica.\n";
+	SetConsoleTextAttribute(hConsole, 12);
+	wcout << L"Per inserire una singola frazione premere CTRL + ALT\n";
+	wcout << L"Per cambiare lo stato degli esponenti premere CTRL + SHIFT\n";
+	ResetAttribute();
+	
+	wstring errcode;
+	Fraction<big> RES;
 	while (true)
 	{
-		system("cls");
-		wcout << L"inserisci una frazione algebrica.\n";
-		SetConsoleTextAttribute(hConsole, 12);
-		wcout << L"Per inserire una singola frazione premere CTRL + ALT\n";
-		wcout << L"Per cambiare lo stato degli esponenti premere CTRL + SHIFT\n";
-		ResetAttribute();
-		
-		wstring errcode;
-		Fraction<big> RES;
-		if ((RES = Expression().in(errcode))
+		if ((RES = Expression().in(errcode, 4))
 			== Fraction<big>{ polynomial<big>{ { { 0, { -3 } } } }, {} }) ret -111;
 		
-		system("cls");
-		wcout << RES.str();
-		sleep_for(seconds(2));
-		if (_kbhit()) break;
+		SetConsoleTextAttribute(hConsole, 11);
+		if (errcode.empty()) wcout << L"Risultato = " << RES.str() << L"\n\n";
+		else wcout << errcode << L"!!\n\n";
+		ResetAttribute();
 	}
 	////////////////////////////////////////////////////////////////////////////////
 
@@ -11405,7 +11445,7 @@ static factor<T_int> PolynomialSum(factor<T_int> vect)
 				bool AreTheMonomialsSimiliar{ true };
 				for (int k = 0; k < Variables.size(); ++k)
 					if (vect[i].exp[k] != vect[j].exp[k])
-						AreTheMonomialsSimiliar = 0;
+						AreTheMonomialsSimiliar = false;
 
 				if (AreTheMonomialsSimiliar) {
 					vect[i].coefficient += vect[j].coefficient;
@@ -15966,26 +16006,3 @@ RETURN:
 /// totale righe non presenti in questo file: 860
 
 // fine del codice -----------------------------------------------------------------
-
-/*	LAVORO DA FARE
-	
-	ottimizzazione generica O(n^2) --> O(n*log(n))
-	operazioni iterative polinomiali infinite
-	
-	debug systemsolver
-	debug generale
-	
-	aggiunta valori sui tratti degli assi e frecce
-	
-	upgrade generico del grafico
-	
-	polinomi a coefficienti complessi
-	
-LAVORO MOLTO DIFFICILE
-	
-	radicali e operazioni con i radicali
-
-	trasparenza e linee tratteggiate
-	effetti per il colore
-	calcolo sulla GPU
-*/
