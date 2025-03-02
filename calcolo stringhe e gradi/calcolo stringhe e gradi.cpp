@@ -2301,6 +2301,20 @@ public:
 		this->count = 0;
 		for (const auto& el : val) *this << el;
 	}
+	
+	// operatori di modifica dell'utlimo elemento
+	key operator!()
+	{
+		auto res{ *this };
+		res.last()++;
+		ret res;
+	}
+	key operator~() const
+	{
+		auto res{ *this };
+		res.last()--;
+		ret res;
+	}
 
 	// nuovi operatori di confronto
 	_NODISCARD inline bool operator<(const tensor& other) const override
@@ -2336,10 +2350,14 @@ public:
 		ret !(*this < other);
 	}
 };
+
+// espressione matematica
+class Expression;
+tensor<Expression> __Expr;
 class Expression
 {
-	using ReturnedFractionType = big;
 private:
+	using ReturnedFractionType = big;
 	bool activator;
 
 	_STD map<key, wstring> terms{ { {}, L"" } };
@@ -2352,6 +2370,17 @@ private:
 
 public:
 	Expression() : activator(false) {};
+	Expression& operator=(const Expression& other)
+	{
+		if (this == &other)
+		{
+			ret *this;
+		}
+		terms = other.terms;
+		lister = other.lister;
+		lines = other.lines;
+		activator = true;
+	}
 
 	bool contains(key index) const
 	{
@@ -2835,7 +2864,7 @@ public:
 		}
 	}
 
-	void out(COORD StarterCoord = { -1, -1 })
+	bool out(COORD& StarterCoord)
 	{
 		// console
 		setlocale(LC_ALL, "");
@@ -2859,9 +2888,26 @@ public:
 		}
 		if (positions.empty())
 		{
-			ret;
+			ret true;
 		}
 		activator = false;
+
+		// aggiunta di spazio
+		_GetCursorPos();
+		short space{ max(short(7), dimensions[{}].Y) };
+		if (space > csbi.dwSize.Y)
+		{
+			ret false;
+		}
+		COORD start{ 0, csbi.dwCursorPosition.Y };
+		if (csbi.dwSize.Y - start.Y < space)
+		{
+			wcout << wstring(space, L'\n');
+			int scroll{ space - csbi.dwSize.Y + start.Y };
+			start.Y -= scroll;
+			StarterCoord.Y -= scroll;
+		}
+		SetConsoleCursorPosition(hConsole, start);
 
 		// output linee di frazione
 		SetConsoleTextAttribute(hConsole, 10);
@@ -2913,6 +2959,7 @@ public:
 		}
 
 		SetConsoleCursorInfo(hConsole, &cursor);
+		ret true;
 	}
 
 	COORD CursorPosition(key at)
@@ -2943,7 +2990,39 @@ public:
 		};
 	}
 	
-	Fraction<ReturnedFractionType> in(wstring& errorcode, short starterY = 0)
+	bool rewrite(COORD& Begin, key location, int phase)
+	{
+		if (activator)
+		{
+			// pulizia console
+			ClearArea(
+				{
+					short(csbi.dwSize.X + Begin.X / 2),
+					short(dimensions[{}].Y / 2 + Begin.Y)
+				},
+				{
+					short(csbi.dwSize.X - Begin.X / 2),
+					short(dimensions[{}].Y / 2)
+				}
+			);
+
+			// scrittura
+			if (!out(Begin))
+			{
+				ret false;
+			}
+		}
+
+		// posizionamento del cursore
+		auto position{ CursorPosition(location) };
+		position.X += Begin.X - phase;
+		position.Y += Begin.Y;
+		SetConsoleCursorPosition(hConsole, position);
+		
+		ret true;
+	}
+
+	Fraction<ReturnedFractionType> in(wstring& errorcode)
 	{
 		// carattere per le frecce
 		using type = char;
@@ -2973,17 +3052,19 @@ public:
 		};
 		lines = { { 0 } };
 		activator = true;
+		size_t TensorIndex{};
 		key CursorIndex({ 0, 0, 0 });
 		
-		// aggiunta di spazio
+		// primo output
 		_GetCursorPos();
-		wcout << wstring(
-			csbi.dwSize.Y + csbi.dwCursorPosition.Y - starterY - 10, L'\n'
-		);
-		COORD begin{ 0, starterY };
+		COORD begin{ 0, csbi.dwCursorPosition.Y };
+		if (!out(begin))
+		{
+			errorcode = L"Non c'è abbastanza spazio nella console";
+			ret Fraction<ReturnedFractionType>{};
+		}
 		SetConsoleCursorPosition(hConsole, begin);
-		out(begin);
-		bool arrow{ false };
+		bool arrow{ false }, copied{ false };
 
 		// ciclo dei comandi
 		for (;;)
@@ -3040,8 +3121,109 @@ public:
 			// tasti
 			if (_kbhit())
 			{
+				// lettura carattere senza consumarlo
+				bool Cont{ false };
+				char c;
+				INPUT_RECORD inptrc;
+				DWORD eventf;
+				for (;;)
+				{
+					PeekConsoleInput(hConsoleInput, &inptrc, 1, &eventf);
+					if (inptrc.EventType == KEY_EVENT
+						and inptrc.Event.KeyEvent.bKeyDown)
+					{
+						c = inptrc.Event.KeyEvent.uChar.UnicodeChar;
+
+						// pressione di F1
+						if (inptrc.Event.KeyEvent.wVirtualKeyCode == VK_F1)
+						{
+							TensorIndex = __Expr.empty() ? 0 : (
+								TensorIndex == 0 ?
+								__Expr.size() - 1 :
+								TensorIndex - 1
+							);
+
+							ReadConsoleInput(hConsoleInput, &inptrc, 1, &eventf);
+							Cont = true;
+							break;
+						}
+
+						// pressione di F2
+						if (inptrc.Event.KeyEvent.wVirtualKeyCode == VK_F2)
+						{
+							TensorIndex = __Expr.empty() ? 0 : (
+								TensorIndex == __Expr.size() - 1 ?
+								0 :
+								TensorIndex + 1
+							);
+							
+							ReadConsoleInput(hConsoleInput, &inptrc, 1, &eventf);
+							Cont = true;
+							break;
+						}
+
+						// frecce
+						if (inptrc.Event.KeyEvent.wVirtualKeyCode == VK_LEFT or
+							inptrc.Event.KeyEvent.wVirtualKeyCode == VK_RIGHT or
+							inptrc.Event.KeyEvent.wVirtualKeyCode == VK_UP or
+							inptrc.Event.KeyEvent.wVirtualKeyCode == VK_DOWN)
+						{
+							break;
+						}
+
+						if (c != 0)
+						{
+							break;
+						}
+					}
+					ReadConsoleInput(hConsoleInput, &inptrc, 1, &eventf);
+				}
+				
+				// aggiornamento in seguito ai comandi F
+				if (Cont)
+				{
+					if (!__Expr.empty())
+					{
+						// assegnazione
+						copied = true;
+						*this = __Expr[TensorIndex];
+						
+						// ricerca ultima posizione
+						CursorIndex = { 0 };
+						do
+						{
+							for (; contains(CursorIndex); ++CursorIndex.last());
+							if (CursorIndex.last() <= 1)
+							{
+								CursorIndex.last() = 0;
+							}
+							else
+							{
+								CursorIndex.last() -= 2;
+							}
+						}
+						while (
+							terms.find(CursorIndex) == terms.end() ?
+							(CursorIndex += key({ 0, 0 }),  true) : false
+						);
+						diff = 0;
+					}
+				
+					// uscita e scrittura
+					while (_kbhit())
+					{
+						c = _getch();
+					}
+					if (!rewrite(begin, CursorIndex, diff));
+					{
+						errorcode = L"Errore nella copia";
+						ret Fraction<ReturnedFractionType>{};
+					}
+					continue;
+				}
+				
 				// lettura
-				char c = _getch();
+				c = _getch();
 
 				// carattere illegale
 				if (c == L'@')
@@ -3303,9 +3485,8 @@ public:
 				{
 					// termine programma
 				case L'.':
-					ret Fraction<ReturnedFractionType>{
-						polynomial<ReturnedFractionType>{ { { 0, { -3 } } } }, {}
-					};
+					errorcode = L"_";
+					ret Fraction<ReturnedFractionType>{};
 
 					// backspace
 				case L'\b':
@@ -3385,6 +3566,10 @@ public:
 
 					// conferma
 				case L'\r':
+					if (!copied)
+					{
+						__Expr << *this;
+					}
 					SetConsoleCursorPosition(
 						hConsole, { 0, short(begin.Y + dimensions[{}].Y + 1) }
 					);
@@ -3442,25 +3627,14 @@ public:
 
 			if (activator)
 			{
-				// pulizia console e scrittura
-				ClearArea(
-					{
-						short(csbi.dwSize.X + begin.X / 2),
-						short(dimensions[{}].Y / 2 + begin.Y)
-					},
-					{
-						short(csbi.dwSize.X - begin.X / 2),
-						short(dimensions[{}].Y / 2)
-					}
-				);
-				out(begin);
+				copied = false;
 			}
-				
-			// posizionamento del cursore
-			auto position{ CursorPosition(CursorIndex) };
-			position.X += begin.X - diff;
-			position.Y += begin.Y;
-			SetConsoleCursorPosition(hConsole, position);
+			bool failed{ !rewrite(begin, CursorIndex, diff) };
+			if (failed)
+			{
+				errorcode = L"Non c'è abbastanza spazio nella console";
+				ret Fraction<ReturnedFractionType>{};
+			}
 		}
 	}
 
@@ -3472,7 +3646,7 @@ public:
 			auto& str{ term.second };
 			if (str == L"\a")
 			{
-				str = L"";
+				str = L"1";
 				continue;
 			}
 			for (ptrdiff_t i = str.size() - 1; i >= 0; --i)
@@ -3702,12 +3876,11 @@ public:
 			}
 
 			// calcolo del nucleo polinomiale
-			size_t FirstIndex{}, fi{}, LastIndex{}, li{};
+			size_t fi{}, li{};
 			for (size_t i = 0; i < distribution; ++i)
 			{
 				if (distribution[i] == 0)
 				{
-					FirstIndex = indeces[i];
 					fi = i;
 					break;
 				}
@@ -3716,7 +3889,6 @@ public:
 			{
 				if (distribution[i] == 0)
 				{
-					LastIndex = indeces[i];
 					li = i;
 					break;
 				}
@@ -3724,7 +3896,7 @@ public:
 
 			// calcolo delle regioni a bilancio comune
 			tensor<size_t> left, right;
-			for (size_t i = li; i < distribution; ++i)
+			for (size_t i = li + 1; i < distribution; ++i)
 			{
 				if (distribution[i] + 1 < right)
 				{
@@ -3742,7 +3914,7 @@ public:
 				{
 					break;
 				}
-				if (indeces[i] == FirstIndex and indeces[i] == LastIndex)
+				if (i == fi and i == li)
 				{
 					continue;
 				}
@@ -3758,6 +3930,12 @@ public:
 				}
 			}
 			auto Final{ left + right };
+
+			// caso con una singola parentesi
+			if (li == fi and Final.empty() and !distribution.empty())
+			{
+				Final = { li };
+			}
 
 			// ritaglio delle suddivisioni
 			for (ptrdiff_t i = Final.size() - 1; i >= 0; --i)
@@ -5782,16 +5960,17 @@ int main()
 	SetConsoleTextAttribute(hConsole, 12);
 	wcout << L"Per inserire una singola frazione premere CTRL + ALT\n";
 	wcout << L"Per cambiare lo stato degli esponenti premere CTRL + SHIFT\n";
+	wcout << L"Per recuperare l'espressione inserita precedentemente premere F1\n";
+	wcout << L"Per scorrere tra le espressioni precedenti usare F1 e F2\n\n";
 	ResetAttribute();
 	
 	wstring errcode;
-	Fraction<big> RES;
 	while (true)
 	{
-		if ((RES = Expression().in(errcode, 4))
-			== Fraction<big>{ polynomial<big>{ { { 0, { -3 } } } }, {} }) ret -111;
-		
-		SetConsoleTextAttribute(hConsole, 11);
+		auto RES = Expression().in(errcode);
+		if (errcode == L"_") ret -111;
+
+		SetConsoleTextAttribute(hConsole, 2);
 		if (errcode.empty()) wcout << L"Risultato = " << RES.str() << L"\n\n";
 		else wcout << errcode << L"!!\n\n";
 		ResetAttribute();
@@ -5861,7 +6040,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.6.8 ";
+			wcout << L"1.7.0 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
