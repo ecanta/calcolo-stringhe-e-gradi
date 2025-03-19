@@ -1260,6 +1260,36 @@ public:
 };
 big LCM(1);
 
+// rappresentazione di radicali
+template<typename Ty = int> class Radical
+{
+private:
+	template<typename U = Ty> struct RadicalVar
+	{
+		tensor<U> coeffs, args;
+
+		long double approximation()
+		{
+			long double output{};
+			for (size_t i = 0; i < coeffs; ++i)
+			{
+				output += coeffs[i] * sqrt(args[i]);
+			}
+			ret output;
+		}
+
+		RadicalVar operator+(const RadicalVar& other)
+		{
+			auto This{ *this };
+			int ThisArg{}, OtherArg{};
+			size_t ThisIndex{}, OtherIndex{};
+			//...
+		}
+	};
+public:
+	//...
+};
+
 // monomi
 template<typename T_int = long double>struct MONOMIAL
 {
@@ -2227,25 +2257,29 @@ public:
 	wstring str()
 	{
 		// frazione semplice
-		wstring output{ num.str() };
 		if (
 			den == polynomial<T>{ { {
 					1, tensor<int>(Variables.size(), 0)
 				} } }
 		)
 		{
-			ret output;
+			ret num.str();
 		}
 		
 		// frazione complicata
-		if (output.find(L'+') != wstring::npos or
-			output.find(L'-') != wstring::npos)
+		auto Num{ num.str() };
+		auto Den{ den.str() };
+		if (Num.find(L'+') != wstring::npos or
+			Num.find(L'-') != wstring::npos)
 		{
-			output = L'(' + output + L')';
+			Num = L'(' + Num + L')';
 		}
-		output += L" / " + den.str();
-		
-		ret output;
+		if (Den.find(L'+') != wstring::npos or
+			Den.find(L'-') != wstring::npos)
+		{
+			Den = L'(' + Den + L')';
+		}
+		ret Num + L" / " + Den;
 	}
 
 	friend wostream& operator<<(wostream& os, const Fraction& obj)
@@ -3022,7 +3056,7 @@ public:
 		ret true;
 	}
 
-	Fraction<ReturnedFractionType> in(wstring& errorcode)
+	Fraction<ReturnedFractionType> in(wstring& errorcode, bool& graph)
 	{
 		// carattere per le frecce
 		using type = char;
@@ -3418,23 +3452,44 @@ public:
 
 						// ctrl + freccia sinistra
 					case L's':
-						if (terms.find(CursorIndex) != terms.end())
+					{
+						// nei termini
+						wstring current{ terms[CursorIndex] };
+						ElabExponents(current);
+						if (diff != current.size())
 						{
-							wstring current{ terms[CursorIndex] };
-							ElabExponents(current);
 							diff = current.size();
+							break;
 						}
 
+						// fuori dai termini
+						if (CursorIndex.last() > 0)
+						{
+							CursorIndex.last()--;
+						}
+						diff = 0;
 						break;
+					}
 
 						// ctrl + freccia destra
 					case L't':
-						if (terms.find(CursorIndex) != terms.end())
+					{
+						// nei termini
+						if (diff != 0)
 						{
 							diff = 0;
+							break;
 						}
 
+						// fuori dai termini
+						CursorIndex.last()++;
+						if (!contains(CursorIndex))
+						{
+							CursorIndex.last()--;
+						}
+						diff = 0;
 						break;
+					}
 
 						// spostamento da denominatore a numeratore
 					case L'H':
@@ -3473,8 +3528,8 @@ public:
 						}
 					}
 					break;
-					}
 
+					}
 					activator = true;
 					arrow = false;
 					continue;
@@ -3573,7 +3628,7 @@ public:
 					SetConsoleCursorPosition(
 						hConsole, { 0, short(begin.Y + dimensions[{}].Y + 1) }
 					);
-					ret Export(errorcode);
+					ret Export(errorcode, graph);
 
 					// aggiunta carattere
 				default:
@@ -3638,7 +3693,7 @@ public:
 		}
 	}
 
-	Fraction<ReturnedFractionType> Export(wstring& errorcode)
+	Fraction<ReturnedFractionType> Export(wstring& errorcode, bool& graph)
 	{
 		// eliminazione spazi bianchi
 		for (auto& term : terms)
@@ -3654,6 +3709,20 @@ public:
 				if (str.at(i) == L' ' or str.at(i) == L'\t')
 				{
 					str.erase(i, 1);
+				}
+			}
+		}
+
+		// istruzione grafico
+		graph = false;
+		if (terms.find({ 0, 0, 0 }) != terms.end())
+		{
+			if (!terms[{ 0, 0, 0 }].empty())
+			{
+				if (terms[{ 0, 0, 0 }].at(0) == L'/')
+				{
+					graph = true;
+					terms[{ 0, 0, 0 }].erase(0, 1);
 				}
 			}
 		}
@@ -3844,8 +3913,8 @@ public:
 
 			// calcolo distribuzione del bilancio delle parentesi
 			int balance{};
-			tensor<size_t> indeces;
-			tensor<int> distribution;
+			tensor<ptrdiff_t> indeces{ -1 };
+			tensor<int> distribution{ 0 };
 			for (size_t i = 0; i < pol.size(); ++i)
 			{
 				switch (pol.at(i))
@@ -3876,8 +3945,8 @@ public:
 			}
 
 			// calcolo del nucleo polinomiale
-			size_t fi{}, li{};
-			for (size_t i = 0; i < distribution; ++i)
+			ptrdiff_t fi{}, li{};
+			for (ptrdiff_t i = 0; i < distribution; ++i)
 			{
 				if (distribution[i] == 0)
 				{
@@ -3895,8 +3964,8 @@ public:
 			}
 
 			// calcolo delle regioni a bilancio comune
-			tensor<size_t> left, right;
-			for (size_t i = li + 1; i < distribution; ++i)
+			tensor<ptrdiff_t> left, right;
+			for (ptrdiff_t i = li + 1; i < distribution; ++i)
 			{
 				if (distribution[i] + 1 < right)
 				{
@@ -3932,22 +4001,34 @@ public:
 			auto Final{ left + right };
 
 			// caso con una singola parentesi
-			if (li == fi and Final.empty() and !distribution.empty())
+			if (li == fi and Final.empty() and distribution != tensor<int>{ 0 })
 			{
 				Final = { li };
 			}
 
 			// ritaglio delle suddivisioni
-			for (ptrdiff_t i = Final.size() - 1; i >= 0; --i)
+			if (pol == L"(" or pol == L")")
 			{
-				auto temp{ pol };
-				temp.erase(0, Final[i] + 1);
-				strings >> temp;
-				opers >> wstring(1, pol.at(Final[i]));
-				pol.erase(Final[i]);
+				opers << pol;
 			}
-			strings >> pol;
-			opers >> L"" << L"";
+			else
+			{
+				for (ptrdiff_t i = Final.size() - 1; i >= 0; --i)
+				{
+					if (Final[i] < 0)
+					{
+						continue;
+					}
+
+					auto temp{ pol };
+					temp.erase(0, Final[i] + 1);
+					strings >> temp;
+					opers >> wstring(1, pol.at(Final[i]));
+					pol.erase(Final[i]);
+				}
+				strings >> pol;
+				opers >> L"" << L"";
+			}
 
 			// separazione operatori di primo livello
 			wstring checker{ L"+-*/" };
@@ -5955,28 +6036,6 @@ int main()
 	SetConsoleCP(CP_UTF8);
 	wcout.imbue(locale(""));
 
-	////////////////////////////////////////////////////////////////////////////////
-	wcout << L"inserisci una frazione algebrica.\n";
-	SetConsoleTextAttribute(hConsole, 12);
-	wcout << L"Per inserire una singola frazione premere CTRL + ALT\n";
-	wcout << L"Per cambiare lo stato degli esponenti premere CTRL + SHIFT\n";
-	wcout << L"Per recuperare l'espressione inserita precedentemente premere F1\n";
-	wcout << L"Per scorrere tra le espressioni precedenti usare F1 e F2\n\n";
-	ResetAttribute();
-	
-	wstring errcode;
-	while (true)
-	{
-		auto RES = Expression().in(errcode);
-		if (errcode == L"_") ret -111;
-
-		SetConsoleTextAttribute(hConsole, 2);
-		if (errcode.empty()) wcout << L"Risultato = " << RES.str() << L"\n\n";
-		else wcout << errcode << L"!!\n\n";
-		ResetAttribute();
-	}
-	////////////////////////////////////////////////////////////////////////////////
-
 	// avvio
 	QueryPerformanceFrequency(&ProgramFrequency);
 	Beep(1'000, 50);
@@ -6040,7 +6099,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.7.0 ";
+			wcout << L"1.7.1 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -11389,14 +11448,6 @@ template<typename T> T ObjectOperations
 		auto local_apostrophes{ LocalApostrophes };
 		for (ptrdiff_t i = part.size() - 1; i >= 0; --i) switch (part.at(i))
 		{
-		case L'f':
-			part.erase(i, 1);
-			list[local_apostrophes + 1] = list[local_apostrophes + 1].invert();
-			if (isnan(list[local_apostrophes + 1])) {
-				errcode = L"Divisione per zero";
-				ret T();
-			}
-			break;
 		case L'/':
 			part.erase(i, 1);
 			list[local_apostrophes + 1] = list[local_apostrophes + 1].invert();
@@ -11422,16 +11473,14 @@ template<typename T> T ObjectOperations
 		}
 
 		// addizione
-		tensor<tensor<T>> AddAndMultiply{ tensor<T>{} };
+		tensor<tensor<T>> AddAndMultiply;
 		tensor<T> Add;
 		auto index{ apostrophes };
-		for (size_t i = 0; i < part.size(); ++i) {
-			if (part.at(i) == L'\'') {
-				AddAndMultiply.last() << list[index];
-				index++;
-				continue;
-			}
-			AddAndMultiply << tensor<T>{};
+		for (size_t i = 0; i < part.size(); ++i) switch (part.at(i))
+		{
+		case L'+': AddAndMultiply << tensor<T>{};
+			break;
+		case L'\'': AddAndMultiply.last() << list[index++];
 		}
 		for (auto& Multiply : AddAndMultiply) {
 			if (Multiply.empty()) continue;
@@ -15531,13 +15580,15 @@ static void DecompFraction(switchcase& argc)
 	wcout << L"Il PROGRAMMA scompone, semplifica, esegue lo studio del segno\n";
 	wcout << L"e disegna il grafico delle frazioni algebriche\n\n";
 	SetConsoleTextAttribute(hConsole, 12);
-	wcout << L"Nel grafico è possibile premere il tasto X per eliminare\n";
-	wcout << L"la funzione oppure il tasto D per calcolare la sua derivata\n\n";
-	wcout << L"Per attivare gli esponenti in forma di apice ";
-	wcout << L"scrivere noboolalpha\n";
-	wcout << L"Per disattivare gli esponenti sottoforma di apice ";
-	wcout << L"scrivere boolalpha\n";
 	wcout << L"Per disegnare il grafico aggiungere '\\' all'inizio\n";
+	wcout << L"Nel grafico è possibile premere il tasto X per eliminare\n";
+	wcout << L"la funzione oppure il tasto D per calcolare la sua derivata\n";
+	wcout << L"Per inserire una singola frazione premere CTRL + ALT\n\n";
+	SetConsoleTextAttribute(hConsole, 10);
+	wcout << L"Per attivare / disattivare gli esponenti in forma di apice ";
+	wcout << L"premere CTRL + SHIFT\n";
+	wcout << L"Per recuperare l'espressione inserita precedentemente premere F1\n";
+	wcout << L"Per scorrere tra le espressioni precedenti usare F1 e F2\n";
 	ResetAttribute();
 
 	for (;;)
@@ -15554,12 +15605,10 @@ static void DecompFraction(switchcase& argc)
 		wcout << L"\nInserisci una frazione algebrica (0 = fine input)\n\n";
 		wstring err;
 		int data;
-		Fraction<> it{ GetFractionAdvanced(err, data) };
-
-		// controllo dati aggiuntivi
-		if ((data | CHANGEDVALUE) == data)
-			wcout << (data % 2 ? L"boolalpha\n" : L"noboolalpha\n");
-		if ((data | GRAPHED) == data) draw = true;
+		Fraction<big> inputed{ Expression().in(err, draw) };
+		Fraction<> it{
+			FromBigToDefault(inputed.num), FromBigToDefault(inputed.den)
+		};
 
 		// messaggio di errore
 		if (it == Fraction<>{} and !err.empty()) {
