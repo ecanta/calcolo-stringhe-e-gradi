@@ -3248,7 +3248,8 @@ public:
 					{
 						c = _getch();
 					}
-					if (!rewrite(begin, CursorIndex, diff));
+					bool failed{ !rewrite(begin, CursorIndex, diff) };
+					if (failed)
 					{
 						errorcode = L"Errore nella copia";
 						ret Fraction<ReturnedFractionType>{};
@@ -4032,16 +4033,11 @@ public:
 
 			// separazione operatori di primo livello
 			wstring checker{ L"+-*/" };
-			tensor<wstring> newstrings, newoperators;
 			for (size_t i = 0; i < strings; ++i)
 			{
-				// aggiunta operatori già calcolati
-				newoperators << opers[i];
-
 				auto Pol{ strings[i] };
-				size_t corrector{};
 				int ParenthesisBalance{};
-				for (size_t j = 0; j < Pol.size(); ++j)
+				for (ptrdiff_t j = Pol.size() - 1; j >= 0; --j)
 				{
 					// calcolo livello
 					switch (Pol.at(j))
@@ -4059,57 +4055,39 @@ public:
 					// spezzettamento degli operatori comuni
 					if (checker.find(Pol.at(j)) != wstring::npos)
 					{
-						newoperators << wstring(1, Pol.at(j));
-						
-						auto temp{ Pol };
-						temp.erase(j - corrector);
-						newstrings << temp;
-						
-						Pol.erase(0, j - corrector + 1);
-						corrector += j;
+						opers.insert(opers.begin() + i + 1, wstring(1, Pol.at(j)));
+						strings.insert(
+							strings.begin() + i + 1,
+							Pol.substr(j + 1, Pol.size() - j)
+						);
+						Pol.erase(j);
+						strings[i] = Pol;
 						continue;
 					}
 
 					// spostamento degli esponenti negli operatori
-					if (Pol.at(j - corrector) == L'^')
+					if (Pol.at(j) == L'^')
 					{
-						if (j - corrector == Pol.size() - 1)
-						{
-							break;
-						}
-						if (!isdigit(Pol.at(j - corrector + 1)))
-						{
-							break;
-						}
-
-						newoperators <<
-							(L"^" + wstring(1, Pol.at(j - corrector + 1)));
-						newstrings << L"";
-						Pol.erase(j - corrector, 2);
-						corrector += 2;
+						// ...
 					}
 				}
-
-				// aggiunta termine finale
-				newstrings << Pol;
 			}
-			newoperators << opers.last();
 
 			// fusione operatori
-			for (ptrdiff_t i = newstrings.size() - 1; i >= 0; --i)
+			for (ptrdiff_t i = strings.size() - 1; i >= 0; --i)
 			{
-				if (newstrings[i].empty())
+				if (strings[i].empty())
 				{
-					newstrings.erase(newstrings.begin() + i);
-					newoperators[i] += newoperators[i + 1];
-					newoperators.erase(newoperators.begin() + (i + 1));
+					strings.erase(strings.begin() + i);
+					opers[i] += opers[i + 1];
+					opers.erase(opers.begin() + (i + 1));
 				}
 			}
 
 			// aggiunta
-			Tops += newstrings;
-			Opers += newoperators;
-			Bottoms += tensor<wstring>(newstrings.size(), L"1");
+			Tops += strings;
+			Opers += opers;
+			Bottoms += tensor<wstring>(strings.size(), L"1");
 		}
 
 		// traduzione delle stringhe
@@ -5834,11 +5812,9 @@ static void CS_CenterPrinter();
 static void CS_CornerPrinter();
 static void ProgressBar(long double ratio, double barWidth);
 static long double WaitingScreen(auto begin, auto end);
-static void GetFraction(wstring& numerator, wstring& denominator, COORD& Off);
 #define GRAPHED (1 << 2)
 #define CHANGEDVALUE (1 << 1)
 #define BOOLALPHACHANGED 1
-static Fraction<> GetFractionAdvanced(wstring& errcode, int& BoolData);
 static wstring GetLine(tensor<wstring>& sugg, bool ShowSuggestions = true);
 static wstring GetUserNum
 (wstring txt, ptrdiff_t low, ptrdiff_t high, bool ShowSuggestions);
@@ -7079,574 +7055,6 @@ static void DeduceFromExponents(wstring& str)
 
 // funzioni di input utente
 #pragma region Input
-
-// inputa una frazione algebrica
-static void GetFraction(wstring& numerator, wstring& denominator, COORD& Off)
-{
-	setlocale(LC_ALL, "");
-	SetConsoleOutputCP(CP_UTF8);
-	SetConsoleCP(CP_UTF8);
-	wcout.imbue(locale(""));
-
-	const int EscapeCode{ -32 };
-	int diff{};
-	size_t sizevel;
-	numerator.clear();
-	denominator.clear();
-	wstring vel, command{ L"rnd" }, Num, Den;
-	bool arrow{ false }, system{ false }, IsTheCursorAtStart{ true };
-
-	// aggiunta di spazio
-	wstring Ncopy{ L"0" }, Dcopy;
-	_GetCursorPos();
-	auto START{ csbi.dwCursorPosition };
-	wcout << wstring(10, L'\n');
-	_GetCursorPos();
-	if (csbi.dwCursorPosition.Y >= START.Y)
-	{
-		Off.Y -= 10 - csbi.dwCursorPosition.Y + START.Y;
-		START.Y -= 10 - csbi.dwCursorPosition.Y + START.Y;
-	}
-	SetConsoleCursorPosition(hConsole, START);
-
-	for (;;) {
-
-		// fine input di una singola frazione
-		if (GetAsyncKeyState(VK_CONTROL) & 0x8000 and
-			GetAsyncKeyState(VK_MENU))
-		{
-			while (GetAsyncKeyState(VK_CONTROL) & 0x8000 and
-				GetAsyncKeyState(VK_MENU));
-
-			_GetCursorPos();
-			csbi.dwCursorPosition.X += diff + 1;
-			IsTheCursorAtStart ?
-				csbi.dwCursorPosition.Y++ : csbi.dwCursorPosition.Y--;
-			SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
-
-			if (denominator.empty()) denominator = L"1";
-			ret;
-		}
-
-		if (_kbhit()) {
-			_GetCursorPos();
-			short maxsize = csbi.dwSize.X;
-
-			// overflow di caratteri nella console
-			if (numerator.size() >= maxsize or denominator.size() >= maxsize)
-			{
-				numerator.clear();
-				denominator.clear();
-				continue;
-			}
-
-			char c = _getch();
-			_GetCursorPos();
-
-			bool cond{
-				c == L'\b' or c == L'\t' or c == L'\r' or c == L' '
-				or c == L'K' or c == L'M' or c > 31 or c == -109
-			};
-			if (c == EscapeCode) arrow = true;
-			if (c == 0) {
-				system = true;
-				continue;
-			}
-			auto testN{ Num };
-			auto testD{ Den };
-
-			if (cond) switch (c) {
-
-				// L'.' termina il programma
-			case L'.':
-				numerator = L".";
-				ret;
-
-				// L'\r' termina l'input
-			case L'\r':
-				START.Y += 4;
-				SetConsoleCursorPosition(hConsole, START);
-				if (denominator.empty()) denominator = L"1";
-				ret;
-
-				// L'\b' cancella indietro
-			case L'\b': vel = IsTheCursorAtStart ? Num : Den;
-
-				if (vel.size() > 1 and vel.size() - diff > 0)
-					vel.erase(vel.size() - 1 - diff, 1);
-				else if (vel.size() == 1 and diff == 0) vel.clear();
-
-				if (IsTheCursorAtStart) Num = vel;
-				else Den = vel;
-				break;
-
-				// tab per scegliere il suggerimento
-			case L'\t': numerator = command;
-				break;
-
-				// ctrl + L'\b' cancella la prima parte della stringa
-			case 127: vel = IsTheCursorAtStart ? Num : Den;
-
-				vel.erase(0, vel.size() - diff);
-				if (IsTheCursorAtStart) Num = vel;
-				else Den = vel;
-				break;
-
-			default: vel = IsTheCursorAtStart ? numerator : denominator;
-				wstring E_Vel = IsTheCursorAtStart ? Num : Den;
-
-				// aggiunta carattere
-				if (!arrow) {
-
-					// calcolo differenza in più
-					auto copy{ E_Vel };
-					copy.erase(0, E_Vel.size() - diff);
-					int new_diff{ (int)vel.size() - diff };
-					for (const auto& ch : copy)
-						if (CFSuperScript(wstring(1, ch)) != wstring(1, ch))
-							new_diff--;
-
-					if (new_diff < 0) new_diff = 0;
-					vel = vel.substr(0, new_diff) + wstring(1, c)
-						+ vel.substr(new_diff, vel.size());
-
-					if (IsTheCursorAtStart) numerator = vel;
-					else denominator = vel;
-					break;
-				}
-
-				// frecce
-				vel = IsTheCursorAtStart ? Num : Den;
-				sizevel = vel.size();
-				switch (c) {
-				case L'K': if (diff < sizevel) diff++;
-					break;
-				case L'M': if (diff > 0) diff--;
-					break;
-
-					// canc cancella in avanti
-				case L'S':
-					if (diff <= 0) break;
-					vel.erase(vel.size() - diff, 1);
-					diff--;
-					break;
-
-					// ctrl + canc cancella la seconda parte della stringa
-				case -109:
-					vel.erase(vel.size() - diff);
-					diff = 0;
-					break;
-
-				case L's': diff = sizevel;
-					break;
-				case L't': diff = 0;
-					break;
-				}
-				if (arrow) arrow = false;
-				if (IsTheCursorAtStart) Num = vel;
-				else Den = vel;
-			}
-			system = false;
-
-			// calcolo dimensione stringhe
-			if (BOOLALPHA) {
-				ElabExponents(Num);
-				ElabExponents(Den);
-
-				if (Num != testN) {
-					numerator = Num;
-					DeduceFromExponents(numerator);
-				}
-				else {
-					Num = numerator;
-					ElabExponents(Num);
-				}
-			
-				if (Den != testD) {
-					denominator = Den;
-					DeduceFromExponents(denominator);
-				}
-				else {
-					Den = denominator;
-					ElabExponents(Den);
-				}
-			}
-			else {
-				if (Num == testN) Num = numerator;
-				else numerator = Num;
-				if (Den == testD) Den = denominator;
-				else denominator = Den;
-			}
-
-			// stampa frazione algebrica
-			WriteFraction(Num, Den, command, START);
-			int spaces = fabs(((int)Num.size() - (int)Den.size()) / 2);
-
-			// reset riga
-			if (c == L'H') IsTheCursorAtStart = true;
-			else if (c == L'P') IsTheCursorAtStart = false;
-
-			// reset cursore
-			COORD startPos{ START };
-			if (IsTheCursorAtStart) {
-				startPos.X += Num.size();
-				if (diff < Num.size()) startPos.X -= diff;
-				else startPos.X = START.X;
-				if (Num.size() < Den.size()) startPos.X += spaces;
-			}
-			else {
-				startPos.X += Den.size();
-				if (diff < Den.size()) startPos.X -= diff;
-				else startPos.X = START.X;
-				if (Num.size() > Den.size()) startPos.X += spaces;
-				startPos.Y += 2;
-			}
-
-			SetConsoleCursorPosition(hConsole, startPos);
-			SetConsoleCursorInfo(hConsole, &cursor);
-		}
-		if (!RunMonitor) {
-			numerator = L"0";
-			denominator.clear();
-			ret;
-		}
-	}
-}
-
-// inputa una frazione tramite interfaccia avanzata
-static Fraction<> GetFractionAdvanced(wstring& errcode, int& BoolData)
-{
-
-	// inizio
-	BoolData = 0;
-	bool start{ true }, copied{ false }, pasting{ false };
-	_GetCursorPos();
-	const wstring OperatorsAllowed{ L"(+-*/=)\\" };
-	COORD START{ csbi.dwCursorPosition };
-	SetConsoleCursorPosition(
-		hConsole, { csbi.dwCursorPosition.X, short(START.Y + 1) }
-	);
-
-	short linetracker{};
-	size_t TensorIndex{}, LocalIndex{};
-	tensor<short> actions{ 0 };
-	tensor<wstring> Numerators, Denominators, Operators{ L"" };
-	for (;;) if (_kbhit() or
-		(GetAsyncKeyState(VK_CONTROL) & 0x8000 and
-			GetAsyncKeyState(VK_MENU) & 0x8000))
-	{
-		wstring num_, den_;
-
-		// output operatore
-		if (pasting) {
-			wcout << GlobalOperators[TensorIndex][LocalIndex];
-
-			// termine scrittura suggerimento
-			if (LocalIndex > GlobalNumerators[TensorIndex].size() - 1) {
-
-				// aggiornamento dati locali
-				Numerators = GlobalNumerators[TensorIndex];
-				Denominators = GlobalDenominators[TensorIndex];
-				Operators = GlobalOperators[TensorIndex];
-				actions = ActionsList[TensorIndex];
-				copied = true;
-				pasting = false;
-				
-				// aggiunta di uno spazio
-				_GetCursorPos();
-				SetConsoleCursorPosition(
-					hConsole,
-					{ short(csbi.dwCursorPosition.X + 1), csbi.dwCursorPosition.Y }
-				);
-
-				continue;
-			}
-		}
-
-		// input operatore
-		else if (_kbhit()) {
-
-			// lettura carattere senza consumarlo
-			bool suggest{ false };
-			char c;
-			INPUT_RECORD inptrc;
-			DWORD eventf;
-			for (;;) {
-				PeekConsoleInput(hConsoleInput, &inptrc, 1, &eventf);
-				if (inptrc.EventType == KEY_EVENT
-					and inptrc.Event.KeyEvent.bKeyDown)
-				{
-					c = inptrc.Event.KeyEvent.uChar.UnicodeChar;
-
-					// pressione di F1
-					if (inptrc.Event.KeyEvent.wVirtualKeyCode == VK_F1) {
-						if (TensorIndex > 0) TensorIndex--;
-						else TensorIndex = GlobalOperators.size() - 1;
-						suggest = true;
-						break;
-					}
-
-					// pressione di F2
-					if (inptrc.Event.KeyEvent.wVirtualKeyCode == VK_F2) {
-						if (TensorIndex < GlobalOperators.size() - 1) TensorIndex++;
-						else TensorIndex = 0;
-						suggest = true;
-						break;
-					}
-
-					if (c != 0) break;
-				}
-				ReadConsoleInput(hConsoleInput, &inptrc, 1, &eventf);
-			}
-
-			// aggiornamento dati con i suggerimenti
-			if (suggest) {
-
-				// pulizia iniziale
-				wstring S(csbi.dwCursorPosition.X, L' ');
-				SetConsoleCursorPosition(hConsole, { 0, START.Y });
-				wcout << S;
-				SetConsoleCursorPosition(hConsole, { 0, short(START.Y + 1) });
-				wcout << S;
-				SetConsoleCursorPosition(hConsole, { 0, short(START.Y + 2) });
-				wcout << S;
-				SetConsoleCursorPosition(hConsole, { 0, short(START.Y + 1) });
-
-				c = _getch();
-				linetracker = LocalIndex = 0;
-				pasting = true;
-				continue;
-			}
-
-			// termine programma
-			if (c == L'.') {
-				c = _getch();
-				errcode = L"_";
-				ret Fraction<>{};
-			}
-			
-			// termine input
-			if (c == L'\r' and !start) {
-				c = _getch();
-				break;
-			}
-
-			// pulizia
-			if (c == L'\b' and !start) {
-				copied = false;
-				c = _getch();
-
-				// dati e variabili
-				_GetCursorPos();
-				if (actions == 1) continue;
-				actions--;
-				if (Operators.last().empty()) {
-					Numerators--;
-					Denominators--;
-					Operators--;
-				}
-				else Operators.last().pop_back();
-
-				// sovrascrittura
-				auto Cursor{ actions.last() };
-				wstring S(csbi.dwCursorPosition.X - Cursor + 1, L' ');
-				SetConsoleCursorPosition(hConsole, { Cursor, START.Y });
-				wcout << S;
-				SetConsoleCursorPosition(hConsole, { Cursor, short(START.Y + 1) });
-				wcout << S;
-				SetConsoleCursorPosition(hConsole, { Cursor, short(START.Y + 2) });
-				wcout << S;
-				SetConsoleCursorPosition(hConsole, { Cursor, short(START.Y + 1) });
-				continue;
-			}
-
-			// scrittura
-			copied = false;
-			if (OperatorsAllowed.find(c) != wstring::npos) {
-				c = _getch();
-				Operators.last() += c;
-				wcout << c;
-
-				_GetCursorPos();
-				actions << csbi.dwCursorPosition.X;
-				continue;
-			}
-		}
-		copied = start = false;
-
-		// blocco
-		_GetCursorPos();
-		while (
-			GetAsyncKeyState(VK_CONTROL) & 0x8000 and
-			GetAsyncKeyState(VK_MENU) & 0x8000
-		);
-		SetConsoleCursorPosition(
-			hConsole, { short(csbi.dwCursorPosition.X + 1), START.Y }
-		);
-
-		if (pasting) {
-			
-			// output della frazione
-			wstring no_use;
-			WriteFraction(
-				GlobalNumerators[TensorIndex][LocalIndex],
-				GlobalDenominators[TensorIndex][LocalIndex],
-				no_use
-			);
-
-			// aggiornamento
-			linetracker += max(
-				GlobalNumerators[TensorIndex][LocalIndex].size(),
-				GlobalDenominators[TensorIndex][LocalIndex].size()
-			) + 1;
-			LocalIndex++;
-
-			// riposizionamento cursore sulla posizione iniziale
-			SetConsoleCursorPosition(hConsole, { linetracker, short(START.Y + 1) });
-			continue;
-		}
-
-		// input della frazione
-		else GetFraction(num_, den_, START);
-		
-		// uscita
-		if (num_ == L".") {
-			errcode = L"_";
-			ret Fraction<>{};
-		}
-		auto arg{ ConvertWStringToEnum(num_) };
-		ReassigneEnum(arg);
-		if (arg != NotAssigned) {
-			errcode = num_;
-			ret Fraction<>{};
-		}
-
-		// esponenti con gli apici
-		if (num_ == L"boolalpha")
-		{
-			BoolData = CHANGEDVALUE | BOOLALPHACHANGED;
-			BOOLALPHA = true;
-			continue;
-		}
-		if (num_ == L"noboolalpha")
-		{
-			BoolData = CHANGEDVALUE;
-			BOOLALPHA = false;
-			continue;
-		}
-
-		// push
-		if (num_.empty()) num_ = L"0";
-		Numerators << num_;
-		Denominators << den_;
-		Operators << L"";
-
-		// reset cursore
-		_GetCursorPos();
-		actions << csbi.dwCursorPosition.X;
-		SetConsoleCursorPosition(
-			hConsole, { csbi.dwCursorPosition.X, short(START.Y + 1) }
-		);
-		if (csbi.dwCursorPosition.Y > START.Y + 2) break;
-	}
-
-	// salvataggio dati
-	if (!copied) {
-		GlobalNumerators << Numerators;
-		GlobalDenominators << Denominators;
-		GlobalOperators << Operators;
-		ActionsList << actions;
-	}
-
-	// eliminazione comandi
-	for (size_t i = 0; i < Numerators; ++i)
-		if (Numerators[i] == L"boolalpha" or Numerators[i] == L"noboolalpha")
-		{
-			Numerators.erase(Numerators.begin() + i);
-			Denominators.erase(Denominators.begin() + i);
-			Operators[i] += Operators[i + 1];
-			Operators.erase(Operators.begin() + (i + 1));
-		}
-
-	// controllo caratteri di escape
-	if (!Operators.empty()) if (!Operators[0].empty())
-		if (Operators[0].at(0) == L'\\')
-		{
-			BoolData += 4;
-			Operators[0].erase(0, 1);
-		}
-	for (const auto& op : Operators) if (op.find(L'\\') != wstring::npos) {
-		errcode = L"E' ammesso un carattere di escape solo all'inizio";
-		ret Fraction<>{};
-	}
-
-	// calcolo variabili
-	tensor<Fraction<big>> fractions;
-	auto un{ Numerators + Denominators };
-	for (auto& str : un) for (const auto& c : str)
-		if (isalpha(c) and Variables.find(c) == wstring::npos) Variables += c;
-	auto savx{ Variables };
-	tensor<int> null(Variables.size(), 0);
-
-	// traduzione
-	for (size_t i = 0; i < 2 * Numerators.size(); ++i) {
-		bool isnum{ i % 2 == 0 };
-		if (isnum) fractions << Fraction<big>{};
-
-		// scelta stringhe
-		auto str = isnum ? Numerators[i / 2] : Denominators[i / 2];
-		if (!(errcode = PolynomialSyntaxDirector(str)).empty()) ret Fraction<>{};
-
-		// traduzione stringhe
-		auto old{ PolynomialMultiply<big>(GetMonomialsAssister(str)) };
-		if (Variables == savx or savx.empty()) {
-			savx = Variables;
-			isnum ? fractions.last().num = { old } : fractions.last().den = { old };
-			continue;
-		}
-		for (auto& mon : old) mon.exp(savx.size(), 0);
-
-		// correzione
-		factor<big> correct;
-		for (const auto& mono : old)
-			correct << monomial<big>{ mono.coefficient, null };
-		for (size_t j = 0; j < Variables.size(); ++j) {
-			auto pos{ savx.find(Variables.at(j)) };
-			if (pos == wstring::npos) continue;
-			for (size_t k = 0; k < correct; ++k)
-				correct[k].exp[pos] = old[k].exp[j];
-		}
-
-		// impostazione
-		isnum ?
-			fractions.last().num = { correct } : fractions.last().den = { correct };
-		Variables = savx;
-	}
-
-	tensor<Fraction<>> list;
-	for (const auto& fract : fractions) {
-		Fraction<> Fract;
-		Fract.num = FromBigToDefault(fract.num);
-		Fract.den = FromBigToDefault(fract.den);
-
-		if (Fract.num[0][0].exp[0] == -2 or
-			Fract.den[0][0].exp[0] == -2)
-		{
-			errcode = L"Il risultato è troppo grande";
-			ret Fraction{};
-		}
-
-		if (Fract.den[0][0].coefficient == 0) {
-			errcode = L"Il denominatore non può essere nullo";
-			ret Fraction<>{};
-		}
-
-		list << Fract;
-	}
-
-	wcout << L"\n\n";
-	ret ObjectOperations(errcode, list, Operators);
-}
 
 // inputa un polinomio
 static wstring GetLine(tensor<wstring>& sugg, bool ShowSuggestions)
@@ -14699,13 +14107,12 @@ static void SystemSolverGeneral(switchcase& argc)
 		}
 		startover = false;
 		wstring err;
-		int data;
-		Fraction<> it{ GetFractionAdvanced(err, data) };
+		bool NotUsed;
+		Fraction<big> inputed{ Expression().in(err, NotUsed) };
+		Fraction<> it{
+			FromBigToDefault(inputed.num), FromBigToDefault(inputed.den)
+		};
 		VariablesDisposition << Variables;
-
-		// messaggi di boolalpha
-		if ((data | CHANGEDVALUE) != data and data > 0)
-			wcout << (data % 2 ? L"boolalpha\n" : L"noboolalpha\n");
 
 		// messaggio di errore
 		if (it == Fraction<>{} and !err.empty()) {
