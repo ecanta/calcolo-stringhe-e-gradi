@@ -268,6 +268,59 @@ unordered_map<wstring, wstring> ConvertFromSuperScript
 wstring Variables{ L"x" };
 using _TENSOR tensor, _TENSOR tensor_t;
 
+// accesso agli elementi
+template<typename T> static bool Smaller(const T& A, const T& B)
+{
+	if constexpr (is_same_v<T, wstring>)
+	{
+		// base
+		if (A == B)
+		{
+			ret false;
+		}
+
+		// iterazione
+		auto min_size{ min(A.size(), B.size()) };
+		for (size_t i = 0; i < min_size; ++i)
+		{
+			if (A.at(i) != B.at(i))
+			{
+				ret A.at(i) < B.at(i);;
+			}
+		}
+
+		// eccezione
+		ret A.size() < B.size();
+	}
+	else
+	{
+		ret A < B;
+	}
+}
+template<typename T>
+static ptrdiff_t BinarySearch(const tensor<T>& arr, const T target)
+{
+	ptrdiff_t left = 0, right = ptrdiff_t(arr.size()) - 1;
+
+	while (left <= right)
+	{
+		ptrdiff_t mid = left + (right - left) / 2;
+
+		if (arr[mid] == target)
+		{
+			ret mid;
+		}
+		if (Smaller(arr[mid], target))
+		{
+			left = mid + 1;
+			continue;
+		}
+		right = mid - 1;
+	}
+
+	ret -1;
+}
+
 // numeri complessi
 template<typename Ty> class complex
 {
@@ -2236,6 +2289,19 @@ public:
 		ret *this;
 	}
 
+	Fraction operator()(T x, size_t Vpos) const
+	{
+		auto res{ *this };
+		for (auto& fact : res.num)
+		{
+			fact = fact(x, Vpos, 0);
+		}
+		for (auto& fact : res.den)
+		{
+			fact = fact(x, Vpos, 0);
+		}
+		ret res;
+	}
 	T operator()(tensor<long double> params) const
 	{
 		T res{ 1 };
@@ -2363,9 +2429,10 @@ public:
 		auto min_size{ min(this->size(), other.size()) };
 		for (size_t i = 0; i < min_size; ++i)
 		{
-			if ((*this)[i] == other[i]) continue;
-			if ((*this)[i] < other[i]) ret true;
-			if ((*this)[i] > other[i]) ret false;
+			if ((*this)[i] != other[i])
+			{
+				ret (*this)[i] < other[i];;
+			}
 		}
 
 		// eccezione
@@ -2383,6 +2450,36 @@ public:
 	{
 		ret !(*this < other);
 	}
+};
+
+// lista dei comandi
+static wstring ConvertEnumToWString(switchcase Enum);
+static switchcase ConvertWStringToEnum(wstring str);
+tensor<wstring> commands
+{
+	L"alg",
+	L"cc" ,
+	L"ccc",
+	L"ccf",
+	L"cf" ,
+	L"cff",
+	L"cod",
+	L"ct" ,
+	L"ctn",
+	L"dc" ,
+	L"dcc",
+	L"dcf",
+	L"df" ,
+	L"dff",
+	L"dr" ,
+	L"drc",
+	L"drf",
+	L"drt",
+	L"dt" ,
+	L"mtx",
+	L"pol",
+	L"rnd"
+	L"sys",
 };
 
 // espressione matematica
@@ -3056,7 +3153,8 @@ public:
 		ret true;
 	}
 
-	Fraction<ReturnedFractionType> in(wstring& errorcode, bool& graph)
+	Fraction<ReturnedFractionType> in
+	(switchcase& redirection, wstring& errorcode, bool& graph)
 	{
 		// carattere per le frecce
 		using type = char;
@@ -3629,7 +3727,7 @@ public:
 					SetConsoleCursorPosition(
 						hConsole, { 0, short(begin.Y + dimensions[{}].Y + 1) }
 					);
-					ret Export(errorcode, graph);
+					ret Export(redirection, errorcode, graph);
 
 					// aggiunta carattere
 				default:
@@ -3694,8 +3792,102 @@ public:
 		}
 	}
 
-	Fraction<ReturnedFractionType> Export(wstring& errorcode, bool& graph)
+	Fraction<ReturnedFractionType> Export
+	(switchcase& redirection, wstring& errorcode, bool& graph)
 	{
+		// calcolo del luogo di reindirizzamento se presente
+		bool search{ false };
+		size_t first{}, last{};
+		tensor<int> datas;
+		tensor<bool> IsChar;
+		wstring Word =
+			terms.find({ 0, 0, 0 }) != terms.end() ? terms[{ 0, 0, 0}] : L"";
+		for (size_t i = 0; i <= Word.size(); ++i)
+		{
+			// lettera trovata
+			if (i < Word.size())
+			{
+				if (isalpha(Word.at(i)))
+				{
+					if (!search)
+					{
+						search = true;
+						first = i;
+					}
+					last = i;
+					continue;
+				}
+			}
+
+			// reset
+			if (!search)
+			{
+				continue;
+				first = last = i;
+			}
+
+			// sezionamento
+			search = false;
+			if (
+				(redirection = ConvertWStringToEnum(
+						Word.substr(first, last - first + 1)
+					)) != NotAssigned
+				)
+			{
+				// separazione dei contenuti
+				terms[{ 0, 0, 0 }].erase(0, last + 1);
+				auto arguments{ Word };
+				arguments.erase(first);
+
+				// decodifica degli argomenti
+				bool add{ false };
+				size_t _first{}, _last{};
+				for (size_t j = 0; j < arguments.size(); ++j)
+				{
+					// reset
+					if (!isdigit(arguments.at(j)) and arguments.at(j) != L'-')
+					{
+						// aggiunta numero
+						if (add and _last - _first <= 10)
+						{
+							add = false;
+							IsChar << false;
+							datas << stoi(
+								arguments.substr(_first, _last - _first + 1)
+							);
+						}
+
+						// lettera
+						else if (isalpha(arguments.at(j)))
+						{
+							IsChar << true;
+							datas << arguments.at(j);
+						}
+
+						_last = _first = j;
+						continue;
+					}
+
+					// numero trovato
+					if (!add)
+					{
+						add = true;
+						_first = j;
+					}
+					_last = j;
+				}
+
+				break;
+			}
+
+			// fine
+			if (i == Word.size())
+			{
+				break;
+			}
+			first = last = i;
+		}
+
 		// eliminazione spazi bianchi
 		for (auto& term : terms)
 		{
@@ -4036,8 +4228,18 @@ public:
 			for (size_t i = 0; i < strings; ++i)
 			{
 				auto Pol{ strings[i] };
+				if (Pol.empty())
+				{
+					continue;
+				}
+				if (Last(Pol) == L'^')
+				{
+					errorcode = L"Gli esponenti non possono stare alla fine";
+					ret Fraction<ReturnedFractionType>();
+				}
+
 				int ParenthesisBalance{};
-				for (ptrdiff_t j = Pol.size() - 1; j >= 0; --j)
+				for (ptrdiff_t j = Pol.size() - 1; j < Pol.size() and j >= 0; --j)
 				{
 					// calcolo livello
 					switch (Pol.at(j))
@@ -4066,9 +4268,26 @@ public:
 					}
 
 					// spostamento degli esponenti negli operatori
-					if (Pol.at(j) == L'^')
+					bool activate{ Pol.at(j) == L'^' };
+					if (j > 0)
 					{
-						// ...
+						activate = activate and Pol.at(j - 1) == L')';
+					}
+					if (activate)
+					{
+						if (!isdigit(Pol.at(j + 1)))
+						{
+							errorcode = L"Gli esponenti sono sbagliati";
+							ret Fraction<ReturnedFractionType>();
+						}
+
+						strings.insert(strings.begin() + i + 1, L"");
+						opers.insert(
+							opers.begin() + i + 1,
+							Pol.substr(j, Pol.size() - j - 1)
+						);
+						Pol.erase(j);
+						strings[i] = Pol;
 					}
 				}
 			}
@@ -4097,6 +4316,34 @@ public:
 		if (!errorcode.empty())
 		{
 			ret Fraction<ReturnedFractionType>();
+		}
+
+		// aggiustamento dimensione degli argomenti
+		IsChar(Variables.size(), true);
+		if (datas > Variables.size())
+		{
+			datas(Variables.size());
+		}
+		else
+		{
+			for (size_t i = datas.size(); i < Variables.size(); ++i)
+			{
+				datas << Variables.at(i);
+			}
+		}
+
+		// sostituzione delle variabili
+		for (auto& Fract : FractionList)
+		{
+			for (size_t i = 0; i < datas; ++i)
+			{
+				if (!IsChar[i])
+				{
+					Fract = Fract(big(datas[i]), i);
+				}
+
+				// continuare qui...
+			}
 		}
 
 		// operazioni tra frazioni
@@ -5760,32 +6007,6 @@ public:
 };
 
 // tensori
-tensor<wstring> commands
-{
-	L"cc" ,
-	L"ccc",
-	L"cf" ,
-	L"cff",
-	L"ccf",
-	L"ct" ,
-	L"dc" ,
-	L"dcc",
-	L"df" ,
-	L"dff",
-	L"dcf",
-	L"dt" ,
-	L"dr" ,
-	L"drc",
-	L"drf",
-	L"drt",
-	L"ctn",
-	L"cod",
-	L"sys",
-	L"pol",
-	L"alg",
-	L"mtx",
-	L"rnd"
-};
 tensor<wstring> Numbers, Polynomials, Expressions;
 tensor<tensor<wstring>> GlobalNumerators, GlobalDenominators, GlobalOperators;
 tensor<tensor<short>> ActionsList;
@@ -5798,8 +6019,6 @@ static size_t Factorial(size_t n);
 static size_t BinomialCoeff(size_t n, size_t k);
 static ptrdiff_t Gcd(ptrdiff_t A, ptrdiff_t B);
 template<typename T> static int Gcd(tensor<T> terms);
-static wstring ConvertEnumToWString(switchcase Enum);
-static switchcase ConvertWStringToEnum(wstring str);
 static void ReassigneEnum(switchcase& option);
 static void WriteFraction
 (wstring Num, wstring Den, wstring& command, COORD START = { -1, -1 });
@@ -14108,7 +14327,7 @@ static void SystemSolverGeneral(switchcase& argc)
 		startover = false;
 		wstring err;
 		bool NotUsed;
-		Fraction<big> inputed{ Expression().in(err, NotUsed) };
+		Fraction<big> inputed{ Expression().in(argc, err, NotUsed) };
 		Fraction<> it{
 			FromBigToDefault(inputed.num), FromBigToDefault(inputed.den)
 		};
@@ -15012,7 +15231,7 @@ static void DecompFraction(switchcase& argc)
 		wcout << L"\nInserisci una frazione algebrica (0 = fine input)\n\n";
 		wstring err;
 		int data;
-		Fraction<big> inputed{ Expression().in(err, draw) };
+		Fraction<big> inputed{ Expression().in(argc, err, draw) };
 		Fraction<> it{
 			FromBigToDefault(inputed.num), FromBigToDefault(inputed.den)
 		};
