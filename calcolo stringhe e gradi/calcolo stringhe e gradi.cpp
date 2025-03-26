@@ -4332,7 +4332,31 @@ public:
 			}
 		}
 
-		// sostituzione delle variabili
+		// calcolo del nuovo schema delle variabili
+		wstring Var;
+		tensor<size_t> locations(datas.size(), -1);
+		for (size_t i = 0; i < datas; ++i)
+		{
+			if (IsChar[i])
+			{
+				if (Var.find(datas[i]) == wstring::npos)
+				{
+					Var += datas[i];
+				}
+			}
+		}
+		for (size_t i = 0; i < Var.size(); ++i)
+		{
+			for (size_t j = 0; j < datas; ++j)
+			{
+				if (IsChar[j] and datas[j] == Var.at(i))
+				{
+					locations[j] = i;
+				}
+			}
+		}
+
+		// valutazione della frazione con i valori
 		for (auto& Fract : FractionList)
 		{
 			for (size_t i = 0; i < datas; ++i)
@@ -4341,12 +4365,33 @@ public:
 				{
 					Fract = Fract(big(datas[i]), i);
 				}
-
-				// continuare qui...
 			}
 		}
 
+		// sostituzione delle variabili
+		auto Size{ FractionList.size() * 2 };
+		for (size_t i = 0; i < Size; ++i)
+		{
+			auto& pol = i % 2 ? FractionList[i / 2].den : FractionList[i / 2].num;
+			for (auto& fact : pol)
+			{
+				for (auto& mono : fact)
+				{
+					tensor<int> NewExp(Var.size(), 0);
+					for (size_t j = 0; j < datas; ++j)
+					{
+						NewExp[locations[j]] += mono.exp[j];
+					}
+					mono.exp = NewExp;
+				}
+			}
+		}
+
+		// semplificazione dei risultati
+
+
 		// operazioni tra frazioni
+		Variables = Var;
 		ret ObjectOperations(errorcode, FractionList, Opers);
 	}
 };
