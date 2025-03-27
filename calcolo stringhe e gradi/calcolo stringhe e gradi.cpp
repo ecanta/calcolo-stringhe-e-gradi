@@ -1057,6 +1057,14 @@ public:
 		{
 			throw invalid_argument("Division by zero!");
 		}
+		if (value == 1)
+		{
+			ret *this;
+		}
+		if (value == *this)
+		{
+			ret 1;
+		}
 		big result;
 
 		// divisione lunga
@@ -1116,7 +1124,7 @@ public:
 				}
 				while (New.sign or New == 0);
 			
-				if ((New - old).fabs() < 1e-17)
+				if ((New - old).fabs() < 1e-15)
 				{
 					break;
 				}
@@ -1311,6 +1319,10 @@ public:
 		ret os;
 	}
 };
+static big pow(big x, int y)
+{
+	ret x ^ y;
+}
 big LCM(1);
 
 // rappresentazione di radicali
@@ -2478,8 +2490,8 @@ tensor<wstring> commands
 	L"dt" ,
 	L"mtx",
 	L"pol",
-	L"rnd"
-	L"sys",
+	L"rnd",
+	L"sys"
 };
 
 // espressione matematica
@@ -4369,8 +4381,9 @@ public:
 		}
 
 		// sostituzione delle variabili
-		auto Size{ FractionList.size() * 2 };
-		for (size_t i = 0; i < Size; ++i)
+		Variables = Var;
+		auto _Size{ FractionList.size() * 2 };
+		for (size_t i = 0; i < _Size; ++i)
 		{
 			auto& pol = i % 2 ? FractionList[i / 2].den : FractionList[i / 2].num;
 			for (auto& fact : pol)
@@ -4380,18 +4393,35 @@ public:
 					tensor<int> NewExp(Var.size(), 0);
 					for (size_t j = 0; j < datas; ++j)
 					{
-						NewExp[locations[j]] += mono.exp[j];
+						if (IsChar[j])
+						{
+							NewExp[locations[j]] += mono.exp[j];
+						}
 					}
 					mono.exp = NewExp;
 				}
+
+				fact = PolynomialSum(fact);
 			}
+
+			// semplificazione
+			monomial<big> head{ 1, tensor<int>(Variables.size(), 0) };
+			for (ptrdiff_t j = pol.size() - 1; j >= 0; --j)
+			{
+				if (pol[j] == 1)
+				{
+					head.coefficient *= pol[j][0].coefficient;
+					for (size_t k = 0; k < Variables.size(); ++k)
+					{
+						head.exp[k] += pol[j][0].exp[k];
+					}
+					pol.erase(pol.begin() + j);
+				}
+			}
+			pol >> factor<big>{ head };
 		}
 
-		// semplificazione dei risultati
-
-
 		// operazioni tra frazioni
-		Variables = Var;
 		ret ObjectOperations(errorcode, FractionList, Opers);
 	}
 };
@@ -6607,7 +6637,6 @@ int main()
 		} while (option != NotAssigned);
 	}
 
-
 	// messaggio
 MB:
 	wcout << L'\a';
@@ -7591,6 +7620,12 @@ static wstring GetUserNum
 				wcout << wstring(14, L' ') << L'\r';
 			}
 		}
+
+		// aggiustamento secondo il massimo comune divisore
+		auto gcd{ Gcd(UserNum, LCM) };
+		UserNum /= gcd.Number<ptrdiff_t>();
+		LCM /= gcd;
+
 	} while (UserNum < low or UserNum > high);
 	ret to_wstring(UserNum);
 }
@@ -7677,6 +7712,61 @@ static void SendCtrlPlusMinus(bool plus)
 
 	// invio comandi
 	SendInput(ARRAYSIZE(inputs), inputs, sizeof(INPUT));
+}
+
+// funzione per inviare una stringa come input
+static void SendString(wstring str)
+{
+	tensor<INPUT> inputs(str.size() * 2);
+	for (const auto& ch : str) {
+
+		SHORT vk = VkKeyScanW(ch);
+		if (vk == -1) {
+			// Gestione manuale per operatori speciali
+			switch (ch) {
+			case L'/': vk = VK_OEM_2; break; // Slash
+			case L'^': vk = VK_OEM_5; break; // Caret (può variare su alcune tastiere)
+			case L'*': vk = VK_MULTIPLY; break; // Asterisco
+			case L'-': vk = VK_SUBTRACT; break; // Meno
+			case L'+': vk = VK_ADD; break; // Più
+			default: continue; // Carattere non supportato
+			}
+		}
+
+		// pressione di shift
+		bool NeedsShift = (vk & 0x0100) != 0;
+		BYTE vkey = LOBYTE(vk);
+		if (NeedsShift) {
+			INPUT ShiftDown = { 0 };
+			ShiftDown.type = INPUT_KEYBOARD;
+			ShiftDown.ki.wVk = VK_SHIFT;
+			inputs.push_back(ShiftDown);
+		}
+
+		// pressione del tasto
+		INPUT KeyDown = { 0 };
+		KeyDown.type = INPUT_KEYBOARD;
+		KeyDown.ki.wVk = vkey;
+		inputs.push_back(KeyDown);
+
+		// rilascio del tasto
+		INPUT KeyUp = KeyDown;
+		KeyUp.ki.dwFlags = KEYEVENTF_KEYUP;
+		inputs.push_back(KeyUp);
+
+		// rilascio di shift
+		if (NeedsShift) {
+			INPUT ShiftUp = { 0 };
+			ShiftUp.type = INPUT_KEYBOARD;
+			ShiftUp.ki.wVk = VK_SHIFT;
+			ShiftUp.ki.dwFlags = KEYEVENTF_KEYUP;
+			inputs.push_back(ShiftUp);
+		}
+	}
+
+	// invio di tutto
+	SendInput(UINT(inputs.size()), inputs.Data(), sizeof(INPUT));
+
 }
 
 // funzione che riduce lo zoom se la console è piccola
@@ -10625,7 +10715,6 @@ static factor<big> GetMonomials(wstring pol)
 // gestisce la traduzione di un polinomio con le parentesi
 static polynomial<big> GetMonomialsRedirector(wstring pol)
 {
-
 	// caso senza parentesi
 	auto copy{ pol };
 	if (copy.size() >= 2) {
@@ -14360,6 +14449,7 @@ static void SystemSolverGeneral(switchcase& argc)
 	tensor<Fraction<>> Fractions;
 	for (;;)
 	{
+		argc = NotAssigned;
 		while (GetAsyncKeyState(VK_SHIFT) & 0x8000 or
 			GetAsyncKeyState(VK_RETURN) & 0x8000);
 
@@ -14378,14 +14468,86 @@ static void SystemSolverGeneral(switchcase& argc)
 		};
 		VariablesDisposition << Variables;
 
-		// messaggio di errore
-		if (it == Fraction<>{} and !err.empty()) {
+		// ridirezionamento
+		if (argc != NotAssigned) {
 
-			// uscita
-			argc = ConvertWStringToEnum(err);
-			if (argc != NotAssigned) {
+			// conversione in un numero
+			if (
+				argc != FactorPolynomial and
+				argc != FactorFraction and
+				argc != SolveSystem
+				)
+			{
+				// valutazione frazione
+				tensor<long double> zero(Variables.size(), 0);
+				ptrdiff_t Num{ 1 }, Den{ 1 };
+				for (size_t i = 0; i < it.num; ++i) Num *= it.num[i](zero);
+				for (size_t i = 0; i < it.den; ++i) Den *= it.den[i](zero);
+				if (Den == 0) {
+					argc = NotAssigned;
+					goto RETURN;
+				}
+
+				// invio numero
+				wchar_t sign = (Num > 0) xor (Den > 0) ? L'-' : L'+';
+				Num = abs(Num);
+				Den = abs(Den);
+				SendString(
+					wstring(1, sign) +
+					to_wstring(Num) +
+					L"/" + to_wstring(Den)
+				);
+
+				// tasto invio
+				INPUT inputs[2]{};
+				inputs[0].type = INPUT_KEYBOARD;
+				inputs[0].ki.wVk = VK_RETURN;
+				inputs[1] = inputs[0];
+				inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
+				SendInput(2, inputs, sizeof(INPUT));
+
 				system("cls");
 				SetConsoleTitle(err.c_str());
+				goto RETURN;
+			}
+
+			// invio frazione
+			bool saved{ BOOLALPHA };
+			BOOLALPHA = false;
+			SendString(it.num.str());
+			if (argc != FactorPolynomial) {
+				INPUT inputs[2]{};
+
+				inputs[0].type = INPUT_KEYBOARD;
+				inputs[0].ki.wVk = VK_DOWN;
+				inputs[0].ki.dwFlags = KEYEVENTF_EXTENDEDKEY;
+				inputs[1] = inputs[0];
+				inputs[1].ki.dwFlags |= KEYEVENTF_KEYUP;
+
+				SendInput(2, inputs, sizeof(INPUT));
+				SendString(it.den.str());
+			}
+			BOOLALPHA = saved;
+
+			// tasto invio
+			INPUT inputs[2]{};
+			inputs[0].type = INPUT_KEYBOARD;
+			inputs[0].ki.wVk = VK_RETURN;
+			inputs[1] = inputs[0];
+			inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
+			SendInput(2, inputs, sizeof(INPUT));
+
+			system("cls");
+			SetConsoleTitle(err.c_str());
+			goto RETURN;
+		}
+
+		// messaggio di errore
+		if (it == Fraction<>{}) {
+
+			// uscita
+			if (err.empty()) {
+				argc = NotAssigned;
 				goto RETURN;
 			}
 
@@ -15901,7 +16063,7 @@ RETURN:
 #pragma endregion
 
 // file natvis                                54  righe
-// tensor.cpp                                 806 righe
-/// totale righe non presenti in questo file: 860
+// tensor.cpp                                 810 righe
+/// totale righe non presenti in questo file: 864
 
 // fine del codice -----------------------------------------------------------------

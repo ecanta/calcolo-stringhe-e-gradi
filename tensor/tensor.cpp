@@ -18,10 +18,10 @@ friend bool operator
 namespace std_tensor
 {
 	// metafunzioni necessarie
-	template<class T, class = void> struct has_str_method : std::false_type {};
+	template<class T, class = void> struct has_str_method : _STD false_type{};
 	template<class T>
-	struct has_str_method<T, std::void_t<decltype(std::declval<T>().str())>>
-		: std::true_type {};
+	struct has_str_method<T, _STD void_t<decltype(_STD declval<T>().str())>>
+		: _STD true_type{};
 
 	// tensor, una variante ottimizzata di ::std::vector
 	template<class T>class tensor
@@ -136,6 +136,10 @@ namespace std_tensor
 		}
 
 		// metodi di base
+		inline T* Data() const
+		{
+			ret data;
+		}
 		inline size_t size() const
 		{
 			ret count;
