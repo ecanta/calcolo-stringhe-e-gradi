@@ -1325,34 +1325,101 @@ static big pow(big x, int y)
 }
 big LCM(1);
 
-// rappresentazione di radicali
-template<typename Ty = int> class Radical
+// algoritmi di ordinamento veloci
+static void ClearArea(COORD WinCenter, COORD Dimensions);
+template<typename T> void GeneralizedHeapify(tensor<T>& arr, int n, int i)
 {
-private:
-	template<typename U = Ty> struct RadicalVar
+	int largest{ i }, left{ 2 * i + 1 }, right{ 2 * i + 2 };
+	if (left < n and arr[left] > arr[largest])
 	{
-		tensor<U> coeffs, args;
+		largest = left;
+	}
+	if (right < n and arr[right] > arr[largest])
+	{
+		largest = right;
+	}
+	if (largest != i)
+	{
+		swap(arr[i], arr[largest]);
+		GeneralizedHeapify(arr, n, largest);
+	}
+}
+template<typename T> void GeneralizedHeapSort(tensor<T>& arr)
+{
+	auto n{ arr.size() };
+	for (ptrdiff_t i = n / 2 - 1; i >= 0; --i)
+	{
+		GeneralizedHeapify(arr, n, i);
+	}
+	for (ptrdiff_t i = n - 1; i > 0; --i)
+	{
+		swap(arr[0], arr[i]);
+		GeneralizedHeapify(arr, i, 0);
+	}
+}
 
-		long double approximation()
-		{
-			long double output{};
-			for (size_t i = 0; i < coeffs; ++i)
-			{
-				output += coeffs[i] * sqrt(args[i]);
-			}
-			ret output;
-		}
-
-		RadicalVar operator+(const RadicalVar& other)
-		{
-			auto This{ *this };
-			int ThisArg{}, OtherArg{};
-			size_t ThisIndex{}, OtherIndex{};
-			//...
-		}
-	};
+// rappresentazione di radicali
+class radical
+{
+	int coefficient;
+	tensor<int> primes;
 public:
-	//...
+	long double approximation() const
+	{
+		ptrdiff_t rad{ 1 };
+		for (size_t i = 0; i < primes; ++i)
+		{
+			rad *= primes[i];
+		}
+		ret coefficient * sqrt(rad);
+	}
+
+	long double operator+(const radical& other) const
+	{
+		ret approximation() + other.approximation();
+	}
+	long double operator-(const radical& other) const
+	{
+		ret approximation() - other.approximation();
+	}
+	long double operator/(const radical& other) const
+	{
+		ret approximation() / other.approximation();
+	}
+
+	radical operator*(const radical& other) const
+	{
+		auto This{ *this };
+		This.coefficient *= other.coefficient;
+		auto factors{ This.primes + other.primes };
+		GeneralizedHeapSort(factors);
+
+		for (ptrdiff_t i = factors.size() - 1; i > 0; --i)
+		{
+			if (factors[i] == factors[i - 1])
+			{
+				This.coefficient *= factors[i];
+				factors.erase(factors.begin() + i);
+				factors.erase(factors.begin() + i);
+				i--;
+			}
+		}
+
+		ret This;
+	}
+	radical& operator*=(const radical& other)
+	{
+		*this = *this * other;
+		ret *this;
+	}
+};
+class RadicalSum
+{
+
+};
+class RadicalFract
+{
+
 };
 
 // monomi
@@ -2367,39 +2434,6 @@ public:
 	}
 };
 
-// algoritmi di ordinamento veloci
-static void ClearArea(COORD WinCenter, COORD Dimensions);
-template<typename T> void GeneralizedHeapify(tensor<T>& arr, int n, int i)
-{
-	int largest{ i }, left{ 2 * i + 1 }, right{ 2 * i + 2 };
-	if (left < n and arr[left] > arr[largest])
-	{
-		largest = left;
-	}
-	if (right < n and arr[right] > arr[largest])
-	{
-		largest = right;
-	}
-	if (largest != i)
-	{
-		swap(arr[i], arr[largest]);
-		GeneralizedHeapify(arr, n, largest);
-	}
-}
-template<typename T> void GeneralizedHeapSort(tensor<T>& arr)
-{
-	auto n{ arr.size() };
-	for (ptrdiff_t i = n / 2 - 1; i >= 0; --i)
-	{
-		GeneralizedHeapify(arr, n, i);
-	}
-	for (ptrdiff_t i = n - 1; i > 0; --i)
-	{
-		swap(arr[0], arr[i]);
-		GeneralizedHeapify(arr, i, 0);
-	}
-}
-
 // classe per gestire termini polinomiali e frazioni annidati
 static tensor<Fraction<big>> GetManyFractions
 (tensor<wstring> numerators, tensor<wstring> denominators, wstring& errcode);
@@ -3091,14 +3125,30 @@ public:
 				continue;
 			}
 
-			// output
+			// output carattere di spazio
 			SetConsoleCursorPosition(hConsole, pos);
 			auto write{ terms[Key] };
 			if (write == L"\a")
 			{
-				write = L" ";
+				wcout << L" \n";
+				continue;
 			}
-			wcout << ElabExponents(write) << L'\n';
+
+			// separazione stringa e suggerimento
+			wstring YellowString;
+			size_t EraseIndex = write.find(L'@');
+			if (EraseIndex != wstring::npos)
+			{
+				YellowString = write;
+				write.erase(EraseIndex);
+				YellowString.erase(0, EraseIndex + 1);
+			}
+
+			// output finale
+			wcout << ElabExponents(write);
+			SetConsoleTextAttribute(hConsole, 6);
+			wcout << YellowString << L'\n';
+			ResetAttribute();
 		}
 
 		SetConsoleCursorInfo(hConsole, &cursor);
@@ -3814,6 +3864,11 @@ public:
 		tensor<bool> IsChar;
 		wstring Word =
 			terms.find({ 0, 0, 0 }) != terms.end() ? terms[{ 0, 0, 0}] : L"";
+		auto EraseIndex{ Word.find(L'@') };
+		if (EraseIndex != wstring::npos)
+		{
+			Word.erase(EraseIndex);
+		}
 		for (size_t i = 0; i <= Word.size(); ++i)
 		{
 			// lettera trovata
@@ -3847,6 +3902,7 @@ public:
 				)
 			{
 				// separazione dei contenuti
+				terms[{ 0, 0, 0 }] = Word;
 				terms[{ 0, 0, 0 }].erase(0, last + 1);
 				auto arguments{ Word };
 				arguments.erase(first);
@@ -4419,6 +4475,32 @@ public:
 				}
 			}
 			pol >> factor<big>{ head };
+		}
+
+		// prevenzione dell'annullamento
+		if (Variables.empty())
+		{
+			Variables = L"x";
+			for (auto& Fract : FractionList)
+			{
+				for (auto& pol : Fract.num)
+				{
+					for (auto& mono : pol)
+					{
+						mono.exp(1, 0);
+					}
+				}
+			}
+			for (auto& Fract : FractionList)
+			{
+				for (auto& pol : Fract.den)
+				{
+					for (auto& mono : pol)
+					{
+						mono.exp(1, 0);
+					}
+				}
+			}
 		}
 
 		// operazioni tra frazioni
@@ -10508,25 +10590,25 @@ static void CodeConverter
 	// caso normale
 	if (ShowErrors or number > 0) {
 		auto text{ L"codice <" + ToEvaluate + L"> :\n" };
-		ConsoleText << Console{ text , 11 };
+		ConsoleText << Console{ text, 11 };
 	}
 
 	// caso con overflow interno
 	if (number < -2 and ShowErrors) {
 		auto text{ L"ERR[413]: X_SUBSCRIPT_OUT_OF_RANGE\n" };
-		ConsoleText << Console{ text , 12 };
+		ConsoleText << Console{ text, 12 };
 	}
 
 	// caso di comune overflow
 	if (number == -1 and ShowErrors) {
 		auto text{ L"ERR[413]: X_OUT_OF_RANGE\n" };
-		ConsoleText << Console{ text , 12 };
+		ConsoleText << Console{ text, 12 };
 	}
 
 	// caso errato per esponente inutile
 	if (number == -2 and ShowErrors) {
 		auto text{ L"ERR[413]: USELESS_EXPONENT\n" };
-		ConsoleText << Console{ text , 6 };
+		ConsoleText << Console{ text, 6 };
 	}
 
 	// caso errato con correzione
@@ -10537,19 +10619,19 @@ static void CodeConverter
 			L"ERR[400]: EQUAL_MONOMIALS\n" :
 			L"ERR[400]: SIMILIAR_MONOMIALS\n"
 		};
-		ConsoleText << Console{ text , 15 };
+		ConsoleText << Console{ text, 15 };
 
 		if (number < GlobalMax) text = L"codice corretto: <" + Cript(number) + L">\n";
 		else text = L"codice corretto non disponibile\n";
 
-		ConsoleText << Console{ text , 2 };
+		ConsoleText << Console{ text, 2 };
 	}
 
 	// caso con errori nascosti per scelta utente
 	if (number > 0) {
 		auto text{ L"il numero corrispondente e' " };
-		ConsoleText << Console{ text , 15 };
-		ConsoleText << Console{ to_wstring(number) + L'\n' , 4 };
+		ConsoleText << Console{ text, 15 };
+		ConsoleText << Console{ to_wstring(number) + L'\n', 4 };
 	}
 }
 
@@ -10572,7 +10654,6 @@ static void LongComputation
 
 	// caso di stringa univoca
 	if (counter == 0) {
-		lock_guard<mutex> lock(CoutMutex);
 		CodeConverter(ToEvaluate, message, ShowErrors, NecBoundary);
 		ConsoleText.log();
 	}
@@ -14475,7 +14556,8 @@ static void SystemSolverGeneral(switchcase& argc)
 			if (
 				argc != FactorPolynomial and
 				argc != FactorFraction and
-				argc != SolveSystem
+				argc != SolveSystem and
+				it != Fraction<>{}
 				)
 			{
 				// valutazione frazione
@@ -14512,30 +14594,33 @@ static void SystemSolverGeneral(switchcase& argc)
 			}
 
 			// invio frazione
-			bool saved{ BOOLALPHA };
-			BOOLALPHA = false;
-			SendString(it.num.str());
-			if (argc != FactorPolynomial) {
+			if (it != Fraction<>{})
+			{
+				bool saved{ BOOLALPHA };
+				BOOLALPHA = false;
+				SendString(it.num.str());
+				if (argc != FactorPolynomial) {
+					INPUT inputs[2]{};
+
+					inputs[0].type = INPUT_KEYBOARD;
+					inputs[0].ki.wVk = VK_DOWN;
+					inputs[0].ki.dwFlags = KEYEVENTF_EXTENDEDKEY;
+					inputs[1] = inputs[0];
+					inputs[1].ki.dwFlags |= KEYEVENTF_KEYUP;
+
+					SendInput(2, inputs, sizeof(INPUT));
+					SendString(it.den.str());
+				}
+				BOOLALPHA = saved;
+
+				// tasto invio
 				INPUT inputs[2]{};
-
 				inputs[0].type = INPUT_KEYBOARD;
-				inputs[0].ki.wVk = VK_DOWN;
-				inputs[0].ki.dwFlags = KEYEVENTF_EXTENDEDKEY;
+				inputs[0].ki.wVk = VK_RETURN;
 				inputs[1] = inputs[0];
-				inputs[1].ki.dwFlags |= KEYEVENTF_KEYUP;
-
+				inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
 				SendInput(2, inputs, sizeof(INPUT));
-				SendString(it.den.str());
 			}
-			BOOLALPHA = saved;
-
-			// tasto invio
-			INPUT inputs[2]{};
-			inputs[0].type = INPUT_KEYBOARD;
-			inputs[0].ki.wVk = VK_RETURN;
-			inputs[1] = inputs[0];
-			inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
-			SendInput(2, inputs, sizeof(INPUT));
 
 			system("cls");
 			SetConsoleTitle(err.c_str());
