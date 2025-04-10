@@ -1359,19 +1359,68 @@ template<typename T> void GeneralizedHeapSort(tensor<T>& arr)
 }
 
 // rappresentazione di radicali
+static tensor<compost> DecomposeNumber(ptrdiff_t input);
 class radical
 {
 	int coefficient;
 	tensor<int> primes;
 public:
-	long double approximation() const
+
+	radical() : coefficient(0), primes({ 1 }) {}
+	radical(int coeff) : coefficient(coeff), primes({ 1 }) {}
+	radical(int coeff, int arg) : coefficient(0), primes({ arg })
 	{
-		ptrdiff_t rad{ 1 };
+		normalize();
+	}
+	radical(int coeff, int arg, bool off) : coefficient(0), primes({ arg }) {}
+
+	int GetCoefficient()
+	{
+		ret coefficient;
+	}
+	void SetCoefficient(int NewCoefficient)
+	{
+		coefficient = NewCoefficient;
+	}
+	void IncCoefficient(int increment)
+	{
+		coefficient += increment;
+	}
+
+	ptrdiff_t arg() const
+	{
+		ptrdiff_t Arg{ 1 };
 		for (size_t i = 0; i < primes; ++i)
 		{
-			rad *= primes[i];
+			Arg *= primes[i];
 		}
-		ret coefficient * sqrt(rad);
+		ret Arg;
+	}
+	long double approximation() const
+	{
+		ret coefficient * sqrt(arg());
+	}
+
+	void normalize()
+	{
+		if (coefficient == 0)
+		{
+			*this = radical();
+			ret;
+		}
+
+		auto decomposition{ DecomposeNumber(pow(approximation(), 2)) };
+		for (auto& fact : decomposition)
+		{
+			if (fact.exp > 1)
+			{
+				coefficient *= pow(fact.factors, fact.exp / 2);
+			}
+			if (fact.exp % 2 == 0)
+			{
+				primes << fact.factors;
+			}
+		}
 	}
 
 	long double operator+(const radical& other) const
@@ -1412,14 +1461,209 @@ public:
 		*this = *this * other;
 		ret *this;
 	}
+
+	void write() const
+	{
+		auto coeff{ to_wstring(coefficient) };
+		auto argument{ to_wstring(arg()) };
+		int len = coeff.size() + argument.size() + 2;
+
+		_GetCursorPos();
+		if (len > csbi.dwSize.X - csbi.dwCursorPosition.X)
+		{
+			wcout << L"\n\n\n";
+		}
+
+		_GetCursorPos();
+		wcout << coeff << L"\\/" << argument << L'\n';
+
+	}
 };
 class RadicalSum
 {
+	tensor<radical> elements;
+public:
 
+	RadicalSum() : elements({ radical() }) {}
+	RadicalSum(radical el) : elements({ el }) {}
+	RadicalSum(tensor<radical> elems) : elements(elems) {}
+
+	long double approximation() const
+	{
+		long double result{};
+		for (size_t i = 0; i < elements; ++i)
+		{
+			result += elements[i].approximation();
+		}
+		ret result;
+	}
+
+	void normalize()
+	{
+		tensor<int> args;
+		for (const auto& rad : elements)
+		{
+			args << rad.arg();
+		}
+
+		for (size_t i = 0; i < args; ++i)
+		{
+			for (size_t j = i + 1; j < args; ++j)
+			{
+				if (args[i] > args[j])
+				{
+					swap(args[i], args[j]);
+					swap(elements[i], elements[j]);
+				}
+			}
+		}
+
+		for (ptrdiff_t i = args.size() - 1; i > 0; --i)
+		{
+			if (args[i] == args[i - 1])
+			{
+				elements[i - 1].IncCoefficient(elements[i].GetCoefficient());
+				elements.erase(elements.begin() + i);
+				args.erase(args.begin() + i);
+			}
+		}
+	}
+
+	void NORMALIZE()
+	{
+		for (auto& rad : elements)
+		{
+			rad.normalize();
+		}
+		normalize();
+	}
+
+	long double operator/(const RadicalSum& other) const
+	{
+		ret approximation() / other.approximation();
+	}
+
+	RadicalSum operator+(const RadicalSum& other) const
+	{
+		auto This{ *this };
+		This.elements += other.elements;
+		This.normalize();
+		ret This;
+	}
+	RadicalSum& operator+=(const RadicalSum& other)
+	{
+		*this = *this + other;
+		ret *this;
+	}
+
+	RadicalSum operator-(const RadicalSum& other) const
+	{
+		auto Other{ other };
+		for (auto& rad : Other.elements)
+		{
+			rad *= radical(-1, 1, true);
+		}
+		ret *this + Other;
+	}
+	RadicalSum& operator-=(const RadicalSum& other)
+	{
+		*this = *this - other;
+		ret *this;
+	}
+
+	RadicalSum operator*(const RadicalSum& other) const
+	{
+		RadicalSum result(tensor<radical>{});
+		for (size_t i = 0; i < elements; ++i)
+		{
+			for (size_t j = 0; j < other.elements; ++j)
+			{
+				result += elements[i] * other.elements[j];
+			}
+		}
+		ret result;
+	}
+	RadicalSum& operator*=(const RadicalSum& other)
+	{
+		*this = *this * other;
+		ret *this;
+	}
+
+	void write() const
+	{
+
+	}
 };
 class RadicalFract
 {
+	RadicalSum top, bottom;
+public:
 
+	RadicalFract() : top(radical(0)), bottom(radical(1)) {}
+	RadicalFract(RadicalSum Top) : top(Top), bottom(radical(1)) {}
+	RadicalFract(RadicalSum Top, RadicalSum Bottom) : top(Top), bottom(Bottom) {}
+
+	long double approximation() const
+	{
+		auto Bottom{ bottom.approximation() };
+		if (Bottom == 0)
+		{
+			ret nan("");
+		}
+		ret top.approximation() / Bottom;
+	}
+
+	RadicalFract operator+(const RadicalFract& other) const
+	{
+		auto This{ *this };
+		This.top = top * other.bottom + bottom * other.top;
+		This.bottom = bottom * other.bottom;
+		ret This;
+	}
+	RadicalFract& operator+=(const RadicalFract& other)
+	{
+		*this = *this + other;
+		ret *this;
+	}
+
+	RadicalFract operator-(const RadicalFract& other) const
+	{
+		auto This{ *this };
+		This.top = top * other.bottom - bottom * other.top;
+		This.bottom = bottom * other.bottom;
+		ret This;
+	}
+	RadicalFract& operator-=(const RadicalFract& other)
+	{
+		*this = *this - other;
+		ret *this;
+	}
+
+	RadicalFract operator*(const RadicalFract& other) const
+	{
+		auto This{ *this };
+		This.top = top * other.top;
+		This.bottom = bottom * other.bottom;
+		ret This;
+	}
+	RadicalFract& operator*=(const RadicalFract& other)
+	{
+		*this = *this * other;
+		ret *this;
+	}
+
+	RadicalFract operator/(const RadicalFract& other) const
+	{
+		auto This{ *this };
+		This.top = top * other.bottom;
+		This.bottom = bottom * other.top;
+		ret This;
+	}
+	RadicalFract& operator/=(const RadicalFract& other)
+	{
+		*this = *this / other;
+		ret* this;
+	}
 };
 
 // monomi
@@ -6216,7 +6460,6 @@ static LRESULT CALLBACK WindowProcessor3D(
 static void Project3DGraph(Fraction<> funct);
 static bool Prime(ptrdiff_t number);
 static void PrimeNCalculator(ptrdiff_t max, ptrdiff_t min = 0);
-static tensor<compost> DecomposeNumber(ptrdiff_t input);
 static tensor<wstring> Fractioner(wstring polinomial);
 static tensor<int> DecomposeStrings(wstring Terminal);
 static wstring Cript(ptrdiff_t input);
@@ -6387,6 +6630,12 @@ int main()
 	SetConsoleOutputCP(CP_UTF8);
 	SetConsoleCP(CP_UTF8);
 	wcout.imbue(locale(""));
+
+	////////////////////////////////////////////////////////////////////////////////
+	
+
+	_getch();
+	////////////////////////////////////////////////////////////////////////////////
 
 	// avvio
 	QueryPerformanceFrequency(&ProgramFrequency);
