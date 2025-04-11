@@ -1368,11 +1368,11 @@ public:
 
 	radical() : coefficient(0), primes({ 1 }) {}
 	radical(int coeff) : coefficient(coeff), primes({ 1 }) {}
-	radical(int coeff, int arg) : coefficient(0), primes({ arg })
+	radical(int coeff, int arg) : coefficient(coeff), primes({ arg })
 	{
 		normalize();
 	}
-	radical(int coeff, int arg, bool off) : coefficient(0), primes({ arg }) {}
+	radical(int coeff, int arg, bool off) : coefficient(coeff), primes({ arg }) {}
 
 	int GetCoefficient()
 	{
@@ -1462,21 +1462,65 @@ public:
 		ret *this;
 	}
 
-	void write() const
+	bool negative() const
 	{
-		auto coeff{ to_wstring(coefficient) };
-		auto argument{ to_wstring(arg()) };
-		int len = coeff.size() + argument.size() + 2;
-
+		ret coefficient < 0;
+	}
+	void write(WORD attrib = 15, bool NoSign = false) const
+	{
+		// aggiunta di spazio
 		_GetCursorPos();
+		if (csbi.dwCursorPosition.Y == 0)
+		{
+			wcout << L'\n';
+		}
+
+		// se è un numero intero
+		SetConsoleTextAttribute(hConsole, attrib);
+		if (primes == tensor<int>{ 1 })
+		{
+			_GetCursorPos();
+			auto coeff = NoSign ?
+				to_wstring(abs(coefficient)) : to_wstring(coefficient);
+			if (coeff.size() > csbi.dwSize.X - csbi.dwCursorPosition.X)
+			{
+				wcout << L"\n\n";
+			}
+			wcout << coeff;
+			ret;
+		}
+
+		// a capo
+		_GetCursorPos();
+		auto coeff = NoSign ?
+			to_wstring(abs(coefficient)) : to_wstring(coefficient);
+		auto argument{ to_wstring(arg()) };
+		int len = coeff.size() + argument.size() + 3;
 		if (len > csbi.dwSize.X - csbi.dwCursorPosition.X)
 		{
 			wcout << L"\n\n\n";
 		}
 
+		// output coefficiente
+		wcout << coeff;
+		SetConsoleTextAttribute(hConsole, 14);
+		wcout << L" \\";
 		_GetCursorPos();
-		wcout << coeff << L"\\/" << argument << L'\n';
 
+		// scrittura radicale
+		wcout << L'/' << argument << L'\n';
+		SetConsoleCursorPosition(
+			hConsole,
+			{ csbi.dwCursorPosition.X, short(csbi.dwCursorPosition.Y - 1) }
+		);
+		wcout << L' ' << wstring(argument.size(), L'_');
+
+		// riposizionamento cursore
+		COORD SetCursor{ 0, csbi.dwCursorPosition.Y };
+		_GetCursorPos();
+		SetCursor.X = csbi.dwCursorPosition.X;
+		SetConsoleCursorPosition(hConsole, SetCursor);
+		ResetAttribute();
 	}
 };
 class RadicalSum
@@ -1500,12 +1544,14 @@ public:
 
 	void normalize()
 	{
+		// calcolo argomenti
 		tensor<int> args;
 		for (const auto& rad : elements)
 		{
 			args << rad.arg();
 		}
 
+		// ordinamento radicali
 		for (size_t i = 0; i < args; ++i)
 		{
 			for (size_t j = i + 1; j < args; ++j)
@@ -1518,6 +1564,7 @@ public:
 			}
 		}
 
+		// somma di radicali simili
 		for (ptrdiff_t i = args.size() - 1; i > 0; --i)
 		{
 			if (args[i] == args[i - 1])
@@ -1589,9 +1636,16 @@ public:
 		ret *this;
 	}
 
-	void write() const
+	void write(WORD attrib = 15) const
 	{
-
+		elements[0].write(attrib);
+		for (size_t i = 1; i < elements.size(); ++i)
+		{
+			SetConsoleTextAttribute(hConsole, attrib);
+			wcout << L' ' << (elements[i].negative() ? L'-' : L'+') << L' ';
+			ResetAttribute();
+			elements[i].write(attrib, true);
+		}
 	}
 };
 class RadicalFract
@@ -6274,9 +6328,9 @@ public:
 		// stampa numero
 		if (PRINTN)
 		{
-			wcout << L"numero " << number << L":\n";
+			wcout << L"Numero " << number << L":\n";
 			SetConsoleTextAttribute(hConsole, 2);
-			wcout << L"in esadecimale è " << hex << uppercase;
+			wcout << L"In esadecimale è " << hex << uppercase;
 			wcout << number << L'\n' << dec << nouppercase;
 			if (number - 1 < PrimeNumbers.list_primes)
 			{
@@ -6298,9 +6352,9 @@ public:
 				ret;
 			}
 
-			wcout << L"numero " << number << L":\n";
+			wcout << L"Numero " << number << L":\n";
 			SetConsoleTextAttribute(hConsole, 2);
-			wcout << L"in esadecimale è " << hex << uppercase;
+			wcout << L"In esadecimale è " << hex << uppercase;
 			wcout << number << L'\n' << dec << nouppercase;
 			if (number - 1 < PrimeNumbers.list_primes)
 			{
@@ -6312,7 +6366,7 @@ public:
 			// stampa somma cifre
 			if (digit.digitSumRatioNum != 0)
 			{
-				wcout << L"la somma delle cifre è ";
+				wcout << L"La somma delle cifre è ";
 				wcout << L'(' << digit.digitSumRatioNum;
 				wcout << L'/' << digit.digitSumRatioDen;
 				wcout << L")x\n";
@@ -6321,7 +6375,7 @@ public:
 			// stampa prodotto cifre
 			if (digit.digitProductRatioNum != 0)
 			{
-				wcout << L"il prodotto delle cifre è ";
+				wcout << L"Il prodotto delle cifre è ";
 				if (digit.digitProductRatioDen != 1)
 				{
 					wcout << L'(';
@@ -6342,16 +6396,16 @@ public:
 		if (!code.empty())
 		{
 			SetConsoleTextAttribute(hConsole, 12);
-			wcout << L"il codice è <" << code << L">\n";
+			wcout << L"Il codice è <" << code << L">\n";
 		}
 
 		// stampa grado e sequenza
 		if (degree != 0)
 		{
 			SetConsoleTextAttribute(hConsole, 4);
-			wcout << L"il grado è " << degree << L'\n';
+			wcout << L"Il grado è " << degree << L'\n';
 			SetConsoleTextAttribute(hConsole, 3);
-			wcout << L"la sequenza del grado è :\n(";
+			wcout << L"La sequenza del grado è :\n(";
 			for (size_t i = 0; i < sequence.size() - 1; ++i)
 			{
 				wcout << sequence[i] << L", ";
@@ -6366,7 +6420,7 @@ public:
 			if (PrimeNumbers.is_prime[number])
 			{
 				SetConsoleTextAttribute(hConsole, 240);
-				wcout << L"il numero è primo";
+				wcout << L"Il numero è primo";
 				ResetAttribute();
 				wcout << L'\n';
 			}
@@ -6375,22 +6429,22 @@ public:
 			else
 			{
 				SetConsoleTextAttribute(hConsole, 11);
-				wcout << L"la fattorizzazione è ";
+				wcout << L"La fattorizzazione è ";
 				wcout << expression << L'\n';
 				if (div.DivNumber != 1)
 				{
 					SetConsoleTextAttribute(hConsole, 8);
 
 					// stampa numero divisori
-					wcout << L"il numero dei divisori è ";
+					wcout << L"Il numero dei divisori è ";
 					wcout << div.DivNumber << L'\n';
 
 					// stampa somma divisori
-					wcout << L"la somma dei divisori è ";
+					wcout << L"La somma dei divisori è ";
 					wcout << div.DivSum << L'\n';
 
 					// stampa prodotto divisori
-					wcout << L"il prodotto dei divisori è ";
+					wcout << L"Il prodotto dei divisori è ";
 					if (div.DivProduct != 1)
 					{
 						wcout << div.DivProduct << L'\n';
@@ -6401,7 +6455,6 @@ public:
 					}
 				}
 			}
-
 		}
 		ResetAttribute();
 	}
@@ -6632,8 +6685,17 @@ int main()
 	wcout.imbue(locale(""));
 
 	////////////////////////////////////////////////////////////////////////////////
-	
-
+	RadicalSum tester({
+		radical(2, 2, true),
+		radical(3, 4, true),
+		radical(5, 7, true),
+		radical(8, 11, true),
+		radical(12, 16, true),
+		radical(17, 22, true),
+		radical(23, 29, true)
+	});
+	tester.write(12);
+	wcout << L" = " << tester.approximation();
 	_getch();
 	////////////////////////////////////////////////////////////////////////////////
 
@@ -6700,7 +6762,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.7.1 ";
+			wcout << L"1.7.3 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
