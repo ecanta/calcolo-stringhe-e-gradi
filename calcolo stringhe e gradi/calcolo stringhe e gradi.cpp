@@ -188,9 +188,8 @@ enum switchcase
 	DebugComplete       ,
 	ConvertCodeInverse  ,
 	SeriesExpansion     ,
-	SolveSystem         ,
 	FactorPolynomial    ,
-	FactorFraction      ,
+	FractElaborator     ,
 	FactorMatrix        ,
 	Random              ,
 	NotAssigned
@@ -216,9 +215,8 @@ unordered_map<wstring, switchcase> stringToEnumMap
 	{ L"drt", switchcase::DebugComplete        },
 	{ L"ctn", switchcase::ConvertCodeInverse   },
 	{ L"cod", switchcase::SeriesExpansion      },
-	{ L"sys", switchcase::SolveSystem          },
 	{ L"pol", switchcase::FactorPolynomial     },
-	{ L"alg", switchcase::FactorFraction       },
+	{ L"alg", switchcase::FractElaborator      },
 	{ L"mtx", switchcase::FactorMatrix         },
 	{ L"rnd", switchcase::Random               }
 };
@@ -242,9 +240,8 @@ unordered_map<switchcase, wstring> enumToStringMap
 	{ switchcase::DebugComplete       , L"drt" },
 	{ switchcase::ConvertCodeInverse  , L"ctn" },
 	{ switchcase::SeriesExpansion     , L"cod" },
-	{ switchcase::SolveSystem         , L"sys" },
 	{ switchcase::FactorPolynomial    , L"pol" },
-	{ switchcase::FactorFraction      , L"alg" },
+	{ switchcase::FractElaborator     , L"alg" },
 	{ switchcase::FactorMatrix        , L"mtx" },
 	{ switchcase::Random              , L"rnd" }
 };
@@ -1145,6 +1142,7 @@ public:
 		{
 			result.Integer = { 0 };
 		}
+		result.sign = sign xor value.sign;
 
 		// arrotondamento
 		auto output = value.Integer > 10 ? result : (*this) * result;
@@ -1363,18 +1361,31 @@ static tensor<compost> DecomposeNumber(ptrdiff_t input);
 class radical
 {
 	int coefficient;
+	ptrdiff_t Arg;
 	tensor<int> primes;
 public:
 
-	radical() : coefficient(0), primes({ 1 }) {}
-	radical(int coeff) : coefficient(coeff), primes({ 1 }) {}
-	radical(int coeff, int arg) : coefficient(coeff), primes({ arg })
+	radical() : coefficient(0), Arg(1), primes({ 1 }) {}
+	radical(int coeff) : coefficient(coeff), Arg(1), primes({ 1 }) {}
+	radical(int coeff, int arg)
+		: coefficient(coeff), Arg(1), primes({ abs(arg) })
 	{
+		if (arg < 0)
+		{
+			coefficient *= -1;
+		}
 		normalize();
 	}
-	radical(int coeff, int arg, bool off) : coefficient(coeff), primes({ arg }) {}
+	radical(int coeff, int arg, bool off)
+		: coefficient(coeff), Arg(abs(arg)), primes({ abs(arg) })
+	{
+		if (arg < 0)
+		{
+			coefficient *= -1;
+		}
+	}
 
-	int GetCoefficient()
+	int GetCoefficient() const
 	{
 		ret coefficient;
 	}
@@ -1389,20 +1400,16 @@ public:
 
 	ptrdiff_t arg() const
 	{
-		ptrdiff_t Arg{ 1 };
-		for (size_t i = 0; i < primes; ++i)
-		{
-			Arg *= primes[i];
-		}
 		ret Arg;
 	}
 	long double approximation() const
 	{
-		ret coefficient * sqrt(arg());
+		ret coefficient * sqrt(Arg);
 	}
 
 	void normalize()
 	{
+		Arg = 1;
 		if (coefficient == 0)
 		{
 			*this = radical();
@@ -1418,6 +1425,7 @@ public:
 			}
 			if (fact.exp % 2 == 0)
 			{
+				Arg *= fact.factors;
 				primes << fact.factors;
 			}
 		}
@@ -1466,6 +1474,29 @@ public:
 	{
 		ret coefficient < 0;
 	}
+	int len() const
+	{
+		// lunghezza radicale
+		int line{};
+		if (Arg != 1)
+		{
+			line += to_wstring(Arg).size() + 2;
+		}
+
+		// lunghezza coefficiente
+		if (abs(coefficient) != 1 or Arg == 1)
+		{
+			auto Coeff{ to_wstring(coefficient) };
+			if (Coeff.at(0) == L'-')
+			{
+				Coeff.erase(0, 1);
+			}
+			line += Coeff.size();
+		}
+
+		// lunghezza finale
+		ret Arg != 1 and abs(coefficient) != 1 ? line + 1 : line;
+	}
 	void write(WORD attrib = 15, bool NoSign = false) const
 	{
 		// aggiunta di spazio
@@ -1502,9 +1533,12 @@ public:
 		}
 
 		// output coefficiente
-		wcout << coeff;
+		if (abs(coefficient) != 1)
+		{
+			wcout << coeff << L' ';
+		}
 		SetConsoleTextAttribute(hConsole, 14);
-		wcout << L" \\";
+		wcout << L'\\';
 		_GetCursorPos();
 
 		// scrittura radicale
@@ -1530,7 +1564,17 @@ public:
 
 	RadicalSum() : elements({ radical() }) {}
 	RadicalSum(radical el) : elements({ el }) {}
-	RadicalSum(tensor<radical> elems) : elements(elems) {}
+	RadicalSum(tensor<radical> elems) : elements(elems)
+	{
+		if (elements.empty())
+		{
+			elements = { radical() };
+		}
+		while (elements > 1 and elements[0].GetCoefficient() == 0)
+		{
+			--elements;
+		}
+	}
 
 	long double approximation() const
 	{
@@ -1636,6 +1680,16 @@ public:
 		ret *this;
 	}
 
+	int len() const
+	{
+		int line{ elements[0].len() };
+		for (size_t i = 1; i < elements; ++i)
+		{
+			line += elements[i].len() + 3;
+		}
+		ret line;
+	}
+
 	void write(WORD attrib = 15) const
 	{
 		elements[0].write(attrib);
@@ -1717,6 +1771,47 @@ public:
 	{
 		*this = *this / other;
 		ret* this;
+	}
+
+	void write(WORD wAttribute = 15) const
+	{
+		// calcolo lunghezze
+		int toplen{ top.len() };
+		int bottomlen{ bottom.len() };
+		int maxlen = toplen > bottomlen ? toplen : bottomlen;
+
+		// se il radicale è troppo lungo
+		SetConsoleTextAttribute(hConsole, wAttribute);
+		_GetCursorPos();
+		auto CursorPos{ csbi.dwCursorPosition };
+		if (maxlen > csbi.dwSize.X - CursorPos.X)
+		{
+			wcout << approximation();
+			ret;
+		}
+		wcout << wstring(maxlen, L'-') << '\n';
+		ResetAttribute();
+
+		// scrittura numeratore
+		int diff = fabs(toplen - bottomlen) / 2;
+		SetConsoleCursorPosition(
+			hConsole, { CursorPos.X, short(CursorPos.Y - 2) }
+		);
+		if (toplen != maxlen)
+		{
+			wcout << wstring(diff, L' ');
+		}
+		top.write(wAttribute);
+
+		// scrittura denominatore
+		SetConsoleCursorPosition(
+			hConsole, { CursorPos.X, short(CursorPos.Y + 2) }
+		);
+		if (bottomlen != maxlen)
+		{
+			wcout << wstring(diff, L' ');
+		}
+		bottom.write(wAttribute);
 	}
 };
 
@@ -2822,8 +2917,7 @@ tensor<wstring> commands
 	L"dt" ,
 	L"mtx",
 	L"pol",
-	L"rnd",
-	L"sys"
+	L"rnd"
 };
 
 // espressione matematica
@@ -3143,6 +3237,8 @@ public:
 		{
 			auto str{ terms[node] };
 			auto size{ str.size() };
+			
+			// elaborazione esponenti
 			if (BOOLALPHA)
 			{
 				for (ptrdiff_t i = 0; i < (int)str.size() - 1; ++i)
@@ -3153,6 +3249,16 @@ public:
 					}
 				}
 			}
+
+			// accorciamento
+			for (const auto& ch : str)
+			{
+				if (ch == L'@')
+				{
+					size--;
+				}
+			}
+
 			ret dimensions[node] = COORD{ short(size), 1 };
 		}
 		
@@ -3465,20 +3571,38 @@ public:
 			ret COORD();
 		}
 		activator = false;
+		COORD result;
 
 		if (at.last() < 0)
 		{
 			at.last() = 0;
-			ret COORD{
+			result = COORD{
 				short(positions[at].X),
 				short(positions[at].Y + dimensions[at].Y / 2)
 			};
 		}
 
-		ret COORD{
+		result = COORD{
 			short(positions[at].X + dimensions[at].X),
 			short(positions[at].Y + dimensions[at].Y / 2)
 		};
+
+		if (terms.find({ 0, 0, 0 }) == terms.end())
+		{
+			ret result;
+		}
+		if (at != key{ 0, 0, 0 })
+		{
+			ret result;
+		}
+
+		auto pos{ terms[at].find(L'@') };
+		if (pos == wstring::npos)
+		{
+			ret result;
+		}
+		result.X -= terms[at].size() - pos - 1;
+		ret result;
 	}
 	
 	bool rewrite(COORD& Begin, key location, int phase)
@@ -3514,7 +3638,7 @@ public:
 	}
 
 	Fraction<ReturnedFractionType> in
-	(switchcase& redirection, wstring& errorcode, bool& graph)
+	(switchcase& redirection, wstring& errorcode, bool& graph, bool& equate)
 	{
 		// carattere per le frecce
 		using type = char;
@@ -3717,19 +3841,37 @@ public:
 				
 				// lettura
 				c = _getch();
-
-				// carattere illegale
 				if (c == L'@')
 				{
 					continue;
 				}
-
-				// frecce
 				if (c == EscapeCode)
 				{
 					arrow = true;
 					continue;
 				}
+
+				// scelta suggerimento
+				if (c == L'\t' and CursorIndex == key{ 0, 0, 0 })
+				{
+					auto pos{ terms[{ 0, 0, 0 }].find(L'@') };
+					if (pos != wstring::npos)
+					{
+						terms[{ 0, 0, 0 }].erase(pos, 1);
+					}
+				}
+
+				// rimozione parte suggerita
+				if (terms.find({ 0, 0, 0 }) != terms.end())
+				{
+					auto pos{ terms[{ 0, 0, 0 }].find(L'@') };
+					if (pos != wstring::npos)
+					{
+						terms[{ 0, 0, 0 }].erase(pos);
+					}
+				}
+
+				// frecce
 				if (arrow)
 				{
 					switch (c)
@@ -4087,7 +4229,7 @@ public:
 					SetConsoleCursorPosition(
 						hConsole, { 0, short(begin.Y + dimensions[{}].Y + 1) }
 					);
-					ret Export(redirection, errorcode, graph);
+					ret Export(redirection, errorcode, graph, equate);
 
 					// aggiunta carattere
 				default:
@@ -4133,6 +4275,37 @@ public:
 					terms[CursorIndex] = vel;
 				}
 
+				// ricerca del suggerimento
+				if (terms.find({ 0, 0, 0 }) != terms.end())
+				{
+					auto Word{ terms[{ 0, 0, 0 }] };
+					if (!Word.empty())
+					{
+						for (const auto& comma : commands)
+						{
+							if (Word == comma)
+							{
+								break;
+							}
+
+							auto back{ comma };
+							if (back.size() > Word.size())
+							{
+								back.erase(Word.size());
+							}
+							if (back == Word)
+							{
+								back = comma;
+								back.erase(0, Word.size());
+								Word += L"@" + back;
+								break;
+							}
+						}
+
+						terms[{ 0, 0, 0 }] = Word;
+					}
+				}
+
 				// pulizia oggetto e aggiornamento
 				clean();
 				activator = true;
@@ -4153,7 +4326,7 @@ public:
 	}
 
 	Fraction<ReturnedFractionType> Export
-	(switchcase& redirection, wstring& errorcode, bool& graph)
+	(switchcase& redirection, wstring& errorcode, bool& graph, bool& equate)
 	{
 		// calcolo del luogo di reindirizzamento se presente
 		bool search{ false };
@@ -4202,6 +4375,10 @@ public:
 				// separazione dei contenuti
 				terms[{ 0, 0, 0 }] = Word;
 				terms[{ 0, 0, 0 }].erase(0, last + 1);
+				if (terms[{ 0, 0, 0 }].empty())
+				{
+					Remove({ 0, 0, 0 });
+				}
 				auto arguments{ Word };
 				arguments.erase(first);
 
@@ -4254,7 +4431,8 @@ public:
 			first = last = i;
 		}
 
-		// eliminazione spazi bianchi
+		// riscrizione
+		equate = false;
 		for (auto& term : terms)
 		{
 			auto& str{ term.second };
@@ -4263,12 +4441,19 @@ public:
 				str = L"1";
 				continue;
 			}
+
+			// eliminazione spazi bianchi
 			for (ptrdiff_t i = str.size() - 1; i >= 0; --i)
 			{
 				if (str.at(i) == L' ' or str.at(i) == L'\t')
 				{
 					str.erase(i, 1);
 				}
+			}
+
+			if (str.find(L'=') != wstring::npos)
+			{
+				equate = true;
 			}
 		}
 
@@ -4590,7 +4775,7 @@ public:
 			}
 
 			// separazione operatori di primo livello
-			wstring checker{ L"+-*/" };
+			wstring checker{ L"+-*/=" };
 			for (size_t i = 0; i < strings; ++i)
 			{
 				auto Pol{ strings[i] };
@@ -6667,10 +6852,9 @@ static void Loop(
 	NumberData CPU(ptrdiff_t input),
 	bool select = false
 );
-static void SystemSolverGeneral(switchcase& argc);
+static void DecompAndSolve(switchcase& argc);
 template<typename Type>
 static polynomial<> DecompPolynomial(switchcase& argc, Type Polynomial);
-static void DecompFraction(switchcase& argc);
 static void DecompMatrices(switchcase& argc);
 
 #pragma endregion
@@ -6678,26 +6862,12 @@ static void DecompMatrices(switchcase& argc);
 // programma principale
 int main()
 {
+	////////////////////////////////////////////////////////////////////////////////
 	int ErrorCode{}, ErrMessage;
 	setlocale(LC_ALL, "");
 	SetConsoleOutputCP(CP_UTF8);
 	SetConsoleCP(CP_UTF8);
 	wcout.imbue(locale(""));
-
-	////////////////////////////////////////////////////////////////////////////////
-	RadicalSum tester({
-		radical(2, 2, true),
-		radical(3, 4, true),
-		radical(5, 7, true),
-		radical(8, 11, true),
-		radical(12, 16, true),
-		radical(17, 22, true),
-		radical(23, 29, true)
-	});
-	tester.write(12);
-	wcout << L" = " << tester.approximation();
-	_getch();
-	////////////////////////////////////////////////////////////////////////////////
 
 	// avvio
 	QueryPerformanceFrequency(&ProgramFrequency);
@@ -6762,7 +6932,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.7.3 ";
+			wcout << L"1.7.4 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -6849,10 +7019,10 @@ int main()
 		wcout << L"\t\"rnd\" = casuale\n";
 		wcout << L"\t\"ctn\" = da codice a numero\n";
 		wcout << L"\t\"cod\" = da numero a espansione in serie e viceversa\n";
-		wcout << L"\t\"sys\" = risolutore di sistemi non lineari o parametrici\n";
 		wcout << L"\t\"pol\" = scomposizione polinomi\n";
-		wcout << L"\t\"alg\" = scomposizione frazioni algebriche\n";
 		wcout << L"\t\"mtx\" = scomposizione matrici\n";
+		wcout << L"\t\"alg\" = scomposizione frazioni algebriche, risoluzione \n";
+		wcout << L"\t\tsistemi e disequazioni anche con parametri\n";
 		SetConsoleTextAttribute(hConsole, 11);
 		wcout << L"Oppure:\n";
 		wcout << L"Primi caratteri:\n";
@@ -6985,18 +7155,15 @@ int main()
 			case SeriesExpansion: ExpandNumber(option);
 				break;
 
-			case SolveSystem: Threading = true;
-				calculator = thread(SystemSolverGeneral, ref(option));
-				monitor = thread(MonitorConsoleSize, COORD{ 60, 30 }, ref(RunMonitor));
-				break;
-
 			case FactorPolynomial: Threading = true;
 				calculator = thread(DecompPolynomial<wstring>, ref(option), L"");
-				monitor = thread(MonitorConsoleSize, COORD{ 50, 20 }, ref(RunMonitor));
+				monitor = thread(
+					MonitorConsoleSize, COORD{ 50, 20 }, ref(RunMonitor)
+				);
 				break;
 
-			case FactorFraction: Threading = true;
-				calculator = thread(DecompFraction, ref(option));
+			case FractElaborator: Threading = true;
+				calculator = thread(DecompAndSolve, ref(option));
 				monitor = thread(
 					MonitorConsoleSize, COORD{ 60, 30 }, ref(RunMonitor)
 				);
@@ -7070,6 +7237,7 @@ End:
 	Beep(650, 75);
 	Beep(550, 50);
 	ret ErrorCode;
+	////////////////////////////////////////////////////////////////////////////////
 }
 
 #pragma region Functions
@@ -7259,13 +7427,11 @@ static void ReassigneEnum(switchcase& option)
 		ret;
 	case 18: option = SeriesExpansion;
 		ret;
-	case 19: option = SolveSystem;
+	case 19: option = FactorPolynomial;
 		ret;
-	case 20: option = FactorPolynomial;
+	case 20: option = FractElaborator;
 		ret;
-	case 21: option = FactorFraction;
-		ret;
-	case 22: option = FactorMatrix;
+	case 21: option = FactorMatrix;
 		ret;
 	}
 }
@@ -14815,573 +14981,6 @@ static void Loop(
 	ret;
 }
 
-// programma per risolvere sistemi non lineari oppure parametrici lineari
-static void SystemSolverGeneral(switchcase& argc)
-{
-	setlocale(LC_ALL, "");
-	SetConsoleOutputCP(CP_UTF8);
-	SetConsoleCP(CP_UTF8);
-	wcout.imbue(locale(""));
-	SetConsoleTextAttribute(hConsole, 14);
-
-	// istruzioni
-	wcout << L"Il PROGRAMMA risolve i sistemi in generale\n\n";
-	SetConsoleTextAttribute(hConsole, 12);
-	wcout << L"Premere CTRL + ALT per aggiungere una frazione algebrica\n";
-	wcout << L"Premere SHIFT + INVIO per aggiungere una nuova equazione\n";
-	wcout << L"Premere INVIO per confermare\n\n";
-	wcout << L"Per attivare gli esponenti in forma di apice ";
-	wcout << L"scrivere noboolalpha\n";
-	wcout << L"Per disattivare gli esponenti sottoforma di apice ";
-	wcout << L"scrivere boolalpha\n";
-	ResetAttribute();
-
-	bool startover{ true };
-	tensor<wstring> VariablesDisposition;
-	tensor<Fraction<>> Fractions;
-	for (;;)
-	{
-		argc = NotAssigned;
-		while (GetAsyncKeyState(VK_SHIFT) & 0x8000 or
-			GetAsyncKeyState(VK_RETURN) & 0x8000);
-
-		// input equazioni
-		if (!RunMonitor) goto RETURN;
-		if (startover) {
-			Variables = L"x";
-			wcout << L"\nInserisci un sistema di equazioni\n\n";
-		}
-		startover = false;
-		wstring err;
-		bool NotUsed;
-		Fraction<big> inputed{ Expression().in(argc, err, NotUsed) };
-		Fraction<> it{
-			FromBigToDefault(inputed.num), FromBigToDefault(inputed.den)
-		};
-		VariablesDisposition << Variables;
-
-		// ridirezionamento
-		if (argc != NotAssigned) {
-
-			// conversione in un numero
-			if (
-				argc != FactorPolynomial and
-				argc != FactorFraction and
-				argc != SolveSystem and
-				it != Fraction<>{}
-				)
-			{
-				// valutazione frazione
-				tensor<long double> zero(Variables.size(), 0);
-				ptrdiff_t Num{ 1 }, Den{ 1 };
-				for (size_t i = 0; i < it.num; ++i) Num *= it.num[i](zero);
-				for (size_t i = 0; i < it.den; ++i) Den *= it.den[i](zero);
-				if (Den == 0) {
-					argc = NotAssigned;
-					goto RETURN;
-				}
-
-				// invio numero
-				wchar_t sign = (Num > 0) xor (Den > 0) ? L'-' : L'+';
-				Num = abs(Num);
-				Den = abs(Den);
-				SendString(
-					wstring(1, sign) +
-					to_wstring(Num) +
-					L"/" + to_wstring(Den)
-				);
-
-				// tasto invio
-				INPUT inputs[2]{};
-				inputs[0].type = INPUT_KEYBOARD;
-				inputs[0].ki.wVk = VK_RETURN;
-				inputs[1] = inputs[0];
-				inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
-				SendInput(2, inputs, sizeof(INPUT));
-
-				system("cls");
-				SetConsoleTitle(err.c_str());
-				goto RETURN;
-			}
-
-			// invio frazione
-			if (it != Fraction<>{})
-			{
-				bool saved{ BOOLALPHA };
-				BOOLALPHA = false;
-				SendString(it.num.str());
-				if (argc != FactorPolynomial) {
-					INPUT inputs[2]{};
-
-					inputs[0].type = INPUT_KEYBOARD;
-					inputs[0].ki.wVk = VK_DOWN;
-					inputs[0].ki.dwFlags = KEYEVENTF_EXTENDEDKEY;
-					inputs[1] = inputs[0];
-					inputs[1].ki.dwFlags |= KEYEVENTF_KEYUP;
-
-					SendInput(2, inputs, sizeof(INPUT));
-					SendString(it.den.str());
-				}
-				BOOLALPHA = saved;
-
-				// tasto invio
-				INPUT inputs[2]{};
-				inputs[0].type = INPUT_KEYBOARD;
-				inputs[0].ki.wVk = VK_RETURN;
-				inputs[1] = inputs[0];
-				inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
-				SendInput(2, inputs, sizeof(INPUT));
-			}
-
-			system("cls");
-			SetConsoleTitle(err.c_str());
-			goto RETURN;
-		}
-
-		// messaggio di errore
-		if (it == Fraction<>{}) {
-
-			// uscita
-			if (err.empty()) {
-				argc = NotAssigned;
-				goto RETURN;
-			}
-
-			// termine programma
-			if (err == L"_") {
-				argc = Random;
-				goto RETURN;
-			}
-
-			SetConsoleTextAttribute(hConsole, 4);
-			wcout << L"\n\n" << err << L"!!\n";
-			ResetAttribute();
-
-			Fractions.clear();
-			startover = true;
-			continue;
-		}
-
-		// ultima operazione di input
-		Fractions << it;
-		if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) and Fractions < 5) continue;
-		bool Continue{ false };
-
-		// riempimento buchi nelle disposizioni
-		wstring complete;
-		for (auto& disp : VariablesDisposition) for (const auto& ch : disp)
-			if (complete.find(ch) == wstring::npos) complete += ch;
-		for (auto& disp : VariablesDisposition) for (const auto& ch : complete)
-			if (disp.find(ch) == wstring::npos) disp += ch;
-		
-		// allocazione di memoria in più
-		for (auto& fraction : Fractions) {
-			for (auto& fact : fraction.num) for (auto& mon : fact)
-				mon.exp(complete.size());
-			for (auto& fact : fraction.den) for (auto& mon : fact)
-				mon.exp(complete.size());
-		}
-
-		// ridisposizione
-		tensor<int> ExpNull(complete.size(), 0);
-		for (size_t i = 0; i < 2 * Fractions.size(); ++i) {
-			if (VariablesDisposition[i / 2] == complete) continue;
-
-			// preparazione polinomi
-			auto& old = i % 2 ? Fractions[i / 2].den : Fractions[i / 2].num;
-			polynomial<> correct(old.size());
-			for (size_t j = 0; j < correct; ++j) for (const auto& mono : old[j])
-				correct[j] << monomial<>{ mono.coefficient, ExpNull };
-
-			// correzione esponenti
-			for (size_t j = 0; j < VariablesDisposition[i / 2].size(); ++j) {
-				auto pos{ complete.find(VariablesDisposition[i / 2].at(j)) };
-				if (pos == wstring::npos) continue;
-				for (size_t k = 0; k < correct; ++k)
-					for (size_t l = 0; l < correct[k]; ++l)
-						correct[k][l].exp[pos] = old[k][l].exp[j];
-			}
-
-			old = correct;
-		}
-
-		// numero di variabili eccessivo
-		VariablesDisposition.clear();
-		if (Variables.size() > Fractions.size() + 1) {
-			SetConsoleTextAttribute(hConsole, 12);
-			wcout << L"Troppe variabili!!\a\n";
-			ResetAttribute();
-
-			Fractions.clear();
-			startover = true;
-			continue;
-		}
-
-		// traduzione secondaria
-		polynomial<> equations;
-		for (const auto& eq : Fractions) equations << eq.num[0];
-		for (auto& equation : equations) for (auto& mono : equation)
-			mono.exp(Variables.size(), 0);
-
-		// una sola equazione in una variabile
-		if (Variables.size() == Fractions and Fractions == 1) {
-
-			// estrazione radici
-			charVariable = Variables.at(0);
-			Variables = L"x";
-			auto solutions{ RootExtractor(equations) };
-			Variables = wstring(1, charVariable);
-			
-			// rimozione doppi
-			for (ptrdiff_t i = solutions.size() - 1; i >= 0; --i)
-				for (ptrdiff_t j = i - 1; j >= 0; --j)
-					if (solutions[i] == solutions[j])
-						solutions.erase(solutions.begin() + i);
-
-			// rimozione delle singolarità
-			for (ptrdiff_t i = solutions.size() - 1; i >= 0; --i)
-				for (const auto& fract : Fractions)
-					if (fabs(fract.den[0]({ solutions[i] })) < 1e-05)
-						solutions.erase(solutions.begin() + i);
-
-			// output
-			SetConsoleTextAttribute(hConsole, 11);
-			wcout << L"Le soluzioni sono " << solutions << L'\n';
-			ResetAttribute();
-
-			Fractions.clear();
-			equations.clear();
-			startover = true;
-			continue;
-		}
-
-		// numero di variabili minore-uguale al numero di equazioni
-		if (Variables.size() <= equations) {
-			
-			// calcolo soluzioni
-			auto solutions{ SystemSolver(tensor<factor<>>(
-				equations.begin(),
-				equations.begin() + Variables.size()
-			)) };
-			SetConsoleTextAttribute(hConsole, 11);
-
-			// sistema indeterminato
-			if (isnan(solutions[0][0])) {
-				wcout << L"Il sistema è indeterminato\a\n";
-				ResetAttribute();
-
-				Fractions.clear();
-				equations.clear();
-				startover = true;
-				continue;
-			}
-			
-			// rimozione delle singolarità
-			for (ptrdiff_t i = solutions.size() - 1; i >= 0; --i) {
-				if (solutions[i].empty()) continue;
-
-				for (const auto& fract : Fractions)
-					if (fract.den[0](solutions[i]) < 1e-05)
-						solutions.erase(solutions.begin() + i);
-			}
-
-			// errore
-			if (solutions.empty()) {
-				wcout << L"Non sono state trovate soluzioni utilizzando";
-				wcout << L" i metodi standard\n";
-				ResetAttribute();
-
-				Fractions.clear();
-				equations.clear();
-				startover = true;
-				continue;
-			}
-
-			// sistema impossibile
-			if (solutions[0].empty()) {
-				wcout << L"Il sistema è impossibile\a\n";
-				ResetAttribute();
-
-				Fractions.clear();
-				equations.clear();
-				startover = true;
-				continue;
-			}
-
-			// selezione
-			for (ptrdiff_t i = solutions.size() - 1; i >= 0; --i)
-				for (size_t j = Variables.size(); j < equations; ++j)
-					if (fabs(equations[j](solutions[i])) > 1e-05)
-					{
-						solutions.erase(solutions.begin() + i);
-						break;
-					}
-			
-			// output soluzioni
-			if (solutions.empty()) {
-				wcout << L"Il sistema è impossibile\a\n";
-				ResetAttribute();
-
-				Fractions.clear();
-				equations.clear();
-				startover = true;
-				continue;
-			}
-			wcout << L"Soluzioni del sistema: \n";
-			for (const auto& sol : solutions) {
-				wcout << L"{\n";
-				for (size_t i = 0; i < Variables.size(); ++i) {
-					wcout << L"    " << Variables.at(i);
-					wcout << L" = " << sol[i] << L'\n';
-				}
-				wcout << L"}\n";
-			}
-			ResetAttribute();
-
-			Fractions.clear();
-			equations.clear();
-			startover = true;
-			continue;
-		}
-		// sistema parametrico
-
-		// priorità delle variabili
-		int pIndex{ -1 };
-		wstring VarOrder;
-		tensor<int> VariablePos;
-		const wstring VariablePriority{ L"xyzuvtsabcd" };
-		for (const auto& var : VariablePriority) {
-			auto pos{ Variables.find(var) };
-			if (pos != wstring::npos) {
-				VarOrder += var;
-				VariablePos << pos;
-			}
-		}
-		ptrdiff_t ParameterIndex = VarOrder.size() - 1;
-
-		// controllo linearità e calcolo parametro
-		for (; ParameterIndex >= 0; --ParameterIndex) {
-			for (const auto& eq : equations) {
-				for (size_t i = 0; i < eq; ++i) {
-					int deg{};
-					for (size_t j = 0; j < VarOrder.size(); ++j) {
-						if (j == ParameterIndex) continue;
-						deg += eq[i].exp[VariablePos[j]];
-					}
-					if (deg > 1) {
-						Continue = true;
-						break;
-					}
-				}
-				if (Continue) break;
-			}
-			if (Continue) {
-				Continue = false;
-				continue;
-			}
-			pIndex = VariablePos[ParameterIndex];
-			charVariable = Variables.at(pIndex);
-			break;
-		}
-		if (pIndex < 0) {
-
-			Fractions.clear();
-			equations.clear();
-			startover = true;
-			continue;
-		}
-
-		// calcolo termini noti
-		size_t Vsize{ Variables.size() }, I{};
-		tensor<int> null(Vsize, 0);
-		tensor<factor<>> KnownTerms(Vsize);
-		for (size_t i = 0; i < equations;) {
-			if (I == pIndex) {
-				I++;
-				continue;
-			}
-			for (size_t j = 0; j < equations[i]; ++j) {
-				auto exps{ equations[i][j].exp };
-				exps[pIndex] = 0;
-				if (exps == null) {
-					auto mon{ equations[i][j] };
-					mon.coefficient *= -1;
-					KnownTerms[I] << mon;
-				}
-			}
-			i++;
-			I++;
-		}
-
-		// calcolo coefficienti interni
-		I = 0;
-		bool Break{ false };
-		Matrix<factor<>> system(Vsize, tensor<factor<>>(Vsize));
-		for (size_t i = 0; i < equations;) {
-			for (size_t j = 0; j < equations[i]; ++j) {
-				for (size_t k = 0; k < Vsize; ++k) {
-					if (I == pIndex) {
-						I++;
-						Break = true;
-						break;
-					}
-					if (k == pIndex) continue;
-
-					auto mon{ equations[i][j] };
-					mon.exp[k] = 0;
-					if (equations[i][j].exp[k] != 0) system[k][I] << mon;
-				}
-				if (Break) break;
-			}
-			if (Break) {
-				Break = false;
-				continue;
-			}
-			I++;
-			i++;
-		}
-
-		// aggiustamento dimensione
-		KnownTerms.erase(KnownTerms.begin() + pIndex);
-		system.erase(system.begin() + pIndex);
-		for (auto& eq : system) eq.erase(eq.begin() + pIndex);
-		tensor<Fraction<>> solve;
-		tensor<polynomial<>> dets;
-
-		// calcolo soluzione
-		auto D{ DecompPolynomial(usefree, system.det()) };
-		auto ProblematicPoints{ RootExtractor(D) };
-		tensor<long double> Zeros;
-		for (size_t i = 0; i < Vsize - 1; ++i) {
-			
-			// calcolo soluzioni del sistema lineare
-			auto mx{ system };
-			mx[i] = KnownTerms;
-			dets << DecompPolynomial(usefree, mx.det());
-			
-			// calcolo zeri
-			auto NewZeros{ RootExtractor(dets.last()) };
-			for (const auto& zero : NewZeros) {
-				
-				Continue = false;
-				for (const auto& OtherZero : Zeros)
-					if (fabs(OtherZero - zero) < 1e-05)
-					{
-						Continue = true;
-						break;
-					}
-
-				if (Continue) continue;
-				Zeros << zero;
-			}
-		}
-		if (D.empty()) {
-			SetConsoleTextAttribute(hConsole, 11);
-			
-			// sistema indeterminato
-			if (dets == tensor<polynomial<>>(dets.size())) {
-				wcout << L"Il sistema è indeterminato\a\n";
-				ResetAttribute();
-
-				Fractions.clear();
-				equations.clear();
-				startover = true;
-				continue;
-			}
-
-			// sistema impossibile
-			wcout << L"Il sistema è impossibile\a\n";
-			ResetAttribute();
-			Fractions.clear();
-			equations.clear();
-			startover = true;
-			continue;
-		}
-		for (const auto& det : dets) solve << Fraction<>{ det, D };
-		wcout << L'\n';
-
-		// output
-		int line{};
-		bool skipped{ false };
-		for (size_t i = 0; i < Vsize; ++i) {
-			if (i == pIndex) {
-				skipped = true;
-				continue;
-			}
-
-			// scomposizione numeratore e denominatore
-			int ncoeff{ 1 }, dcoeff{ 1 };
-			auto& resolution{ solve[i - skipped] };
-			Simplify(resolution, ncoeff, dcoeff);
-			auto NScomp{ To1V(resolution.num) };
-			auto DScomp{ To1V(resolution.den) };
-			NScomp.close();
-			DScomp.close();
-			for (size_t j = 0; j < NScomp; ++j) NScomp[j].sort();
-			for (size_t j = 0; j < DScomp; ++j) DScomp[j].sort();
-
-			// output
-			SetConsoleTextAttribute(hConsole, 11);
-			wcout << Variables.at(i) << L" = ";
-			PrintFractionaryResult(
-				ncoeff,
-				dcoeff,
-				line,
-				resolution,
-				NScomp,
-				DScomp,
-				resolution.num != ToXV(NScomp) or resolution.den != ToXV(DScomp)
-			);
-			wcout << L"\n\n";
-
-			if (i != Vsize - 1) wcout << L'\n';
-		}
-		
-		// output punti problematici
-		bool starting{ true };
-		SetConsoleTextAttribute(hConsole, 6);
-		for (const auto& p : ProblematicPoints) {
-
-			Continue = false;
-			for (const auto& zero : Zeros) if (fabs(p - zero) < 1e-05) {
-
-				// indeterminato
-				if (starting) {
-					starting = false;
-					wcout << L'\n';
-				}
-				wcout << L"SE " << charVariable << L" = " << Handler(to_wstring(p));
-				wcout << L" ALLORA il sistema è indeterminato\n\n";
-
-				Continue = true;
-			}
-			if (Continue) continue;
-
-			// impossibile
-			if (starting) {
-				starting = false;
-				wcout << L'\n';
-			}
-			wcout << L"SE " << charVariable << L" = " << Handler(to_wstring(p));
-			wcout << L" ALLORA il sistema è impossibile\n\n";
-		}
-
-		ResetAttribute();
-		Fractions.clear();
-		equations.clear();
-		startover = true;
-	}
-
-	// invio del segnale per terminare i thread
-	argc = NotAssigned;
-RETURN:
-	{
-		lock_guard<mutex> lk(MonitorMTX);
-		RunMonitor = false;
-	}
-	MonitorCV.notify_all();
-}
-
 // programma per scomporre i polinomi
 template<typename Type = wstring>
 static polynomial<> DecompPolynomial(switchcase& argc, Type Polynomial)
@@ -15796,8 +15395,8 @@ RETURN:
 	ret HT;
 }
 
-// programma per scomporre le frazioni algebriche
-static void DecompFraction(switchcase& argc)
+// programma per scomporre e risolvere sistemi, disequazioni
+static void DecompAndSolve(switchcase& argc)
 {
 	setlocale(LC_ALL, "");
 	SetConsoleOutputCP(CP_UTF8);
@@ -15813,6 +15412,8 @@ static void DecompFraction(switchcase& argc)
 	wcout << L"Nel grafico è possibile premere il tasto X per eliminare\n";
 	wcout << L"la funzione oppure il tasto D per calcolare la sua derivata\n";
 	wcout << L"Per inserire una singola frazione premere CTRL + ALT\n\n";
+	wcout << L"Premere SHIFT + INVIO per aggiungere una nuova equazione\n";
+	wcout << L"Premere INVIO per confermare\n\n";
 	SetConsoleTextAttribute(hConsole, 10);
 	wcout << L"Per attivare / disattivare gli esponenti in forma di apice ";
 	wcout << L"premere CTRL + SHIFT\n";
@@ -15820,36 +15421,114 @@ static void DecompFraction(switchcase& argc)
 	wcout << L"Per scorrere tra le espressioni precedenti usare F1 e F2\n";
 	ResetAttribute();
 
+	bool startover{ true };
+	tensor<wstring> VariablesDisposition;
+	tensor<Fraction<>> Fractions;
 	for (;;)
 	{
-	insert:
-		bool skip{ false }, draw{ false };
+		argc = NotAssigned;
 		while (GetAsyncKeyState(VK_SHIFT) & 0x8000 or
 			GetAsyncKeyState(VK_RETURN) & 0x8000);
-
-		// input frazione
 		if (!RunMonitor) goto RETURN;
-		ResetAttribute();
-		Variables = L"x";
-		wcout << L"\nInserisci una frazione algebrica (0 = fine input)\n\n";
+
+		// input equazioni
+	insert:
+		if (startover) {
+			Variables = L"x";
+			wcout << L"\nInserisci un sistema di equazioni (0 : #1) ";
+			wcout << L"= fine input\n\n";
+		}
+		startover = false;
 		wstring err;
-		int data;
-		Fraction<big> inputed{ Expression().in(argc, err, draw) };
+		bool _graph, _equation, skip{ false };
+		Fraction<big> inputed{ Expression().in(argc, err, _graph, _equation) };
 		Fraction<> it{
 			FromBigToDefault(inputed.num), FromBigToDefault(inputed.den)
 		};
+		VariablesDisposition << Variables;
 
-		// messaggio di errore
-		if (it == Fraction<>{} and !err.empty()) {
+		// ridirezionamento
+		if (argc != NotAssigned) {
+			auto redirect{ ConvertEnumToWString(argc) };
 
-			// uscita
-			argc = ConvertWStringToEnum(err);
-			ReassigneEnum(argc);
-			if (argc != NotAssigned) {
+			// conversione in un numero
+			if (
+				argc != FactorPolynomial and
+				argc != FractElaborator and
+				it != Fraction<>{}
+				)
+			{
+				// valutazione frazione
+				tensor<long double> zero(Variables.size(), 0);
+				ptrdiff_t Num{ 1 }, Den{ 1 };
+				for (size_t i = 0; i < it.num; ++i) Num *= it.num[i](zero);
+				for (size_t i = 0; i < it.den; ++i) Den *= it.den[i](zero);
+				if (Den == 0) {
+					argc = NotAssigned;
+					goto RETURN;
+				}
+
+				// invio numero
+				wchar_t sign = (Num > 0) xor (Den > 0) ? L'-' : L'+';
+				Num = abs(Num);
+				Den = abs(Den);
+				SendString(
+					wstring(1, sign) +
+					to_wstring(Num) +
+					L"/" + to_wstring(Den)
+				);
+
+				// tasto invio
+				INPUT inputs[2]{};
+				inputs[0].type = INPUT_KEYBOARD;
+				inputs[0].ki.wVk = VK_RETURN;
+				inputs[1] = inputs[0];
+				inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
+				SendInput(2, inputs, sizeof(INPUT));
+
 				system("cls");
-				SetConsoleTitle(err.c_str());
+				SetConsoleTitle(redirect.c_str());
 				goto RETURN;
 			}
+
+			// invio frazione
+			if (it.num !=
+				polynomial<>{ { { 0, tensor<int>(Variables.size(), 0) } } })
+			{
+				bool saved{ BOOLALPHA };
+				BOOLALPHA = false;
+				SendString(it.num.str());
+				if (argc != FactorPolynomial) {
+					INPUT inputs[2]{};
+
+					inputs[0].type = INPUT_KEYBOARD;
+					inputs[0].ki.wVk = VK_DOWN;
+					inputs[0].ki.dwFlags = KEYEVENTF_EXTENDEDKEY;
+					inputs[1] = inputs[0];
+					inputs[1].ki.dwFlags |= KEYEVENTF_KEYUP;
+
+					SendInput(2, inputs, sizeof(INPUT));
+					SendString(it.den.str());
+				}
+				BOOLALPHA = saved;
+
+				// tasto invio
+				INPUT inputs[2]{};
+				inputs[0].type = INPUT_KEYBOARD;
+				inputs[0].ki.wVk = VK_RETURN;
+				inputs[1] = inputs[0];
+				inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
+				SendInput(2, inputs, sizeof(INPUT));
+			}
+
+			system("cls");
+			SetConsoleTitle(redirect.c_str());
+			goto RETURN;
+		}
+
+		// messaggio di errore
+		if (it == Fraction<>{}) {
+			if (err.empty()) break;
 
 			// termine programma
 			if (err == L"_") {
@@ -15860,337 +15539,745 @@ static void DecompFraction(switchcase& argc)
 			SetConsoleTextAttribute(hConsole, 4);
 			wcout << L"\n\n" << err << L"!!\n";
 			ResetAttribute();
+
+			Fractions.clear();
+			startover = true;
 			continue;
 		}
 
-		// uscita
-		if (!it.num.empty()) if (!it.num[0].empty())
-			if (it.num[0][0].coefficient == 0) break;
+		// ultima operazione di input
+		Fractions << it;
+		if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) and Fractions < 5) continue;
+		bool Continue{ false };
 
-		// scomposizione polinomi
-		CORRECTION_RATIO = 1;
-		Fraction<> fraction;
-		fraction.num = DecompPolynomial(usefree, it.num);
-
-		// denominatori aggiuntivi
-		big DenMultiplier = LCM;
-		auto savx{ Variables };
-		fraction.den = DecompPolynomial(usefree, it.den);
-		big NumMultiplier = LCM, GCD{ Gcd(NumMultiplier, DenMultiplier) };
-		NumMultiplier /= GCD;
-		DenMultiplier /= GCD;
-		auto nummultiplier{ NumMultiplier.Number<long double>() };
-		auto denmultiplier{ DenMultiplier.Number<long double>() };
+		// riempimento buchi nelle disposizioni
+		wstring complete;
+		for (auto& disp : VariablesDisposition) for (const auto& ch : disp)
+			if (complete.find(ch) == wstring::npos) complete += ch;
+		for (auto& disp : VariablesDisposition) for (const auto& ch : complete)
+			if (disp.find(ch) == wstring::npos) disp += ch;
 		
-		if (!(fraction.num and fraction.den) or
-			isnan(nummultiplier) or isnan(denmultiplier))
-		{
-			wcout << L'\n';
-			SetConsoleTextAttribute(hConsole, 64);
-			wcout << L"Input overflow: prova a inserire valori più piccoli\n";
-			wcout << L" e non dei numeri complessi!!\a";
+		// allocazione di memoria in più
+		for (auto& fraction : Fractions) {
+			for (auto& fact : fraction.num) for (auto& mon : fact)
+				mon.exp(complete.size());
+			for (auto& fact : fraction.den) for (auto& mon : fact)
+				mon.exp(complete.size());
+		}
+
+		// ridisposizione
+		tensor<int> ExpNull(complete.size(), 0);
+		for (size_t i = 0; i < 2 * Fractions.size(); ++i) {
+			if (VariablesDisposition[i / 2] == complete) continue;
+
+			// preparazione polinomi
+			auto& old = i % 2 ? Fractions[i / 2].den : Fractions[i / 2].num;
+			polynomial<> correct(old.size());
+			for (size_t j = 0; j < correct; ++j) for (const auto& mono : old[j])
+				correct[j] << monomial<>{ mono.coefficient, ExpNull };
+
+			// correzione esponenti
+			for (size_t j = 0; j < VariablesDisposition[i / 2].size(); ++j) {
+				auto pos{ complete.find(VariablesDisposition[i / 2].at(j)) };
+				if (pos == wstring::npos) continue;
+				for (size_t k = 0; k < correct; ++k)
+					for (size_t l = 0; l < correct[k]; ++l)
+						correct[k][l].exp[pos] = old[k][l].exp[j];
+			}
+
+			old = correct;
+		}
+
+		// numero di variabili eccessivo
+		VariablesDisposition.clear();
+		if (Variables.size() > Fractions.size() + 1) {
+			SetConsoleTextAttribute(hConsole, 12);
+			wcout << L"Troppe variabili!!\a\n";
 			ResetAttribute();
-			wcout << L'\n';
-			goto insert;
+
+			Fractions.clear();
+			startover = true;
+			continue;
 		}
 
-		// aggiunta di spazio nella memoria
-		auto oldV{ Variables };
-		for (const auto& ch : Variables) if (savx.find(ch) == wstring::npos)
-			savx += ch;
-		Variables = savx;
-		for (auto& fac : fraction.num) for (auto& mon : fac)
-			mon.exp(Variables.size(), 0);
-		for (auto& fac : fraction.den) for (auto& mon : fac)
-			mon.exp(Variables.size(), 0);
-		auto temp{ fraction.den };
-		for (size_t i = 0; i < fraction.den; ++i)
-			for (size_t j = 0; j < temp[i]; ++j) if (temp[i][j].exp[0] >= 0)
-				for (size_t k = 0; k < Variables.size(); ++k)
-				{
-					auto pos{ oldV.find(Variables.at(k)) };
-					temp[i][j].exp[k] = pos != wstring::npos ?
-						fraction.den[i][j].exp[pos] : 0;
-				}
-		fraction.den = temp;
+		// valutazioni proprietà frazione algebrica
+		if (Fractions == 1 and !_equation)
+		{
+			auto It{ Fractions[0] };
 		
-		// backup
-		auto Backup{ fraction };
-		int NCOEFF{ 1 }, DCOEFF{ 1 };
-		tensor<int> null(Variables.size(), 0);
+			// uscita se la frazione è nulla
+			if (!It.num.empty()) if (!It.num[0].empty())
+				if (It.num[0][0].coefficient == 0) break;
 
-		// semplificazione fattori
-		Simplify(fraction, NCOEFF, DCOEFF);
-		NCOEFF *= nummultiplier;
-		DCOEFF *= denmultiplier;
-		LCM = 1;
+			// uscita
+			if (!it.num.empty()) if (!it.num[0].empty())
+				if (it.num[0][0].coefficient == 0) break;
 
-		// aggiornamento dati globali
-		auto test{ fraction.num };
-		if (!(fraction.num or fraction.den)) charVariable = L'x';
-		else if (fraction.num.empty()) test = fraction.den;
-		if (fraction.num or fraction.den)
-			for (size_t i = 0; i < Variables.size(); ++i)
-				if (test[0][0].exp[i] != 0) charVariable = Variables.at(i);
+			// scomposizione polinomi
+			CORRECTION_RATIO = 1;
+			Fraction<> fraction;
+			fraction.num = DecompPolynomial(usefree, it.num);
 
-		// correzione fattori
-		auto NScomp{ To1V(fraction.num) };
-		auto DScomp{ To1V(fraction.den) };
-		NScomp.close();
-		DScomp.close();
-		for (size_t i = 0; i < NScomp; ++i) NScomp[i].sort();
-		for (size_t i = 0; i < DScomp; ++i) DScomp[i].sort();
+			// denominatori aggiuntivi
+			big DenMultiplier = LCM;
+			auto savx{ Variables };
+			fraction.den = DecompPolynomial(usefree, it.den);
+			big NumMultiplier = LCM, GCD{ Gcd(NumMultiplier, DenMultiplier) };
+			NumMultiplier /= GCD;
+			DenMultiplier /= GCD;
+			auto nummultiplier{ NumMultiplier.Number<long double>() };
+			auto denmultiplier{ DenMultiplier.Number<long double>() };
 
-		if (DScomp <= 1) skip = true;
-		if (!skip) for (auto a : DScomp) for (auto b : a)
-			if (a != 1 and b.degree > 1) skip = true;
+			// controllo overflow
+			if (!(fraction.num and fraction.den) or
+				isnan(nummultiplier) or isnan(denmultiplier))
+			{
+				wcout << L'\n';
+				SetConsoleTextAttribute(hConsole, 64);
+				wcout << L"Input overflow: prova a inserire valori più piccoli\n";
+				wcout << L" e non dei numeri complessi!!\a";
+				ResetAttribute();
+				wcout << L'\n';
+				goto insert;
+			}
 
-		// caso con più variabili
-		bool IsAModifier{ false }, HasMoreVariables{ false };
-		tensor<POLYNOMIAL<>> denominators;
-		POLYNOMIAL<> complementaries;
-		size_t index{}, size{};
-		int Det{ 1 };
-		Matrix<int> Matrix;
-		tensor<int> results;
-		tensor<double> roots;
-		FACTOR<> Quotient;
-		FACTOR<> Rest;
-		if (fraction.num != ToXV(NScomp) or fraction.den != ToXV(DScomp)) {
-			skip = true;
-			HasMoreVariables = true;
-			goto PrintStatement;
+			// backup
+			auto Backup{ fraction };
+			int NCOEFF{ 1 }, DCOEFF{ 1 };
+			tensor<int> null(Variables.size(), 0);
+
+			// semplificazione fattori
+			Simplify(fraction, NCOEFF, DCOEFF);
+			NCOEFF *= nummultiplier;
+			DCOEFF *= denmultiplier;
+			LCM = 1;
+
+			// aggiornamento dati globali
+			auto test{ fraction.num };
+			if (!(fraction.num or fraction.den)) charVariable = L'x';
+			else if (fraction.num.empty()) test = fraction.den;
+			if (fraction.num or fraction.den)
+				for (size_t i = 0; i < Variables.size(); ++i)
+					if (test[0][0].exp[i] != 0) charVariable = Variables.at(i);
+
+			// correzione fattori
+			auto NScomp{ To1V(fraction.num) };
+			auto DScomp{ To1V(fraction.den) };
+			NScomp.close();
+			DScomp.close();
+			for (size_t i = 0; i < NScomp; ++i) NScomp[i].sort();
+			for (size_t i = 0; i < DScomp; ++i) DScomp[i].sort();
+
+			if (DScomp <= 1) skip = true;
+			if (!skip) for (auto a : DScomp) for (auto b : a)
+				if (a != 1 and b.degree > 1) skip = true;
+
+			// caso con più variabili
+			bool IsAModifier{ false }, HasMoreVariables{ false };
+			tensor<POLYNOMIAL<>> denominators;
+			POLYNOMIAL<> complementaries;
+			size_t index{}, size{};
+			int Det{ 1 };
+			Matrix<int> Matrix;
+			tensor<int> results;
+			tensor<double> roots;
+			FACTOR<> Quotient, Rest;
+			if (fraction.num != ToXV(NScomp) or fraction.den != ToXV(DScomp)) {
+				skip = true;
+				HasMoreVariables = true;
+				goto PrintStatement;
+			}
+
+			// calcolo denominatori
+			if (!skip) for (size_t i = 0; i < DScomp; ++i) {
+				if (DScomp[i][0].degree == -1) {
+					IsAModifier = true;
+					continue;
+				}
+
+				// caso con le potenze
+				if (IsAModifier)
+					for (ptrdiff_t j = DScomp[i - 1][0].coefficient; j > 0; --j)
+					{
+						denominators++;
+						if (j > 1)
+							denominators[index]
+								<< FACTOR<>{ { -1, (long double)j } };
+						denominators[index] << DScomp[i];
+						index++;
+						complementaries << Complementary(DScomp, DScomp[i], j);
+					}
+
+				// caso con le potenze della variabile
+				else if (DScomp[i] == 1)
+					for (ptrdiff_t j = DScomp[i][0].degree; j > 0; --j)
+					{
+						denominators++;
+						denominators[index] << FACTOR<>{ { (int)j, 1 } };
+						index++;
+						auto NewScomp{ DScomp };
+						NewScomp.erase(NewScomp.begin() + i);
+						NewScomp.insert(NewScomp.begin() + i, { { 1, 1 } });
+						NewScomp.insert(NewScomp.begin() + i, {
+							{ -1, (long double)DScomp[i][0].degree }
+							});
+						complementaries 
+							<< Complementary(NewScomp, NewScomp[i + 1], j);
+					}
+
+				// caso senza potenze
+				else {
+					denominators++;
+					denominators[index] << DScomp[i];
+					index++;
+					complementaries << Complementary(DScomp, DScomp[i], 1);
+				}
+				IsAModifier = false;
+			}
+			if (!skip) for (size_t i = 0; i < complementaries; ++i)
+				complementaries[i].complete(complementaries.size());
+
+			// inizializzazione matrice
+			if (!skip) {
+				size = complementaries.size();
+				Matrix(size);
+				for (size_t i = 0; i < complementaries; ++i)
+					for (size_t j = 0; j < complementaries; ++j)
+						Matrix[i] << complementaries[i][j].coefficient;
+			}
+
+			// calcolo determinanti
+			if (!skip) {
+
+				// divisione polinomi
+				PolynomialDivide(
+					V1converter(PolynomialMultiply, NScomp),
+					V1converter(PolynomialMultiply, DScomp),
+					Quotient,
+					Rest
+				);
+				Rest.complete(complementaries.size() - 1);
+				Rest.sort();
+
+				for (const auto& R : Rest) results << R.coefficient;
+				while (results.size() < complementaries.size()) results >> 0;
+				Det = Matrix.det();
+			}
+			if (!skip) for (size_t i = 0; i < results; ++i) {
+				::Matrix<int> MX{ Matrix };
+				MX[i] = results;
+				roots << (double)MX.det() / Det;
+			}
+
+			// eliminazione degli zeri
+			for (ptrdiff_t i = denominators.size() - 1; i >= 0; --i)
+				if (roots[i] == 0) {
+					denominators.erase(denominators.begin() + i);
+					roots.erase(roots.begin() + i);
+				}
+			if (roots.empty()) skip = true;
+
+		PrintStatement:
+
+			// calcolo condizioni di esistenza
+			SetConsoleTextAttribute(hConsole, 11);
+			wcout << L"C.E.: ";
+			SetConsoleTextAttribute(hConsole, 10);
+			tensor<wstring> C_E_;
+			bool HasBeenPrinted{ false };
+
+			// push condizioni di esistenza
+			COORD cursorPos;
+			for (const auto& d : Backup.den) {
+				auto Ctemp_{ EquationSolver(d) };
+				for (const auto& i : Ctemp_) C_E_ << i;
+			}
+			for (ptrdiff_t i = C_E_.size() - 1; i >= 0; --i)
+				for (ptrdiff_t j = i - 1; j >= 0; --j)
+					if (C_E_[i] == C_E_[j]) C_E_.erase(C_E_.begin() + i);
+
+			// output condizioni di esistenza
+			for (auto I : C_E_) {
+				wcout << Handler(I) << L"; ";
+				HasBeenPrinted = true;
+			}
+			if (!HasBeenPrinted) wcout << L"\r      \r";
+			_GetCursorPos();
+			cursorPos = csbi.dwCursorPosition;
+			if (!HasBeenPrinted) {
+				cursorPos.X = 0;
+				cursorPos.Y--;
+				SetConsoleCursorPosition(hConsole, cursorPos);
+			}
+			else wcout << L'\n';
+
+			// output del segno della frazione
+			auto DiseqSol{
+				DisequationSolutionPrinter(
+					fraction.num, fraction.den, 15, NCOEFF < 0 or DCOEFF < 0
+				)
+			};
+			if (!DiseqSol.empty()) wcout << L'\n' << DiseqSol << L'\n';
+
+			// output frazioni
+			SetConsoleTextAttribute(hConsole, 10);
+			wcout << L"\nLa scomposizione è: ";
+			SetConsoleTextAttribute(hConsole, 12);
+			int lines{};
+			PrintFractionaryResult(
+				NCOEFF,
+				DCOEFF,
+				lines,
+				fraction,
+				NScomp,
+				DScomp,
+				HasMoreVariables,
+				!skip,
+				roots,
+				denominators
+			);
+
+			// output polinomio di resto
+			if (!skip) for (const auto& a : Quotient) {
+				auto rest{ POLYNOMIAL<>{ { a } } };
+				if (a.coefficient == 0) continue;
+
+				// output normale
+				if (integer(a.coefficient / CORRECTION_RATIO)) {
+					rest[0][0].coefficient /= CORRECTION_RATIO;
+					auto pol{ rest.str() };
+					ElabExponents(pol);
+					bool IsMinus{ false };
+
+					// correzione segno
+					if (pol.at(0) == L'-') {
+						pol.erase(0, 1);
+						IsMinus = true;
+					}
+					if (pol.size() >= 2) if (pol.at(0) == '(' and Last(pol) == ')')
+					{
+						pol.pop_back();
+						pol.erase(0, 1);
+					}
+					if (pol.at(0) == L'-') {
+						pol.erase(0, 1);
+						IsMinus = true;
+					}
+					else if (pol.at(0) == L'+') pol.erase(0, 1);
+
+					IsMinus ? wcout << L'-' : wcout << L'+';
+					wcout << L' ' << pol << L' ';
+					lines += 2 + pol.size();
+				}
+
+				// frazione
+				else {
+
+					// arretramento cursore
+					_GetCursorPos();
+					COORD dwCursorPos{ csbi.dwCursorPosition };
+					dwCursorPos.Y--;
+					SetConsoleCursorPosition(hConsole, dwCursorPos);
+
+					// output frazione
+					PrintFraction(
+						1,
+						1,
+						lines,
+						true,
+						{ { { { a.coefficient, null } } }, { { { 1, null } } } }
+					);
+
+					// avanzamento cursore
+					_GetCursorPos();
+					dwCursorPos = csbi.dwCursorPosition;
+					dwCursorPos.Y++;
+					SetConsoleCursorPosition(hConsole, dwCursorPos);
+
+					// output potenza della variabile
+					wstring power;
+					if (a.degree > 0) power += charVariable;
+					if (a.degree > 1) {
+						power += L'^' + to_wstring(a.degree);
+						ElabExponents(power);
+					}
+					wcout << L' ' << power << L' ';
+				}
+			}
+			wcout << L"\n\n";
+
+			// grafico
+			if (_graph) switch (Variables.size()) {
+			case 1:
+				if (CreateGraph(Backup.extend())) while (CreateGraph());
+				break;
+			case 2: Project3DGraph(Backup.extend());
+				break;
+			}
+			ResetAttribute();
+			Fractions.clear();
+			startover = true;
+			continue;
 		}
 
-		// calcolo denominatori
-		if (!skip) for (size_t i = 0; i < DScomp; ++i) {
-			if (DScomp[i][0].degree == -1) {
-				IsAModifier = true;
+		// traduzione secondaria
+		polynomial<> equations;
+		for (const auto& eq : Fractions) equations << eq.num[0];
+		for (auto& equation : equations) for (auto& mono : equation)
+			mono.exp(Variables.size(), 0);
+
+		// una sola equazione in una variabile
+		if (Variables.size() == Fractions and Fractions == 1) {
+
+			// estrazione radici
+			charVariable = Variables.at(0);
+			Variables = L"x";
+			auto solutions{ RootExtractor(equations) };
+			Variables = wstring(1, charVariable);
+			
+			// rimozione doppi
+			for (ptrdiff_t i = solutions.size() - 1; i >= 0; --i)
+				for (ptrdiff_t j = i - 1; j >= 0; --j)
+					if (solutions[i] == solutions[j])
+						solutions.erase(solutions.begin() + i);
+
+			// rimozione delle singolarità
+			for (ptrdiff_t i = solutions.size() - 1; i >= 0; --i)
+				for (const auto& fract : Fractions)
+					if (fabs(fract.den[0]({ solutions[i] })) < 1e-05)
+						solutions.erase(solutions.begin() + i);
+
+			// output
+			SetConsoleTextAttribute(hConsole, 11);
+			wcout << L"Le soluzioni sono " << solutions << L'\n';
+			ResetAttribute();
+
+			Fractions.clear();
+			equations.clear();
+			startover = true;
+			continue;
+		}
+
+		// numero di variabili minore-uguale al numero di equazioni
+		if (Variables.size() <= equations) {
+			
+			// calcolo soluzioni
+			auto solutions{ SystemSolver(tensor<factor<>>(
+				equations.begin(),
+				equations.begin() + Variables.size()
+			)) };
+			SetConsoleTextAttribute(hConsole, 11);
+
+			// sistema indeterminato
+			if (isnan(solutions[0][0])) {
+				wcout << L"Il sistema è indeterminato\a\n";
+				ResetAttribute();
+
+				Fractions.clear();
+				equations.clear();
+				startover = true;
+				continue;
+			}
+			
+			// rimozione delle singolarità
+			for (ptrdiff_t i = solutions.size() - 1; i >= 0; --i) {
+				if (solutions[i].empty()) continue;
+
+				for (const auto& fract : Fractions)
+					if (fract.den[0](solutions[i]) < 1e-05)
+						solutions.erase(solutions.begin() + i);
+			}
+
+			// errore
+			if (solutions.empty()) {
+				wcout << L"Non sono state trovate soluzioni utilizzando";
+				wcout << L" i metodi standard\n";
+				ResetAttribute();
+
+				Fractions.clear();
+				equations.clear();
+				startover = true;
 				continue;
 			}
 
-			// caso con le potenze
-			if (IsAModifier)
-				for (ptrdiff_t j = DScomp[i - 1][0].coefficient; j > 0; --j)
-				{
-					denominators++;
-					if (j > 1)
-						denominators[index] << FACTOR<>{ { -1, (long double)j } };
-					denominators[index] << DScomp[i];
-					index++;
-					complementaries << Complementary(DScomp, DScomp[i], j);
-				}
+			// sistema impossibile
+			if (solutions[0].empty()) {
+				wcout << L"Il sistema è impossibile\a\n";
+				ResetAttribute();
+
+				Fractions.clear();
+				equations.clear();
+				startover = true;
+				continue;
+			}
+
+			// selezione
+			for (ptrdiff_t i = solutions.size() - 1; i >= 0; --i)
+				for (size_t j = Variables.size(); j < equations; ++j)
+					if (fabs(equations[j](solutions[i])) > 1e-05)
+					{
+						solutions.erase(solutions.begin() + i);
+						break;
+					}
 			
-			// caso con le potenze della variabile
-			else if (DScomp[i] == 1)
-				for (ptrdiff_t j = DScomp[i][0].degree; j > 0; --j)
-				{
-					denominators++;
-					denominators[index] << FACTOR<>{ { (int)j, 1 } };
-					index++;
-					auto NewScomp{ DScomp };
-					NewScomp.erase(NewScomp.begin() + i);
-					NewScomp.insert(NewScomp.begin() + i, { { 1, 1 } });
-					NewScomp.insert(NewScomp.begin() + i, {
-						{ -1, (long double)DScomp[i][0].degree }
-					});
-					complementaries << Complementary(NewScomp, NewScomp[i + 1], j);
-				}
+			// output soluzioni
+			if (solutions.empty()) {
+				wcout << L"Il sistema è impossibile\a\n";
+				ResetAttribute();
 
-			// caso senza potenze
-			else {
-				denominators++;
-				denominators[index] << DScomp[i];
-				index++;
-				complementaries << Complementary(DScomp, DScomp[i], 1);
+				Fractions.clear();
+				equations.clear();
+				startover = true;
+				continue;
 			}
-			IsAModifier = false;
+			wcout << L"Soluzioni del sistema: \n";
+			for (const auto& sol : solutions) {
+				wcout << L"{\n";
+				for (size_t i = 0; i < Variables.size(); ++i) {
+					wcout << L"    " << Variables.at(i);
+					wcout << L" = " << sol[i] << L'\n';
+				}
+				wcout << L"}\n";
+			}
+			ResetAttribute();
+
+			Fractions.clear();
+			equations.clear();
+			startover = true;
+			continue;
 		}
-		if (!skip) for (size_t i = 0; i < complementaries; ++i)
-			complementaries[i].complete(complementaries.size());
+		// sistema parametrico
 
-		// inizializzazione matrice
-		if (!skip) {
-			size = complementaries.size();
-			Matrix(size);
-			for (size_t i = 0; i < complementaries; ++i)
-				for (size_t j = 0; j < complementaries; ++j)
-					Matrix[i] << complementaries[i][j].coefficient;
+		// priorità delle variabili
+		int pIndex{ -1 };
+		wstring VarOrder;
+		tensor<int> VariablePos;
+		const wstring VariablePriority{ L"xyzuvtsabcd" };
+		for (const auto& var : VariablePriority) {
+			auto pos{ Variables.find(var) };
+			if (pos != wstring::npos) {
+				VarOrder += var;
+				VariablePos << pos;
+			}
+		}
+		ptrdiff_t ParameterIndex = VarOrder.size() - 1;
+
+		// controllo linearità e calcolo parametro
+		for (; ParameterIndex >= 0; --ParameterIndex) {
+			for (const auto& eq : equations) {
+				for (size_t i = 0; i < eq; ++i) {
+					int deg{};
+					for (size_t j = 0; j < VarOrder.size(); ++j) {
+						if (j == ParameterIndex) continue;
+						deg += eq[i].exp[VariablePos[j]];
+					}
+					if (deg > 1) {
+						Continue = true;
+						break;
+					}
+				}
+				if (Continue) break;
+			}
+			if (Continue) {
+				Continue = false;
+				continue;
+			}
+			pIndex = VariablePos[ParameterIndex];
+			charVariable = Variables.at(pIndex);
+			break;
+		}
+		if (pIndex < 0) {
+
+			Fractions.clear();
+			equations.clear();
+			startover = true;
+			continue;
 		}
 
-		// calcolo determinanti
-		if (!skip) {
+		// calcolo termini noti
+		size_t Vsize{ Variables.size() }, I{};
+		tensor<int> null(Vsize, 0);
+		tensor<factor<>> KnownTerms(Vsize);
+		for (size_t i = 0; i < equations;) {
+			if (I == pIndex) {
+				I++;
+				continue;
+			}
+			for (size_t j = 0; j < equations[i]; ++j) {
+				auto exps{ equations[i][j].exp };
+				exps[pIndex] = 0;
+				if (exps == null) {
+					auto mon{ equations[i][j] };
+					mon.coefficient *= -1;
+					KnownTerms[I] << mon;
+				}
+			}
+			i++;
+			I++;
+		}
 
-			// divisione polinomi
-			PolynomialDivide(
-				V1converter(PolynomialMultiply, NScomp),
-				V1converter(PolynomialMultiply, DScomp),
-				Quotient,
-				Rest
+		// calcolo coefficienti interni
+		I = 0;
+		bool Break{ false };
+		Matrix<factor<>> system(Vsize, tensor<factor<>>(Vsize));
+		for (size_t i = 0; i < equations;) {
+			for (size_t j = 0; j < equations[i]; ++j) {
+				for (size_t k = 0; k < Vsize; ++k) {
+					if (I == pIndex) {
+						I++;
+						Break = true;
+						break;
+					}
+					if (k == pIndex) continue;
+
+					auto mon{ equations[i][j] };
+					mon.exp[k] = 0;
+					if (equations[i][j].exp[k] != 0) system[k][I] << mon;
+				}
+				if (Break) break;
+			}
+			if (Break) {
+				Break = false;
+				continue;
+			}
+			I++;
+			i++;
+		}
+
+		// aggiustamento dimensione
+		KnownTerms.erase(KnownTerms.begin() + pIndex);
+		system.erase(system.begin() + pIndex);
+		for (auto& eq : system) eq.erase(eq.begin() + pIndex);
+		tensor<Fraction<>> solve;
+		tensor<polynomial<>> dets;
+
+		// calcolo soluzione
+		auto D{ DecompPolynomial(usefree, system.det()) };
+		auto ProblematicPoints{ RootExtractor(D) };
+		tensor<long double> Zeros;
+		for (size_t i = 0; i < Vsize - 1; ++i) {
+			
+			// calcolo soluzioni del sistema lineare
+			auto mx{ system };
+			mx[i] = KnownTerms;
+			dets << DecompPolynomial(usefree, mx.det());
+			
+			// calcolo zeri
+			auto NewZeros{ RootExtractor(dets.last()) };
+			for (const auto& zero : NewZeros) {
+				
+				Continue = false;
+				for (const auto& OtherZero : Zeros)
+					if (fabs(OtherZero - zero) < 1e-05)
+					{
+						Continue = true;
+						break;
+					}
+
+				if (Continue) continue;
+				Zeros << zero;
+			}
+		}
+		if (D.empty()) {
+			SetConsoleTextAttribute(hConsole, 11);
+			
+			// sistema indeterminato
+			if (dets == tensor<polynomial<>>(dets.size())) {
+				wcout << L"Il sistema è indeterminato\a\n";
+				ResetAttribute();
+
+				Fractions.clear();
+				equations.clear();
+				startover = true;
+				continue;
+			}
+
+			// sistema impossibile
+			wcout << L"Il sistema è impossibile\a\n";
+			ResetAttribute();
+			Fractions.clear();
+			equations.clear();
+			startover = true;
+			continue;
+		}
+		for (const auto& det : dets) solve << Fraction<>{ det, D };
+		wcout << L'\n';
+
+		// output
+		int line{};
+		bool skipped{ false };
+		for (size_t i = 0; i < Vsize; ++i) {
+			if (i == pIndex) {
+				skipped = true;
+				continue;
+			}
+
+			// scomposizione numeratore e denominatore
+			int ncoeff{ 1 }, dcoeff{ 1 };
+			auto& resolution{ solve[i - skipped] };
+			Simplify(resolution, ncoeff, dcoeff);
+			auto NScomp{ To1V(resolution.num) };
+			auto DScomp{ To1V(resolution.den) };
+			NScomp.close();
+			DScomp.close();
+			for (size_t j = 0; j < NScomp; ++j) NScomp[j].sort();
+			for (size_t j = 0; j < DScomp; ++j) DScomp[j].sort();
+
+			// output
+			SetConsoleTextAttribute(hConsole, 11);
+			wcout << Variables.at(i) << L" = ";
+			PrintFractionaryResult(
+				ncoeff,
+				dcoeff,
+				line,
+				resolution,
+				NScomp,
+				DScomp,
+				resolution.num != ToXV(NScomp) or resolution.den != ToXV(DScomp)
 			);
-			Rest.complete(complementaries.size() - 1);
-			Rest.sort();
+			wcout << L"\n\n";
 
-			for (const auto& R : Rest) results << R.coefficient;
-			while (results.size() < complementaries.size()) results >> 0;
-			Det = Matrix.det();
+			if (i != Vsize - 1) wcout << L'\n';
 		}
-		if (!skip) for (size_t i = 0; i < results; ++i) {
-			::Matrix<int> MX{ Matrix };
-			MX[i] = results;
-			roots << (double)MX.det() / Det;
-		}
+		
+		// output punti problematici
+		bool starting{ true };
+		SetConsoleTextAttribute(hConsole, 6);
+		for (const auto& p : ProblematicPoints) {
 
-		// eliminazione degli zeri
-		for (ptrdiff_t i = denominators.size() - 1; i >= 0; --i) 
-			if (roots[i] == 0) {
-				denominators.erase(denominators.begin() + i);
-				roots.erase(roots.begin() + i);
+			Continue = false;
+			for (const auto& zero : Zeros) if (fabs(p - zero) < 1e-05) {
+
+				// indeterminato
+				if (starting) {
+					starting = false;
+					wcout << L'\n';
+				}
+				wcout << L"SE " << charVariable << L" = " << Handler(to_wstring(p));
+				wcout << L" ALLORA il sistema è indeterminato\n\n";
+
+				Continue = true;
 			}
-		if (roots.empty()) skip = true;
+			if (Continue) continue;
 
-	PrintStatement:
-
-		// calcolo condizioni di esistenza
-		SetConsoleTextAttribute(hConsole, 11);
-		wcout << L"C.E.: ";
-		SetConsoleTextAttribute(hConsole, 10);
-		tensor<wstring> C_E_;
-		bool HasBeenPrinted{ false };
-
-		// push condizioni di esistenza
-		COORD cursorPos;
-		for (const auto& d : Backup.den) {
-			auto Ctemp_{ EquationSolver(d) };
-			for (const auto& i : Ctemp_) C_E_ << i;
-		}
-		for (ptrdiff_t i = C_E_.size() - 1; i >= 0; --i)
-			for (ptrdiff_t j = i - 1; j >= 0; --j)
-				if (C_E_[i] == C_E_[j]) C_E_.erase(C_E_.begin() + i);
-
-		// output condizioni di esistenza
-		for (auto I : C_E_) {
-			wcout << Handler(I) << L"; ";
-			HasBeenPrinted = true;
-		}
-		if (!HasBeenPrinted) wcout << L"\r      \r";
-		_GetCursorPos();
-		cursorPos = csbi.dwCursorPosition;
-		if (!HasBeenPrinted) {
-			cursorPos.X = 0;
-			cursorPos.Y--;
-			SetConsoleCursorPosition(hConsole, cursorPos);
-		}
-		else wcout << L'\n';
-
-		// output del segno della frazione
-		auto DiseqSol{
-			DisequationSolutionPrinter(
-				fraction.num, fraction.den, 15, NCOEFF < 0 or DCOEFF < 0
-			)
-		};
-		if (!DiseqSol.empty()) wcout << L'\n' << DiseqSol << L'\n';
-
-		// output frazioni
-		SetConsoleTextAttribute(hConsole, 10);
-		wcout << L"\nLa scomposizione è: ";
-		SetConsoleTextAttribute(hConsole, 12);
-		int lines{};
-		PrintFractionaryResult(
-			NCOEFF,
-			DCOEFF,
-			lines,
-			fraction,
-			NScomp,
-			DScomp,
-			HasMoreVariables,
-			!skip,
-			roots,
-			denominators
-		);
-
-		// output polinomio di resto
-		if (!skip) for (const auto& a : Quotient) {
-			auto rest{ POLYNOMIAL<>{ { a } } };
-			if (a.coefficient == 0) continue;
-
-			// output normale
-			if (integer(a.coefficient / CORRECTION_RATIO)) {
-				rest[0][0].coefficient /= CORRECTION_RATIO;
-				auto pol{ rest.str() };
-				ElabExponents(pol);
-				bool IsMinus{ false };
-
-				// correzione segno
-				if (pol.at(0) == L'-') {
-					pol.erase(0, 1);
-					IsMinus = true;
-				}
-				if (pol.size() >= 2) if (pol.at(0) == '(' and Last(pol) == ')')
-				{
-					pol.pop_back();
-					pol.erase(0, 1);
-				}
-				if (pol.at(0) == L'-') {
-					pol.erase(0, 1);
-					IsMinus = true;
-				}
-				else if (pol.at(0) == L'+') pol.erase(0, 1);
-
-				IsMinus ? wcout << L'-' : wcout << L'+';
-				wcout << L' ' << pol << L' ';
-				lines += 2 + pol.size();
+			// impossibile
+			if (starting) {
+				starting = false;
+				wcout << L'\n';
 			}
-
-			// frazione
-			else {
-
-				// arretramento cursore
-				_GetCursorPos();
-				COORD dwCursorPos{ csbi.dwCursorPosition };
-				dwCursorPos.Y--;
-				SetConsoleCursorPosition(hConsole, dwCursorPos);
-
-				// output frazione
-				PrintFraction(
-					1,
-					1,
-					lines,
-					true,
-					{ { { { a.coefficient, null } } }, { { { 1, null } } } }
-				);
-
-				// avanzamento cursore
-				_GetCursorPos();
-				dwCursorPos = csbi.dwCursorPosition;
-				dwCursorPos.Y++;
-				SetConsoleCursorPosition(hConsole, dwCursorPos);
-
-				// output potenza della variabile
-				wstring power;
-				if (a.degree > 0) power += charVariable;
-				if (a.degree > 1) {
-					power += L'^' + to_wstring(a.degree);
-					ElabExponents(power);
-				}
-				wcout << L' ' << power << L' ';
-			}
+			wcout << L"SE " << charVariable << L" = " << Handler(to_wstring(p));
+			wcout << L" ALLORA il sistema è impossibile\n\n";
 		}
-		wcout << L"\n\n";
 
-		// grafico
-		if (draw) switch (Variables.size()) {
-		case 1:
-			if (CreateGraph(Backup.extend())) while (CreateGraph());
-			break;
-		case 2: Project3DGraph(Backup.extend());
-			break;
-		}
+		ResetAttribute();
+		Fractions.clear();
+		equations.clear();
+		startover = true;
 	}
 
+	// invio del segnale per terminare i thread
 	argc = NotAssigned;
 RETURN:
-	// invio del segnale per terminare i thread
 	{
 		lock_guard<mutex> lk(MonitorMTX);
 		RunMonitor = false;
