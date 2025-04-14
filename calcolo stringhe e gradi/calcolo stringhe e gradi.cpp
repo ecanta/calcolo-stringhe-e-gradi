@@ -3581,11 +3581,13 @@ public:
 				short(positions[at].Y + dimensions[at].Y / 2)
 			};
 		}
-
-		result = COORD{
-			short(positions[at].X + dimensions[at].X),
-			short(positions[at].Y + dimensions[at].Y / 2)
-		};
+		else
+		{
+			result = COORD{
+				short(positions[at].X + dimensions[at].X),
+				short(positions[at].Y + dimensions[at].Y / 2)
+			};
+		}
 
 		if (terms.find({ 0, 0, 0 }) == terms.end())
 		{
@@ -3698,7 +3700,8 @@ public:
 				{
 					terms[CursorIndex] = L"+ ";
 				}
-				else if (CursorIndex.last() >= 0)
+				else if (CursorIndex.last() >= 0
+					and Last(terms[CursorIndex]) != L' ')
 				{
 					terms[CursorIndex] += L" ";
 				}
@@ -4243,7 +4246,8 @@ public:
 					}
 
 					// appena fuori dalla frazione
-					if (terms[CursorIndex].empty() and CursorIndex.last() > 0)
+					if (terms[CursorIndex].empty()
+						and CursorIndex.last() > 0 and c != L' ')
 					{
 						terms[CursorIndex] += L" ";
 					}
@@ -6349,6 +6353,11 @@ template<typename T> T EmptyProduct(T shape)
 // punti
 HDC GHDC;
 static void DrawLine(int firstX, int firstY, int secondX, int secondY, HPEN Hpen);
+static void DrawLineToBuffer(
+	HDC hdcmem, HBITMAP hbmem,
+	int firstX, int firstY, int secondX, int secondY,
+	HPEN Hpen
+);
 static void ProjectPoint(tensor<long double> point, int& pointX, int& pointY);
 static void ProjectAndDrawLine
 (tensor<long double> start, tensor<long double> end, HPEN Hpen);
@@ -6458,6 +6467,8 @@ public:
 	}
 };
 static void DrawLine(Point__ P1, Point__ P2, HPEN hpen);
+static void DrawLineToBuffer
+(HDC hdcmem, HBITMAP hbmem, Point__ P1, Point__ P2, HPEN Hpen);
 
 // dati
 template<typename T> bool isnan(Fraction<T> object)
@@ -8520,13 +8531,26 @@ namespace Window3Data
 	((Z) * sin(Phi) - (X) * sin(Theta) * cos(Phi) + (Y) * cos(Theta) * cos(Phi))
 };
 
-// funzione per disegnare una linea
+// funzione per disegnare una linea sullo schermo
 static void DrawLine(int firstX, int firstY, int secondX, int secondY, HPEN Hpen)
 {
 	SelectObject(GHDC, Hpen);
 	MoveToEx(GHDC, firstX, firstY, NULL);
 	LineTo(GHDC, secondX, secondY);
 	DeleteObject(Hpen);
+}
+
+// funzione per disegnare una linea sul buffer
+static void DrawLineToBuffer(
+	HDC hdcmem, HBITMAP hbmem,
+	int firstX, int firstY, int secondX, int secondY,
+	HPEN Hpen
+)
+{
+	SelectObject(hdcmem, hbmem);
+	SelectObject(hdcmem, Hpen);
+	MoveToEx(hdcmem, firstX, firstY, NULL);
+	LineTo(hdcmem, secondX, secondY);
 }
 
 // funzione per disegnare una linea avendo due punti
@@ -8536,6 +8560,16 @@ static void DrawLine(Point__ P1, Point__ P2, HPEN hpen)
 	MoveToEx(GHDC, P1.GetScreenX(), P1.GetScreenY(), NULL);
 	LineTo(GHDC, P2.GetScreenX(), P2.GetScreenY());
 	DeleteObject(hpen);
+}
+
+// funzione per disegnare una linea sul buffer da due punti
+static void DrawLineToBuffer
+(HDC hdcmem, HBITMAP hbmem, Point__ P1, Point__ P2, HPEN Hpen)
+{
+	SelectObject(hdcmem, hbmem);
+	SelectObject(hdcmem, Hpen);
+	MoveToEx(hdcmem, P1.GetScreenX(), P1.GetScreenY(), NULL);
+	LineTo(hdcmem, P2.GetScreenX(), P2.GetScreenY());
 }
 
 // funzione per calcolare l'incremento dei valori e dei pixel
@@ -8598,7 +8632,13 @@ static void DrawAxis(double pInc, double vInc)
 	using namespace Window3Data;
 	int OriginX{ ClientRect.right / 2 }, OriginY{ ClientRect.bottom / 2 };
 	const int MarkLenght{ 5 };
-	
+
+	// creazione dati per la scrittura
+	HDC hdcmem{ CreateCompatibleDC(GHDC) };
+	HBITMAP hbmem{
+		CreateCompatibleBitmap(GHDC, ClientRect.right, ClientRect.bottom)
+	};
+
 	// Disegno assi completi
 	tensor<int> pixelX, pixelY;
 	tensor<wstring> PixelValues;
@@ -8630,8 +8670,10 @@ static void DrawAxis(double pInc, double vInc)
 		lb.lbColor = color;
 		lb.lbHatch = 0;
 		HPEN UsedPen = ExtCreatePen(PS_DOT, 1, &lb, 0, NULL);
-		DrawLine(X1, Y1, OriginX, OriginY, CreatePen(PS_SOLID, 1, color));
-		DrawLine(OriginX, OriginY, X2, Y2, UsedPen);
+		DrawLineToBuffer(
+			hdcmem, hbmem, X1, Y1, OriginX, OriginY, CreatePen(PS_SOLID, 1, color)
+		);
+		DrawLineToBuffer(hdcmem, hbmem, OriginX, OriginY, X2, Y2, UsedPen);
 
 		// output valori degli assi
 		auto Pxf{ X2 - OriginX };
@@ -8662,14 +8704,18 @@ static void DrawAxis(double pInc, double vInc)
 			PixelValues << X << L"-" + X;
 
 			// output tratti degli assi
-			DrawLine(
+			DrawLineToBuffer(
+				hdcmem,
+				hbmem,
 				OriginX + x - cX,
 				OriginY - y - cY,
 				OriginX + x + cX,
 				OriginY - y + cY,
 				UsedPen
 			);
-			DrawLine(
+			DrawLineToBuffer(
+				hdcmem,
+				hbmem,
 				OriginX - x - cX,
 				OriginY + y - cY,
 				OriginX - x + cX,
@@ -8680,10 +8726,12 @@ static void DrawAxis(double pInc, double vInc)
 			_x += vInc;
 		}
 
-		// nome asse
-		wstring name{ wstring(1, L'x' + i) };
-		TextOut(GHDC, X1, Y1, cstr(name));
+		// output nome asse
+		TextOut(GHDC, X1, Y1, cstr(wstring(1, L'x' + i)));
 	}
+
+	// visualizzazione
+	BitBlt(GHDC, 0, 0, ClientRect.right, ClientRect.bottom, hdcmem, 0, 0, SRCPAINT);
 }
 
 #pragma endregion
@@ -16549,4 +16597,4 @@ RETURN:
 // tensor.cpp                                 810 righe
 /// totale righe non presenti in questo file: 864
 
-// fine del codice -----------------------------------------------------------------
+// fine del codice ----------------------------------------------------------------- 
