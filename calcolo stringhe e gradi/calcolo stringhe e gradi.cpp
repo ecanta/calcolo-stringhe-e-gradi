@@ -6692,7 +6692,7 @@ static void SetDebug(wstring message, switchcase& opt, bool& Return,
 );
 static void MonitorConsoleSize(COORD min, atomic_bool& runMonitor);
 static void UserInputThread();
-static void DrawAxis(double pInc, double vInc);
+static void DrawAxis(HDC hdcmem, HBITMAP hbmem, double pInc, double vInc);
 static LRESULT CALLBACK WindowProcessor2D(
 	HWND hwnd,
 	UINT uMsg,
@@ -8547,10 +8547,19 @@ static void DrawLineToBuffer(
 	HPEN Hpen
 )
 {
-	SelectObject(hdcmem, hbmem);
-	SelectObject(hdcmem, Hpen);
+	HBITMAP oldBitmap = (HBITMAP)SelectObject(hdcmem, hbmem);
+	if (!oldBitmap) ret;
+
+	HPEN oldPen = (HPEN)SelectObject(hdcmem, Hpen);
+	if (!oldPen) {
+		SelectObject(hdcmem, oldBitmap);
+		ret;
+	}
+
 	MoveToEx(hdcmem, firstX, firstY, NULL);
 	LineTo(hdcmem, secondX, secondY);
+	SelectObject(hdcmem, oldPen);
+	SelectObject(hdcmem, oldBitmap);
 }
 
 // funzione per disegnare una linea avendo due punti
@@ -8566,10 +8575,12 @@ static void DrawLine(Point__ P1, Point__ P2, HPEN hpen)
 static void DrawLineToBuffer
 (HDC hdcmem, HBITMAP hbmem, Point__ P1, Point__ P2, HPEN Hpen)
 {
-	SelectObject(hdcmem, hbmem);
-	SelectObject(hdcmem, Hpen);
-	MoveToEx(hdcmem, P1.GetScreenX(), P1.GetScreenY(), NULL);
-	LineTo(hdcmem, P2.GetScreenX(), P2.GetScreenY());
+	DrawLineToBuffer(
+		hdcmem, hbmem,
+		P1.GetScreenX(), P1.GetScreenY(),
+		P2.GetScreenX(), P2.GetScreenY(),
+		Hpen
+	);
 }
 
 // funzione per calcolare l'incremento dei valori e dei pixel
@@ -8627,17 +8638,11 @@ static void ProjectAndDrawLine
 }
 
 // funzione per disegnare 3 assi
-static void DrawAxis(double pInc, double vInc)
+static void DrawAxis(HDC hdcmem, HBITMAP hbmem, double pInc, double vInc)
 {
 	using namespace Window3Data;
 	int OriginX{ ClientRect.right / 2 }, OriginY{ ClientRect.bottom / 2 };
 	const int MarkLenght{ 5 };
-
-	// creazione dati per la scrittura
-	HDC hdcmem{ CreateCompatibleDC(GHDC) };
-	HBITMAP hbmem{
-		CreateCompatibleBitmap(GHDC, ClientRect.right, ClientRect.bottom)
-	};
 
 	// Disegno assi completi
 	tensor<int> pixelX, pixelY;
@@ -8729,9 +8734,6 @@ static void DrawAxis(double pInc, double vInc)
 		// output nome asse
 		TextOut(GHDC, X1, Y1, cstr(wstring(1, L'x' + i)));
 	}
-
-	// visualizzazione
-	BitBlt(GHDC, 0, 0, ClientRect.right, ClientRect.bottom, hdcmem, 0, 0, SRCPAINT);
 }
 
 #pragma endregion
@@ -9584,10 +9586,17 @@ static LRESULT CALLBACK WindowProcessor3D(
 		);
 		SelectObject(hdc, hFont);
 
+		// creazione dati per il disegno ottimizzato del grafico
+		HDC hdcmem{ CreateCompatibleDC(hdc) };
+		HBITMAP hbmem{
+			CreateCompatibleBitmap(hdc, client.right, client.bottom)
+		};
+		SelectObject(hdcmem, hbmem);
+
 		double PixelIncrement, ValueIncrement;
 		IncrementCalculator(Zoom, PixelIncrement, ValueIncrement);
-		DrawAxis(PixelIncrement, ValueIncrement);
-
+		DrawAxis(hdcmem, hbmem, PixelIncrement, ValueIncrement);
+		
 		// calcolo dei vertici dei quadrilateri
 		tensor<tensor<Point__>> mesh;
 		for (double x = -15 * Zoom; x < 15 * Zoom; x += 0.5 * Zoom)
@@ -9610,7 +9619,6 @@ static LRESULT CALLBACK WindowProcessor3D(
 		for (size_t i = 0; i < mesh.size() - 1; ++i)
 			for (size_t j = 0; j < mesh[i].size() - 1; ++j)
 			{
-
 				// esclusione di punti in più
 				tensor<Point__> square{
 					mesh[i][j], mesh[i][j + 1], mesh[i + 1][j], mesh[i + 1][j + 1]
@@ -9643,17 +9651,14 @@ static LRESULT CALLBACK WindowProcessor3D(
 				if (RgbValue < 0) continue;
 
 				// output
-				DrawLine(
-					square[0], square[1],
-					CreatePen(PS_SOLID, 1, RGB(RgbValue, RgbValue, RgbValue))
-				);
-				DrawLine(
-					square[0], square[2],
-					CreatePen(PS_SOLID, 1, RGB(RgbValue, RgbValue, RgbValue))
-				);
+				HPEN pen{ CreatePen(PS_SOLID, 1, RGB(RgbValue, RgbValue, RgbValue)) };
+				SelectObject(hdcmem, pen);
+				DrawLineToBuffer(hdcmem, hbmem, square[0], square[1], pen);
+				DrawLineToBuffer(hdcmem, hbmem, square[0], square[2], pen);
+				DeleteObject(pen);
 			}
-
-		DrawAxis(PixelIncrement, ValueIncrement);
+		
+		DrawAxis(hdcmem, hbmem, PixelIncrement, ValueIncrement);
 
 		// output punti stazionari
 		for (size_t i = 0; i < StatX; ++i) {
@@ -9688,6 +9693,9 @@ static LRESULT CALLBACK WindowProcessor3D(
 		}
 
 		// fine disegno
+		BitBlt(hdc, 0, 0, client.right, client.bottom, hdcmem, 0, 0, SRCPAINT);
+		DeleteObject(hbmem);
+		DeleteDC(hdcmem);
 		EndPaint(hwnd, &ps);
 		ret 0;
 	}
@@ -9775,7 +9783,7 @@ static void Project3DGraph(Fraction<> funct)
 	);
 	if (!hwnd) ret;
 	ShowWindow(hwnd, SW_SHOW);
-
+	
 	// ciclo dei messaggi
 	MSG msg{};
 	while (GetMessage(&msg, NULL, 0, 0)) {
