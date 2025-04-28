@@ -853,7 +853,7 @@ public:
 	}
 
 	// costruttori
-	big() : sign(POS), Integer(0), decimal(0) {}
+	big() : sign(POS), Integer({ 0 }), decimal(0) {}
 	big(int param) : sign(param < 0), Integer(0), decimal(0)
 	{
 		construct(abs(param));
@@ -1104,10 +1104,14 @@ public:
 
 		// arrotondamento
 		auto output = value.Integer > 10 ? result : (*this) * result;
-		if (_STD round(output.decimal) == 1)
+		if (integer(output.decimal))
 		{
-			output.Integer.last()++;
-			output.decimal = 0;
+			output.decimal = _STD round(output.decimal);
+			if (output.decimal == 1)
+			{
+				output.decimal = 0;
+				output++;
+			}
 		}
 		for (ptrdiff_t i = output.Integer.size() - 1; i > 0; --i)
 		{
@@ -4941,7 +4945,16 @@ public:
 					pol.erase(pol.begin() + j);
 				}
 			}
-			pol >> factor<big>{ head };
+
+			// riaggiunta del coefficiente
+			if (pol.empty())
+			{
+				pol << factor<big>{ head };
+			}
+			else
+			{
+				pol[0] *= factor<big>{ head };
+			}
 		}
 
 		// prevenzione dell'annullamento
@@ -6662,9 +6675,6 @@ static void CS_CornerPrinter();
 static void ProgressBar(long double ratio, double barWidth);
 static long double WaitingScreen
 (LARGE_INTEGER begin, LARGE_INTEGER end, wstring Text = L"");
-#define GRAPHED (1 << 2)
-#define CHANGEDVALUE (1 << 1)
-#define BOOLALPHACHANGED 1
 static wstring GetLine(tensor<wstring>& sugg, bool ShowSuggestions = true);
 static big TranslateUserNum(wstring expr, wstring& err);
 static wstring GetUserNum
@@ -6744,6 +6754,8 @@ static polynomial<> SquareDifference(factor<> vect);
 static polynomial<> Ruffini(factor<> vect);
 static polynomial<> CompleteTheSquare(factor<> vect);
 static polynomial<> TrinomialSquare(factor<> vect);
+template<typename T> static void CoordFractions
+(tensor<Fraction<T>>& fractions, tensor<wstring> OldVars, wstring vars);
 static FACTOR<> Complementary(POLYNOMIAL<> Polynomial, FACTOR<> factor, int exp);
 static void Simplify(Fraction<>& fr, int& ncoeff, int& dcoeff);
 static void Approximator(tensor<long double>& Equation, long double& root);
@@ -12763,6 +12775,44 @@ static polynomial<> TrinomialSquare(factor<> vect)
 // funzioni utili per lavorare con le frazioni algebriche
 #pragma region Algebric
 
+// coordina varie frazioni algebriche secondo uno standard
+template<typename T> static void CoordFractions
+(tensor<Fraction<T>>& fractions, tensor<wstring> OldVars, wstring vars)
+{
+	tensor<int> null(vars.size(), 0);
+	for (size_t i = 0; i < fractions.size() * 2; ++i) {
+		if (OldVars[i] == vars) continue;
+		
+		// accesso
+		polynomial<T>& old = i % 2 ? fractions[i / 2].den : fractions[i / 2].num;
+		
+		// correzione
+		for (auto& fact : old) {
+
+			// aggiunta di spazio
+			for (auto& mon : fact) mon.exp(vars.size(), 0);
+			
+			// correzione
+			factor<T> correct;
+			for (const auto& mono : fact)
+				correct << monomial<T>{ mono.coefficient, null };
+			
+			// riposizionamento valori degli esponenti
+			for (size_t j = 0; j < OldVars[i].size(); ++j) {
+				auto pos{ vars.find(OldVars[i].at(j)) };
+				if (pos == wstring::npos) continue;
+
+				for (size_t k = 0; k < correct; ++k)
+					correct[k].exp[pos] = fact[k].exp[j];
+			}
+
+			// aggiornamento modifiche
+			fact = correct;
+		}
+	}
+	Variables = vars;
+}
+
 // traduce le frazioni e coordina le loro variabili
 static tensor<Fraction<big>> GetManyFractions
 (tensor<wstring> numerators, tensor<wstring> denominators, wstring& errcode)
@@ -12780,6 +12830,7 @@ static tensor<Fraction<big>> GetManyFractions
 	tensor<int> null(Variables.size(), 0);
 
 	// traduzione
+	tensor<wstring> Vars;
 	for (size_t i = 0; i < un; ++i) {
 		bool isnum{ i % 2 == 0 };
 		if (isnum) fractions << Fraction<big>{};
@@ -12790,30 +12841,12 @@ static tensor<Fraction<big>> GetManyFractions
 
 		// traduzione stringhe
 		auto old{ PolynomialMultiply<big>(GetMonomialsAssister(str)) };
-		if (Variables == savx or savx.empty()) {
-			savx = Variables;
-			isnum ? fractions.last().num = { old } : fractions.last().den = { old };
-			continue;
-		}
-		for (auto& mon : old) mon.exp(savx.size(), 0);
-
-		// correzione
-		factor<big> correct;
-		for (const auto& mono : old)
-			correct << monomial<big>{ mono.coefficient, null };
-		for (size_t j = 0; j < Variables.size(); ++j) {
-			auto pos{ savx.find(Variables.at(j)) };
-			if (pos == wstring::npos) continue;
-			for (size_t k = 0; k < correct; ++k)
-				correct[k].exp[pos] = old[k].exp[j];
-		}
-
-		// impostazione
-		isnum ?
-			fractions.last().num = { correct } : fractions.last().den = { correct };
-		Variables = savx;
+		isnum ? fractions.last().num = { old } : fractions.last().den = { old };
+		Vars << Variables;
 	}
 
+	// coordinazione
+	CoordFractions(fractions, Vars, savx);
 	ret fractions;
 }
 
@@ -14668,16 +14701,18 @@ static wstring ExpandNumber(
 					ErrorMessage = L"Errore di sintassi algebrico: " + ErrorMessage;
 					goto input;
 				}
-			}
-			if (Number == 0) {
-				ErrorMessage = L"Niente zeri";
-				goto input;
-			}
 
-			// controllo dimensioni
-			if (Number.Size() > 50) {
-				ErrorMessage = L"Overflow: numero troppo grande";
-				goto input;
+				// valore nullo
+				if (Number == 0) {
+					ErrorMessage = L"Niente zeri";
+					goto input;
+				}
+
+				// controllo dimensioni
+				if (Number.Size() > 50) {
+					ErrorMessage = L"Overflow: numero troppo grande";
+					goto input;
+				}
 			}
 
 			// setup della decodifica di debug
@@ -14706,7 +14741,7 @@ static wstring ExpandNumber(
 			tensor<int> coefficients;
 			for (int i = 0;; ++i) {
 				if (number < base) break;
-				big quotient = number / base;
+				big quotient = (number / base).floor();
 				coefficients << (number - quotient * base).Number<int>();
 				number = quotient;
 			}
@@ -15543,8 +15578,8 @@ static void DecompAndSolve(switchcase& argc)
 
 	// istruzioni
 	SetConsoleTextAttribute(hConsole, 14);
-	wcout << L"Il PROGRAMMA scompone, semplifica, esegue lo studio del segno\n";
-	wcout << L"e disegna il grafico delle frazioni algebriche\n\n";
+	wcout << L"Il PROGRAMMA scompone, semplifica le frazioni algebriche, \n";
+	wcout << L"risolve equazioni, disequazioni e disegna grafici\n\n";
 	SetConsoleTextAttribute(hConsole, 12);
 	wcout << L"Per disegnare il grafico aggiungere '\\' all'inizio\n";
 	wcout << L"Nel grafico è possibile premere il tasto X per eliminare\n";
@@ -15583,7 +15618,7 @@ static void DecompAndSolve(switchcase& argc)
 		Fraction<> it{
 			FromBigToDefault(inputed.num), FromBigToDefault(inputed.den)
 		};
-		VariablesDisposition << Variables;
+		VariablesDisposition << Variables << Variables;
 
 		// ridirezionamento
 		if (argc != NotAssigned) {
@@ -15693,49 +15728,10 @@ static void DecompAndSolve(switchcase& argc)
 		for (auto& disp : VariablesDisposition) for (const auto& ch : complete)
 			if (disp.find(ch) == wstring::npos) disp += ch;
 
-		// allocazione di memoria in più
-		for (auto& fraction : Fractions) {
-			for (auto& fact : fraction.num) for (auto& mon : fact)
-				mon.exp(complete.size());
-			for (auto& fact : fraction.den) for (auto& mon : fact)
-				mon.exp(complete.size());
-		}
-
-		// ridisposizione
-		tensor<int> ExpNull(complete.size(), 0);
-		for (size_t i = 0; i < 2 * Fractions.size(); ++i) {
-			if (VariablesDisposition[i / 2] == complete) continue;
-
-			// preparazione polinomi
-			auto& old = i % 2 ? Fractions[i / 2].den : Fractions[i / 2].num;
-			polynomial<> correct(old.size());
-			for (size_t j = 0; j < correct; ++j) for (const auto& mono : old[j])
-				correct[j] << monomial<>{ mono.coefficient, ExpNull };
-
-			// correzione esponenti
-			for (size_t j = 0; j < VariablesDisposition[i / 2].size(); ++j) {
-				auto pos{ complete.find(VariablesDisposition[i / 2].at(j)) };
-				if (pos == wstring::npos) continue;
-				for (size_t k = 0; k < correct; ++k)
-					for (size_t l = 0; l < correct[k]; ++l)
-						correct[k][l].exp[pos] = old[k][l].exp[j];
-			}
-
-			old = correct;
-		}
-
-		// numero di variabili eccessivo
+		// coordinazione
+		CoordFractions(Fractions, VariablesDisposition, complete);
 		VariablesDisposition.clear();
-		if (Variables.size() > Fractions.size() + 1) {
-			SetConsoleTextAttribute(hConsole, 12);
-			wcout << L"Troppe variabili!!\a\n";
-			ResetAttribute();
-
-			Fractions.clear();
-			startover = true;
-			continue;
-		}
-
+		
 		// valutazioni proprietà frazione algebrica
 		if (Fractions == 1 and !_equation)
 		{
@@ -16056,6 +16052,17 @@ static void DecompAndSolve(switchcase& argc)
 			continue;
 		}
 
+		// numero di variabili eccessivo
+		if (Variables.size() > Fractions.size() + 1) {
+			SetConsoleTextAttribute(hConsole, 12);
+			wcout << L"Troppe variabili!!\a\n";
+			ResetAttribute();
+
+			Fractions.clear();
+			startover = true;
+			continue;
+		}
+
 		// traduzione secondaria
 		polynomial<> equations;
 		for (const auto& eq : Fractions) equations << eq.num[0];
@@ -16184,11 +16191,16 @@ static void DecompAndSolve(switchcase& argc)
 		}
 		// sistema parametrico
 
-		// priorità delle variabili
+		// calcolo variabili
 		int pIndex{ -1 };
 		wstring VarOrder;
 		tensor<int> VariablePos;
-		const wstring VariablePriority{ L"xyzuvtsabcd" };
+		wstring VariablePriority{ L"xyzuvtskabcd" };
+		for (wchar_t ch = 0; ch <= 255; ++ch)
+			if (Variables.find(ch) != wstring::npos and
+				VariablePriority.find(ch) == wstring::npos) VariablePriority += ch;
+
+		// calcolo priorità delle variabili
 		for (const auto& var : VariablePriority) {
 			auto pos{ Variables.find(var) };
 			if (pos != wstring::npos) {
