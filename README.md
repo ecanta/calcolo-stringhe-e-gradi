@@ -66,7 +66,64 @@ Tutte le istruzioni per l’utilizzo verranno mostrate nelle schermate varie del
 
 <h2>Libreria: funzioni e classi utili e come utilizzarle</h2>
 
-In questa sezione verranno documentate le classi e funzioni principali del progetto, con esempi su come integrarle in altri progetti.
+In tensor.cpp:
+
+<br>
+
+contenuti del namespace `std_tensor`:
+
+<br>
+
++ classe `tensor`:
+  
+  E' una versione ottimizzata e personalizzata di un vettore; contiene
+  + metodo `resize` (protetto): cambia la dimensione del tensore
+  + operatori `=` e metodo `assign` per l'assegnazione
+  + metodi `Data`, `size`, `get_capacity` per ottenere rispettivamente array degli elementi, dimensione e capacità
+  + metodo `empty` per verificare se il tensore è vuoto
+  + operatore `[]` e metodo `at` per accedere agli elementi
+  + metodo `last` per accedere all'ultimo elemento
+  + metodo `clear` per svuotare il tensore
+  + metodo `erase` per eliminare elementi secondo vari criteri
+  + metodi `push_back` (= operatore `<<`) e `push_front` (= operatore `>>`) per aggiungere elementi alla fine o all'inizio del tensore
+  + metodi `pop_back` (= operatore `--` posto dopo l'oggetto) e `pop_front` (= operatore `--` posto prima dell'oggetto) per rimuovere
+    elementi alla fine o all'inizio del tensore
+  + operatori `++` per aggiungere un elemento vuoto
+  + operatore `-=` per rimuovere un numero prefissato di elementi dalla fine
+  + operatore `()` per fissare la dimensione del tensore
+  + operatori di confronto
+  + operatori `+` e `+=` per concatenare due tensori
+  + operatori di confronto con un intero (confrontano la dimensione del tensore con tale intero)
+  + operatori `&&` (and), `||` (or) e `%` (xor) per confrontare le dimensioni tra due tensori
+  + classe `iterator`: iteratore normalissimo
+  + metodi `begin` e `end` che restituiscono tali iteratori
+  + metodo `insert` per inserire dei valori a posizioni specifiche
+  + metodo `remove` per rimuovere le occorrenze di un valore
+  + metodo `str` per visualizzare i contenuti del tensore sotto forma di stringa
+  + operatore `<<` di wostream
+
+<br>
+
+In calcolo stringhe e gradi.cpp:
+
+<br>
+
++ struttura `compost`: rappresenta un fattore primo di un numero con il suo esponente
++ struttura `divisor`: contiene i dati dei divisori di un numero
++ struttura `digitRatio`: contiene i dati delle cifre di un numero
++ struttura `coord`: `COORD` di Windows ma in virgola mobile
+
+<br>
+
++ enum `switchcase`: è la lista di tutti gli indirizzi dei sottoprogrammi del programma principale
++ mappa `stringToEnumMap`: mappa le direttive con gli indirizzi
++ mappa `enumToStringMap`: mappa gli indirizzi con le direttive
++ mappa `ConvertFromSuperScript`: mappa gli apici con le cifre a cui corrispondono
+
+<br>
+
++ stringa `Variables`: contiene l'ordine delle variabili in tutti i polinomi nel programma (è unico)
++ ...
 
 <h2>Autore</h2>
 

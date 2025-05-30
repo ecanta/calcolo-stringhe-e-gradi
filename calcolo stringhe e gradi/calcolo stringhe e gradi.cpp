@@ -823,6 +823,7 @@ private:
 		ret result;
 	}
 
+	// conversione
 public:
 	template<typename t> t Number()
 	{
@@ -932,7 +933,7 @@ public:
 	// confronto secondario
 	bool operator<(const big& other) const
 	{
-		ret(sign xor other.sign) ? sign : (compare(*this, other) xor sign);
+		ret (sign xor other.sign) ? sign : (compare(*this, other) xor sign);
 	}
 	inline bool operator<=(const big& other) const
 	{
@@ -1346,22 +1347,22 @@ public:
 	RadicalUnit() : coefficient(0), Arg(1), primes({ 1 }) {}
 	RadicalUnit(int coeff) : coefficient(coeff), Arg(1), primes({ 1 }) {}
 	RadicalUnit(int coeff, int arg)
-		: coefficient(coeff), Arg(1), primes({ abs(arg) })
+		: coefficient(coeff), Arg(arg), primes({ abs(arg) })
 	{
-		if (arg < 0)
+		if (Arg < 0)
 		{
-			arg *= -1;
+			Arg *= -1;
 			coefficient *= -1;
 		}
 		normalize();
 	}
 	RadicalUnit(int coeff, int arg, bool off)
-		: coefficient(coeff), Arg(abs(arg)), primes({ abs(arg) })
+		: coefficient(coeff), Arg(arg), primes({ abs(arg) })
 	{
-		if (arg < 0)
+		if (Arg < 0)
 		{
 			coefficient *= -1;
-			arg *= -1;
+			Arg *= -1;
 		}
 	}
 
@@ -1390,34 +1391,49 @@ public:
 	// metodo di pulizia
 	bool normalize()
 	{
-		Arg = 1;
-		if (coefficient == 0)
-		{
-			*this = RadicalUnit();
-			ret false;
-		}
-
 		// overflow
 		auto value{ pow(approximation(), 2) };
-		if (value < GlobalMax)
+		if (value >= GlobalMax)
 		{
 			ret true;
 		}
+		
+		// inizio
+		bool sign = coefficient < 0;
+		if (coefficient == 0)
+		{
+			Arg = 1;
+			primes = { 1 };
+			ret false;
+		}
+		coefficient = 1;
+		Arg = 1;
+		primes = { 1 };
 
 		// scomposizione
 		auto decomposition{ DecomposeNumber(value) };
 		for (auto& fact : decomposition)
 		{
+			if (fact.factors == 0)
+			{
+				break;
+			}
 			if (fact.exp > 1)
 			{
 				coefficient *= pow(fact.factors, fact.exp / 2);
 			}
-			if (fact.exp % 2 == 0)
+			if (fact.exp % 2)
 			{
 				Arg *= fact.factors;
 				primes << fact.factors;
 			}
 		}
+
+		if (sign)
+		{
+			coefficient *= -1;
+		}
+		ret false;
 	}
 
 	// operazioni non supportate
@@ -1562,7 +1578,7 @@ public:
 		_GetCursorPos();
 		SetCursor.X = csbi.dwCursorPosition.X;
 		SetConsoleCursorPosition(hConsole, SetCursor);
-		ResetAttribute();
+		SetConsoleTextAttribute(hConsole, attrib);
 	}
 
 	// output
@@ -1587,6 +1603,7 @@ public:
 	{
 		_GetCursorPos();
 		obj.write(csbi.wAttributes);
+		SetConsoleTextAttribute(hConsole, csbi.wAttributes);
 		ret os;
 	}
 };
@@ -1776,9 +1793,9 @@ public:
 		{
 			SetConsoleTextAttribute(hConsole, attrib);
 			wcout << L' ' << (elements[i].negative() ? L'-' : L'+') << L' ';
-			ResetAttribute();
 			elements[i].write(attrib, true);
 		}
+		SetConsoleTextAttribute(hConsole, attrib);
 	}
 
 	// output
@@ -1789,7 +1806,7 @@ public:
 		{
 			if (i > 0)
 			{
-				oss << elements[i].negative() ? L'-' : L'+';
+				oss << (elements[i].negative() ? L'-' : L'+');
 			}
 			else if (elements[i].negative())
 			{
@@ -1803,6 +1820,7 @@ public:
 	{
 		_GetCursorPos();
 		obj.write(csbi.wAttributes);
+		SetConsoleTextAttribute(hConsole, csbi.wAttributes);
 		ret os;
 	}
 };
@@ -2168,10 +2186,13 @@ public:
 	T_int coefficient{};
 	tensor<int> exp;
 
+	// uguaglianzaa
 	bool operator==(const monomial& other) const
 	{
 		ret coefficient == other.coefficient and exp == other.exp;
 	}
+
+	// calcolo del grado totale
 	int degree() const
 	{
 		int sum{};
@@ -2181,6 +2202,8 @@ public:
 		}
 		ret sum;
 	}
+
+	// quadrato perfetto
 	bool IsSquare() const
 	{
 		if (!integer(sqrt(fabs(this->coefficient))))
@@ -2197,6 +2220,7 @@ public:
 		ret true;
 	}
 
+	// radice
 	monomial Root(int order) const
 	{
 		monomial result;
@@ -2210,6 +2234,7 @@ public:
 		ret result;
 	}
 
+	// rappresentazione
 	_NODISCARD wstring str(int size = Variables.size()) const
 	{
 		// caso nullo
@@ -2260,6 +2285,7 @@ public:
 // fattori di polinomi
 template<typename T_int = long double>class factor : public tensor<monomial<T_int>>
 {
+	// costruttori
 public:
 	factor() {}
 	factor(initializer_list<monomial<T_int>> init): tensor<monomial<T_int>>(init) {}
@@ -2282,6 +2308,7 @@ public:
 		}
 	}
 
+	// ordinamento termini
 	void SortByDegree()
 	{
 		for (size_t i = 0; i < this->size(); ++i)
@@ -2328,6 +2355,7 @@ public:
 		}
 	}
 
+	// derivazione
 	factor derivate(size_t Vpos) const
 	{
 		tensor<int> null(Variables.size(), 0);
@@ -2352,6 +2380,7 @@ public:
 		ret Derivative;
 	}
 
+	// valutazione
 	T_int operator()(tensor<long double> params) const
 	{
 		if (params > Variables.size())
@@ -2385,6 +2414,7 @@ public:
 		ret y >= 0;
 	}
 
+	// operazioni
 	inline factor neg() const
 	{
 		auto This{ *this };
@@ -2399,6 +2429,7 @@ public:
 	inline factor& operator-=(const factor& other);
 	inline factor& operator*=(const factor& other);
 
+	// rappresentazione
 	_NODISCARD wstring str(int size = Variables.size()) override
 	{
 		wstring polynomial;
@@ -2417,6 +2448,7 @@ public:
 		ret polynomial;
 	}
 
+	// output
 	friend wostream& operator<<(wostream& os, factor& obj)
 	{
 		os << obj.str();
@@ -2425,6 +2457,7 @@ public:
 };
 template<typename T_int = long double>class FACTOR : public tensor<MONOMIAL<T_int>>
 {
+	// costruttori
 public:
 	FACTOR() {}
 	FACTOR(initializer_list<MONOMIAL<T_int>> init): tensor<MONOMIAL<T_int>>(init) {}
@@ -2447,6 +2480,7 @@ public:
 		}
 	}
 
+	// ordinamento
 	void sort()
 	{
 		for (size_t i = 0; i < this->size(); ++i)
@@ -2460,6 +2494,8 @@ public:
 			}
 		}
 	}
+
+	// riempimento
 	void complete(int s)
 	{
 		// riempimento buchi
@@ -2493,6 +2529,7 @@ public:
 		}
 	}
 
+	// derivazione
 	FACTOR derivate() const
 	{
 		if (this->size() == 0)
@@ -2518,6 +2555,7 @@ public:
 		ret Derivative;
 	}
 
+	// valutazione
 	T_int operator()(T_int x) const
 	{
 		T_int fx{};
@@ -2530,6 +2568,7 @@ public:
 		ret fx;
 	}
 
+	// operatori
 	inline FACTOR neg() const
 	{
 		auto This{ *this };
@@ -2544,6 +2583,7 @@ public:
 	inline FACTOR& operator-=(const FACTOR& other);
 	inline FACTOR& operator*=(const FACTOR& other);
 
+	// rappresentazione
 	_NODISCARD wstring str(int size = Variables.size()) override
 	{
 		factor<T_int> traduction;
@@ -2559,12 +2599,15 @@ public:
 		ret traduction.str(1);
 	}
 
+	// output
 	friend wostream& operator<<(wostream& os, const FACTOR& obj)
 	{
 		os << obj.str();
 		ret os;
 	}
 };
+
+// funzioni di conversione
 static factor<> ToXV(FACTOR<> vect)
 {
 	factor<> output;
@@ -2604,6 +2647,7 @@ static void DeduceFromExponents(wstring& str);
 template<typename T_int = long double>class polynomial
 	: public tensor<factor<T_int>>
 {
+	// costruttori
 public:
 	polynomial() {}
 	polynomial(initializer_list<factor<T_int>> init): tensor<factor<T_int>>(init) {}
@@ -2626,6 +2670,7 @@ public:
 		}
 	}
 
+	// inlineazione degli esponenti
 	void open()
 	{
 		for (size_t i = 0; i < this->count; ++i)
@@ -2642,6 +2687,8 @@ public:
 			}
 		}
 	}
+
+	// contrazione degli esponenti
 	void close()
 	{
 		tensor<int> modifier(Variables.size());
@@ -2698,6 +2745,7 @@ public:
 		}
 	}
 
+	// rappresentazione
 	_NODISCARD wstring str(int size = Variables.size()) override
 	{
 		if (this->count == 0)
@@ -2823,6 +2871,7 @@ public:
 		ret ElabExponents(output);
 	}
 
+	// output
 	friend wostream& operator<<(wostream& os, polynomial& obj)
 	{
 		os << obj.str();
@@ -2832,6 +2881,7 @@ public:
 template<typename T_int = long double>class POLYNOMIAL
 	: public tensor<FACTOR<T_int>>
 {
+	// costruttori
 public:
 	POLYNOMIAL() {}
 	POLYNOMIAL(initializer_list<FACTOR<T_int>> init): tensor<FACTOR<T_int>>(init) {}
@@ -2854,6 +2904,7 @@ public:
 		}
 	}
 
+	// inlineazione degli esponenti
 	void open()
 	{
 		polynomial<T_int> NewClass;
@@ -2868,6 +2919,8 @@ public:
 			this->push_back(To1V(NewClass[i]));
 		}
 	}
+
+	// contrazione degli esponenti
 	void close()
 	{
 		polynomial<T_int> NewClass;
@@ -2883,6 +2936,7 @@ public:
 		}
 	}
 
+	// rappresentazione
 	_NODISCARD wstring str(int size = Variables.size()) override
 	{
 		polynomial<T_int> traduction;
@@ -2893,6 +2947,7 @@ public:
 		ret traduction.str(1);
 	}
 
+	// output
 	friend wostream& operator<<(wostream& os, const POLYNOMIAL& obj)
 	{
 		os << obj.str();
@@ -2900,6 +2955,7 @@ public:
 	}
 };
 
+// funzioni di conversione
 static polynomial<> ToXV(POLYNOMIAL<> vect)
 {
 	polynomial<> output;
@@ -2941,12 +2997,13 @@ static polynomial<> FromBigToDefault(polynomial<big> BigPolynomial)
 	ret traduction;
 }
 
+// // operatori importanti
 template<typename T_int = long double>
 static factor<T_int> PolynomialSum(factor<T_int> vect);
 template<typename T_int = long double>
 static factor<T_int> PolynomialMultiply(polynomial<T_int> Polynomial);
-
 template <class T_int>
+
 factor<T_int> factor<T_int>::operator()(T_int x, size_t Vpos, int) const
 {
 	auto This{ *this };
@@ -3003,15 +3060,18 @@ FACTOR<T_int>::operator*=(const FACTOR& other)
 	*this = *this * other;
 	ret *this;
 }
+// //
 
 // frazioni
 template<typename T> T ObjectOperations
 (wstring& errcode, tensor<T> list, tensor<wstring> ops, wstring disposition = L"");
 template<class T = long double>class Fraction
 {
+	// componenti
 public:
 	polynomial<T> num, den;
 
+	// costruttori
 	Fraction() :
 		num(polynomial<T>{ { { 0, tensor<int>(Variables.size(), 0) } } }),
 		den(polynomial<T>{ { { 1, tensor<int>(Variables.size(), 0) } } })
@@ -3023,12 +3083,15 @@ public:
 	Fraction(polynomial<T> numerator, polynomial<T> denominator) :
 		num(numerator), den(denominator) {}
 
+	// moltiplicazione
 	Fraction extend()
 	{
 		num = { PolynomialMultiply<T>(num) };
 		den = { PolynomialMultiply<T>(den) };
 		ret *this;
 	}
+
+	// derivazione
 	Fraction derivate(size_t Vpos) const
 	{
 		Fraction derivative{
@@ -3051,6 +3114,7 @@ public:
 		ret derivative;
 	}
 
+	// operazioni algebriche del primo ordine
 	Fraction operator+(const Fraction& other) const
 	{
 		Fraction res;
@@ -3082,6 +3146,7 @@ public:
 		ret *this;
 	}
 
+	// operazioni algebriche del secondo ordine
 	Fraction operator*(const Fraction& other) const
 	{
 		Fraction res;
@@ -3114,6 +3179,7 @@ public:
 		ret *this;
 	}
 
+	// valutazioni
 	Fraction operator()(T x, size_t Vpos) const
 	{
 		auto res{ *this };
@@ -3145,6 +3211,7 @@ public:
 		ret num == other.num and den == other.den;
 	}
 
+	// rappresentazione
 	wstring str()
 	{
 		// frazione semplice
@@ -3173,6 +3240,7 @@ public:
 		ret Num + L" / " + Den;
 	}
 
+	// output
 	friend wostream& operator<<(wostream& os, const Fraction& obj)
 	{
 		os << obj.str();
@@ -3304,6 +3372,7 @@ public:
 		activator = true;
 	}
 
+	// se un nodo è presente
 	bool contains(key index) const
 	{
 		for (size_t i = 0; i < lister; ++i)
@@ -3316,6 +3385,7 @@ public:
 		ret false;
 	}
 
+	// pulizia
 	void clean()
 	{
 		// controllo sul nodo maggiore
@@ -3384,6 +3454,7 @@ public:
 		}
 	}
 
+	// elementi sottostanti un nodo
 	tensor<key> underbranch(key node) const
 	{
 		tensor<key> output;
@@ -3399,6 +3470,7 @@ public:
 		ret output;
 	}
 
+	// aggiunta di un elemento
 	void Insert(key where, wstring Num = L"", wstring Den = L"@")
 	{
 		// ottenimento ramo principale
@@ -3460,6 +3532,7 @@ public:
 		clean();
 	}
 
+	// rimozione di un elemento
 	void Remove(key node)
 	{
 		// rimozione di tutti i termini sottostanti al nodo
@@ -3583,6 +3656,7 @@ public:
 		lister = container[1];
 	}
 
+	// calcolo dimensioni
 	COORD GetDimensions(key node = {})
 	{
 		// fine ricorsione
@@ -3677,6 +3751,7 @@ public:
 		ret result;
 	}
 
+	// calcolo posizioni
 	void GetPositions()
 	{
 		// calcolo dimensioni
@@ -3798,6 +3873,7 @@ public:
 		}
 	}
 
+	// output
 	bool out(COORD& StarterCoord)
 	{
 		// console
@@ -3912,6 +3988,7 @@ public:
 		ret true;
 	}
 
+	// posizionamento cursore
 	COORD CursorPosition(key at)
 	{
 		// calcolo dimensioni
@@ -3960,6 +4037,7 @@ public:
 		ret result;
 	}
 
+	// riscrittura
 	bool rewrite(COORD& Begin, key location, int phase)
 	{
 		if (activator)
@@ -3992,6 +4070,7 @@ public:
 		ret true;
 	}
 
+	// input
 	Fraction<ReturnedFractionType> in
 	(switchcase& redirection, wstring& errorcode, bool& graph, bool& equate)
 	{
@@ -4682,6 +4761,7 @@ public:
 		}
 	}
 
+	// traduzione
 	Fraction<ReturnedFractionType> Export
 	(switchcase& redirection, wstring& errorcode, bool& graph, bool& equate)
 	{
@@ -5408,6 +5488,7 @@ public:
 		ret This;
 	}
 
+	// visualizzazione
 	inline void output() const
 	{
 		for (int i = 0; i < this->size(); ++i)
@@ -5441,6 +5522,7 @@ public:
 	Matrix() {}
 	using tensor<tensor<_Ty>>::tensor;
 
+	// output
 	int output(
 		COORD SelectedElement = { -1, -1 },
 		int& extension = __NULL__,
@@ -5714,6 +5796,7 @@ public:
 		ret line;
 	}
 
+	// input
 	bool input(wstring& errcode)
 	{
 		setlocale(LC_ALL, "");
@@ -6300,6 +6383,7 @@ public:
 		ret *this != Matrix<_Ty>{};
 	}
 
+	// output di più matrici
 	void DisplayWith(const Matrix other) const
 	{
 		_GetCursorPos();
@@ -6338,6 +6422,7 @@ public:
 		wcout << L'\n';
 	}
 
+	// somma
 	Matrix operator+(const Matrix other) const
 	{
 		Matrix result(*this);
@@ -6356,6 +6441,7 @@ public:
 		ret *this;
 	}
 
+	// sottrazione
 	Matrix operator-(const Matrix other) const
 	{
 		Matrix result(*this);
@@ -6374,6 +6460,7 @@ public:
 		ret *this;
 	}
 
+	// moltiplicazioni
 	tensor<_Ty> operator*(const tensor<_Ty> vector) const
 	{
 		if (vector.size() != this->size())
@@ -6392,7 +6479,6 @@ public:
 		}
 		ret product;
 	}
-
 	Matrix operator*(const _Ty scalar) const
 	{
 		auto This{ *this };
@@ -6410,7 +6496,6 @@ public:
 		*this = *this * scalar;
 		ret *this;
 	}
-
 	Matrix operator*(const Matrix other) const
 	{
 		if (*this % other)
@@ -6441,6 +6526,7 @@ public:
 		ret *this;
 	}
 
+	// determinante
 	template<typename T = _Ty> T det()
 	{
 		if constexpr (is_same_v<T, factor<>>)
@@ -6524,6 +6610,7 @@ public:
 		ret T();
 	}
 
+	// matrice inversa
 	Matrix invert(_Ty det = 0)
 	{
 		Matrix<_Ty> result(this->size());
@@ -6562,6 +6649,7 @@ public:
 		ret result;
 	}
 
+	// calcolo degli autovalori
 	tensor<double> EigenValues()
 	{
 
@@ -6608,6 +6696,7 @@ public:
 		ret eigenvalues;
 	}
 
+	// calcolo degli autovettori
 	Matrix EigenVectors(tensor<double> EigenV = {})
 	{
 		size_t size{ this->size() };
@@ -6722,12 +6811,14 @@ static void ProjectAndDrawLine
 (tensor<long double> start, tensor<long double> end, HPEN Hpen);
 class Point__
 {
+	// componenti
 private:
 	int ScreenX, ScreenY;
 	tensor<long double> Normal;
 public:
 	long double x, y, z;
 
+	// elementi
 	Point__() : x(0), y(0), z(0), ScreenX(-1), ScreenY(-1), Normal(3) {}
 	Point__(long double _x, long double _y, long double _z)
 		: x(_x), y(_y), z(_z), ScreenX(-1), ScreenY(-1), Normal(3)
@@ -6739,6 +6830,7 @@ public:
 		: x(_x), y(_y), z(funct({ x, y })), ScreenX(-1), ScreenY(-1), Normal(3)
 	{}
 
+	// getter
 	int GetScreenX()
 	{
 		if (ScreenX == -1)
@@ -6760,12 +6852,14 @@ public:
 		ret Normal;
 	}
 
+	// null
 	bool Void() const
 	{
 		ret x == 0 and y == 0 and z == 0 and
 			ScreenX == -1 and ScreenY == -1 and Normal == tensor<long double>(3);
 	}
 
+	// setter
 	Point__& operator=(const Point__& other)
 	{
 		if (this != &other)
@@ -6779,7 +6873,6 @@ public:
 		}
 		ret *this;
 	}
-
 	tensor<long double> SetNormalVector(Fraction<> dfx, Fraction<> dfy)
 	{
 		Normal(3);
@@ -6795,6 +6888,7 @@ public:
 		ret Normal;
 	}
 
+	// visualizzazione
 	void Display(int width, COLORREF color)
 	{
 		if (ScreenX == -1 or ScreenY == -1)
@@ -6811,7 +6905,6 @@ public:
 			}
 		}
 	}
-
 	void StdDisplay
 	(Fraction<> fx, Fraction<> dfx, Fraction<> dfy, tensor<long double> light)
 	{
@@ -6840,6 +6933,7 @@ template<typename T> bool isnan(Matrix<T> object)
 }
 class NumberData
 {
+	// membri
 public:
 	ptrdiff_t number{};
 	wstring code;
@@ -6849,11 +6943,13 @@ public:
 	divisor div;
 	digitRatio digit;
 
+	// confronto
 	strong_ordering operator<=>(const NumberData& other) const
 	{
 		ret number <=> other.number;
 	}
 
+	// costruttori
 	NumberData() = default;
 	NumberData(
 		ptrdiff_t num,
@@ -6873,6 +6969,7 @@ public:
 		digit(dr)
 	{}
 
+	// output
 	void printf()
 	{
 		setlocale(LC_ALL, "");
@@ -7300,7 +7397,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.7.8 ";
+			wcout << L"1.7.9 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -13788,10 +13885,10 @@ static tensor<wstring> EquationSolver(factor<> Equation, tensor<RadComplx>& rads
 			RadComplx rad1, rad2;
 			if (delta >= 0) {
 				rad1 = RadComplx(radical(
-					RadicalExpr({ -B, RadicalUnit(delta) }), RadicalUnit(2 * A)
+					RadicalExpr({ -B, RadicalUnit(1, delta) }), RadicalUnit(2 * A)
 				));
 				rad2 = RadComplx(radical(
-					RadicalExpr({ -B, RadicalUnit(-delta) }), RadicalUnit(2 * A)
+					RadicalExpr({ -B, RadicalUnit(1, -delta) }), RadicalUnit(2 * A)
 				));
 			}
 
@@ -13799,11 +13896,11 @@ static tensor<wstring> EquationSolver(factor<> Equation, tensor<RadComplx>& rads
 			else {
 				rad1 = RadComplx(
 					radical(RadicalUnit(-B), RadicalUnit(2 * A)),
-					radical(RadicalUnit(-delta), RadicalUnit(2 * A))
+					radical(RadicalUnit(1, -delta), RadicalUnit(2 * A))
 				);
 				rad2 = RadComplx(
 					radical(RadicalUnit(-B), RadicalUnit(2 * A)),
-					radical(RadicalUnit(delta), RadicalUnit(2 * A))
+					radical(RadicalUnit(1, delta), RadicalUnit(2 * A))
 				);
 			}
 			
@@ -14072,7 +14169,7 @@ static tensor<long double> RootExtractor(polynomial<> vect)
 			}
 			// soluzioni in forma di stringa
 
-			sol.erase(0, 5);
+			sol.erase(0, sol.find(L'!') + 3);
 			auto fden{ sol };
 
 			if (sol.find(L'/') != wstring::npos) {
@@ -15990,7 +16087,8 @@ static void DecompAndSolve(switchcase& argc)
 		if (startover) {
 			Variables = L"x";
 			wcout << L"\nInserisci un sistema di equazioni (0 : #1) ";
-			wcout << L"= fine input\n\n";
+			wcout << L"= fine input\n";
+			wcout << L"Oppure inserisci una singola frazione algebrica\n\n";
 		}
 		startover = false;
 		wstring err;
@@ -16293,58 +16391,48 @@ static void DecompAndSolve(switchcase& argc)
 		PrintStatement:
 
 			// calcolo condizioni di esistenza
-			SetConsoleTextAttribute(hConsole, 11);
-			wcout << L"C.E.: ";
-			SetConsoleTextAttribute(hConsole, 10);
 			tensor<wstring> C_E_;
 			tensor<RadComplx> Radicals;
-			bool HasBeenPrinted{ false };
-
-			// push condizioni di esistenza
-			COORD cursorPos;
 			for (const auto& d : Backup.den) {
 				tensor<RadComplx> radicals;
 				C_E_ += EquationSolver(d, radicals);
 				Radicals += radicals;
 			}
 
-			// eliminazione doppi
-			for (ptrdiff_t i = C_E_.size() - 1; i >= 0; --i)
-				for (ptrdiff_t j = i - 1; j >= 0; --j)
-					if (C_E_[i] == C_E_[j] and Radicals[i] == Radicals[j])
-					{
-						C_E_.erase(C_E_.begin() + i);
-						Radicals.erase(Radicals.begin() + i);
+			// se ci sono le condizioni di esistenza
+			if (!C_E_.empty()) {
+				SetConsoleTextAttribute(hConsole, 11);
+				wcout << L"C.E.: ";
+				SetConsoleTextAttribute(hConsole, 10);
+
+				// eliminazione doppi
+				for (ptrdiff_t i = C_E_.size() - 1; i >= 0; --i)
+					for (ptrdiff_t j = i - 1; j >= 0; --j)
+						if (C_E_[i] == C_E_[j] and Radicals[i] == Radicals[j])
+						{
+							C_E_.erase(C_E_.begin() + i);
+							Radicals.erase(Radicals.begin() + i);
+						}
+
+				// output condizioni di esistenza
+				for (size_t i = 0; i < C_E_; ++i) {
+
+					// caso stringa
+					size_t Index{ C_E_[i].find(L'%') };
+					if (Index == wstring::npos) {
+						wcout << Handler(C_E_[i]) << L"; ";
+						continue;
 					}
 
-			// output condizioni di esistenza
-			for (size_t i = 0; i < C_E_; ++i) {
-				HasBeenPrinted = true;
-
-				// caso stringa
-				size_t Index{ C_E_[i].find(L'%') };
-				if (Index == wstring::npos) {
-					wcout << Handler(C_E_[i]) << L"; ";
-					continue;
+					// caso radicale
+					wcout << C_E_[i].substr(0, Index) << L" != " << Radicals[i];
+					if (Index != C_E_[i].size() - 1)
+						wcout << C_E_[i].substr(Index + 1);
+					wcout << L"; ";
 				}
-
-				// caso radicale
-				wcout << C_E_[i].substr(0, Index) << L" != " << Radicals[i];
-				if (Index != C_E_[i].size() - 1) wcout << C_E_[i].substr(Index + 1);
-				wcout << L"; ";
+				wcout << L'\n';
 			}
-
-			// niente condizioni di esistenza
-			if (!HasBeenPrinted) wcout << L"\r      \r";
-			_GetCursorPos();
-			cursorPos = csbi.dwCursorPosition;
-			if (!HasBeenPrinted) {
-				cursorPos.X = 0;
-				cursorPos.Y--;
-				SetConsoleCursorPosition(hConsole, cursorPos);
-			}
-			else wcout << L'\n';
-
+			
 			// output del segno della frazione
 			auto DiseqSol{
 				DisequationSolutionPrinter(
