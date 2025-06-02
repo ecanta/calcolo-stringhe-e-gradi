@@ -10,6 +10,23 @@
 #ifndef  __TENSOR__
 #define __TENSOR__
 
+static _STD wstring Outputer(_STD wstring test)
+{
+	if (test.find(L'.') != _STD wstring::npos or
+		test.find(L',') != _STD wstring::npos)
+	{
+		while (test.at(test.size() - 1) == L'0')
+		{
+			test.pop_back();
+		}
+	}
+	if (test.at(test.size() - 1) == L',' or test.at(test.size() - 1) == L'.')
+	{
+		test.pop_back();
+	}
+	ret test;
+}
+
 #define integer(x) (::std::fabs(x - ::std::round(x)) < 1e-9)
 #define FRIEND_BOOL_OPERATOR \
 template<typename U, typename = _STD enable_if_t<_STD is_integral_v<U>>> \
@@ -669,14 +686,14 @@ namespace std_tensor
 			}
 			count += amount;
 		}
-		static void remove(const T& value)
+		void remove(const T& value)
 		{
 			size_t write{};
 			for (size_t read = 0; read < count; ++read)
 			{
 				if (data[read] != value)
 				{
-					if (write != read) data[write] = move(data[read]);
+					if (write != read) data[write] = _STD move(data[read]);
 					{
 						write++;
 					}
@@ -717,15 +734,13 @@ namespace std_tensor
 			{
 				for (const auto& element : *this)
 				{
+					_STD wostringstream temp;
 					if (integer(element))
 					{
-						result << _STD setprecision(0);
+						temp << _STD setprecision(0);
 					}
-					result << element << L", ";
-					if (integer(element))
-					{
-						result << _STD setprecision(6);
-					}
+					temp << element;
+					result << Outputer(temp.str()) << L", ";
 				}
 			}
 

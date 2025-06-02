@@ -553,9 +553,8 @@ static void FFT(tensor<complex<long double>>& List, bool inverse = false)
 // numeri grandi con precisione di long double
 class big
 {
-private:
-
 	// dati
+private:
 	tensor<int> Integer;
 	bool sign;
 	long double decimal;
@@ -1392,7 +1391,7 @@ public:
 	bool normalize()
 	{
 		// overflow
-		auto value{ pow(approximation(), 2) };
+		auto value{ round(pow(approximation(), 2)) };
 		if (value >= GlobalMax)
 		{
 			ret true;
@@ -1480,7 +1479,7 @@ public:
 	// (dis)uguaglianze
 	bool operator==(const RadicalUnit& other) const
 	{
-		ret coefficient == other.coefficient and Arg == other.Arg;
+		ret approximation() == other.approximation();
 	}
 	bool operator!=(const RadicalUnit& other) const
 	{
@@ -1609,9 +1608,8 @@ public:
 };
 class RadicalExpr
 {
-private: friend class radical;
-
 	// elementi
+	friend class radical;
 	tensor<RadicalUnit> elements;
 public:
 
@@ -1678,6 +1676,16 @@ public:
 					swap(args[i], args[j]);
 					swap(elements[i], elements[j]);
 				}
+			}
+		}
+
+		// eliminazione elementi nulli
+		for (ptrdiff_t i = elements.size() - 1; i >= 0; --i)
+		{
+			if (elements[i].GetCoefficient() == 0)
+			{
+				elements.erase(elements.begin() + i);
+				args.erase(args.begin() + i);
 			}
 		}
 
@@ -1748,6 +1756,7 @@ public:
 				result += elements[i] * other.elements[j];
 			}
 		}
+		result.normalize();
 		ret result;
 	}
 	RadicalExpr& operator*=(const RadicalExpr& other)
@@ -1759,7 +1768,7 @@ public:
 	// (dis)uguaglianze
 	bool operator==(const RadicalExpr& other) const
 	{
-		ret elements == other.elements;
+		ret approximation() == other.approximation();
 	}
 	bool operator!=(const RadicalExpr& other) const
 	{
@@ -1784,7 +1793,7 @@ public:
 		{
 			line += elements[i].len() + 3;
 		}
-		ret line;
+		ret elements[0].negative() ? line + 1 : line;
 	}
 	void write(WORD attrib = 15) const
 	{
@@ -1971,7 +1980,7 @@ public:
 	// (dis)uguaglianze
 	bool operator==(const radical& other) const
 	{
-		ret top == other.top and bottom == other.bottom;
+		ret approximation() == other.approximation();
 	}
 	bool operator!=(const radical& other) const
 	{
@@ -2022,9 +2031,8 @@ public:
 
 		// scrittura numeratore
 		int diff = fabs(toplen - bottomlen) / 2;
-		int scale = top.intg() ? 1 : 2;
 		SetConsoleCursorPosition(
-			hConsole, { CursorPos.X, short(CursorPos.Y - scale) }
+			hConsole, { CursorPos.X, short(CursorPos.Y - 1) }
 		);
 		if (toplen != maxlen)
 		{
@@ -2033,7 +2041,7 @@ public:
 		top.write(wAttribute);
 
 		// scrittura denominatore
-		scale = bottom.intg() ? 1 : 2;
+		int scale = bottom.intg() ? 1 : 2;
 		SetConsoleCursorPosition(
 			hConsole, { CursorPos.X, short(CursorPos.Y + scale) }
 		);
@@ -2114,7 +2122,10 @@ public:
 	void write(WORD wAttribute = 15) const
 	{
 		// output parte reale
-		wcout << RealPart;
+		if (RealPart != radical(0))
+		{
+			wcout << RealPart;
+		}
 		if (ImaginaryPart == radical(0))
 		{
 			ret;
@@ -2128,7 +2139,13 @@ public:
 		}
 		else if (Top.unitary())
 		{
-			wcout << (Top.approximation() > 0 ? L" + " : L" - ") << Top << L'i';
+			bool positive{ Top.approximation() > 0 };
+			wcout << (positive ? L" + " : L" - ");
+			if (Top != RadicalExpr(RadicalUnit(positive ? 1 : -1)))
+			{
+				wcout << Top;
+			}
+			wcout << L'i';
 		}
 		else
 		{
@@ -3342,6 +3359,15 @@ tensor<wstring> commands
 };
 
 // espressione matematica
+enum class EquationStates
+{
+	Nothing,
+	Equation,
+	Unequality_Less_Than,
+	Unequality_LessOrEqual_Than,
+	Unequality_More_Than,
+	Unequality_MoreOrEqual_Than
+};
 class Expression;
 tensor<Expression> __Expr;
 class Expression
@@ -4071,8 +4097,12 @@ public:
 	}
 
 	// input
-	Fraction<ReturnedFractionType> in
-	(switchcase& redirection, wstring& errorcode, bool& graph, bool& equate)
+	Fraction<ReturnedFractionType> in(
+		switchcase& redirection,
+		wstring& errorcode,
+		bool& graph,
+		EquationStates& equate
+	)
 	{
 		// carattere per le frecce
 		using type = char;
@@ -4762,8 +4792,12 @@ public:
 	}
 
 	// traduzione
-	Fraction<ReturnedFractionType> Export
-	(switchcase& redirection, wstring& errorcode, bool& graph, bool& equate)
+	Fraction<ReturnedFractionType> Export(
+		switchcase& redirection,
+		wstring& errorcode,
+		bool& graph,
+		EquationStates& equate
+	)
 	{
 		// calcolo del luogo di reindirizzamento se presente
 		bool search{ false };
@@ -4869,7 +4903,7 @@ public:
 		}
 
 		// riscrizione
-		equate = false;
+		equate = EquationStates::Nothing;
 		for (auto& term : terms)
 		{
 			auto& str{ term.second };
@@ -4888,9 +4922,27 @@ public:
 				}
 			}
 
+			if (str.find(L'<') != wstring::npos)
+			{
+				equate = EquationStates::Unequality_Less_Than;
+			}
+			if (str.find(L'>') != wstring::npos)
+			{
+				equate = EquationStates::Unequality_More_Than;
+			}
 			if (str.find(L'=') != wstring::npos)
 			{
-				equate = true;
+				switch (equate)
+				{
+				case EquationStates::Unequality_Less_Than:
+					equate = EquationStates::Unequality_LessOrEqual_Than;
+					break;
+				case EquationStates::Unequality_More_Than:
+					equate = EquationStates::Unequality_MoreOrEqual_Than;
+					break;
+				default:
+					equate = EquationStates::Equation;
+				}
 			}
 		}
 
@@ -5212,7 +5264,7 @@ public:
 			}
 
 			// separazione operatori di primo livello
-			wstring checker{ L"+-*/=" };
+			wstring checker{ L"+-*/<=>" };
 			for (size_t i = 0; i < strings; ++i)
 			{
 				auto Pol{ strings[i] };
@@ -6440,7 +6492,7 @@ public:
 		*this = *this + other;
 		ret *this;
 	}
-
+	
 	// sottrazione
 	Matrix operator-(const Matrix other) const
 	{
@@ -6812,7 +6864,6 @@ static void ProjectAndDrawLine
 class Point__
 {
 	// componenti
-private:
 	int ScreenX, ScreenY;
 	tensor<long double> Normal;
 public:
@@ -7112,6 +7163,558 @@ public:
 	}
 };
 
+// matrici non quadrate e vettori specifici
+class matrix;
+class Vector : protected tensor<long double>
+{
+	// costruttori
+public:
+	Vector() {}
+	Vector(size_t N)
+	{
+		// inizializzazioni
+		*this = tensor<long double>(N);
+		random_device rng;
+		mt19937 gen(rng());
+		uniform_int_distribution<> dis(-20, 20);
+
+		// riempimento
+		for (size_t i = 0; i < N; ++i)
+		{
+			(*this)[i] = dis(gen);
+		}
+	}
+	Vector(size_t N, long double value)
+	{
+		*this = tensor<long double>(N, value);
+	}
+	Vector(tensor<long double> elements) : tensor<long double>(elements) {}
+
+	// assegnazione
+	Vector& operator=(const Vector& data)
+	{
+		// controllo
+		if (this == &data)
+		{
+			ret *this;
+		}
+
+		// assegnazione
+		tensor<long double>::operator=(data);
+		ret *this;
+	}
+
+	// dimensioni
+	size_t Size() const
+	{
+		ret size();
+	}
+
+	// accesso
+	_NODISCARD inline long double& at(size_t index)
+	{
+		ret tensor<long double>::at(index);
+	}
+	_NODISCARD inline const long double& at(size_t index) const
+	{
+		ret tensor<long double>::at(index);
+	}
+	_NODISCARD inline long double& operator[](size_t index)
+	{
+		ret tensor<long double>::at(index);
+	}
+	_NODISCARD inline const long double& operator[](size_t index) const
+	{
+		ret tensor<long double>::at(index);
+	}
+
+	// somma
+	Vector operator+(const Vector& other) const
+	{
+		if (Size() != other.Size())
+		{
+			throw out_of_range("Wrong size!");
+		}
+
+		auto result(*this);
+		for (size_t i = 0; i < Size(); ++i)
+		{
+			result[i] += other[i];
+		}
+	}
+	Vector& operator+=(const Vector& other)
+	{
+		*this = *this + other;
+		ret *this;
+	}
+
+	// differenza
+	Vector operator-(const Vector& other) const
+	{
+		if (Size() != other.Size())
+		{
+			throw out_of_range("Wrong size!");
+		}
+
+		auto result(*this);
+		for (size_t i = 0; i < Size(); ++i)
+		{
+			result[i] -= other[i];
+		}
+	}
+	Vector& operator-=(const Vector& other)
+	{
+		*this = *this - other;
+		ret *this;
+	}
+
+	// moltiplicazione per uno scalare
+	Vector operator*(long double scalar) const
+	{
+		auto result(*this);
+		for (auto& el : result)
+		{
+			el *= scalar;
+		}
+		ret result;
+	}
+	Vector& operator*=(long double scalar)
+	{
+		*this = *this * scalar;
+		ret *this;
+	}
+
+	// moltiplicazione in vettori
+	Vector& operator*=(const Vector& other)
+	{
+		if (Size() != other.Size())
+		{
+			throw invalid_argument("Wrong dimensions!");
+		}
+		for (size_t i = 0; i < Size(); ++i)
+		{
+			(*this)[i] *= other[i];
+		}
+	}
+
+	// moltiplicazione in matrici
+	matrix operator*(const Vector& JlenVector) const;
+};
+class matrix : protected tensor<tensor<long double>>
+{
+	// dati delle dimensioni
+	size_t SizeI;
+	size_t SizeJ;
+
+	// costruttori di default
+public:
+	matrix() : SizeI(0), SizeJ(0) {}
+
+	// costruttore di copia
+	matrix(const matrix& other) :
+		tensor<tensor<long double>>(other),
+		SizeI(other.MainSize()),
+		SizeJ(other.SecondarySize())
+	{}
+
+	// costruttore con le dimensioni
+	matrix(size_t I, size_t J) : SizeI(I), SizeJ(J)
+	{
+		// inizializzazioni
+		*this = tensor<tensor<long double>>(I, tensor<long double>(J));
+		random_device rng;
+		mt19937 gen(rng());
+		uniform_int_distribution<> dis(-20, 20);
+
+		// riempimento
+		for (size_t i = 0; i < I; ++i)
+		{
+			for (size_t j = 0; j < J; ++j)
+			{
+				(*this)[i][j] = dis(gen);
+			}
+		}
+	}
+
+	// costruttore con dimensioni e valori
+	matrix(size_t I, size_t J, long double value) : SizeI(I), SizeJ(J)
+	{
+		*this = tensor<tensor<long double>>(I, tensor<long double>(J, value));
+	}
+
+	// costruttore con tensori
+	matrix(tensor<tensor<long double>> elements) :
+		SizeI(elements.size()),
+		SizeJ(elements[0].size()),
+		tensor<tensor<long double>>(elements)
+	{
+		if (elements.empty())
+		{
+			ret;
+		}
+
+		size_t RowSize{ elements[0].size() };
+		for (size_t i = 0; i < elements; ++i)
+		{
+			if (elements[i].size() != RowSize)
+			{
+				throw invalid_argument("Rows of different lenght!");
+			}
+		}
+	}
+
+	// distruttore
+	~matrix() = default;
+
+	// dimensioni della matrice
+	size_t MainSize() const
+	{
+		ret SizeI;
+	}
+	size_t SecondarySize() const
+	{
+		ret SizeJ;
+	}
+
+	// assegnazione
+	matrix& operator=(const tensor<tensor<long double>>& data)
+	{
+		if (this == &data)
+		{
+			ret *this;
+		}
+
+		// validazione
+		size_t RowSize{ data[0].size() };
+		for (size_t i = 0; i < data; ++i)
+		{
+			if (data[i].size() != RowSize)
+			{
+				throw invalid_argument("Rows of different lenght!");
+			}
+		}
+		
+		// assegnazione
+		tensor<tensor<long double>>::operator=(data);
+		ret *this;
+	}
+	matrix& operator=(tensor<tensor<long double>>&& data)
+	{
+		// validazione
+		size_t RowSize{ data[0].size() };
+		for (size_t i = 0; i < data; ++i)
+		{
+			if (data[i].size() != RowSize)
+			{
+				throw invalid_argument("Rows of different lenght!");
+			}
+		}
+
+		// assegnazione
+		tensor<tensor<long double>>::operator=(move(data));
+		ret *this;
+	}
+	matrix& operator=(matrix&& other) noexcept
+	{
+		tensor<tensor<long double>>::operator=(move(other));
+		ret *this;
+	}
+
+	// accesso agli elementi
+	Vector operator[](size_t index)
+	{
+		ret Vector(tensor<tensor<long double>>::at(index));
+	}
+	const Vector operator[](size_t index) const
+	{
+		ret Vector(tensor<tensor<long double>>::at(index));
+	}
+	Vector at(size_t index)
+	{
+		ret Vector(tensor<tensor<long double>>::at(index));
+	}
+	const Vector at(size_t index) const
+	{
+		ret Vector(tensor<tensor<long double>>::at(index));
+	}
+	long double& at(size_t i, size_t j)
+	{
+		ret tensor<tensor<long double>>::at(i).at(j);
+	}
+	const long double& at(size_t i, size_t j) const
+	{
+		ret tensor<tensor<long double>>::at(i).at(j);
+	}
+
+	// matrice trasposta
+	matrix trasposed() const
+	{
+		matrix result(SizeJ, SizeI);
+		for (size_t i = 0; i < SizeI; ++i)
+		{
+			for (size_t j = 0; j < SizeJ; ++j)
+			{
+				result[j][i] = (*this)[i][j];
+			}
+		}
+		ret result;
+	}
+
+	// somma
+	matrix operator+(const matrix other) const
+	{
+		// controllo
+		if (SizeI != other.SizeI or SizeJ != other.SizeJ)
+		{
+			throw invalid_argument("Wrong dimensions!");
+		}
+
+		// somma
+		matrix result(*this);
+		for (size_t i = 0; i < SizeI; ++i)
+		{
+			for (size_t j = 0; j < SizeJ; ++j)
+			{
+				result[i][j] += other[i][j];
+			}
+		}
+		ret result;
+	}
+	matrix operator+=(const matrix other)
+	{
+		*this = *this + other;
+		ret *this;
+	}
+
+	// sottrazione
+	matrix operator-(const matrix other) const
+	{
+		// controllo
+		if (SizeI != other.SizeI or SizeJ != other.SizeJ)
+		{
+			throw invalid_argument("Wrong dimensions!");
+		}
+
+		// somma
+		matrix result(*this);
+		for (size_t i = 0; i < SizeI; ++i)
+		{
+			for (size_t j = 0; j < SizeJ; ++j)
+			{
+				result[i][j] -= other[i][j];
+			}
+		}
+		ret result;
+	}
+	matrix operator-=(const matrix other)
+	{
+		*this = *this - other;
+		ret *this;
+	}
+
+	// moltiplicazione per uno scalare
+	matrix operator*(long double scalar) const
+	{
+		auto result(*this);
+		for (size_t i = 0; i < SizeI; ++i)
+		{
+			for (size_t j = 0; j < SizeJ; ++j)
+			{
+				result.at(i, j) *= scalar;
+			}
+		}
+	}
+
+	// moltiplicazione con vettori
+	Vector operator*(const Vector vector) const
+	{
+		// controllo
+		if (vector.Size() != SizeI)
+		{
+			throw invalid_argument("Wrong size!");
+		}
+
+		Vector product(vector.Size());
+		for (size_t i = 0; i < SizeI; ++i)
+		{
+			long double DotProduct{};
+			for (size_t j = 0; j < SizeJ; ++j)
+			{
+				DotProduct += (*this)[i][j] * vector[j];
+			}
+			product[i] = DotProduct;
+		}
+		ret product;
+	}
+};
+matrix Vector::operator*(const Vector& JlenVector) const
+{
+	matrix result(Size(), JlenVector.Size());
+	for (size_t i = 0; i < Size(); ++i)
+	{
+		for (size_t j = 0; j < JlenVector.Size(); ++j)
+		{
+			result.at(i, j) = (*this)[i] * JlenVector[j];
+		}
+	}
+	ret result;
+}
+
+// reti neurali
+Vector Activation(Vector inputs)
+{
+	for (size_t i = 0; i < inputs.Size(); ++i)
+	{
+		inputs[i] = tanh(inputs[i]);
+	}
+	ret inputs;
+}
+Vector ActivationDerivative(Vector inputs)
+{
+	for (size_t i = 0; i < inputs.Size(); ++i)
+	{
+		inputs[i] = tanh(inputs[i]);
+		inputs[i] = 1 - inputs[i] * inputs[i];
+	}
+	ret inputs;
+}
+class DenseLayer
+{
+	// dati
+	size_t sizeInput;
+	size_t sizeOutput;
+	matrix weights;
+	Vector biases;
+	Vector inputs;
+
+	// costruttori
+public:
+	DenseLayer() : sizeInput(0), sizeOutput(0), weights(), biases(), inputs() {}
+	DenseLayer(size_t InputSize, size_t OutputSize) :
+		sizeInput(InputSize),
+		sizeOutput(OutputSize),
+		weights(matrix(OutputSize, InputSize)),
+		biases(Vector(OutputSize)),
+		inputs(Vector(InputSize))
+	{}
+
+	// forward propagation
+	Vector forward(Vector _inputs)
+	{
+		if ((inputs = _inputs).Size() != sizeInput)
+		{
+			throw out_of_range("Wrong dimension!");
+		}
+		ret weights * _inputs + biases;
+	}
+
+	// backpropagation
+	Vector backward(Vector _gradient, long double LearnRate)
+	{
+		if (_gradient.Size() != sizeOutput)
+		{
+			throw out_of_range("Wrong dimension!");
+		}
+
+		// correzione dei pesi e dei bias
+		auto derivative{ weights.trasposed() * _gradient };
+		biases -= _gradient * LearnRate;
+		weights -= (_gradient * inputs) * LearnRate;
+		ret derivative;
+	}
+};
+class ActivationLayer
+{
+	Vector inputs;
+public:
+
+	// costruttori
+	ActivationLayer() : inputs() {}
+	ActivationLayer(size_t number) : inputs(Vector(number)) {}
+
+	// forward propagation
+	Vector forward(Vector _inputs)
+	{
+		ret Activation(inputs = _inputs);
+	}
+
+	// backpropagation
+	Vector backward(Vector _gradient)
+	{
+		_gradient *= ActivationDerivative(inputs);
+		ret _gradient;
+	}
+};
+class MultiLayerPerceptron
+{
+	// struttura della rete neurale
+	tensor<size_t> NN;
+	tensor<DenseLayer> interlayers;
+	tensor<ActivationLayer> neurons;
+public:
+
+	// costruttori
+	MultiLayerPerceptron() : interlayers(), neurons(), NN() {}
+	MultiLayerPerceptron(tensor<size_t> NeuronNumbers) :
+		NN(NeuronNumbers),
+		interlayers(tensor<DenseLayer>(NeuronNumbers.size() - 1)),
+		neurons(tensor<ActivationLayer>(NeuronNumbers.size() - 1))
+	{
+		// controllo dimensionale
+		if (NeuronNumbers < 2)
+		{
+			throw out_of_range("Not enough neurons!");
+		}
+
+		// costruzione
+		for (size_t i = 1; i < NeuronNumbers; ++i)
+		{
+			interlayers[i - 1] = DenseLayer(NeuronNumbers[i - 1], NeuronNumbers[i]);
+			neurons[i - 1] = ActivationLayer(NeuronNumbers[i]);
+		}
+	}
+
+	Vector Propagate(Vector Input)
+	{
+		// controllo dimensionale
+		if (Input.Size() != NN[0])
+		{
+			throw invalid_argument("Wrong size!");
+		}
+
+		// aggiornamento del vettore
+		for (size_t i = 0; i < NN.size() - 1; ++i)
+		{
+			Input = neurons[i].forward(interlayers[i].forward(Input));
+		}
+
+		ret Input;
+	}
+
+	void Learn(Vector Input, Vector ExpectedOutput)
+	{
+		// controllo dimensionale
+		if (ExpectedOutput.Size() != NN.last())
+		{
+			throw invalid_argument("Wrong size!");
+		}
+
+		for (size_t i = 0; i < 10; ++i)
+		{
+			// calcolo del gradiente
+			auto ActualOutput{ Propagate(Input) };
+			auto Gradient{ (ExpectedOutput - ActualOutput) * (2.0 / NN.last()) };
+
+			// insegnamento
+			for (ptrdiff_t j = NN.size() - 2; j >= 0; --j)
+			{
+				Gradient =
+					interlayers[i].backward(neurons[i].backward(Gradient), 0.1);
+			}
+		}
+	}
+};
+
 // tensori
 tensor<wstring> Numbers, Polynomials, Expressions;
 tensor<tensor<wstring>> GlobalNumerators, GlobalDenominators, GlobalOperators;
@@ -7397,7 +8000,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.7.9 ";
+			wcout << L"1.8.6 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -12127,17 +12730,30 @@ template<typename T> T ObjectOperations
 	}
 	if (TemporaryBalance > 0) disposition += wstring(TemporaryBalance, L')');
 
-	// segni di uguaglianza
+	// segni di (dis)uguaglianza
+	wchar_t Char;
+	wstring FindThis{ L"<=>" };
 	int occurrences{};
-	for (const auto& ch : disposition) {
-		if (ch == L'=') occurrences++;
-		if (occurrences > 1) {
-			errcode = L"Troppe uguaglianze";
-			ret T();
+	for (size_t i = 0; i < disposition.size(); ++i)
+		if (FindThis.find(disposition.at(i)) != wstring::npos)
+		{
+			// carattere accettato
+			Char = disposition.at(i);
+			if (++occurrences > 1) {
+				errcode = L"Troppe uguaglianze o disuguaglianze";
+				ret T();
+			}
+
+			// disuguaglianze e uguaglianze
+			if (Char != L'=' and i != disposition.size() - 1)
+				if (disposition.at(i + 1) == L'=')
+				{
+					disposition.erase(disposition.begin() + 1);
+					i--;
+				}
 		}
-	}
 	if (occurrences > 0) {
-		auto position{ disposition.find(L'=') };
+		auto position{ disposition.find(Char) };
 		disposition.erase(position, 1);
 		disposition.insert(disposition.begin() + position, L'(');
 		disposition.insert(disposition.begin() + position, L'-');
@@ -13875,7 +14491,7 @@ static tensor<wstring> EquationSolver(factor<> Equation, tensor<RadComplx>& rads
 			C = equation[0][2];
 			int delta = B * B - 4 * A * C;
 
-			// push delgli indicatori di variabili
+			// push degli indicatori di variabili
 			auto _push{ factor<>{ { 1, VDirectorSeq[0] } }.str() + L'%' };
 			if (VKnownSeq[0] != null)
 				_push += factor<>{ { 1, VKnownSeq[0] } }.str();
@@ -13924,10 +14540,13 @@ static tensor<wstring> EquationSolver(factor<> Equation, tensor<RadComplx>& rads
 
 	// caso binomio
 	if (Equation == 2) {
+		
+		// semplificazione coefficienti
 		int gcd{ abs(Gcd(Equation)) };
 		Equation[0].coefficient /= gcd;
 		Equation[1].coefficient /= gcd;
 
+		// semplificazione esponenti
 		for (size_t i = 0; i < Variables.size(); ++i) {
 			int min{ ::min(Equation[0].exp[i], Equation[1].exp[i]) };
 			Equation[0].exp[i] -= min;
@@ -13935,22 +14554,29 @@ static tensor<wstring> EquationSolver(factor<> Equation, tensor<RadComplx>& rads
 		}
 		Equation.SortByExponents();
 
+		// semplificazione segni
 		auto coeff{ Equation[0].coefficient };
 		Equation[0].coefficient = 1;
 		if (coeff < 0) coeff *= -1;
 		else Equation[1].coefficient *= -1;
 
-		wstring push{ factor<>{ Equation[0] }.str() + L" != " };
-		push += factor<>{ Equation[1] }.str();
-		if (coeff != 1) push += L" / " + to_wstring(coeff);
+		// push degli indicatori di variabili
+		auto _push{ factor<>{ Equation[0] }.str() + L'%' };
+		if (Equation[1].exp != null)
+			_push += factor<>{ { 1, Equation[1].exp } }.str();
 
-		rads = { RadComplx(radical(nan(""))) };
-		ret { push };
+		rads = {
+			RadComplx(radical(
+				RadicalUnit(Equation[1].coefficient), RadicalUnit(coeff)
+			))
+		};
+		ret { _push };
 	}
 
 	// caso molto generico
 	factor<> top, bottom;
 	size_t Vpos{ Variables.find(L'x') };
+	if (Vpos == wstring::npos) Vpos = 0;
 	for (const auto& mon : Equation) if (mon.exp[Vpos] > 1)
 		ret { Equation.str() + L"!= 0" };
 
@@ -14001,7 +14627,8 @@ static tensor<wstring> EquationSolver(factor<> Equation, tensor<RadComplx>& rads
 
 	rads = { RadComplx(radical(nan(""))) };
 	ret Used[Vpos] ?
-		tensor<wstring>{ L"x != " + str } : tensor<wstring>{ str + L" != 0" };
+		tensor<wstring>{ wstring(1, Variables.at(Vpos)) + L" != " + str } :
+		tensor<wstring>{ str + L" != 0" };
 }
 
 // risolve un sistema non lineare con il metodo di newton-raphson
@@ -14167,20 +14794,13 @@ static tensor<long double> RootExtractor(polynomial<> vect)
 				roots << AdditionalRoots[i].RealPart.approximation();
 				continue;
 			}
+
 			// soluzioni in forma di stringa
-
 			sol.erase(0, sol.find(L'!') + 3);
-			auto fden{ sol };
-
-			if (sol.find(L'/') != wstring::npos) {
-				while (fden.at(0) != L'/') fden.erase(0, 1);
-				fden.erase(0, 1);
-				while (Last(sol) != L'/') sol.pop_back();
-				sol.pop_back();
-			}
-			else fden = L"1";
-
-			auto root{ stold(sol) / stold(fden) };
+			if (sol.find(L'/') != wstring::npos) continue;
+			auto root{ stold(sol) };
+			
+			// push delle soluzioni
 			roots << root;
 			if (repeat)	roots << root;
 		}
@@ -14695,9 +15315,18 @@ static ConsoleStream DisequationSolutionPrinter(
 			InvertTheSign
 		);
 
+		// annullamento se c'è solo un segno 
+		bool unlock{ false }, nullify{ true };
+		for (int i = 0; i < 4; ++i) if ((behaviour | (1 << i)) == behaviour) {
+			if (unlock) nullify = false;
+			unlock = true;
+		}
+		if (nullify) PrintCondition = false;
+
 		// output
 		ConsoleStream Output;
 		for (int i = 0; i < 4; ++i) if ((behaviour | (1 << i)) == behaviour) {
+
 			bool positive = i / 2;
 			if (PrintCondition) Output << dir[i] << Console(L"\n\n");
 
@@ -16059,7 +16688,7 @@ static void DecompAndSolve(switchcase& argc)
 	wcout << L"Il PROGRAMMA scompone, semplifica le frazioni algebriche, \n";
 	wcout << L"risolve equazioni, disequazioni e disegna grafici\n\n";
 	SetConsoleTextAttribute(hConsole, 12);
-	wcout << L"Per disegnare il grafico aggiungere '\\' all'inizio\n";
+	wcout << L"Per disegnare il grafico aggiungere '/' all'inizio\n";
 	wcout << L"Nel grafico è possibile premere il tasto X per eliminare\n";
 	wcout << L"la funzione oppure il tasto D per calcolare la sua derivata\n";
 	wcout << L"Per inserire una singola frazione premere CTRL + ALT\n\n";
@@ -16087,17 +16716,18 @@ static void DecompAndSolve(switchcase& argc)
 		if (startover) {
 			Variables = L"x";
 			wcout << L"\nInserisci un sistema di equazioni (0 : #1) ";
-			wcout << L"= fine input\n";
+			wcout << L"= fine input o una disequazione\n";
 			wcout << L"Oppure inserisci una singola frazione algebrica\n\n";
 		}
 		startover = false;
+		bool _graph, skip{ false };
 		wstring err;
-		bool _graph, _equation, skip{ false };
-		Fraction<big> inputed{ Expression().in(argc, err, _graph, _equation) };
+		EquationStates Eqstate;
+		Fraction<big> inputed{ Expression().in(argc, err, _graph, Eqstate) };
 		Fraction<> it{
 			FromBigToDefault(inputed.num), FromBigToDefault(inputed.den)
 		};
-		VariablesDisposition << Variables << Variables;
+		if (it != Fraction<>{}) VariablesDisposition << Variables << Variables;
 
 		// ridirezionamento
 		if (argc != NotAssigned) {
@@ -16212,8 +16842,7 @@ static void DecompAndSolve(switchcase& argc)
 		VariablesDisposition.clear();
 		
 		// valutazioni proprietà frazione algebrica
-		if (Fractions == 1 and !_equation)
-		{
+		if (Fractions == 1 and Eqstate != EquationStates::Equation) {
 			auto It{ Fractions[0] };
 
 			// uscita se la frazione è nulla
@@ -16278,12 +16907,50 @@ static void DecompAndSolve(switchcase& argc)
 			DScomp.close();
 			for (size_t i = 0; i < NScomp; ++i) NScomp[i].sort();
 			for (size_t i = 0; i < DScomp; ++i) DScomp[i].sort();
-
 			if (DScomp <= 1) skip = true;
 			if (!skip) for (auto a : DScomp) for (auto b : a)
 				if (a != 1 and b.degree > 1) skip = true;
 
-			// caso con più variabili
+			// disequazioni
+			if (Eqstate != EquationStates::Nothing) {
+				
+				// output iniziale
+				SetConsoleTextAttribute(hConsole, 6);
+				wcout << L"Soluzioni della disequazione:\n";
+
+				// calcolo codice
+				int code;
+				switch (Eqstate) {
+				case EquationStates::Unequality_Less_Than:
+					code = LESS_THAN;
+					break;
+				case EquationStates::Unequality_LessOrEqual_Than:
+					code = LESS_EQUAL_THAN;
+					break;
+				case EquationStates::Unequality_More_Than:
+					code = MORE_THAN;
+					break;
+				case EquationStates::Unequality_MoreOrEqual_Than:
+					code = MORE_EQUAL_THAN;
+					break;
+				}
+
+				// output del segno della frazione
+				auto DiseqSol{
+					DisequationSolutionPrinter(
+						Fractions[0].num, Fractions[0].den,
+						code, NCOEFF < 0 or DCOEFF < 0
+					)
+				};
+				if (!DiseqSol.empty()) wcout << L'\n' << DiseqSol << L'\n';
+
+				ResetAttribute();
+				Fractions.clear();
+				startover = true;
+				continue;
+			}
+
+			// se ha più variabili
 			bool IsAModifier{ false }, HasMoreVariables{ false };
 			tensor<POLYNOMIAL<>> denominators;
 			POLYNOMIAL<> complementaries;
@@ -16412,6 +17079,7 @@ static void DecompAndSolve(switchcase& argc)
 						{
 							C_E_.erase(C_E_.begin() + i);
 							Radicals.erase(Radicals.begin() + i);
+							break;
 						}
 
 				// output condizioni di esistenza
@@ -16428,19 +17096,12 @@ static void DecompAndSolve(switchcase& argc)
 					wcout << C_E_[i].substr(0, Index) << L" != " << Radicals[i];
 					if (Index != C_E_[i].size() - 1)
 						wcout << C_E_[i].substr(Index + 1);
+					SetConsoleTextAttribute(hConsole, 10);
 					wcout << L"; ";
 				}
 				wcout << L'\n';
 			}
 			
-			// output del segno della frazione
-			auto DiseqSol{
-				DisequationSolutionPrinter(
-					fraction.num, fraction.den, 15, NCOEFF < 0 or DCOEFF < 0
-				)
-			};
-			if (!DiseqSol.empty()) wcout << L'\n' << DiseqSol << L'\n';
-
 			// output frazioni
 			SetConsoleTextAttribute(hConsole, 10);
 			wcout << L"\nLa scomposizione è: ";
@@ -16561,30 +17222,39 @@ static void DecompAndSolve(switchcase& argc)
 
 		// una sola equazione in una variabile
 		if (Variables.size() == Fractions and Fractions == 1) {
-
-			// estrazione radici
-			charVariable = Variables.at(0);
-			Variables = L"x";
-			auto solutions{ RootExtractor(equations) };
-			Variables = wstring(1, charVariable);
+			tensor<RadComplx> radicals;
+			auto solutions{ EquationSolver(equations[0], radicals) };
 
 			// rimozione doppi
 			for (ptrdiff_t i = solutions.size() - 1; i >= 0; --i)
 				for (ptrdiff_t j = i - 1; j >= 0; --j)
-					if (solutions[i] == solutions[j])
+					if (solutions[i] == solutions[j] and radicals[i] == radicals[j])
+					{
 						solutions.erase(solutions.begin() + i);
+						radicals.erase(radicals.begin() + i);
+						break;
+					}
 
-			// rimozione delle singolarità
-			for (ptrdiff_t i = solutions.size() - 1; i >= 0; --i)
-				for (const auto& fract : Fractions)
-					if (fabs(fract.den[0]({ solutions[i] })) < 1e-05)
-						solutions.erase(solutions.begin() + i);
+			// traduzione di alcune delle soluzioni
+			for (size_t i = 0; i < radicals; ++i)
+				if (radicals[i] == RadComplx(radical(nan(""))))
+				{
+					solutions[i].erase(0, solutions[i].find(L'!') + 3);
+					radicals[i] = RadComplx(radical(stold(solutions[i])));
+				}
 
 			// output
 			SetConsoleTextAttribute(hConsole, 11);
-			wcout << L"Le soluzioni sono " << solutions << L'\n';
-			ResetAttribute();
+			wcout << (radicals > 1 ? L"Le soluzioni sono {" : L"La soluzione è { ");
+			for (size_t i = 0; i < radicals; ++i) {
+				SetConsoleTextAttribute(hConsole, 11);
+				wcout << radicals[i];
+				if (i + 1 != radicals) wcout << L";  ";
+			}
+			if (radicals == 1) wcout << L' ';
+			wcout << L"}\n\n\n";
 
+			ResetAttribute();
 			Fractions.clear();
 			equations.clear();
 			startover = true;
@@ -17186,7 +17856,7 @@ RETURN:
 #pragma endregion
 
 // file natvis                                54  righe
-// tensor.cpp                                 810 righe
-/// totale righe non presenti in questo file: 864
+// tensor.cpp                                 825 righe
+/// totale righe non presenti in questo file: 879
 
 // fine del codice -----------------------------------------------------------------

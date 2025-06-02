@@ -68,14 +68,10 @@ Tutte le istruzioni per l’utilizzo verranno mostrate nelle schermate varie del
 
 In tensor.cpp:
 
-<br>
-
 contenuti del namespace `std_tensor`:
 
-<br>
-
 + classe `tensor`:
-  
+ 
   E' una versione ottimizzata e personalizzata di un vettore; contiene
   + metodo `resize` (protetto): cambia la dimensione del tensore
   + operatori `=` e metodo `assign` per l'assegnazione
@@ -101,12 +97,11 @@ contenuti del namespace `std_tensor`:
   + metodo `remove` per rimuovere le occorrenze di un valore
   + metodo `str` per visualizzare i contenuti del tensore sotto forma di stringa
   + operatore `<<` di wostream
-
++ classe `tensor_t`:
+  Contiene due tensori, uno per i numeri primi e l'altro per il crivello
 <br>
 
 In calcolo stringhe e gradi.cpp:
-
-<br>
 
 + struttura `compost`: rappresenta un fattore primo di un numero con il suo esponente
 + struttura `divisor`: contiene i dati dei divisori di un numero
@@ -123,7 +118,91 @@ In calcolo stringhe e gradi.cpp:
 <br>
 
 + stringa `Variables`: contiene l'ordine delle variabili in tutti i polinomi nel programma (è unico)
-+ ...
++ funzione `Smaller`: confronta due valori
++ funzione `BinarySearch`: ricerca un elemento in un tensore con la ricerca binaria
+
+<br>
+
++ classe `complex`:
+
+  Rappresenta un numero complesso; contiene:
+  + metodo `norm` per calcolare il modulo
+  + operatori di confronto che confrontano i moduli di due numeri complessi
+  + metodo `conjugate` che calcola il coniugato complesso
+  + metodo `opposite` per calcolare l'opposto del numero complesso
+  + operatori aritmetici
+  + metodo `str` per convertire in stringa
++ funzione `InitExponentialForm` per ottenere un numero complesso dalla forma esponenziale
+
+<br>
+
++ funzione `FFT` per calcolare la trasformata di fourier e la trasformata inversa
++ classe `big`:
+
+  Rappresenta numeri molto grandi; contiene
+  + metodo `construct` (privato): elenca le cifre di un intero ed è usato nei costruttori
+  + metodo `compare` (privato): confronta i valori assoluti di due numeri grandi
+  + metodo `Add` (privato): esegue la somma dei valori assoluti
+  + metodo `Sub` (privato): esegue la differenza dei valori assoluti
+  + metodo `AlgebricOperation1` (privato): esegue l'addizione algebrica
+  + metodo `FFT_Multiplication` (privato): esegue la moltiplicazione grazie alla FFT
+  + metodo `Number` per convertire in un intero o in un numero in virgola mobile
+  + operatore `=` per assegnare
+  + operatori di confronto
+  + operatori matematici compresi `%` e `^` (potenza)
+  + operatori di shifting, che eseguono lo shifting in base 10
+  + metodo `Size` per ottenere la dimensione del tensore di cifre
+  + metodo `intg` per sapere se è intero
+  + metodo `fabs` per ottenere il valore assoluto
+  + metodo `floor` per ottenere la parte intera
+  + metodo `ceil` per ottenere il ceiling
+  + metodo `round` per arrotondare
+  + metodo `invert` per invertire il numero
+  + metodo `log` per calcolare il logaritmo
+  + metodo `c_str` per convertire in wostringstream
+  + metodo `str` per convertire in stringa
+  + operatore `<<` di wostream
++ funzione `pow` per calcolare l'elevamento a potenza con base big
+
+<br>
+
++ funzione `GeneralizedHeapify`: serve per l'heap sort
++ funzione `GeneralizedHeapSort`: ordina velocemente un tensore
+
+<br>
+
++ classe `RadicalUnit`:
+
+  E' un radicale semplice; contiene
+  + metodo `GetCoefficient` per ottenere il coefficiente
+  + metodo `SetCoefficient` per impostare il coefficiente
+  + metodo `IncCoefficient` per incrementare il coefficiente
+  + metodo `approximation` per convertire in virgola mobile
+  + metodo `normalize` per eliminare eventuali errori interni
+  + operatori `+`, `-`, `/` che restituiscono un valore in virgola mobile
+  + operatori `*` e `*=` per calcolare il prodotto di due radicali semplici
+  + operatori di confronto
+  + metodo `negative` per determinare se è negativo
+  + metodo `len` per calcolare l'estensione del radicale su console
+  + metodo `write` per scrivere il radicale su console
+  + metodo `str` per convertire in stringa e usato a scopi di debug
+  + operatore `<<` di wostream
+
++ classe `RadicalExpr`:
+
+  E' una somma di radicali semplici; contiene
+  + metodo `unitary` per sapere se è un radicale semplice
+  + metodo `intg` per capire se è un numero intero
+  + metodo `approximation` per convertire in virgola mobile
+  + metodo `normalize` per eliminare gli errori
+  + metodo `NORMALIZE` per eliminare gli errori estensivamente
+  + operatore `/` che restituisce un valore in virgola mobile
+  + operatori `+`, `+=`, `-`, `-=`, `*`, `*=` che calcolano il risultato in radicali
+  + operatori di confronto
+  + metodo `len` che calcola l'estensione del radicale su console
+  + metodo `write` per scrivere il radicale su console
+  + metodo `str` per convertire in stringa e usato a scopi di debug
+  + operatore `<<` di wostream
 
 <h2>Autore</h2>
 
