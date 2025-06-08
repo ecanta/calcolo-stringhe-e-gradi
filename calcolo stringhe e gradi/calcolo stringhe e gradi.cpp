@@ -103,15 +103,15 @@ int __NULL__ = 0;
 // oggetti windows
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 HANDLE hConsoleInput = GetStdHandle(STD_INPUT_HANDLE);
-
 CONSOLE_CURSOR_INFO cursorInfo{ 10, FALSE };
 CONSOLE_CURSOR_INFO cursor{ 10, TRUE };
 CONSOLE_SCREEN_BUFFER_INFO csbi;
 
 // funzioni e variabili globali
-static wchar_t charVariable(L'x');
+const int SizeLimit(60);
 ptrdiff_t GlobalMax(0);
 const ptrdiff_t GLOBAL_CAP(5e10);
+static wchar_t charVariable(L'x');
 bool BOOLALPHA(true);
 bool PRINTN(true);
 double CORRECTION_RATIO(1.0);
@@ -317,6 +317,182 @@ static ptrdiff_t BinarySearch(const tensor<T>& arr, const T target)
 
 	ret -1;
 }
+
+// console artificiale
+class Buffer
+{
+	// definizioni
+private:
+	using Funct = void(*)(wostringstream&);
+	const int WindowHeight{ 40 };
+
+	// struttura
+	tensor<Funct> held;
+	tensor<tensor<wchar_t>> memory;
+	tensor<tensor<WORD>> attributes;
+	COORD CursorPosition;
+	WORD CurrentAttribute;
+
+	// costruttore
+public:
+	Buffer() :
+		held(),
+		CurrentAttribute(15),
+		CursorPosition(COORD{ 0, 0 }),
+		memory(tensor<tensor<wchar_t>>(40, tensor<wchar_t>(SizeLimit))),
+		attributes(tensor<tensor<WORD>>(40, tensor<WORD>(SizeLimit, 15)))
+	{
+	}
+
+	// distruttore
+	void reset()
+	{
+		held.clear();
+		memory = tensor<tensor<wchar_t>>(WindowHeight, tensor<wchar_t>(SizeLimit));
+		attributes =
+			tensor<tensor<WORD>>(WindowHeight, tensor<WORD>(SizeLimit, 15));
+		CursorPosition = COORD{ 0, 0 };
+		CurrentAttribute = 15;
+	}
+
+	// assegnazione
+	void operator=(const Buffer& other)
+	{
+		if (this == &other)
+		{
+			ret;
+		}
+
+		held = other.held;
+		memory = other.memory;
+		attributes = other.attributes;
+		CursorPosition = other.CursorPosition;
+		CurrentAttribute = other.CurrentAttribute;
+	}
+
+	// uguaglianze e disuguaglianze
+	bool operator==(const Buffer& other) const
+	{
+		ret held == other.held and
+			memory == other.memory and
+			attributes == other.attributes;
+	}
+	bool operator!=(const Buffer& other) const
+	{
+		ret !(*this == other);
+	}
+
+	// cambio attributo della console
+	void SetBufferTextAttribute(WORD attribute)
+	{
+		CurrentAttribute = attribute;
+	}
+
+	// riposizionamento cursore
+	void SetBufferCursorPosition(COORD position)
+	{
+		if (position.X < 0 or position.Y < 0)
+		{
+			ret;
+		}
+		if (position.X >= SizeLimit or position.Y >= memory.size())
+		{
+			ret;
+		}
+		CursorPosition = position;
+	}
+
+	// applicazione delle funzioni
+	Buffer& operator<<(Funct function)
+	{
+		held << function;
+		ret* this;
+	}
+
+	// scrittura di un elemento
+	template<typename Arg> Buffer& operator<<(Arg written)
+	{
+		// conversione in stringa
+		wostringstream calculator;
+		for (auto& funct : held)
+		{
+			funct(calculator);
+		}
+		calculator << written;
+		auto text{ calculator.str() };
+
+		// scrittura del testo
+		for (const auto& ch : text)
+		{
+			// a capo
+			if (ch == L'\n')
+			{
+				CursorPosition.X = 0;
+				CursorPosition.Y++;
+				if (CursorPosition.Y >= memory.size())
+				{
+					memory(memory.size() + 20, tensor<wchar_t>(SizeLimit));
+					attributes(attributes.size() + 20, tensor<WORD>(SizeLimit, 15));
+				}
+				continue;
+			}
+
+			// aggiunta carattere
+			memory[CursorPosition.Y][CursorPosition.X] = ch;
+			attributes[CursorPosition.Y][CursorPosition.X] = CurrentAttribute;
+			CursorPosition.X++;
+			if (CursorPosition.X >= SizeLimit)
+			{
+				memory(memory.size() + 20, tensor<wchar_t>(SizeLimit));
+				attributes(attributes.size() + 20, tensor<WORD>(SizeLimit, 15));
+			}
+		}
+
+		ret* this;
+	}
+
+	// scrittura del buffer intero
+	void output() const
+	{
+		// inizio
+		ResetAttribute();
+		WORD Attrib{ 15 };
+		wcout << L'\n';
+
+		// scrittura
+		for (size_t i = 0; i < memory; ++i)
+		{
+			for (size_t j = 0; j < SizeLimit; ++j)
+			{
+				if (Attrib != attributes[i][j])
+				{
+					SetConsoleTextAttribute(hConsole, attributes[i][j]);
+				}
+				wcout << memory[i][j];
+				Attrib = attributes[i][j];
+			}
+			wcout << L'\n';
+		}
+		ResetAttribute();
+	}
+
+	// trasferimento
+	void log()
+	{
+		output();
+		reset();
+	}
+
+	// output
+	friend wostream& operator<<(wostream& wos, const Buffer& buff)
+	{
+		_GetCursorPos();
+		auto attrib{ csbi.wAttributes };
+		buff.output();
+		SetConsoleTextAttribute(hConsole, attrib);
+		ret wos;
+	}
+};
 
 // numeri complessi
 class radical;
@@ -1337,9 +1513,11 @@ static tensor<compost> DecomposeNumber(ptrdiff_t input);
 class RadicalUnit
 {
 	// elementi primari
+private:
 	int coefficient;
 	ptrdiff_t Arg;
 	tensor<int> primes;
+
 public:
 
 	// costruttori
@@ -1609,8 +1787,10 @@ public:
 class RadicalExpr
 {
 	// elementi
+private:
 	friend class radical;
 	tensor<RadicalUnit> elements;
+
 public:
 
 	// costruttori
@@ -1836,7 +2016,9 @@ public:
 class radical
 {
 	// dati
+private:
 	RadicalExpr top, bottom;
+
 public:
 
 	// getter
@@ -3019,8 +3201,8 @@ template<typename T_int = long double>
 static factor<T_int> PolynomialSum(factor<T_int> vect);
 template<typename T_int = long double>
 static factor<T_int> PolynomialMultiply(polynomial<T_int> Polynomial);
-template <class T_int>
 
+template <class T_int>
 factor<T_int> factor<T_int>::operator()(T_int x, size_t Vpos, int) const
 {
 	auto This{ *this };
@@ -5516,7 +5698,6 @@ struct Console
 		ret wos;
 	}
 };
-
 class ConsoleStream : public tensor<Console>
 {
 public:
@@ -6653,7 +6834,7 @@ public:
 					}
 				}
 
-				det += intpow(-1, i) * (*this)[0][i] * MX.det();
+				det += ((i % 2 == 0) ? 1 : -1) * (*this)[0][i] * MX.det();
 			}
 
 			ret det;
@@ -6864,8 +7045,10 @@ static void ProjectAndDrawLine
 class Point__
 {
 	// componenti
+private:
 	int ScreenX, ScreenY;
 	tensor<long double> Normal;
+
 public:
 	long double x, y, z;
 
@@ -7303,6 +7486,7 @@ public:
 class matrix : protected tensor<tensor<long double>>
 {
 	// dati delle dimensioni
+private:
 	size_t SizeI;
 	size_t SizeJ;
 
@@ -7447,7 +7631,7 @@ public:
 	}
 
 	// matrice trasposta
-	matrix trasposed() const
+	matrix T_() const
 	{
 		matrix result(SizeJ, SizeI);
 		for (size_t i = 0; i < SizeI; ++i)
@@ -7581,6 +7765,7 @@ Vector ActivationDerivative(Vector inputs)
 class DenseLayer
 {
 	// dati
+private:
 	size_t sizeInput;
 	size_t sizeOutput;
 	matrix weights;
@@ -7617,7 +7802,7 @@ public:
 		}
 
 		// correzione dei pesi e dei bias
-		auto derivative{ weights.trasposed() * _gradient };
+		auto derivative{ weights.T_() * _gradient };
 		biases -= _gradient * LearnRate;
 		weights -= (_gradient * inputs) * LearnRate;
 		ret derivative;
@@ -7625,7 +7810,9 @@ public:
 };
 class ActivationLayer
 {
+private:
 	Vector inputs;
+
 public:
 
 	// costruttori
@@ -7648,9 +7835,11 @@ public:
 class MultiLayerPerceptron
 {
 	// struttura della rete neurale
+private:
 	tensor<size_t> NN;
 	tensor<DenseLayer> interlayers;
 	tensor<ActivationLayer> neurons;
+
 public:
 
 	// costruttori
@@ -8000,7 +8189,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.8.6 ";
+			wcout << L"1.8.9 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -14694,7 +14883,7 @@ static tensor<tensor<long double>> SystemSolver(tensor<factor<>> functions)
 		StarterPoint << pow(5, 1.0 / (i + 2));
 
 	// calcolo di ogni coppia ordinata
-	for (int i = 0; i < 100 and solutions < degree; ++i) {
+	for (int i = 0; i < 10 and solutions < degree; ++i) {
 
 		// calcolo dello jacobiano
 		Matrix<Fraction<>> Jacobian(Variables.size());
@@ -14703,7 +14892,7 @@ static tensor<tensor<long double>> SystemSolver(tensor<factor<>> functions)
 				Jacobian[j] << NewFunctions[j].derivate(k);
 		auto solution{ StarterPoint };
 
-		for (int j = 0; j < 100; ++j) {
+		for (int j = 0; j < 10; ++j) {
 
 			// valutazione dello jacobiano nel punto
 			Matrix<> JInvpoint(Variables.size());
