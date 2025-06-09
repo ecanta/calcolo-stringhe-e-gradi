@@ -332,27 +332,64 @@ private:
 	tensor<tensor<WORD>> attributes;
 	COORD CursorPosition;
 	WORD CurrentAttribute;
+	short WindowStep;
+
+	// ridimensionamento
+	void UpdateSize()
+	{
+		// cursore nella finestra di scrittura
+		if (CursorPosition.X < SizeLimit)
+		{
+			ret;
+		}
+
+		// spostamento a capo
+		CursorPosition.X = 0;
+		CursorPosition.Y++;
+
+		// cursore sempre all'interno della finestra
+		if (CursorPosition.Y < WindowHeight)
+		{
+			ret;
+		}
+
+		// slittamento della finestra
+		WindowStep++;
+
+		// finestra contenuta nel buffer
+		if (WindowStep + WindowHeight <= memory.size())
+		{
+			ret;
+		}
+
+		// aggiunta di memoria nel buffer
+		memory(memory.size() + 20, tensor<wchar_t>(SizeLimit, L'\0'));
+		attributes(attributes.size() + 20, tensor<WORD>(SizeLimit, 15));
+	}
 
 	// costruttore
 public:
 	Buffer() :
 		held(),
+		WindowStep(0),
 		CurrentAttribute(15),
 		CursorPosition(COORD{ 0, 0 }),
-		memory(tensor<tensor<wchar_t>>(40, tensor<wchar_t>(SizeLimit))),
+		memory(tensor<tensor<wchar_t>>(40, tensor<wchar_t>(SizeLimit, L'\0'))),
 		attributes(tensor<tensor<WORD>>(40, tensor<WORD>(SizeLimit, 15)))
-	{
-	}
+	{}
 
 	// distruttore
 	void reset()
 	{
 		held.clear();
-		memory = tensor<tensor<wchar_t>>(WindowHeight, tensor<wchar_t>(SizeLimit));
+		memory = tensor<tensor<wchar_t>>(
+			WindowHeight, tensor<wchar_t>(SizeLimit, L'\0')
+		);
 		attributes =
 			tensor<tensor<WORD>>(WindowHeight, tensor<WORD>(SizeLimit, 15));
 		CursorPosition = COORD{ 0, 0 };
 		CurrentAttribute = 15;
+		WindowStep = 0;
 	}
 
 	// assegnazione
@@ -366,11 +403,22 @@ public:
 		held = other.held;
 		memory = other.memory;
 		attributes = other.attributes;
+		WindowStep = other.WindowStep;
 		CursorPosition = other.CursorPosition;
 		CurrentAttribute = other.CurrentAttribute;
 	}
 
 	// uguaglianze e disuguaglianze
+	bool AbsolutelyEqual(const Buffer& other) const
+	{
+		ret held == other.held and
+			memory == other.memory and
+			attributes == other.attributes and
+			CursorPosition.X == other.CursorPosition.X and
+			CursorPosition.Y == other.CursorPosition.Y and
+			CurrentAttribute == other.CurrentAttribute and
+			WindowStep == other.WindowStep;
+	}
 	bool operator==(const Buffer& other) const
 	{
 		ret held == other.held and
@@ -395,18 +443,31 @@ public:
 		{
 			ret;
 		}
-		if (position.X >= SizeLimit or position.Y >= memory.size())
+		if (position.X >= SizeLimit or position.Y >= WindowHeight)
 		{
 			ret;
 		}
 		CursorPosition = position;
 	}
 
+	// ottenimento di informazioni specifiche
+	void GetBufferInfo(PCONSOLE_SCREEN_BUFFER_INFO info) const
+	{
+		info->dwMaximumWindowSize = COORD{ SizeLimit, (short)WindowHeight };
+		info->dwSize = COORD{ SizeLimit, (short)WindowHeight };
+		info->wAttributes = CurrentAttribute;
+		info->srWindow = SMALL_RECT{
+			0, 0, static_cast<short>(SizeLimit - 1),
+			static_cast<short>(WindowHeight - 1)
+		};
+		info->dwCursorPosition = CursorPosition;
+	}
+
 	// applicazione delle funzioni
 	Buffer& operator<<(Funct function)
 	{
 		held << function;
-		ret* this;
+		ret *this;
 	}
 
 	// scrittura di un elemento
@@ -420,35 +481,41 @@ public:
 		}
 		calculator << written;
 		auto text{ calculator.str() };
+		
+		// sostituzione dei tab con degli spazi
+		size_t pos = 0;
+		while ((pos = text.find(L'\t', pos)) != wstring::npos)
+		{
+			text.replace(pos, 1, wstring(1, 8));
+			pos += 8;
+		}
 
 		// scrittura del testo
 		for (const auto& ch : text)
 		{
+			// carattere non stampabile
+			if (ch < 32 or !isprint(ch))
+			{
+				continue;
+			}
+
 			// a capo
 			if (ch == L'\n')
 			{
-				CursorPosition.X = 0;
-				CursorPosition.Y++;
-				if (CursorPosition.Y >= memory.size())
-				{
-					memory(memory.size() + 20, tensor<wchar_t>(SizeLimit));
-					attributes(attributes.size() + 20, tensor<WORD>(SizeLimit, 15));
-				}
+				CursorPosition.X = SizeLimit;
+				UpdateSize();
 				continue;
 			}
 
 			// aggiunta carattere
-			memory[CursorPosition.Y][CursorPosition.X] = ch;
-			attributes[CursorPosition.Y][CursorPosition.X] = CurrentAttribute;
+			UpdateSize();
+			memory[CursorPosition.Y + WindowStep][CursorPosition.X] = ch;
+			attributes[CursorPosition.Y + WindowStep][CursorPosition.X] =
+				CurrentAttribute;
 			CursorPosition.X++;
-			if (CursorPosition.X >= SizeLimit)
-			{
-				memory(memory.size() + 20, tensor<wchar_t>(SizeLimit));
-				attributes(attributes.size() + 20, tensor<WORD>(SizeLimit, 15));
-			}
 		}
 
-		ret* this;
+		ret *this;
 	}
 
 	// scrittura del buffer intero
@@ -460,10 +527,45 @@ public:
 		wcout << L'\n';
 
 		// scrittura
+		short CharsSkipped{};
 		for (size_t i = 0; i < memory; ++i)
 		{
 			for (size_t j = 0; j < SizeLimit; ++j)
 			{
+				// carattere trasparente
+				if (memory[i][j] == L'\0')
+				{
+					CharsSkipped++;
+					continue;
+				}
+
+				// spostamento del cursore
+				if (CharsSkipped > 0)
+				{
+					// calcoli
+					_GetCursorPos();
+					auto position{ csbi.dwCursorPosition };
+					auto remaining{ SizeLimit - position.X };
+
+					// una sola riga da scrivere
+					if (CharsSkipped < remaining)
+					{
+						position.X += CharsSkipped;
+					}
+
+					// spostamento tra più righe
+					else
+					{
+						CharsSkipped -= remaining;
+						position.Y += CharsSkipped / SizeLimit + 1;
+						position.X = CharsSkipped % SizeLimit;
+					}
+
+					// impostazione
+					SetConsoleCursorPosition(hConsole, position);
+					CharsSkipped = 0;
+				}
+
 				if (Attrib != attributes[i][j])
 				{
 					SetConsoleTextAttribute(hConsole, attributes[i][j]);
@@ -494,9 +596,56 @@ public:
 	}
 };
 
+// funzioni di unificazione tra console e buffer
+template<typename T>class OutputDevice;
+template<>class OutputDevice<HANDLE>
+{
+public:
+	void SetCursorPosition(COORD pos)
+	{
+		SetConsoleCursorPosition(hConsole, pos);
+	}
+	static void SetTextAttribute(WORD attr)
+	{
+		SetConsoleTextAttribute(hConsole, attr);
+	}
+	void GetBufferInfo(PCONSOLE_SCREEN_BUFFER_INFO info) const
+	{
+		GetConsoleScreenBufferInfo(hConsole, info);
+	}
+	template<typename U> static void Print(U text)
+	{
+		wcout << text;
+	}
+};
+template<>class OutputDevice<Buffer>
+{
+private:
+	Buffer buff;
+public:
+	OutputDevice(Buffer entity) : buff(entity) {}
+
+	void SetCursorPosition(COORD pos)
+	{
+		buff.SetBufferCursorPosition(pos);
+	}
+	void SetTextAttribute(WORD attr)
+	{
+		buff.SetBufferTextAttribute(attr);
+	}
+	void GetBufferInfo(PCONSOLE_SCREEN_BUFFER_INFO info) const
+	{
+		buff.GetBufferInfo(info);
+	}
+	template<typename U> void Print(U text)
+	{
+		buff << text;
+	}
+};
+
 // numeri complessi
 class radical;
-template<typename Ty> class complex
+template<typename Ty>class complex
 {
 public:
 
@@ -1698,64 +1847,69 @@ public:
 		// lunghezza finale
 		ret Arg != 1 and abs(coefficient) != 1 ? line + 1 : line;
 	}
-	void write(WORD attrib = 15, bool NoSign = false) const
+	template<typename U>
+	void write(OutputDevice<U> device, WORD attrib = 15, bool NoSign = false) const
 	{
 		// aggiunta di spazio
-		_GetCursorPos();
+		device.GetBufferInfo(&csbi);
 		if (csbi.dwCursorPosition.Y == 0)
 		{
-			wcout << L'\n';
+			device.Print(L'\n');
 		}
 
 		// se è un numero intero
-		SetConsoleTextAttribute(hConsole, attrib);
+		device.SetTextAttribute(attrib);
 		if (primes == tensor<int>{ 1 })
 		{
-			_GetCursorPos();
+			device.GetBufferInfo(&csbi);
 			auto coeff = NoSign ?
 				to_wstring(abs(coefficient)) : to_wstring(coefficient);
+
 			if (coeff.size() > csbi.dwSize.X - csbi.dwCursorPosition.X)
 			{
-				wcout << L"\n\n";
+				device.Print(L"\n\n");
 			}
-			wcout << coeff;
+			device.Print(coeff);
 			ret;
 		}
 
 		// a capo
-		_GetCursorPos();
+		device.GetBufferInfo(&csbi);
 		auto coeff = NoSign ?
 			to_wstring(abs(coefficient)) : to_wstring(coefficient);
 		auto argument{ to_wstring(arg()) };
 		int len = coeff.size() + argument.size() + 3;
 		if (len > csbi.dwSize.X - csbi.dwCursorPosition.X)
 		{
-			wcout << L"\n\n\n";
+			device.Print(L"\n\n\n");
 		}
 
 		// output coefficiente
 		if (abs(coefficient) != 1)
 		{
-			wcout << coeff << L' ';
+			device.Print(coeff);
+			device.Print(L' ');
 		}
-		SetConsoleTextAttribute(hConsole, 14);
-		wcout << L'\\';
-		_GetCursorPos();
+		device.SetTextAttribute(14);
+		device.Print(L'\\');
+		device.GetBufferInfo(&csbi);
 
 		// scrittura radicale
-		wcout << L'/' << argument << L'\n';
-		SetConsoleCursorPosition(
-			hConsole,
+		device.Print(L'/');
+		device.Print(argument);
+		device.Print(L'\n');
+		device.SetCursorPosition(
 			{ csbi.dwCursorPosition.X, short(csbi.dwCursorPosition.Y - 1) }
 		);
-		wcout << L' ' << wstring(argument.size(), L'_');
+		device.Print(L' ');
+		device.Print(wstring(argument.size(), L'_'));
 
 		// riposizionamento cursore
 		COORD SetCursor{ 0, csbi.dwCursorPosition.Y };
-		_GetCursorPos();
+		device.GetBufferInfo(&csbi);
 		SetCursor.X = csbi.dwCursorPosition.X;
-		SetConsoleCursorPosition(hConsole, SetCursor);
-		SetConsoleTextAttribute(hConsole, attrib);
+		device.SetCursorPosition(SetCursor);
+		device.SetTextAttribute(attrib);
 	}
 
 	// output
@@ -1779,7 +1933,7 @@ public:
 	friend wostream& operator<<(wostream& os, const RadicalUnit& obj)
 	{
 		_GetCursorPos();
-		obj.write(csbi.wAttributes);
+		obj.write(OutputDevice<HANDLE>(), csbi.wAttributes);
 		SetConsoleTextAttribute(hConsole, csbi.wAttributes);
 		ret os;
 	}
@@ -1975,16 +2129,18 @@ public:
 		}
 		ret elements[0].negative() ? line + 1 : line;
 	}
-	void write(WORD attrib = 15) const
+	template<typename U> void write(OutputDevice<U> device, WORD attrib = 15) const
 	{
-		elements[0].write(attrib);
+		elements[0].write(device, attrib);
 		for (size_t i = 1; i < elements.size(); ++i)
 		{
-			SetConsoleTextAttribute(hConsole, attrib);
-			wcout << L' ' << (elements[i].negative() ? L'-' : L'+') << L' ';
-			elements[i].write(attrib, true);
+			device.SetTextAttribute(attrib);
+			device.Print(L' ');
+			device.Print(elements[i].negative() ? L'-' : L'+');
+			device.Print(L' ');
+			elements[i].write(device, attrib, true);
 		}
-		SetConsoleTextAttribute(hConsole, attrib);
+		device.SetTextAttribute(attrib);
 	}
 
 	// output
@@ -2008,7 +2164,7 @@ public:
 	friend wostream& operator<<(wostream& os, const RadicalExpr& obj)
 	{
 		_GetCursorPos();
-		obj.write(csbi.wAttributes);
+		obj.write(OutputDevice<HANDLE>(), csbi.wAttributes);
 		SetConsoleTextAttribute(hConsole, csbi.wAttributes);
 		ret os;
 	}
@@ -2184,13 +2340,14 @@ public:
 	}
 
 	// scrittura
-	void write(WORD wAttribute = 15) const
+	template<typename U>
+	void write(OutputDevice<U> device, WORD wAttribute = 15) const
 	{
 		// denominatore vuoto
 		if (bottom.elements.size() == 1 and
 			bottom.elements[0].GetCoefficient() == 1)
 		{
-			top.write(wAttribute);
+			top.write(device, wAttribute);
 			ret;
 		}
 
@@ -2200,43 +2357,38 @@ public:
 		int maxlen = toplen > bottomlen ? toplen : bottomlen;
 
 		// se il radicale è troppo lungo
-		SetConsoleTextAttribute(hConsole, wAttribute);
-		_GetCursorPos();
+		device.SetTextAttribute(wAttribute);
+		device.GetBufferInfo(&csbi);
 		auto CursorPos{ csbi.dwCursorPosition };
 		if (maxlen > csbi.dwSize.X - CursorPos.X)
 		{
 			wcout << approximation();
 			ret;
 		}
-		wcout << wstring(maxlen, L'-') << '\n';
-		ResetAttribute();
+		device.Print(wstring(maxlen, L'-'));
+		device.Print('\n');
+		device.SetTextAttribute(15);
 
 		// scrittura numeratore
 		int diff = fabs(toplen - bottomlen) / 2;
-		SetConsoleCursorPosition(
-			hConsole, { CursorPos.X, short(CursorPos.Y - 1) }
-		);
+		device.SetCursorPosition({ CursorPos.X, short(CursorPos.Y - 1) });
 		if (toplen != maxlen)
 		{
-			wcout << wstring(diff, L' ');
+			device.Print(wstring(diff, L' '));
 		}
-		top.write(wAttribute);
+		top.write(device, wAttribute);
 
 		// scrittura denominatore
 		int scale = bottom.intg() ? 1 : 2;
-		SetConsoleCursorPosition(
-			hConsole, { CursorPos.X, short(CursorPos.Y + scale) }
-		);
+		device.SetCursorPosition({ CursorPos.X, short(CursorPos.Y + scale) });
 		if (bottomlen != maxlen)
 		{
-			wcout << wstring(diff, L' ');
+			device.Print(wstring(diff, L' '));
 		}
-		bottom.write(wAttribute);
+		bottom.write(device, wAttribute);
 
 		// riposizionamento cursore
-		SetConsoleCursorPosition(
-			hConsole, { short(CursorPos.X + maxlen), CursorPos.Y }
-		);
+		device.SetCursorPosition({ short(CursorPos.X + maxlen), CursorPos.Y });
 	}
 
 	// output
@@ -2272,7 +2424,7 @@ public:
 	friend wostream& operator<<(wostream& os, const radical& obj)
 	{
 		_GetCursorPos();
-		obj.write(csbi.wAttributes);
+		obj.write(OutputDevice<HANDLE>(), csbi.wAttributes);
 		SetConsoleTextAttribute(hConsole, csbi.wAttributes);
 		ret os;
 	}
@@ -2291,6 +2443,7 @@ class RadComplx : public complex<radical>
 public:
 	RadComplx() : complex<radical>() {}
 	RadComplx(radical val) : complex<radical>(val) {}
+	RadComplx(complex<radical> val) : complex<radical>(val) {}
 	RadComplx(radical real, radical imag) : complex<radical>(real, imag) {}
 	
 	// semplificazione
@@ -2298,6 +2451,22 @@ public:
 	{
 		RealPart.simplify();
 		ImaginaryPart.simplify();
+	}
+
+	// valutazione in un fattore di polinomio
+	RadComplx valutateIn(FACTOR<> vect) const
+	{
+		RadComplx result;
+		for (const auto& term : vect)
+		{
+			RadComplx multiplied(radical(term.coefficient));
+			for (size_t i = 0; i < term.degree; ++i)
+			{
+				multiplied *= *this;
+			}
+			result += multiplied;
+		}
+		ret result;
 	}
 
 	// scrittura
@@ -3202,7 +3371,7 @@ static factor<T_int> PolynomialSum(factor<T_int> vect);
 template<typename T_int = long double>
 static factor<T_int> PolynomialMultiply(polynomial<T_int> Polynomial);
 
-template <class T_int>
+template<typename T_int>
 factor<T_int> factor<T_int>::operator()(T_int x, size_t Vpos, int) const
 {
 	auto This{ *this };
@@ -3214,46 +3383,46 @@ factor<T_int> factor<T_int>::operator()(T_int x, size_t Vpos, int) const
 	ret PolynomialSum<T_int>(This);
 }
 
-template<class T_int> inline factor<T_int>
+template<typename T_int> inline factor<T_int>
 factor<T_int>::operator-(const factor& other) const
 {
 	ret PolynomialSum<T_int>(*this + other.neg());
 }
-template<class T_int> inline factor<T_int>
+template<typename T_int> inline factor<T_int>
 factor<T_int>::operator*(const factor& other) const
 {
 	ret PolynomialMultiply<T_int>({ *this, other });
 }
-template<class T_int> inline factor<T_int>&
+template<typename T_int> inline factor<T_int>&
 factor<T_int>::operator-=(const factor& other)
 {
 	*this = *this - other;
 	ret *this;
 }
-template<class T_int> inline factor<T_int>&
+template<typename T_int> inline factor<T_int>&
 factor<T_int>::operator*=(const factor& other)
 {
 	*this = *this * other;
 	ret *this;
 }
 
-template<class T_int> inline FACTOR<T_int>
+template<typename T_int> inline FACTOR<T_int>
 FACTOR<T_int>::operator-(const FACTOR& other) const
 {
 	ret To1V(ToXV(*this) - ToXV(other));
 }
-template<class T_int> inline FACTOR<T_int>
+template<typename T_int> inline FACTOR<T_int>
 FACTOR<T_int>::operator*(const FACTOR& other) const
 {
 	ret To1V(ToXV(*this) * ToXV(other));
 }
-template<class T_int> inline FACTOR<T_int>&
+template<typename T_int> inline FACTOR<T_int>&
 FACTOR<T_int>::operator-=(const FACTOR& other)
 {
 	*this = *this - other;
 	ret *this;
 }
-template<class T_int> inline FACTOR<T_int>&
+template<typename T_int> inline FACTOR<T_int>&
 FACTOR<T_int>::operator*=(const FACTOR& other)
 {
 	*this = *this * other;
@@ -3264,7 +3433,7 @@ FACTOR<T_int>::operator*=(const FACTOR& other)
 // frazioni
 template<typename T> T ObjectOperations
 (wstring& errcode, tensor<T> list, tensor<wstring> ops, wstring disposition = L"");
-template<class T = long double>class Fraction
+template<typename T = long double>class Fraction
 {
 	// componenti
 public:
@@ -8189,7 +8358,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.8.9 ";
+			wcout << L"1.9.2 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -8563,7 +8732,7 @@ static big Gcd(big A, big B)
 }
 
 // massimo comune divisore tra più termini
-template<typename T>static int Gcd(tensor<T> terms)
+template<typename T> static int Gcd(tensor<T> terms)
 {
 	int gcd{};
 	if (terms.empty()) ret 0;
@@ -17562,20 +17731,24 @@ static void DecompAndSolve(switchcase& argc)
 		ptrdiff_t ParameterIndex = VarOrder.size() - 1;
 
 		// controllo linearità e calcolo parametro
+		int PossibleIndex{ -1 };
 		for (; ParameterIndex >= 0; --ParameterIndex) {
 			for (const auto& eq : equations) {
+				int deg{};
 				for (size_t i = 0; i < eq; ++i) {
-					int deg{};
+					int Deg{};
 					for (size_t j = 0; j < VarOrder.size(); ++j) {
 						if (j == ParameterIndex) continue;
 						deg += eq[i].exp[VariablePos[j]];
 					}
-					if (deg > 1) {
-						Continue = true;
-						break;
-					}
+					if (Deg > deg) deg = Deg;
 				}
-				if (Continue) break;
+
+				if (deg == 2 and PossibleIndex < 0) PossibleIndex = ParameterIndex;
+				if (deg > 1) {
+					Continue = true;
+					break;
+				}
 			}
 			if (Continue) {
 				Continue = false;
@@ -17585,7 +17758,95 @@ static void DecompAndSolve(switchcase& argc)
 			charVariable = Variables.at(pIndex);
 			break;
 		}
+		if (pIndex < 0 and (PossibleIndex < 0 or equations > 1)) {
+
+			Fractions.clear();
+			equations.clear();
+			startover = true;
+			continue;
+		}
+
+		// equazione parametrica di secondo grado
 		if (pIndex < 0) {
+			
+			// calcolo coefficienti parametrici
+			FACTOR<> A, B, C;
+			for (auto& mono : equations[0]) {
+
+				// conversione
+				MONOMIAL<> mon;
+				mon.coefficient = mono.coefficient;
+				mon.degree = mono.exp[1 - PossibleIndex];
+
+				// push
+				switch (mono.exp[PossibleIndex]) {
+				case 2:
+					A << mon;
+					break;
+				case 1:
+					B << mon;
+					break;
+				case 0:
+					C << mon;
+					break;
+				}
+			}
+
+			// calcolo soluzioni dell'equazione di primo grado
+			tensor<RadComplx> radicals, FirstDegreeRadicals;
+			tensor<int> FirstDegreeSolutions;
+			auto TempSolutions{ EquationSolver(ToXV(A), radicals) };
+
+			// valutazione radicali
+			for (const auto& rad : radicals)
+			{
+				auto denominator{ rad.valutateIn(B) };
+				if (denominator == RadComplx()) continue;
+				FirstDegreeRadicals << (rad.valutateIn(C) / denominator)
+					* RadComplx(radical(-1));
+			}
+			
+			// valutazione soluzioni
+			for (const auto& sol : TempSolutions) {
+				int extract{ stoi(sol.substr(sol.find(L'!') + 3)) };
+
+				// controllo divisione per zero
+				auto top{ -C(extract) };
+				auto denominator{ B(extract) };
+				if (denominator == 0) continue;
+				
+				// push sulle soluzioni intere
+				if (integer(top / denominator)) {
+					FirstDegreeSolutions << int(top / denominator);
+					continue;
+				}
+
+				// push sui radicali
+				auto gcd{ Gcd(abs(top), abs(denominator)) };
+				top /= gcd;
+				denominator /= gcd;
+				FirstDegreeRadicals << RadComplx(radical(
+					RadicalExpr(RadicalUnit(top)),
+					RadicalExpr(RadicalUnit(denominator))
+				));
+			}
+
+			// fai l'output delle soluzioni particolari
+			// calcola il delta e scomponilo
+			// fai il gcd polinomiale tra A, B e Delta e semplifica
+			// scrivi le soluzioni
+
+			// implementa le derivate
+			// metti a posto il sistema delle C.E.
+			// implementa gli integrali
+
+			// migliora le disquazioni
+
+			// ottimizzazioni, debug, commenti e readme
+
+			// implementazioni di neural networks
+
+			// equazioni differenziali e newton-raphson nei complessi
 
 			Fractions.clear();
 			equations.clear();
