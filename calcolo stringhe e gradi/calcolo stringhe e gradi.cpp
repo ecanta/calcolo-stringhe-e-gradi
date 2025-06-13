@@ -644,6 +644,21 @@ public:
 };
 
 // numeri complessi
+template<typename T> T Sqrt(T val)
+{
+	if constexpr(is_integral_v<T>)
+	{
+		ret static_cast<T>(sqrt(static_cast<double>(val)));
+	}
+	else if constexpr(is_floating_point_v<T>)
+	{
+		ret sqrt(val);
+	}
+	else
+	{
+		throw invalid_argument("Unsupported type!");
+	}
+}
 class radical;
 template<typename Ty>class complex
 {
@@ -654,7 +669,7 @@ public:
 	Ty ImaginaryPart;
 	Ty norm() const
 	{
-		ret sqrt(RealPart * RealPart + ImaginaryPart * ImaginaryPart);
+		ret Sqrt(RealPart * RealPart + ImaginaryPart * ImaginaryPart);
 	}
 
 	// confronto
@@ -1013,7 +1028,7 @@ private:
 		if (A == 0)
 		{
 			auto result{ B };
-			result.sign = Sign;
+			result.sign = Sign xor B.sign;
 			ret result;
 		}
 
@@ -1623,10 +1638,10 @@ static big pow(big x, int y)
 big LCM(1);
 
 // algoritmi di ordinamento veloci
-static void ClearArea(COORD WinCenter, COORD Dimensions);
-template<typename T> void GeneralizedHeapify(tensor<T>& arr, int n, int i)
+template<typename T, typename... Others> void GeneralizedHeapify
+(tensor<T>& arr, ptrdiff_t n, ptrdiff_t i, tensor<Others>&... others)
 {
-	int largest{ i }, left{ 2 * i + 1 }, right{ 2 * i + 2 };
+	ptrdiff_t largest{ i }, left{ 2 * i + 1 }, right{ 2 * i + 2 };
 	if (left < n and arr[left] > arr[largest])
 	{
 		largest = left;
@@ -1638,24 +1653,28 @@ template<typename T> void GeneralizedHeapify(tensor<T>& arr, int n, int i)
 	if (largest != i)
 	{
 		swap(arr[i], arr[largest]);
-		GeneralizedHeapify(arr, n, largest);
+		(swap(others[i], others[largest]), ...);
+		GeneralizedHeapify(arr, n, largest, others...);
 	}
 }
-template<typename T> void GeneralizedHeapSort(tensor<T>& arr)
+template<typename T, typename... Others>
+void GeneralizedHeapSort(tensor<T>& arr, tensor<Others>&... others)
 {
 	auto n{ arr.size() };
 	for (ptrdiff_t i = n / 2 - 1; i >= 0; --i)
 	{
-		GeneralizedHeapify(arr, n, i);
+		GeneralizedHeapify(arr, n, i, others...);
 	}
 	for (ptrdiff_t i = n - 1; i > 0; --i)
 	{
 		swap(arr[0], arr[i]);
-		GeneralizedHeapify(arr, i, 0);
+		(swap(others[0], others[i]), ...);
+		GeneralizedHeapify(arr, i, 0, others...);
 	}
 }
+static void ClearArea(COORD WinCenter, COORD Dimensions);
 
-// rappresentazione di radicali
+// rappresentazione di radicali3
 static ptrdiff_t Gcd(ptrdiff_t A, ptrdiff_t B);
 template<typename T> static int Gcd(tensor<T> terms);
 static tensor<compost> DecomposeNumber(ptrdiff_t input);
@@ -2430,113 +2449,6 @@ public:
 	}
 };
 
-// radicali e numeri complessi
-template<typename Ty> enable_if_t<!is_same_v<Ty, radical>, wostream&>
-operator<<(wostream& os, const complex<Ty>& obj)
-{
-	os << obj.str();
-	ret os;
-}
-class RadComplx : public complex<radical>
-{
-	// costruttori
-public:
-	RadComplx() : complex<radical>() {}
-	RadComplx(radical val) : complex<radical>(val) {}
-	RadComplx(complex<radical> val) : complex<radical>(val) {}
-	RadComplx(radical real, radical imag) : complex<radical>(real, imag) {}
-	
-	// semplificazione
-	void simplify()
-	{
-		RealPart.simplify();
-		ImaginaryPart.simplify();
-	}
-
-	// valutazione in un fattore di polinomio
-	RadComplx valutateIn(FACTOR<> vect) const
-	{
-		RadComplx result;
-		for (const auto& term : vect)
-		{
-			RadComplx multiplied(radical(term.coefficient));
-			for (size_t i = 0; i < term.degree; ++i)
-			{
-				multiplied *= *this;
-			}
-			result += multiplied;
-		}
-		ret result;
-	}
-
-	// scrittura
-	void write(WORD wAttribute = 15) const
-	{
-		// output parte reale
-		if (RealPart != radical(0))
-		{
-			wcout << RealPart;
-		}
-		if (ImaginaryPart == radical(0))
-		{
-			ret;
-		}
-		
-		// output parte immaginaria
-		auto Top{ ImaginaryPart.GetTop() };
-		if (ImaginaryPart.GetBottom() != RadicalUnit(1))
-		{
-			wcout << L" + i" << ImaginaryPart;
-		}
-		else if (Top.unitary())
-		{
-			bool positive{ Top.approximation() > 0 };
-			wcout << (positive ? L" + " : L" - ");
-			if (Top != RadicalExpr(RadicalUnit(positive ? 1 : -1)))
-			{
-				wcout << Top;
-			}
-			wcout << L'i';
-		}
-		else
-		{
-			wcout << L" + i(" << ImaginaryPart << L')';
-		}
-	}
-
-	// confronto
-	bool operator==(const RadComplx& other) const
-	{
-		ret RealPart == other.RealPart and ImaginaryPart == other.ImaginaryPart;
-	}
-	bool operator!=(const RadComplx& other) const
-	{
-		ret RealPart != other.RealPart or ImaginaryPart != other.ImaginaryPart;
-	}
-
-	// output
-	wstring str() const
-	{
-		// aggiunta parte reale
-		wostringstream oss;
-		oss << RealPart.str();
-
-		// aggiunta parte immaginaria
-		if (ImaginaryPart != radical(0))
-		{
-			oss << L" + i(" << ImaginaryPart.str() << L')';
-		}
-
-		ret oss.str();
-	}
-	friend wostream& operator<<(wostream& os, const RadComplx& obj)
-	{
-		_GetCursorPos();
-		obj.write(csbi.wAttributes);
-		ret os;
-	}
-};
-
 // monomi
 template<typename T_int = long double>struct MONOMIAL
 {
@@ -2660,13 +2572,16 @@ public:
 	factor(size_t size, const monomial<T_int>& initial_value)
 	{
 		this->resize(size);
-		count = size;
-		fill(data, data + count, initial_value);
-	}
-	factor(size_t size)
-	{
-		this->resize(size);
 		this->count = size;
+		fill(this->data, this->data + this->count, initial_value);
+	}
+	factor(T_int value)
+	{
+		*this = factor{ { value, tensor<int>(Variables.size(), 0) } };
+	}
+	factor(int value)
+	{
+		*this = factor{ { (T_int)value, tensor<int>(Variables.size(), 0) } };
 	}
 	factor(tensor<monomial<T_int>> vect)
 	{
@@ -2832,8 +2747,8 @@ public:
 	FACTOR(size_t size, const MONOMIAL<T_int>& initial_value)
 	{
 		this->resize(size);
-		count = size;
-		fill(data, data + count, initial_value);
+		this->count = size;
+		fill(this->data, this->data + this->count, initial_value);
 	}
 	FACTOR(size_t size)
 	{
@@ -2846,6 +2761,29 @@ public:
 		{
 			this->push_back(value);
 		}
+	}
+
+	// calcolo del grado
+	int degree()
+	{
+		if (this->empty())
+		{
+			ret -1;
+		}
+		if ((*this)[0].coefficient == 0)
+		{
+			ret -1;
+		}
+
+		int degree{};
+		for (const auto& mono : *this)
+		{
+			if (degree < mono.degree)
+			{
+				degree = mono.degree;
+			}
+		}
+		ret degree;
 	}
 
 	// ordinamento
@@ -2946,10 +2884,21 @@ public:
 		}
 		ret This;
 	}
+	inline FACTOR& invert()
+	{
+		ret *this = this->neg();
+	}
 	inline FACTOR operator-(const FACTOR& other) const;
 	inline FACTOR operator*(const FACTOR& other) const;
 	inline FACTOR& operator-=(const FACTOR& other);
 	inline FACTOR& operator*=(const FACTOR& other);
+	inline FACTOR& operator/=(const FACTOR& other)
+	{
+		FACTOR<> div, rem;
+		PolynomialDivide(*this, other, div, rem);
+		*this = div;
+		ret *this;
+	}
 
 	// rappresentazione
 	_NODISCARD wstring str(int size = Variables.size()) override
@@ -2968,9 +2917,116 @@ public:
 	}
 
 	// output
-	friend wostream& operator<<(wostream& os, const FACTOR& obj)
+	friend wostream& operator<<(wostream& os, FACTOR& obj)
 	{
 		os << obj.str();
+		ret os;
+	}
+};
+
+// radicali e numeri complessi
+template<typename Ty> enable_if_t<!is_same_v<Ty, radical>, wostream&>
+operator<<(wostream& os, const complex<Ty>& obj)
+{
+	os << obj.str();
+	ret os;
+}
+class RadComplx : public complex<radical>
+{
+	// costruttori
+public:
+	RadComplx() : complex<radical>() {}
+	RadComplx(radical val) : complex<radical>(val) {}
+	RadComplx(complex<radical> val) : complex<radical>(val) {}
+	RadComplx(radical real, radical imag) : complex<radical>(real, imag) {}
+	
+	// semplificazione
+	void simplify()
+	{
+		RealPart.simplify();
+		ImaginaryPart.simplify();
+	}
+
+	// valutazione in un fattore di polinomio
+	RadComplx valutateIn(factor<> vect, size_t var) const
+	{
+		RadComplx result;
+		for (size_t i = 0; i < vect; ++i)
+		{
+			RadComplx multiplied(radical(vect[i].coefficient));
+			for (size_t j = 0; j < vect[i].exp[var]; ++j)
+			{
+				multiplied *= *this;
+			}
+			result += multiplied;
+		}
+		ret result;
+	}
+
+	// scrittura
+	void write(WORD wAttribute = 15) const
+	{
+		// output parte reale
+		if (RealPart != radical(0))
+		{
+			wcout << RealPart;
+		}
+		if (ImaginaryPart == radical(0))
+		{
+			ret;
+		}
+		
+		// output parte immaginaria
+		auto Top{ ImaginaryPart.GetTop() };
+		if (ImaginaryPart.GetBottom() != RadicalUnit(1))
+		{
+			wcout << L" + i" << ImaginaryPart;
+		}
+		else if (Top.unitary())
+		{
+			bool positive{ Top.approximation() > 0 };
+			wcout << (positive ? L" + " : L" - ");
+			if (Top != RadicalExpr(RadicalUnit(positive ? 1 : -1)))
+			{
+				wcout << Top;
+			}
+			wcout << L'i';
+		}
+		else
+		{
+			wcout << L" + i(" << ImaginaryPart << L')';
+		}
+	}
+
+	// confronto
+	bool operator==(const RadComplx& other) const
+	{
+		ret RealPart == other.RealPart and ImaginaryPart == other.ImaginaryPart;
+	}
+	bool operator!=(const RadComplx& other) const
+	{
+		ret RealPart != other.RealPart or ImaginaryPart != other.ImaginaryPart;
+	}
+
+	// output
+	wstring str() const
+	{
+		// aggiunta parte reale
+		wostringstream oss;
+		oss << RealPart.str();
+
+		// aggiunta parte immaginaria
+		if (ImaginaryPart != radical(0))
+		{
+			oss << L" + i(" << ImaginaryPart.str() << L')';
+		}
+
+		ret oss.str();
+	}
+	friend wostream& operator<<(wostream& os, const RadComplx& obj)
+	{
+		_GetCursorPos();
+		obj.write(csbi.wAttributes);
 		ret os;
 	}
 };
@@ -3477,7 +3533,7 @@ public:
 		}
 		if (empty)
 		{
-			derivative.num = { { { 0, tensor<int>(Variables.size(), 0) } } };
+			derivative.num = { factor<>(0) };
 		}
 		ret derivative;
 	}
@@ -3583,11 +3639,7 @@ public:
 	wstring str()
 	{
 		// frazione semplice
-		if (
-			den == polynomial<T>{ { {
-					1, tensor<int>(Variables.size(), 0)
-				} } }
-			)
+		if (den == polynomial<T>{ 1 })
 		{
 			ret num.str();
 		}
@@ -8181,7 +8233,7 @@ template<typename T> static void CoordFractions
 static FACTOR<> Complementary(POLYNOMIAL<> Polynomial, FACTOR<> factor, int exp);
 static void Simplify(Fraction<>& fr, int& ncoeff, int& dcoeff);
 static void Approximator(tensor<long double>& Equation, long double& root);
-static tensor<wstring> EquationSolver(factor<> Equation, tensor<radical>& rads);
+static tensor<wstring> EquationSolver(factor<> Equation, tensor<RadComplx>& rads);
 static tensor<tensor<long double>> SystemSolver(tensor<factor<>> functions);
 static void FractDisequationMain(
 	polynomial<> Num, polynomial<> Den,
@@ -8674,38 +8726,8 @@ End:
 
 #pragma region Functions
 
-// funzioni matematiche
-#pragma region Math
-
-// elaboratore di numeri sottoforma di stringa
-static wstring Handler(wstring test)
-{
-	if (test.find(L'.') != wstring::npos or test.find(L',') != wstring::npos)
-		while (Last(test) == L'0') test.pop_back();
-	if (Last(test) == L',' or Last(test) == L'.') test.pop_back();
-	ret ElabExponents(test);
-}
-
-// fattoriale x! = x*(x-1)*...*2*1
-static size_t Factorial(size_t n)
-{
-	if (n <= 1) ret 1;
-	ret n * Factorial(n - 1);
-}
-
-// coefficiente binomiale: (n k) = n! / (k! (n-k)!)
-static size_t BinomialCoeff(size_t n, size_t k)
-{
-	long double coeff{ 1.0 };
-
-	// limite di sicurezza per prevenire crash
-	if (n <= 20) coeff = Factorial(n) /
-		(static_cast<long double>(Factorial(k)) * Factorial(n - k));
-	else for (size_t j = 1; j <= n - k; ++j)
-		coeff *= (static_cast<long double>(k) + j) / j;
-
-	ret static_cast<size_t>(coeff);
-}
+// funzioni per calcolare il massimo comune divisore
+#pragma region GreatestCommonDivisor
 
 // massimo comune divisore tra due interi
 static ptrdiff_t Gcd(ptrdiff_t A, ptrdiff_t B)
@@ -8715,6 +8737,38 @@ static ptrdiff_t Gcd(ptrdiff_t A, ptrdiff_t B)
 		auto temp{ B };
 		B = A % B;
 		A = temp;
+	}
+	ret A;
+}
+
+// massimo comune divisore tra polinomi
+static FACTOR<> Gcd(FACTOR<> A, FACTOR<> B)
+{
+	while (!B.empty()) {
+
+		// controllo zeri
+		bool Exit{ true };
+		for (const auto& mon : B) if (mon.coefficient != 0) {
+			Exit = false;
+			break;
+		}
+		if (Exit) break;
+
+		// scambio se necessario
+		auto Adeg{ A.degree() };
+		auto Bdeg{ B.degree() };
+		if (Adeg < Bdeg) swap(A, B);
+		else if (Adeg == Bdeg) {
+			A.sort();
+			B.sort();
+			if (abs(A[0].coefficient) < abs(B[0].coefficient)) swap(A, B);
+		}
+
+		// algoritmo di euclide
+		FACTOR<> rest, quotient;
+		PolynomialDivide(A, B, quotient, rest);
+		A = B;
+		B = rest;
 	}
 	ret A;
 }
@@ -8771,6 +8825,41 @@ static big Gcd(tensor<big> terms)
 		if (gcd == 1) break;
 	}
 	ret gcd;
+}
+
+#pragma endregion
+
+// funzioni matematiche
+#pragma region Math
+
+// elaboratore di numeri sottoforma di stringa
+static wstring Handler(wstring test)
+{
+	if (test.find(L'.') != wstring::npos or test.find(L',') != wstring::npos)
+		while (Last(test) == L'0') test.pop_back();
+	if (Last(test) == L',' or Last(test) == L'.') test.pop_back();
+	ret ElabExponents(test);
+}
+
+// fattoriale x! = x*(x-1)*...*2*1
+static size_t Factorial(size_t n)
+{
+	if (n <= 1) ret 1;
+	ret n * Factorial(n - 1);
+}
+
+// coefficiente binomiale: (n k) = n! / (k! (n-k)!)
+static size_t BinomialCoeff(size_t n, size_t k)
+{
+	long double coeff{ 1.0 };
+
+	// limite di sicurezza per prevenire crash
+	if (n <= 20) coeff = Factorial(n) /
+		(static_cast<long double>(Factorial(k)) * Factorial(n - k));
+	else for (size_t j = 1; j <= n - k; ++j)
+		coeff *= (static_cast<long double>(k) + j) / j;
+
+	ret static_cast<size_t>(coeff);
 }
 
 // potenza sugli interi (per precisione)
@@ -10235,8 +10324,7 @@ static LRESULT CALLBACK WindowProcessor2D(
 
 		// aggiunta della derivata
 		auto derivative{ List[memory[gIndex][index]].Function.derivate(0) };
-		if (derivative.num ==
-			polynomial<>{ { { 0, tensor<int>(Variables.size(), 0) } } })
+		if (derivative.num == polynomial<>{ 0 })
 		{
 			SetFocus(hwnd);
 			ret 0;
@@ -13401,6 +13489,15 @@ static tensor<tensor<long double>> FromPolynomialToPos(
 			double Dquot{ -1 }, Kquot{ -1 };
 
 			for (size_t j = 0; j < Variables.size(); ++j) {
+
+				// controllo per esponenti vuoti
+				bool Empty{ true };
+				for (auto& mono : vect) if (mono.exp[j]) {
+					Empty = false;
+					break;
+				}
+				if (Empty) continue;
+
 				double vexp = vect[i].exp[j];
 				if (!DirectorSeq[j] and !KnownSeq[j] and vexp) ret {};
 				bool primary = DirectorSeq[j];
@@ -13528,7 +13625,7 @@ static factor<T_int> PolynomialSum(factor<T_int> vect)
 	auto it = remove(vect.begin(), vect.end(), monomial<T_int>{ 0, {} });
 	vect.erase(it, vect.end());
 
-	if (vect.empty()) ret factor<T_int>{ { 0, tensor<int>(Variables.size(), 0) } };
+	if (vect.empty()) ret factor<T_int>(0);
 	ret vect;
 }
 
@@ -13543,7 +13640,7 @@ static factor<T_int> PolynomialMultiply(polynomial<T_int> Polynomial)
 		Empty = true;
 		break;
 	}
-	if (Empty) ret { { 1, tensor<int>(Variables.size(), 0) } };
+	if (Empty) ret 1;
 	Polynomial.open();
 
 	while (Polynomial > 1) {
@@ -13581,10 +13678,10 @@ static void PolynomialDivide
 	quotient.clear();
 
 	// divisione
-	while (dividend[0].degree >= divisor[0].degree) {
+	while (dividend.degree() >= divisor.degree()) {
 
 		auto divide{ divisor };
-		int deg = dividend[0].degree, _deg = divisor[0].degree;
+		int deg = dividend.degree(), _deg = divisor.degree();
 		long double rest_element{ dividend[0].coefficient };
 		rest_element /= divisor[0].coefficient;
 		CORRECTION_RATIO *= divisor[0].coefficient;
@@ -16636,7 +16733,6 @@ static polynomial<> DecompPolynomial(switchcase& argc, Type Polynomial)
 	SetConsoleOutputCP(CP_UTF8);
 	SetConsoleCP(CP_UTF8);
 	wcout.imbue(locale(""));
-	SetConsoleTextAttribute(hConsole, 14);
 
 	// variabili
 	wstring pol;
@@ -16647,6 +16743,7 @@ static polynomial<> DecompPolynomial(switchcase& argc, Type Polynomial)
 	// istruzioni
 	if constexpr (CheckSafe) if (input)
 	{
+		SetConsoleTextAttribute(hConsole, 14);
 		wcout << L"Il PROGRAMMA scompone i polinomi e ne disegna il grafico\n\n";
 		SetConsoleTextAttribute(hConsole, 12);
 		wcout << L"Per attivare gli esponenti in forma di apice ";
@@ -17131,8 +17228,7 @@ static void DecompAndSolve(switchcase& argc)
 			}
 
 			// invio frazione
-			if (it.num !=
-				polynomial<>{ { { 0, tensor<int>(Variables.size(), 0) } } })
+			if (it.num != polynomial<>{ 0 })
 			{
 				bool saved{ BOOLALPHA };
 				BOOLALPHA = false;
@@ -17267,7 +17363,7 @@ static void DecompAndSolve(switchcase& argc)
 			for (size_t i = 0; i < DScomp; ++i) DScomp[i].sort();
 			if (DScomp <= 1) skip = true;
 			if (!skip) for (auto a : DScomp) for (auto b : a)
-				if (a != 1 and b.degree > 1) skip = true;
+				if (a.size() != 1 and b.degree > 1) skip = true;
 
 			// disequazioni
 			if (Eqstate != EquationStates::Nothing) {
@@ -17728,18 +17824,18 @@ static void DecompAndSolve(switchcase& argc)
 				VariablePos << pos;
 			}
 		}
-		ptrdiff_t ParameterIndex = VarOrder.size() - 1;
+		ptrdiff_t ParameterIndex = 0;
 
 		// controllo linearità e calcolo parametro
 		int PossibleIndex{ -1 };
-		for (; ParameterIndex >= 0; --ParameterIndex) {
+		for (; ParameterIndex < VarOrder.size(); ++ParameterIndex) {
 			for (const auto& eq : equations) {
 				int deg{};
 				for (size_t i = 0; i < eq; ++i) {
 					int Deg{};
 					for (size_t j = 0; j < VarOrder.size(); ++j) {
 						if (j == ParameterIndex) continue;
-						deg += eq[i].exp[VariablePos[j]];
+						Deg += eq[i].exp[VariablePos[j]];
 					}
 					if (Deg > deg) deg = Deg;
 				}
@@ -17770,16 +17866,17 @@ static void DecompAndSolve(switchcase& argc)
 		if (pIndex < 0) {
 			
 			// calcolo coefficienti parametrici
-			FACTOR<> A, B, C;
+			factor<> A, B, C;
 			for (auto& mono : equations[0]) {
 
 				// conversione
-				MONOMIAL<> mon;
+				monomial<> mon;
 				mon.coefficient = mono.coefficient;
-				mon.degree = mono.exp[1 - PossibleIndex];
+				mon.exp(Variables.size(), 0);
+				mon.exp[PossibleIndex] = mono.exp[PossibleIndex];
 
 				// push
-				switch (mono.exp[PossibleIndex]) {
+				switch (mono.exp[1 - PossibleIndex]) {
 				case 2:
 					A << mon;
 					break;
@@ -17793,28 +17890,38 @@ static void DecompAndSolve(switchcase& argc)
 			}
 
 			// calcolo soluzioni dell'equazione di primo grado
-			tensor<RadComplx> radicals, FirstDegreeRadicals;
-			tensor<int> FirstDegreeSolutions;
-			auto TempSolutions{ EquationSolver(ToXV(A), radicals) };
+			tensor<RadComplx> radicals, FirstDegreeRadicals, RadImpox;
+			tensor<int> FirstDegreeSolutions, impox;
+			auto TempSolutions{ EquationSolver(A, radicals) };
 
 			// valutazione radicali
-			for (const auto& rad : radicals)
-			{
-				auto denominator{ rad.valutateIn(B) };
-				if (denominator == RadComplx()) continue;
-				FirstDegreeRadicals << (rad.valutateIn(C) / denominator)
+			for (size_t i = 0; i < radicals; ++i) {
+				if (TempSolutions[i].find(L'%') == wstring::npos) continue;
+				auto& rad{ radicals[i] };
+
+				auto denominator{ rad.valutateIn(B, PossibleIndex) };
+				if (denominator == RadComplx()) {
+					RadImpox << rad;
+					continue;
+				}
+				FirstDegreeRadicals <<
+					(rad.valutateIn(C, PossibleIndex) / denominator)
 					* RadComplx(radical(-1));
 			}
 			
 			// valutazione soluzioni
 			for (const auto& sol : TempSolutions) {
+				if (sol.find(L'%') != wstring::npos) continue;
 				int extract{ stoi(sol.substr(sol.find(L'!') + 3)) };
 
 				// controllo divisione per zero
 				auto top{ -C(extract) };
 				auto denominator{ B(extract) };
-				if (denominator == 0) continue;
-				
+				if (denominator == 0) {
+					impox << extract;
+					continue;
+				}
+
 				// push sulle soluzioni intere
 				if (integer(top / denominator)) {
 					FirstDegreeSolutions << int(top / denominator);
@@ -17831,21 +17938,130 @@ static void DecompAndSolve(switchcase& argc)
 				));
 			}
 
-			// fai l'output delle soluzioni particolari
-			// calcola il delta e scomponilo
-			// fai il gcd polinomiale tra A, B e Delta e semplifica
-			// scrivi le soluzioni
+			// ordinamento
+			tensor<long double> floats;
+			for (auto& rad : RadImpox) floats << (
+				pow(rad.RealPart.approximation(), 2) +
+				pow(rad.ImaginaryPart.approximation(), 2)
+			);
+			GeneralizedHeapSort(impox);
+			GeneralizedHeapSort(floats, RadImpox);
+
+			// output parametri impossibili
+			SetConsoleTextAttribute(hConsole, 6);
+			if (!(RadImpox.empty() and impox.empty()))
+				wcout << "Se " << Variables[PossibleIndex] << L" = ";
+			auto str{ impox.str() };
+			if (str.find(L'{') != wstring::npos) {
+				str.erase(str.size() - 2);
+				str.erase(0, 2);
+			}
+			wcout << str;
+
+			// output radicali impossibili
+			for (size_t i = 0; i < RadImpox; ++i) {
+				if (!(i == 0 and impox.empty())) wcout << L", ";
+				wcout << RadImpox[i];
+			}
+			if (!(RadImpox.empty() and impox.empty()))
+				wcout << L"\nAllora l'equazione è impossibile\n";
+			ResetAttribute();
+
+			// trasporto di fattori del delta fuori dal segno di radice
+			polynomial<> OutOfRoot{ 1 };
+			polynomial<> Delta{ { B * B - A * C * 4 } };
+			switchcase NoUse;
+			Delta = DecompPolynomial(NoUse, Delta);
+			for (ptrdiff_t i = Delta.size() - 2; i >= 0; --i) {
+				if (Delta[i][0].exp[0] != -1) continue;
+
+				auto Exp{ Delta[i][0].coefficient };
+				for (size_t j = 0; j < Exp / 2; ++j) OutOfRoot << Delta[i + 1];
+				
+				if (int(Exp) % 2 == 0) Delta.erase(Delta.begin() + i + 1);
+				Delta.erase(Delta.begin() + i);
+			}
+
+			// conversione
+			A *= 2;
+			auto F{ PolynomialMultiply(OutOfRoot) };
+			auto _A{ To1V(A) };
+			auto _B{ To1V(B) };
+			auto _F{ To1V(F) };
+
+			// divisione polinomi
+			auto PolynomialGcd{ Gcd(_F, Gcd(_A, _B)) };
+			FACTOR<> div, rem;
+			_A /= PolynomialGcd;
+			_B /= PolynomialGcd;
+
+			// output iniziale
+			SetConsoleTextAttribute(hConsole, 9);
+			wcout << L"\n\n" << L"Le soluzioni sono: ";
+			wcout << Variables[1 - PossibleIndex] << L" = ";
+			
+			// spostamento verso l'alto
+			_GetCursorPos();
+			auto point0{ csbi.dwCursorPosition };
+			SetConsoleCursorPosition(
+				hConsole, COORD{ point0.X, short(point0.Y - 1) }
+			);
+
+			// output coefficiente di mezzo
+			wcout << _B;
+
+			// output segno
+			wcout << L" + ";
+
+			// output fattore
+			wcout << L'(' << _F << L')';
+			
+			// primo output della radice quadrata
+			wcout << L"\\/";
+			_GetCursorPos();
+			auto point1{ csbi.dwCursorPosition };
+			
+			// output del delta
+			wcout << Delta;
+			_GetCursorPos();
+			auto point2{ csbi.dwCursorPosition };
+
+			// output della linea di frazione
+			SetConsoleCursorPosition(hConsole, point0);
+			wcout << wstring(point2.X - point0.X, L'-');
+			
+			// output ramo della radice quadrata
+			SetConsoleCursorPosition(
+				hConsole, COORD{ point1.X, short(point1.Y - 1) }
+			);
+			wcout << wstring(point2.X - point1.X, L'_');
+
+			// output denominatore
+			auto Denominator{ _A.str() };
+			SetConsoleCursorPosition(
+				hConsole,
+				COORD{
+					short((point0.X + point2.X - Denominator.size()) / 2 ),
+					short(point1.Y + 2)
+				}
+			);
+			wcout << Denominator;
+
+			// riposizionamento cursore
+			SetConsoleCursorPosition(
+				hConsole, COORD{ point2.X, point0.Y }
+			);
+			wcout << L"\n\n";
+			ResetAttribute();
 
 			// implementa le derivate
 			// metti a posto il sistema delle C.E.
 			// implementa gli integrali
 
 			// migliora le disquazioni
-
 			// ottimizzazioni, debug, commenti e readme
 
 			// implementazioni di neural networks
-
 			// equazioni differenziali e newton-raphson nei complessi
 
 			Fractions.clear();
