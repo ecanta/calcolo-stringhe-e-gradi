@@ -2892,12 +2892,13 @@ public:
 	inline FACTOR operator*(const FACTOR& other) const;
 	inline FACTOR& operator-=(const FACTOR& other);
 	inline FACTOR& operator*=(const FACTOR& other);
-	inline FACTOR& operator/=(const FACTOR& other)
+	inline double operator/=(const FACTOR& other)
 	{
+		double offset;
 		FACTOR<> div, rem;
-		PolynomialDivide(*this, other, div, rem);
+		PolynomialDivide(*this, other, div, rem, offset);
 		*this = div;
-		ret *this;
+		ret offset;
 	}
 
 	// rappresentazione
@@ -2923,6 +2924,7 @@ public:
 		ret os;
 	}
 };
+static FACTOR<> Gcd(FACTOR<> A, FACTOR<> B);
 
 // radicali e numeri complessi
 template<typename Ty> enable_if_t<!is_same_v<Ty, radical>, wostream&>
@@ -3518,9 +3520,12 @@ public:
 	// derivazione
 	Fraction derivate(size_t Vpos) const
 	{
+		auto Num{ PolynomialMultiply(num) };
+		auto Den{ PolynomialMultiply(den) };
+
 		Fraction derivative{
-			{ num[0].derivate(Vpos) * den[0] - num[0] * den[0].derivate(Vpos) },
-			{ den[0] * factor<T>(den[0]) }
+			{ Num.derivate(Vpos) * Den - Num * Den.derivate(Vpos) },
+			{ Den * factor<T>(Den) }
 		};
 		bool empty{ true };
 		for (const auto& term : derivative.num)
@@ -3533,7 +3538,7 @@ public:
 		}
 		if (empty)
 		{
-			derivative.num = { factor<>(0) };
+			derivative.num = { factor<T>(0) };
 		}
 		ret derivative;
 	}
@@ -3762,6 +3767,7 @@ tensor<wstring> commands
 };
 
 // espressione matematica
+wstring CurrentDerivativeNum{ L"\a" }, CurrentDerivativeDen{ L"\a" };
 enum class EquationStates
 {
 	Nothing,
@@ -3789,6 +3795,25 @@ private:
 
 public:
 	Expression() : activator(false) {};
+	Expression(wstring Numerator, wstring Denominator)
+	{
+		terms.clear();
+		terms[{ 0, 0, 0 }] = Numerator;
+		terms[{ 0, 1, 0 }] = Denominator;
+		terms[{ 1 }] = L"";
+		lister = {
+			{},
+			{ 0 },
+			{ 1 },
+			{ 0, 0 },
+			{ 0, 1 },
+			{ 0, 0, 0 },
+			{ 0, 1, 0 },
+			{ 1, 0 }
+		};
+		lines = { { 0 } };
+		activator = true;
+	}
 	Expression& operator=(const Expression& other)
 	{
 		if (this == &other)
@@ -4520,21 +4545,7 @@ public:
 		}
 
 		// preparazione oggetto
-		terms.clear();
-		terms[{ 0, 0, 0 }] = terms[{ 0, 1, 0 }] = L"\a";
-		terms[{ 1 }] = L"";
-		lister = {
-			{},
-			{ 0 },
-			{ 1 },
-			{ 0, 0 },
-			{ 0, 1 },
-			{ 0, 0, 0 },
-			{ 0, 1, 0 },
-			{ 1, 0 }
-		};
-		lines = { { 0 } };
-		activator = true;
+		*this = Expression(L"\a", L"\a");
 		size_t TensorIndex{};
 		key CursorIndex({ 0, 0, 0 });
 
@@ -4606,7 +4617,7 @@ public:
 			if (_kbhit())
 			{
 				// lettura carattere senza consumarlo
-				bool Cont{ false };
+				bool Cont{ false }, vkf3{ false };
 				char c;
 				INPUT_RECORD inptrc;
 				DWORD eventf;
@@ -4646,6 +4657,19 @@ public:
 							break;
 						}
 
+						// pressione di F3
+						if (inptrc.Event.KeyEvent.wVirtualKeyCode == VK_F3)
+						{
+							*this = Expression(
+								CurrentDerivativeNum,
+								CurrentDerivativeDen
+							);
+							
+							ReadConsoleInput(hConsoleInput, &inptrc, 1, &eventf);
+							activator = Cont = vkf3 = true;
+							break;
+						}
+
 						// frecce
 						if (inptrc.Event.KeyEvent.wVirtualKeyCode == VK_LEFT or
 							inptrc.Event.KeyEvent.wVirtualKeyCode == VK_RIGHT or
@@ -4670,7 +4694,10 @@ public:
 					{
 						// assegnazione
 						copied = true;
-						*this = __Expr[TensorIndex];
+						if (!vkf3)
+						{
+							*this = __Expr[TensorIndex];
+						}
 
 						// ricerca ultima posizione
 						CursorIndex = { 0 };
@@ -8218,7 +8245,7 @@ static tensor<tensor<long double>> FromPolynomialToPos(
 static void PolynomialDivide
 (
 	FACTOR<> dividend, FACTOR<> divisor,
-	FACTOR<>& quotient, FACTOR<>& rest
+	FACTOR<>& quotient, FACTOR<>& rest, double& CommonDenominator
 );
 static polynomial<> Total(factor<> vect);
 static polynomial<> Partial(factor<> vect);
@@ -8410,7 +8437,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.9.2 ";
+			wcout << L"1.9.5 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -8744,6 +8771,17 @@ static ptrdiff_t Gcd(ptrdiff_t A, ptrdiff_t B)
 // massimo comune divisore tra polinomi
 static FACTOR<> Gcd(FACTOR<> A, FACTOR<> B)
 {
+	if (A.empty() or B.empty()) ret 1;
+
+	// calcolo MCD dei coefficienti direttori
+	A.sort();
+	B.sort();
+	auto Acoeff{ A[0].coefficient };
+	auto Bcoeff{ B[0].coefficient };
+	auto CoeffGcd{ Gcd(Acoeff, Bcoeff) };
+	for (auto& mono : A) mono.coefficient /= Acoeff;
+	for (auto& mono : B) mono.coefficient /= Bcoeff;
+
 	while (!B.empty()) {
 
 		// controllo zeri
@@ -8765,11 +8803,15 @@ static FACTOR<> Gcd(FACTOR<> A, FACTOR<> B)
 		}
 
 		// algoritmo di euclide
+		double ratio;
 		FACTOR<> rest, quotient;
-		PolynomialDivide(A, B, quotient, rest);
+		PolynomialDivide(A, B, quotient, rest, ratio);
 		A = B;
 		B = rest;
 	}
+
+	// applicazione della formula dell'MCD
+	for (auto& mono : A) mono.coefficient *= CoeffGcd;
 	ret A;
 }
 
@@ -13664,9 +13706,10 @@ static factor<T_int> PolynomialMultiply(polynomial<T_int> Polynomial)
 static void PolynomialDivide
 (
 	FACTOR<> dividend, FACTOR<> divisor,
-	FACTOR<>& quotient, FACTOR<>& rest
+	FACTOR<>& quotient, FACTOR<>& rest, double& CommonDenominator
 )
 {
+	CommonDenominator = 1;
 
 	// aggiustamento polinomi
 	dividend.sort();
@@ -13684,7 +13727,7 @@ static void PolynomialDivide
 		int deg = dividend.degree(), _deg = divisor.degree();
 		long double rest_element{ dividend[0].coefficient };
 		rest_element /= divisor[0].coefficient;
-		CORRECTION_RATIO *= divisor[0].coefficient;
+		CommonDenominator *= divisor[0].coefficient;
 
 		for (size_t i = 0; i < divide; ++i) {
 			divide[i].coefficient *= -rest_element;
@@ -13698,9 +13741,14 @@ static void PolynomialDivide
 	rest = dividend;
 
 	// amplificazione dei coefficienti
-	for (size_t i = 0; i < quotient; ++i) quotient[i].coefficient *= CORRECTION_RATIO;
-	for (size_t i = 0; i < rest; ++i) rest[i].coefficient *= CORRECTION_RATIO;
+	for (size_t i = 0; i < quotient; ++i)
+		quotient[i].coefficient *= CommonDenominator;
+	for (size_t i = 0; i < rest; ++i) rest[i].coefficient *= CommonDenominator;
+
+	// contrazione dei coefficienti
 	int gcd{ abs(Gcd(quotient + rest)) };
+	if (gcd > CommonDenominator) gcd = CommonDenominator;
+	CommonDenominator /= gcd;
 	for (size_t i = 0; i < quotient; ++i) quotient[i].coefficient /= gcd;
 	for (size_t i = 0; i < rest; ++i) rest[i].coefficient /= gcd;
 }
@@ -17404,6 +17452,51 @@ static void DecompAndSolve(switchcase& argc)
 				continue;
 			}
 
+			// output derivate parziali
+			SetConsoleTextAttribute(hConsole, 13);
+			for (size_t i = 0; i < Variables.size(); ++i) {
+				wcout << L'\n';
+
+				// costruzione frazione nuova e corretta
+				auto Fract{ fraction };
+				if (Fract.num.empty()) Fract.num = polynomial<>{ 1 };
+				if (Fract.den.empty()) Fract.den = polynomial<>{ 1 };
+
+				_GetCursorPos();
+				auto position{ csbi.dwCursorPosition };
+				wcout << L"-- = ";
+				
+				SetConsoleCursorPosition(
+					hConsole, { position.X, short(position.Y - 1) }
+				);
+				wcout << L"dF";
+				
+				SetConsoleCursorPosition(
+					hConsole, { position.X, short(position.Y + 1) }
+				);
+				wcout << 'd' << Variables.at(i);
+
+				SetConsoleCursorPosition(
+					hConsole, { short(position.X + 5), position.Y }
+				);
+				
+				// output frazione
+				int lines;
+				auto Derivative{ Fract.derivate(i) };
+				PrintFractionaryResult(NCOEFF, DCOEFF, lines, Derivative);
+				wcout << L"\n\n\n";
+
+				// push negli input delle derivate
+				Derivative.num >> NCOEFF;
+				Derivative.den >> DCOEFF;
+				bool savx{ BOOLALPHA };	
+				BOOLALPHA = false;
+				CurrentDerivativeNum = Derivative.num.str();
+				CurrentDerivativeDen = Derivative.den.str();
+				BOOLALPHA = savx;
+			}
+			ResetAttribute();
+
 			// se ha più variabili
 			bool IsAModifier{ false }, HasMoreVariables{ false };
 			tensor<POLYNOMIAL<>> denominators;
@@ -17482,12 +17575,15 @@ static void DecompAndSolve(switchcase& argc)
 			if (!skip) {
 
 				// divisione polinomi
+				double multiplier;
 				PolynomialDivide(
 					V1converter(PolynomialMultiply, NScomp),
 					V1converter(PolynomialMultiply, DScomp),
 					Quotient,
-					Rest
+					Rest,
+					multiplier
 				);
+				CORRECTION_RATIO *= multiplier;
 				Rest.complete(complementaries.size() - 1);
 				Rest.sort();
 
@@ -17554,6 +17650,7 @@ static void DecompAndSolve(switchcase& argc)
 					wcout << L"; ";
 				}
 				wcout << L'\n';
+				if (!Radicals.empty()) wcout << L'\n';
 			}
 			
 			// output frazioni
@@ -17946,6 +18043,7 @@ static void DecompAndSolve(switchcase& argc)
 			);
 			GeneralizedHeapSort(impox);
 			GeneralizedHeapSort(floats, RadImpox);
+			charVariable = Variables[PossibleIndex];
 
 			// output parametri impossibili
 			SetConsoleTextAttribute(hConsole, 6);
@@ -17968,19 +18066,40 @@ static void DecompAndSolve(switchcase& argc)
 			ResetAttribute();
 
 			// trasporto di fattori del delta fuori dal segno di radice
-			polynomial<> OutOfRoot{ 1 };
 			polynomial<> Delta{ { B * B - A * C * 4 } };
+			MONOMIAL<> OutOfRootCoeff{ 0, 1 };
+			polynomial<> OutOfRoot{ 1 };
 			switchcase NoUse;
 			Delta = DecompPolynomial(NoUse, Delta);
-			for (ptrdiff_t i = Delta.size() - 2; i >= 0; --i) {
-				if (Delta[i][0].exp[0] != -1) continue;
+			for (ptrdiff_t i = Delta.size() - 1; i >= 0; --i) {
+				if (Delta[i].size() != 1) continue;
 
+				// monomio
+				if (Delta[i][0].exp[0] != -1) {
+
+					// correzione esponenti
+					OutOfRootCoeff.degree += Delta[i][0].exp[PossibleIndex] / 2;
+					Delta[i][0].exp[PossibleIndex] %= 2;
+
+					// correzione coefficienti
+					RadicalUnit InsideRoot(1, Delta[i][0].coefficient);
+					auto CoeffOutOfRoot{ InsideRoot.GetCoefficient() };
+					OutOfRootCoeff.coefficient *= CoeffOutOfRoot;
+					Delta[i][0].coefficient /= (CoeffOutOfRoot * CoeffOutOfRoot);
+					
+					continue;
+				}
+				if (Delta == i + 1) continue;
+
+				// fattore
 				auto Exp{ Delta[i][0].coefficient };
 				for (size_t j = 0; j < Exp / 2; ++j) OutOfRoot << Delta[i + 1];
 				
+				// eliminazione
 				if (int(Exp) % 2 == 0) Delta.erase(Delta.begin() + i + 1);
 				Delta.erase(Delta.begin() + i);
 			}
+			OutOfRoot << ToXV(FACTOR<>{ OutOfRootCoeff });
 
 			// conversione
 			A *= 2;
@@ -17988,82 +18107,138 @@ static void DecompAndSolve(switchcase& argc)
 			auto _A{ To1V(A) };
 			auto _B{ To1V(B) };
 			auto _F{ To1V(F) };
+			_B.invert();
 
 			// divisione polinomi
 			auto PolynomialGcd{ Gcd(_F, Gcd(_A, _B)) };
 			FACTOR<> div, rem;
 			_A /= PolynomialGcd;
 			_B /= PolynomialGcd;
+			_F /= PolynomialGcd;
+			_A.sort();
+			_B.sort();
+			_F.sort();
+			bool Asign{ _A[0].coefficient < 0 };
+			bool Bsign{ _B[0].coefficient < 0 };
+			bool Fsign{ _F[0].coefficient < 0 };
+
+			// aggiustamento segni
+			if (_B.empty()) _B = FACTOR<>{ { 0, 0 } };
+			bool NullMiddleTerm{ _B == FACTOR<>{ { 0, 0 } } };
+			bool FractionSign, RootSign, iteration{ true };
+		signflip:
+			if (NullMiddleTerm) RootSign = FractionSign = iteration
+				xor Asign xor Fsign;
+			else {
+				FractionSign = Asign xor Bsign;
+				RootSign = iteration xor Bsign xor Fsign;
+			}
+
+			// inversioni
+			if (_A[0].coefficient < 0) _A.invert();
+			if (_B[0].coefficient < 0) _B.invert();
+			if (_F[0].coefficient < 0) _F.invert();
+			if (_A == FACTOR<>{ { 0, 1 } } and FractionSign) {
+				FractionSign = false;
+				_B.invert();
+				if (NullMiddleTerm) _F.invert();
+				else RootSign = !RootSign;
+			}
 
 			// output iniziale
 			SetConsoleTextAttribute(hConsole, 9);
-			wcout << L"\n\n" << L"Le soluzioni sono: ";
-			wcout << Variables[1 - PossibleIndex] << L" = ";
+			if (iteration) {
+				wcout << L"\n\n" << L"Le soluzioni sono: ";
+				wcout << Variables[1 - PossibleIndex] << L" = ";
+			}
+			if (FractionSign) wcout << L" - ";
 			
 			// spostamento verso l'alto
 			_GetCursorPos();
 			auto point0{ csbi.dwCursorPosition };
-			SetConsoleCursorPosition(
+			if (_A != FACTOR<>{ { 0, 1 } }) SetConsoleCursorPosition(
 				hConsole, COORD{ point0.X, short(point0.Y - 1) }
 			);
 
-			// output coefficiente di mezzo
-			wcout << _B;
+			// output soluzione estesa
+			if (Delta == polynomial<>{ 1 } and _A == FACTOR<>{ { 0, 1 } }) {
 
-			// output segno
-			wcout << L" + ";
+				// caso molto particolare
+				if (NullMiddleTerm) {
+					if (_F.size() == 1) wcout << _F;
+					else wcout << L'(' << _F << L')';
+				}
 
-			// output fattore
-			wcout << L'(' << _F << L')';
+				else {
+					factor<> Solution{ ToXV(_B) };
+					Solution += RootSign ? ToXV(_F).neg() : ToXV(_F);
+					wcout << PolynomialSum(Solution).str();
+				}
+			}
+			
+			// output normale
+			else
+			{
+				// output coefficiente di mezzo e segno
+				if (!NullMiddleTerm) wcout << _B << (RootSign ? L" - " : L" + ");
+
+				// output fattore
+				if (_F.size() == 1) wcout << _F;
+				else wcout << L'(' << _F << L')';
+			}
 			
 			// primo output della radice quadrata
-			wcout << L"\\/";
+			if (Delta != polynomial<>{ 1 }) wcout << L"\\/";
 			_GetCursorPos();
 			auto point1{ csbi.dwCursorPosition };
 			
 			// output del delta
-			wcout << Delta;
+			if (Delta != polynomial<>{ 1 }) wcout << Delta;
 			_GetCursorPos();
 			auto point2{ csbi.dwCursorPosition };
 
 			// output della linea di frazione
-			SetConsoleCursorPosition(hConsole, point0);
-			wcout << wstring(point2.X - point0.X, L'-');
+			if (_A != FACTOR<>{ { 0, 1 } }) {
+				SetConsoleCursorPosition(hConsole, point0);
+				wcout << wstring(point2.X - point0.X, L'-');
+			}
 			
 			// output ramo della radice quadrata
-			SetConsoleCursorPosition(
-				hConsole, COORD{ point1.X, short(point1.Y - 1) }
-			);
-			wcout << wstring(point2.X - point1.X, L'_');
+			if (Delta != polynomial<>{ 1 }) {
+				SetConsoleCursorPosition(
+					hConsole, COORD{ point1.X, short(point1.Y - 1) }
+				);
+				wcout << wstring(point2.X - point1.X, L'_');
+			}
 
 			// output denominatore
-			auto Denominator{ _A.str() };
-			SetConsoleCursorPosition(
-				hConsole,
-				COORD{
-					short((point0.X + point2.X - Denominator.size()) / 2 ),
-					short(point1.Y + 2)
-				}
-			);
-			wcout << Denominator;
+			if (_A != FACTOR<>{ { 0, 1 } }) {
+				auto Denominator{ _A.str() };
+				SetConsoleCursorPosition(
+					hConsole,
+					COORD{
+						short((point0.X + point2.X - Denominator.size()) / 2 ),
+						short(point1.Y + 2)
+					}
+				);
+				wcout << Denominator;
+			}
 
 			// riposizionamento cursore
 			SetConsoleCursorPosition(
 				hConsole, COORD{ point2.X, point0.Y }
 			);
+			
+			// redirezionamento
+			if (iteration) {
+				wcout << L", ";
+				iteration = false;
+				goto signflip;
+			}
+
+			// uscita
 			wcout << L"\n\n";
 			ResetAttribute();
-
-			// implementa le derivate
-			// metti a posto il sistema delle C.E.
-			// implementa gli integrali
-
-			// migliora le disquazioni
-			// ottimizzazioni, debug, commenti e readme
-
-			// implementazioni di neural networks
-			// equazioni differenziali e newton-raphson nei complessi
-
 			Fractions.clear();
 			equations.clear();
 			startover = true;
@@ -18526,3 +18701,30 @@ RETURN:
 /// totale righe non presenti in questo file: 879
 
 // fine del codice -----------------------------------------------------------------
+
+/*
+LAVORO DA FARE: -
+				|
+Difficoltà		|
+	|			|
+	v			|
+				V
+	*	 debug
+	*    fix bug nell'inputer
+	*    fixes per il systemsolver
+	*	 suddivisione in più file
+	*	 radicali nelle disequazioni
+	**	 disequazioni parametriche con fattori di secondo grado
+	*	 sistemi di disequazioni
+	*	 C.E. corrette
+	**	 integrali
+	*	 ottimizzazioni nel redirector
+	*	 ottimizzazioni nell'inputer
+	*	 readme e outputs
+	**	 equazioni differenziali
+	*	 newton-raphson nei numeri complessi
+	***  ottimizzazioni nel grafico
+	**	 OCR da immagine a testo
+	***	 sistemi di equazioni parametriche con AI
+	**** sistemi di disequazioni parametriche con AI (???)
+*/
