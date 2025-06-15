@@ -318,7 +318,77 @@ static ptrdiff_t BinarySearch(const tensor<T>& arr, const T target)
 	ret -1;
 }
 
-// console artificiale
+// output artificiali
+struct Console
+{
+	wstring Text;
+	WORD Attribute{ 15 };
+
+	void log() const
+	{
+		SetConsoleTextAttribute(hConsole, Attribute);
+		wcout << Text;
+		ResetAttribute();
+	}
+
+	bool operator!=(const Console& other) const
+	{
+		ret Text != other.Text and Attribute != other.Attribute;
+	}
+	friend wostream& operator<<(wostream& wos, const Console& T)
+	{
+		SetConsoleTextAttribute(hConsole, T.Attribute);
+		wos << T.Text;
+		ResetAttribute();
+		ret wos;
+	}
+};
+class ConsoleStream : public tensor<Console>
+{
+public:
+
+	// costruttori e operatori
+	ConsoleStream() {}
+	ConsoleStream(initializer_list<Console> init)
+	{
+		for (const auto& item : init)
+		{
+			(*this) << item;
+		}
+	}
+	ConsoleStream operator+(ConsoleStream other) const
+	{
+		auto This{ *this };
+		for (const auto& item : other)
+		{
+			This << item;
+		}
+		ret This;
+	}
+
+	// visualizzazione
+	inline void output() const
+	{
+		for (int i = 0; i < this->size(); ++i)
+		{
+			wcout << (*this)[i];
+		}
+	}
+	inline void log()
+	{
+		this->output();
+		this->clear();
+	}
+	friend wostream& operator<<(wostream& wos, const ConsoleStream& T)
+	{
+		for (int i = 0; i < T.size(); ++i)
+		{
+			wos << T[i];
+		}
+		ret wos;
+	}
+};
+ConsoleStream ConsoleText;
 class Buffer
 {
 	// definizioni
@@ -518,13 +588,22 @@ public:
 		ret *this;
 	}
 
+	// scrittura di un Console
+	Buffer& operator<<(Console text)
+	{
+		SetBufferTextAttribute(text.Attribute);
+		*this << text.Text;
+		SetBufferTextAttribute(15);
+		ret *this;
+	}
+
 	// scrittura del buffer intero
 	void output() const
 	{
 		// inizio
 		ResetAttribute();
 		WORD Attrib{ 15 };
-		wcout << L'\n';
+		wcout << L'\r';
 
 		// scrittura
 		short CharsSkipped{};
@@ -566,6 +645,7 @@ public:
 					CharsSkipped = 0;
 				}
 
+				// impostazione attributo
 				if (Attrib != attributes[i][j])
 				{
 					SetConsoleTextAttribute(hConsole, attributes[i][j]);
@@ -573,7 +653,12 @@ public:
 				wcout << memory[i][j];
 				Attrib = attributes[i][j];
 			}
-			wcout << L'\n';
+
+			// nuova riga
+			if (CharsSkipped == 0)
+			{
+				wcout << L'\n';
+			}
 		}
 		ResetAttribute();
 	}
@@ -5143,32 +5228,47 @@ public:
 					{
 						terms[CursorIndex] += L" ";
 					}
+					// aggiunta carattere all'interno del termine
 
-					// all'interno del termine
-					auto vel{ terms[CursorIndex] };
-					auto new_diff{ (int)vel.size() - diff };
-					auto backup{ vel };
+					auto& vel{ terms[CursorIndex] };
 					ElabExponents(vel);
+					wstring ch(1, c);
 
-					// calcolo differenza in più
-					auto copy{ vel };
-					copy.erase(0, vel.size() - diff);
-					for (const auto& ch : copy)
+					// calcolo
+					if (vel.size() > diff)
 					{
-						if (CFSuperScript(wstring(1, ch)) != wstring(1, ch))
+						auto Char{ vel.at(vel.size() - diff - 1) };
+						if (CFSuperScript(wstring(1, Char)) != wstring(1, Char) and
+							isdigit(c))
 						{
-							new_diff--;
+							ch = L'^' + ch;
 						}
 					}
+					ElabExponents(ch);
 
-					// aggiunta
-					if (new_diff < 0)
+					// inserimento caratteri
+					vel = vel.substr(0, vel.size() - diff) + ch
+						+ vel.substr(vel.size() - diff, vel.size());
+					DeduceFromExponents(vel);
+
+					// controllo esponenti
+					for (ptrdiff_t i = vel.size() - 1; i >= 0; --i)
 					{
-						new_diff = 0;
+						if (vel.at(i) == L'^')
+						{
+							bool trigger{ i == 0 };
+							if (!trigger)
+							{
+								trigger = !isalpha(vel.at(i - 1))
+									and vel.at(i - 1) != L')';
+							}
+
+							if (trigger)
+							{
+								vel.erase(i, 1);
+							}
+						}
 					}
-					vel = backup.substr(0, new_diff) + wstring(1, c)
-						+ backup.substr(new_diff, backup.size());
-					terms[CursorIndex] = vel;
 				}
 
 				// ricerca del suggerimento
@@ -5920,78 +6020,6 @@ public:
 };
 tensor_t PrimeNumbers;
 _STD map<int, wstring> CalculatedData;
-
-// stream
-struct Console
-{
-	wstring Text;
-	WORD Attribute{ 15 };
-
-	void log() const
-	{
-		SetConsoleTextAttribute(hConsole, Attribute);
-		wcout << Text;
-		ResetAttribute();
-	}
-
-	bool operator!=(const Console& other) const
-	{
-		ret Text != other.Text and Attribute != other.Attribute;
-	}
-	friend wostream& operator<<(wostream& wos, const Console& T)
-	{
-		SetConsoleTextAttribute(hConsole, T.Attribute);
-		wos << T.Text;
-		ResetAttribute();
-		ret wos;
-	}
-};
-class ConsoleStream : public tensor<Console>
-{
-public:
-
-	// costruttori e operatori
-	ConsoleStream() {}
-	ConsoleStream(initializer_list<Console> init)
-	{
-		for (const auto& item : init)
-		{
-			(*this) << item;
-		}
-	}
-	ConsoleStream operator+(ConsoleStream other) const
-	{
-		auto This{ *this };
-		for (const auto& item : other)
-		{
-			This << item;
-		}
-		ret This;
-	}
-
-	// visualizzazione
-	inline void output() const
-	{
-		for (int i = 0; i < this->size(); ++i)
-		{
-			wcout << (*this)[i];
-		}
-	}
-	inline void log()
-	{
-		this->output();
-		this->clear();
-	}
-	friend wostream& operator<<(wostream& wos, const ConsoleStream& T)
-	{
-		for (int i = 0; i < T.size(); ++i)
-		{
-			wos << T[i];
-		}
-		ret wos;
-	}
-};
-ConsoleStream ConsoleText;
 
 // matrici
 static void SendCtrlPlusMinus(bool plus);
@@ -8270,7 +8298,8 @@ static void FractDisequationMain(
 
 	bool& InitSign, bool& Invert
 );
-static ConsoleStream GetAlgebricSolution(
+static void GetAlgebricSolution(
+	Buffer& text,
 	tensor<wstring> roots,
 	tensor<bool> ItsFromDenominator,
 
@@ -8303,7 +8332,9 @@ static void ParamDisequationMain(
 	tensor<long double>& RootExamples,
 	tensor<wstring>& vals
 );
-static ConsoleStream GetParametricSolution(
+static void GetParametricSolution(
+	Buffer& text,
+
 	wchar_t parameter,
 	size_t Unisize, size_t Vpos,
 	bool InitialSign, bool ExpectedSign, bool CanBeNull,
@@ -8320,7 +8351,8 @@ static ConsoleStream GetParametricSolution(
 #define LESS_EQUAL_THAN (1 << 1)
 #define MORE_THAN       (1 << 2)
 #define MORE_EQUAL_THAN (1 << 3)
-static ConsoleStream DisequationSolutionPrinter(
+static void DisequationSolutionPrinter(
+	Buffer& Output,
 	polynomial<> Num,
 	polynomial<> Den,
 	int behaviour,
@@ -8437,7 +8469,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.9.5 ";
+			wcout << L"1.9.6 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -9429,7 +9461,6 @@ static wstring ElabExponents(wstring& str)
 {
 	if (!BOOLALPHA) ret str;
 	int J{ 1 };
-	bool dobreak{ false };
 	for (size_t I = 0; I < str.size(); ++I) {
 		auto pointer{ I + 1 };
 		if (str.at(I) == L'^' and I != str.size() - 1) {
@@ -9437,14 +9468,7 @@ static wstring ElabExponents(wstring& str)
 			while (str.at(pointer) < 128 and isdigit(str.at(pointer)))
 			{
 				// scelta carattere
-				dobreak = false;
-				wstring replacer;
-				if (str.at(pointer) == L'0') {
-					if (J > 1) replacer = L"⁰";
-					else dobreak = true;
-				}
-				else replacer = CTSuperScript(str.at(pointer));
-				if (dobreak) break;
+				auto replacer{ CTSuperScript(str.at(pointer)) };
 
 				// cambio caratteri e ridimensionamento stringa
 				str.replace(pointer, 1, replacer);
@@ -9568,20 +9592,21 @@ static wstring GetLine(tensor<wstring>& sugg, bool ShowSuggestions)
 				break;
 
 			default:
-
-				// calcolo differenza in più
-				auto copy{ E_Vel };
-				copy.erase(0, E_Vel.size() - diff);
-				int new_diff{ (int)vel.size() - diff };
-				for (const auto& ch : copy)
-					if (CFSuperScript(wstring(1, ch)) != wstring(1, ch))
-						new_diff--;
-
+				
 				// aggiunta carattere
 				if (!arrow) {
-					if (new_diff < 0) new_diff = 0;
-					vel = vel.substr(0, new_diff) + wstring(1, c)
-						+ vel.substr(new_diff, vel.size());
+					wstring ch(1, c);
+
+					if (E_Vel.size() > diff) {
+						auto Char{ E_Vel.at(E_Vel.size() - diff - 1) };
+						if (CFSuperScript(wstring(1, Char)) != wstring(1, Char) and
+							isdigit(c))
+							ch = L'^' + ch;
+					}
+					ElabExponents(ch);
+
+					E_Vel = E_Vel.substr(0, E_Vel.size() - diff) + ch
+						+ E_Vel.substr(E_Vel.size() - diff, E_Vel.size());
 					break;
 				}
 
@@ -9631,6 +9656,16 @@ static wstring GetLine(tensor<wstring>& sugg, bool ShowSuggestions)
 				if (E_Vel != Test) {
 					vel = E_Vel;
 					DeduceFromExponents(vel);
+
+					// controllo esponenti
+					for (ptrdiff_t i = vel.size() - 1; i >= 0; --i)
+						if (vel.at(i) == L'^')
+						{
+							bool trigger{ i == 0 };
+							if (!trigger) trigger = !isalpha(vel.at(i - 1))
+								and vel.at(i - 1) != L')';
+							if (trigger) vel.erase(i, 1);
+						}
 				}
 				else {
 					E_Vel = vel;
@@ -15367,17 +15402,16 @@ static void FractDisequationMain(
 }
 
 // parte dipendente dal segno di una disequazione normale
-static ConsoleStream GetAlgebricSolution(
+static void GetAlgebricSolution(
+	Buffer& text,
 	tensor<wstring> roots,
 	tensor<bool> ItsFromDenominator,
-
 	bool InitialSign,
 	bool ExpectedSign,
 	bool CanBeNull
 )
 {
 	// correzione dei segni
-	ConsoleStream text;
 	bool condition{ ((InitialSign == (roots.size() % 2 == 0)) == ExpectedSign) };
 	for (ptrdiff_t i = 0; i < roots.size() - 1; ++i) {
 		bool SamePart{ int(i % 2) == condition };
@@ -15410,41 +15444,48 @@ static ConsoleStream GetAlgebricSolution(
 			}
 		}
 	}
-	if (roots.empty()) ret InitialSign == ExpectedSign ?
-		ConsoleStream{ Console(L"per ogni x appartenente a R", 11) } :
-		ConsoleStream{ Console(L"per nessun x", 11) };
+	if (roots.empty()) {
+		text.SetBufferTextAttribute(11);
+		
+		if (InitialSign == ExpectedSign) text << L"per ogni x appartenente a R";
+		else text << L"per nessun x";
+		
+		text.SetBufferTextAttribute(15);
+		ret;
+	}
 
 	// parte iniziale
 	if (condition) {
-		text = { Console(L"x") };
-		CanBeNull and !ItsFromDenominator[0] ?
-			text << Console(L" <= ") : text << Console(L" < ");
-		text << Console(roots[0]);
-		if (roots > 1) text << Console(L" V ", 8);
+		text << L'x';
+		text << (CanBeNull and !ItsFromDenominator[0] ? L" <= " : L" < ");
+		text << roots[0];
+		if (roots > 1) {
+			text.SetBufferTextAttribute(8);
+			text << L" V ";
+			text.SetBufferTextAttribute(15);
+		}
 	}
 
 	for (size_t i = condition; i < roots; i += 2) {
 
 		// parte finale
 		if (i + 1 == roots) {
-			CanBeNull and !ItsFromDenominator[i] ?
-				text << Console(L"x >= ") : text << Console(L"x > ");
-			text << Console(roots[i]);
+			text << (CanBeNull and !ItsFromDenominator[i] ? L"x >= " : L"x > ");
+			text << roots[i];
 			break;
 		}
 
 		// parte centrale
-		text << Console(roots[i]);
-		CanBeNull and !ItsFromDenominator[i] ?
-			text << Console(L" <= x") : text << Console(L" < x");
-		CanBeNull and !ItsFromDenominator[i + 1] ?
-			text << Console(L" <= ") : text << Console(L" < ");
-		text << Console(roots[i + 1]);
-		if (i + 2 < roots) text << Console(L" V ", 8);
+		text << roots[i];
+		text << (CanBeNull and !ItsFromDenominator[i] ? L" <= x" : L" < x");
+		text << (CanBeNull and !ItsFromDenominator[i + 1] ? L" <= " : L" < ");
+		text << roots[i + 1];
+		if (i + 2 < roots) {
+			text.SetBufferTextAttribute(8);
+			text << L" V ";
+			text.SetBufferTextAttribute(15);
+		}
 	}
-
-	for (auto& cons : text) ElabExponents(cons.Text);
-	ret text;
 }
 
 // inizio di una disequazione parametrica
@@ -15620,7 +15661,9 @@ static void ParamDisequationMain(
 }
 
 // parte dipendente dal segno di una disequazione parametrica
-static ConsoleStream GetParametricSolution(
+static void GetParametricSolution(
+	Buffer& text,
+
 	wchar_t parameter,
 	size_t Unisize, size_t Vpos,
 	bool InitialSign, bool ExpectedSign, bool CanBeNull,
@@ -15634,24 +15677,16 @@ static ConsoleStream GetParametricSolution(
 	tensor<wstring> vals
 )
 {
-	ConsoleStream text;
-
-	// iterazione su ogni intervallo
+	// calcolo intervalli dei parametri
 	tensor<wstring> ParameterIntervals;
-	tensor<ConsoleStream> UnknownIntervals;
 	for (size_t index = 0; index < RootExamples; ++index) {
 		auto interval{ RootExamples[index] };
-		auto values{ vals };
-		auto ItsFromDenominator{ TermsFromDenominator };
-		ConsoleStream line;
-		tensor<int> SumOfGEQValues(bottoms.size(), 0);
 
 		// output intervallo iniziale
 		if (index == 0) {
 			ParameterIntervals << wstring(1, parameter);
 			ParameterIntervals[0] += L" < " + Handler(to_wstring(RootSet[0]));
-			UnknownIntervals << ConsoleStream{ Console(L"\n") };
-			goto comparison;
+			goto add_spec;
 		}
 
 		// output intervallo finale
@@ -15659,24 +15694,43 @@ static ConsoleStream GetParametricSolution(
 			ParameterIntervals << wstring(1, parameter);
 			ParameterIntervals.last() +=
 				L" > " + Handler(to_wstring(RootSet.last()));
-			UnknownIntervals << ConsoleStream{ Console(L"\n") };
-			goto comparison;
+			goto add_spec;
 		}
 
 		// output intervalli centrali
 		ParameterIntervals << Handler(to_wstring(RootSet[index - 1]));
-		CanBeNull and index - 1 < bottoms ?
-			ParameterIntervals.last() += L" <= " :
-			ParameterIntervals.last() += L" < ";
+		ParameterIntervals.last() +=
+			(CanBeNull and index - 1 < bottoms ? L" <= " : L" < ");
 		ParameterIntervals.last() += wstring(1, parameter);
-		CanBeNull and index < bottoms ?
-			ParameterIntervals.last() += L" <= " :
-			ParameterIntervals.last() += L" < ";
+		ParameterIntervals.last() +=
+			(CanBeNull and index < bottoms ? L" <= " : L" < ");
 		ParameterIntervals.last() += Handler(to_wstring(RootSet[index]));
-		UnknownIntervals << ConsoleStream{ Console(L"\n") };
+		if (index == RootSet) break;
+		
+		// aggiunta valori speciali
+	add_spec:
+		ParameterIntervals << wstring(1, parameter) + L" = ";
+		ParameterIntervals.last() += Handler(to_wstring(RootSet[index]));
+	}
 
-	comparison:
-		if (Unisize == 1) goto add_line;
+	// riporto alla stessa dimensione
+	size_t sizemax{ ParameterIntervals[0].size() };
+	for (size_t i = 1; i < ParameterIntervals; ++i)
+		if (sizemax < ParameterIntervals[i].size())
+			sizemax = ParameterIntervals[i].size();
+	for (auto& word : ParameterIntervals) if (word.size() < sizemax)
+		word += wstring(sizemax - word.size(), L' ');
+
+	// output intervalli delle incognite
+	for (size_t index = 0; index < RootExamples; ++index) {
+		auto interval{ RootExamples[index] };
+		auto values{ vals };
+		auto ItsFromDenominator{ TermsFromDenominator };
+		tensor<int> SumOfGEQValues(bottoms.size(), 0);
+
+		// output intervalli dei parametri
+		text << ParameterIntervals[index];
+		if (Unisize == 1) goto skip_calculation;
 
 		// calcolo dei segni
 		for (size_t first = 0; first < SumOfGEQValues; ++first)
@@ -15700,7 +15754,13 @@ static ConsoleStream GetParametricSolution(
 		for (size_t i = 0; i < SumOfGEQValues; ++i)
 			for (size_t j = i + 1; j < SumOfGEQValues; ++j)
 				if (SumOfGEQValues[i] == SumOfGEQValues[j])
-					line = { Console(L"  ->  ", 8), Console(L"impossibile", 11) };
+				{
+					text.SetBufferTextAttribute(8);
+					text << L"  ->  ";
+					text.SetBufferTextAttribute(11);
+					text << L"impossibile";
+					text.SetBufferTextAttribute(15);
+				}
 
 		// confronto valori
 		for (size_t i = 0; i < SumOfGEQValues; ++i)
@@ -15712,21 +15772,23 @@ static ConsoleStream GetParametricSolution(
 					swap(ItsFromDenominator[i], ItsFromDenominator[j]);
 				}
 
-		// output intervallo della variabile
-	add_line:
-		line = ConsoleStream{ Console(L"  ->  ", 8) } + GetAlgebricSolution(
+		// output intervalli della variabile
+	skip_calculation:
+		text.SetBufferTextAttribute(8);
+		text << L"  ->  ";
+		text.SetBufferTextAttribute(15);
+		GetAlgebricSolution(
+			text,
 			values,
 			ItsFromDenominator,
 			InitialSign,
 			ExpectedSign == Parametric(interval, 1 - Vpos, true),
 			CanBeNull
 		);
-		UnknownIntervals.last() = line + UnknownIntervals.last();
+		text << L'\n';
 		if (index == RootSet) break;
 
-		// valori speciali
-		ParameterIntervals << wstring(1, parameter) + L" = ";
-		ParameterIntervals.last() += Handler(to_wstring(RootSet[index]));
+		// aggiunta valori speciali
 		auto numerator{ Num };
 		auto denominator{ Den };
 		for (auto& fact : numerator) fact = fact(RootSet[index], 1 - Vpos, 1);
@@ -15743,10 +15805,13 @@ static ConsoleStream GetParametricSolution(
 		Variables = L"x";
 
 		// aggiunta dei casi particolari
-		UnknownIntervals << ConsoleStream{ Console(L"  ->  ", 8) };
+		text.SetBufferTextAttribute(8);
+		text << L"  ->  ";
+		text.SetBufferTextAttribute(15);
 		if (numerator.empty()) numerator = polynomial<>{ { { 0, { 0 } } } };
 		if (denominator.empty()) denominator = polynomial<>{ { { 0, { 0 } } } };
-		UnknownIntervals.last() += DisequationSolutionPrinter(
+		DisequationSolutionPrinter(
+			text,
 			numerator,
 			denominator,
 			1 << (
@@ -15755,29 +15820,15 @@ static ConsoleStream GetParametricSolution(
 				),
 			false,
 			false
-		) + ConsoleStream{ Console(L"\n") };
+		);
+		text << L'\n';
 		Variables = save;
 	}
-
-	// riorganizzazione del risultato finale
-	size_t sizemax{ ParameterIntervals[0].size() };
-	for (size_t i = 1; i < ParameterIntervals; ++i)
-		if (sizemax < ParameterIntervals[i].size())
-			sizemax = ParameterIntervals[i].size();
-	for (auto& word : ParameterIntervals) if (word.size() < sizemax)
-		word += wstring(sizemax - word.size(), L' ');
-	for (size_t i = 0; i < ParameterIntervals; ++i) {
-		text << Console(ParameterIntervals[i]);
-		for (size_t j = 0; j < UnknownIntervals[i]; ++j)
-			text << UnknownIntervals[i][j];
-	}
-
-	for (auto& cons : text) ElabExponents(cons.Text);
-	ret text;
 }
 
 // risolve una disequazione fratta con un parametro
-static ConsoleStream DisequationSolutionPrinter(
+static void DisequationSolutionPrinter(
+	Buffer& Output,
 	polynomial<> Num,
 	polynomial<> Den,
 	int behaviour,
@@ -15787,15 +15838,15 @@ static ConsoleStream DisequationSolutionPrinter(
 {
 	// controlli iniziali
 	auto Vpos{ Variables.find(L'x') };
-	if (Variables.size() > 2 or Vpos == wstring::npos) ret {};
+	if (Variables.size() > 2 or Vpos == wstring::npos) ret;
 
 	// calcolo frasi
-	if (Num.empty() and Den.empty()) ret {};
+	if (Num.empty() and Den.empty()) ret;
 	WORD wAttribute{ 6 };
 	wstring expr = Variables == L"x" ?
 		L"F(x)" : L"F(x, " + wstring(1, Variables.at(1 - Vpos)) + L")";
 	expr = L"SE  " + expr;
-	ConsoleStream dir{
+	tensor<Console> dir{
 		Console(expr + L" < 0   ALLORA", wAttribute),
 		Console(expr + L" <= 0  ALLORA", wAttribute),
 		Console(expr + L" > 0   ALLORA", wAttribute),
@@ -15827,13 +15878,13 @@ static ConsoleStream DisequationSolutionPrinter(
 		if (nullify) PrintCondition = false;
 
 		// output
-		ConsoleStream Output;
 		for (int i = 0; i < 4; ++i) if ((behaviour | (1 << i)) == behaviour) {
 
 			bool positive = i / 2;
-			if (PrintCondition) Output << dir[i] << Console(L"\n\n");
+			if (PrintCondition) Output << dir[i] << L"\n\n";
 
-			Output += GetAlgebricSolution(
+			GetAlgebricSolution(
+				Output,
 				roots,
 				ItsFromTheDenominator,
 				InitialSign,
@@ -15841,14 +15892,16 @@ static ConsoleStream DisequationSolutionPrinter(
 				i % 2 == 1
 			);
 
-			if (PrintCondition) Output << Console(L"\n\n");
+			if (PrintCondition) Output << L"\n\n";
 		}
 
 		if (PrintCondition) {
-			Output--;
-			Output << Console(L"\n----------");
+			Output.GetBufferInfo(&csbi);
+			COORD cursorP{ csbi.dwCursorPosition };
+			Output.SetBufferCursorPosition({ cursorP.X, short(cursorP.Y - 2) });
+			Output << L"\n----------";
 		}
-		ret Output;
+		ret;
 	}
 	// disequazione parametrica
 
@@ -15873,11 +15926,10 @@ static ConsoleStream DisequationSolutionPrinter(
 			InitialSign,
 			InvertSign
 		)
-	) ret {};
+	) ret;
 
 	// caso di un fattore
 	if (Un == 1 and Parametric == factor<>{ { 1, { 0, 0 } } }) {
-		ConsoleStream Output;
 		tensor<RadComplx> MoreRoots;
 
 		tensor<wstring> vals{ EquationSolver(Un[0], MoreRoots) };
@@ -15890,9 +15942,10 @@ static ConsoleStream DisequationSolutionPrinter(
 		// output
 		for (int i = 0; i < 4; ++i) if ((behaviour | (1 << i)) == behaviour) {
 			bool positive = i / 2;
-			if (PrintCondition) Output << dir[i] << Console(L"\n\n");
+			if (PrintCondition) Output << dir[i] << L"\n\n";
 
-			Output += GetAlgebricSolution(
+			GetAlgebricSolution(
+				Output,
 				vals,
 				tensor<bool>(vals.size(), TermsFromDenominator[0]),
 				InitialSign,
@@ -15900,14 +15953,16 @@ static ConsoleStream DisequationSolutionPrinter(
 				i % 2 == 1
 			);
 
-			if (PrintCondition) Output << Console(L"\n\n");
+			if (PrintCondition) Output << L"\n\n";
 		}
 
 		if (PrintCondition) {
-			Output--;
-			Output << Console(L"\n----------");
+			Output.GetBufferInfo(&csbi);
+			COORD cursorP{ csbi.dwCursorPosition };
+			Output.SetBufferCursorPosition({ cursorP.X, short(cursorP.Y - 2) });
+			Output << L"\n----------";
 		}
-		ret Output;
+		ret;
 	}
 
 	// calcolo dei dati indipendenti dai segni
@@ -15928,52 +15983,54 @@ static ConsoleStream DisequationSolutionPrinter(
 	);
 
 	// output
-	ConsoleStream Output;
 	for (int i = 0; i < 4; ++i) if ((behaviour | (1 << i)) == behaviour) {
 		bool positive = i / 2;
-		if (PrintCondition) Output << dir[i] << Console(L"\n\n");
+		if (PrintCondition) Output << dir[i] << L"\n\n";
 
-		Output += (
-			RootSet.empty() ?
-
-			// nessuno zero trovato
+		// nessuno zero trovato
+		if (RootSet.empty()) {
 			GetAlgebricSolution(
+				Output,
 				vals,
 				TermsFromDenominator,
 				InitialSign,
 				(positive xor InvertSign) xor ChangeSign,
 				i % 2 == 1
-			) + ConsoleStream{ Console(L"\n") } :
+			);
+			Output << L"\n";
+		}
 
-			// caso comune
-			GetParametricSolution(
-				parameter,
-				Unisize,
-				Vpos,
-				InitialSign,
-				(positive xor InvertSign) xor ChangeSign,
-				i % 2 == 1,
-				TermsFromDenominator,
-				Num,
-				Den,
-				Parametric,
-				tops,
-				bottoms,
-				TableOfMains,
-				RootSet,
-				RootExamples,
-				vals
-			)
+		// caso comune
+		else GetParametricSolution(
+			Output,
+			parameter,
+			Unisize,
+			Vpos,
+			InitialSign,
+			(positive xor InvertSign) xor ChangeSign,
+			i % 2 == 1,
+			TermsFromDenominator,
+			Num,
+			Den,
+			Parametric,
+			tops,
+			bottoms,
+			TableOfMains,
+			RootSet,
+			RootExamples,
+			vals
 		);
 
-		if (PrintCondition) Output << Console(L"\n");
+		if (PrintCondition) Output << L"\n";
 	}
 
 	if (PrintCondition) {
-		Output--;
-		Output << Console(L"\n----------");
+		Output.GetBufferInfo(&csbi);
+		COORD cursorP{ csbi.dwCursorPosition };
+		Output.SetBufferCursorPosition({ cursorP.X, short(cursorP.Y - 1) });
+		Output << L"\n----------";
 	}
-	ret Output;
+	ret;
 }
 
 #pragma endregion
@@ -17438,13 +17495,13 @@ static void DecompAndSolve(switchcase& argc)
 				}
 
 				// output del segno della frazione
-				auto DiseqSol{
-					DisequationSolutionPrinter(
-						Fractions[0].num, Fractions[0].den,
-						code, NCOEFF < 0 or DCOEFF < 0
-					)
-				};
-				if (!DiseqSol.empty()) wcout << L'\n' << DiseqSol << L'\n';
+				Buffer NewConsole;
+				DisequationSolutionPrinter(
+					NewConsole,
+					Fractions[0].num, Fractions[0].den,
+					code, NCOEFF < 0 or DCOEFF < 0
+				);
+				wcout << L'\n' << NewConsole << L'\n';
 
 				ResetAttribute();
 				Fractions.clear();
@@ -17453,49 +17510,49 @@ static void DecompAndSolve(switchcase& argc)
 			}
 
 			// output derivate parziali
-			SetConsoleTextAttribute(hConsole, 13);
-			for (size_t i = 0; i < Variables.size(); ++i) {
-				wcout << L'\n';
-
-				// costruzione frazione nuova e corretta
-				auto Fract{ fraction };
-				if (Fract.num.empty()) Fract.num = polynomial<>{ 1 };
-				if (Fract.den.empty()) Fract.den = polynomial<>{ 1 };
-
-				_GetCursorPos();
-				auto position{ csbi.dwCursorPosition };
-				wcout << L"-- = ";
-				
-				SetConsoleCursorPosition(
-					hConsole, { position.X, short(position.Y - 1) }
-				);
-				wcout << L"dF";
-				
-				SetConsoleCursorPosition(
-					hConsole, { position.X, short(position.Y + 1) }
-				);
-				wcout << 'd' << Variables.at(i);
-
-				SetConsoleCursorPosition(
-					hConsole, { short(position.X + 5), position.Y }
-				);
-				
-				// output frazione
-				int lines;
-				auto Derivative{ Fract.derivate(i) };
-				PrintFractionaryResult(NCOEFF, DCOEFF, lines, Derivative);
-				wcout << L"\n\n\n";
-
-				// push negli input delle derivate
-				Derivative.num >> NCOEFF;
-				Derivative.den >> DCOEFF;
-				bool savx{ BOOLALPHA };	
-				BOOLALPHA = false;
-				CurrentDerivativeNum = Derivative.num.str();
-				CurrentDerivativeDen = Derivative.den.str();
-				BOOLALPHA = savx;
-			}
-			ResetAttribute();
+			// SetConsoleTextAttribute(hConsole, 13);
+			// for (size_t i = 0; i < Variables.size(); ++i) {
+			// 	wcout << L'\n';
+			// 
+			// 	// costruzione frazione nuova e corretta
+			// 	auto Fract{ fraction };
+			// 	if (Fract.num.empty()) Fract.num = polynomial<>{ 1 };
+			// 	if (Fract.den.empty()) Fract.den = polynomial<>{ 1 };
+			// 
+			// 	_GetCursorPos();
+			// 	auto position{ csbi.dwCursorPosition };
+			// 	wcout << L"-- = ";
+			// 	
+			// 	SetConsoleCursorPosition(
+			// 		hConsole, { position.X, short(position.Y - 1) }
+			// 	);
+			// 	wcout << L"dF";
+			// 	
+			// 	SetConsoleCursorPosition(
+			// 		hConsole, { position.X, short(position.Y + 1) }
+			// 	);
+			// 	wcout << 'd' << Variables.at(i);
+			// 
+			// 	SetConsoleCursorPosition(
+			// 		hConsole, { short(position.X + 5), position.Y }
+			// 	);
+			// 	
+			// 	// output frazione
+			// 	int lines;
+			// 	auto Derivative{ Fract.derivate(i) };
+			// 	PrintFractionaryResult(NCOEFF, DCOEFF, lines, Derivative);
+			// 	wcout << L"\n\n\n";
+			// 
+			// 	// push negli input delle derivate
+			// 	Derivative.num >> NCOEFF;
+			// 	Derivative.den >> DCOEFF;
+			// 	bool savx{ BOOLALPHA };	
+			// 	BOOLALPHA = false;
+			// 	CurrentDerivativeNum = Derivative.num.str();
+			// 	CurrentDerivativeDen = Derivative.den.str();
+			// 	BOOLALPHA = savx;
+			// }
+			// ResetAttribute();
 
 			// se ha più variabili
 			bool IsAModifier{ false }, HasMoreVariables{ false };
@@ -18702,15 +18759,15 @@ RETURN:
 
 // fine del codice -----------------------------------------------------------------
 
-/*
+/*----------------------------------------------------------------------------------
 LAVORO DA FARE: -
 				|
-Difficoltà		|
-	|			|
-	v			|
+Difficoltà      |
+	|           |
+	v           |
 				V
 	*	 debug
-	*    fix bug nell'inputer
+	*    fix bug nel redirector
 	*    fixes per il systemsolver
 	*	 suddivisione in più file
 	*	 radicali nelle disequazioni
@@ -18727,4 +18784,9 @@ Difficoltà		|
 	**	 OCR da immagine a testo
 	***	 sistemi di equazioni parametriche con AI
 	**** sistemi di disequazioni parametriche con AI (???)
-*/
+ 
+* = easy or medium level
+** = hard, extensive code analysis is needed
+*** = extremely hard, needing an incredible amount of research
+**** = impossible, there is absolutely no idea at the moment
+----------------------------------------------------------------------------------*/
