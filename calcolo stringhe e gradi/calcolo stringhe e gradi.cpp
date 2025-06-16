@@ -597,6 +597,15 @@ public:
 		ret *this;
 	}
 
+	// scrittura di un radicale
+	Buffer& operator<<(radical Rad)
+	{
+		_GetCursorPos();
+		Rad.write(OutputDevice<Buffer>(*this), csbi.wAttributes);
+		SetBufferTextAttribute(csbi.wAttributes);
+		ret *this;
+	}
+
 	// scrittura del buffer intero
 	void output() const
 	{
@@ -2441,6 +2450,20 @@ public:
 	partial_ordering operator<=>(const radical& other) const
 	{
 		ret approximation() <=> other.approximation();
+	}
+
+	// estensione verticale
+	coord height() const
+	{
+		// denominatore vuoto
+		if (bottom.elements.size() == 1 and
+			bottom.elements[0].GetCoefficient() == 1)
+		{
+			ret top.intg() ? coord() : coord{ 1, 0 };
+		}
+
+		// numeratore e denominatore
+		ret coord{ top.intg() ? 1 : 2, bottom.intg() ? 1 : 2 };
 	}
 
 	// scrittura
@@ -8290,17 +8313,18 @@ static void Simplify(Fraction<>& fr, int& ncoeff, int& dcoeff);
 static void Approximator(tensor<long double>& Equation, long double& root);
 static tensor<wstring> EquationSolver(factor<> Equation, tensor<RadComplx>& rads);
 static tensor<tensor<long double>> SystemSolver(tensor<factor<>> functions);
+static tensor<radical> RealRadicalExtractor(polynomial<> vect);
 static void FractDisequationMain(
 	polynomial<> Num, polynomial<> Den,
 
-	tensor<wstring>& Roots,
+	tensor<radical>& Roots,
 	tensor<bool>& ItsFromDenominator,
 
 	bool& InitSign, bool& Invert
 );
 static void GetAlgebricSolution(
 	Buffer& text,
-	tensor<wstring> roots,
+	tensor<radical> roots,
 	tensor<bool> ItsFromDenominator,
 
 	bool InitialSign,
@@ -8311,7 +8335,7 @@ static bool ParamDisequationSetup(
 	polynomial<>& Num, polynomial<>& Den, polynomial<>& Sum,
 
 	tensor<bool>& FromDenominator,
-	tensor<long double>& AdditionalRoots,
+	tensor<radical>& AdditionalRoots,
 	factor<>& Parametric,
 
 	tensor<factor<>>& tops,
@@ -8324,13 +8348,13 @@ static void ParamDisequationMain(
 	polynomial<> Un,
 	tensor<factor<>> tops,
 	tensor<factor<>> bottoms,
-	tensor<long double> AdditionalRoots,
+	tensor<radical> AdditionalRoots,
 
 	size_t& Unisize,
 	tensor<tensor<factor<>>>& TableOfMains,
-	tensor<long double>& RootSet,
-	tensor<long double>& RootExamples,
-	tensor<wstring>& vals
+	tensor<radical>& RootSet,
+	tensor<radical>& RootExamples,
+	tensor<radical>& vals
 );
 static void GetParametricSolution(
 	Buffer& text,
@@ -8344,8 +8368,8 @@ static void GetParametricSolution(
 	tensor<factor<>> tops, tensor<factor<>> bottoms,
 
 	tensor<tensor<factor<>>> TableOfMains,
-	tensor<long double> RootSet, tensor<long double> RootExamples,
-	tensor<wstring> vals
+	tensor<radical> RootSet, tensor<radical> RootExamples,
+	tensor<radical> vals
 );
 #define LESS_THAN        1
 #define LESS_EQUAL_THAN (1 << 1)
@@ -8469,7 +8493,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.9.6 ";
+			wcout << L"1.9.7 ";
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -14913,8 +14937,8 @@ EndOfStatement:
 
 #pragma endregion
 
-// funzioni relative al calcolo delle soluzioni di una disequazione
-#pragma region Disequations
+// funzioni relative al calcolo delle soluzioni delle equazioni
+#pragma region Equations
 
 // calcola una soluzione di un equazione con il metodo di newton-raphson
 static void Approximator(tensor<long double>& Equation, long double& root)
@@ -15308,20 +15332,16 @@ static tensor<long double> RootExtractor(polynomial<> vect)
 {
 	bool repeat{ false };
 	tensor<long double> roots;
-	for (const auto& fact : vect) {
+	for (auto& fact : vect) {
 		if (fact.empty()) continue;
 
 		// modificatore
-		if (fact[0].exp[0] < 0) {
+		if (fact[0].exp[0] < 0 and fact[0].coefficient % 2 == 0) {
 			repeat = true;
 			continue;
 		}
 		tensor<RadComplx> AdditionalRoots;
 		auto solutions{ EquationSolver(fact, AdditionalRoots) };
-
-		// molteplicità delle soluzioni
-		if (fact == 1 and fact[0].exp[Variables.find(L'x')] == 2)
-			solutions += solutions;
 
 		// aggiunta delle radici del numeratore
 		for (size_t i = 0; i < solutions; ++i) {
@@ -15329,7 +15349,9 @@ static tensor<long double> RootExtractor(polynomial<> vect)
 
 			// soluzioni in forma di radicale e reali
 			if (sol.find(L'%') != wstring::npos) {
-				roots << AdditionalRoots[i].RealPart.approximation();
+				auto Root{ AdditionalRoots[i].RealPart.approximation() };
+				roots << Root;
+				if (repeat) roots << Root;
 				continue;
 			}
 
@@ -15348,11 +15370,62 @@ static tensor<long double> RootExtractor(polynomial<> vect)
 	ret roots;
 }
 
+// converte le soluzioni di un equazione in radicali
+static tensor<radical> RealRadicalExtractor(polynomial<> vect)
+{
+	bool repeat{ false };
+	tensor<radical> Roots;
+	for (auto& fact : vect) {
+		if (fact.empty()) continue;
+
+		// modificatore
+		if (fact[0].exp[0] < 0 and fact[0].coefficient % 2) {
+			repeat = true;
+			continue;
+		}
+
+		// estrazione
+		tensor<RadComplx> RootsComplx;
+		auto Strings{ EquationSolver(fact, RootsComplx) };
+
+		// scelta delle radici
+		for (size_t i = 0; i < Strings; ++i) {
+
+			// conversione
+			if (Strings[i].find(L'%') == wstring::npos) {
+				Strings[i].erase(0, Strings[i].find(L'!') + 3);
+
+				auto Rad{ radical(stoi(Strings[i])) };
+				if (repeat) Roots << Rad;
+				Roots << Rad;
+
+				continue;
+			}
+
+			// radicale complesso
+			if (RootsComplx[i].ImaginaryPart != radical(0)) continue;
+
+			// radicale reale
+			Roots << RootsComplx[i].RealPart;
+			if (repeat) Roots << RootsComplx[i].RealPart;
+		}
+
+		repeat = false;
+	}
+
+	ret Roots;
+}
+
+#pragma endregion
+
+// funzioni relative al calcolo delle soluzioni di una disequazione
+#pragma region Disequations
+
 // parte indipendente dal segno di una disequazione normale
 static void FractDisequationMain(
 	polynomial<> Num, polynomial<> Den,
 
-	tensor<wstring>& Roots,
+	tensor<radical>& Roots,
 	tensor<bool>& ItsFromDenominator,
 
 	bool& InitSign, bool& Invert
@@ -15367,21 +15440,21 @@ static void FractDisequationMain(
 	Invert = Coeff < 0;
 
 	// calcolo delle radici
-	auto roots{ RootExtractor(Num) };
-	ItsFromDenominator = tensor<bool>(roots.size(), false);
-	roots += RootExtractor(Den);
+	Roots = RealRadicalExtractor(Num);
+	ItsFromDenominator = tensor<bool>(Roots.size(), false);
+	Roots += RealRadicalExtractor(Den);
 	ItsFromDenominator += tensor<bool>(
-		roots.size() - ItsFromDenominator.size(), true
+		Roots.size() - ItsFromDenominator.size(), true
 	);
-	for (ptrdiff_t i = roots.size() - 1; i >= 0; --i)
-		if (roots[i] <= -2'147'483'647 or roots[i] >= 2'147'483'647)
-			roots.erase(roots.begin() + i);
+	for (ptrdiff_t i = Roots.size() - 1; i >= 0; --i)
+		if (Roots[i] <= -2'147'483'647 or Roots[i] >= 2'147'483'647)
+			Roots.erase(Roots.begin() + i);
 
 	// ordinamento delle radici
-	for (size_t i = 0; i < roots; ++i) for (size_t j = i + 1; j < roots; ++j)
-		if (roots[i] > roots[j])
+	for (size_t i = 0; i < Roots; ++i) for (size_t j = i + 1; j < Roots; ++j)
+		if (Roots[i] > Roots[j])
 		{
-			swap(roots[i], roots[j]);
+			swap(Roots[i], Roots[j]);
 			swap(ItsFromDenominator[i], ItsFromDenominator[j]);
 		}
 
@@ -15397,14 +15470,12 @@ static void FractDisequationMain(
 		fact.SortByExponents();
 		if (fact[0].coefficient < 0) InitSign = !InitSign;
 	}
-
-	for (const auto& root : roots) Roots << Handler(to_wstring(root));
 }
 
 // parte dipendente dal segno di una disequazione normale
 static void GetAlgebricSolution(
 	Buffer& text,
-	tensor<wstring> roots,
+	tensor<radical> roots,
 	tensor<bool> ItsFromDenominator,
 	bool InitialSign,
 	bool ExpectedSign,
@@ -15440,7 +15511,7 @@ static void GetAlgebricSolution(
 			if ((T0 xor T1) and SamePart)
 			{
 				ItsFromDenominator[i] = true;
-				ItsFromDenominator[i] = false;
+				ItsFromDenominator[i + 1] = false;
 			}
 		}
 	}
@@ -15454,11 +15525,22 @@ static void GetAlgebricSolution(
 		ret;
 	}
 
+	// aggiunta di spazio
+	int topmax{}, bottommax{};
+	for (const auto& root : roots) {
+		auto height{ root.height() };
+
+		if (topmax < height.X) topmax = height.X;
+		if (bottommax < height.Y) bottommax = height.Y;
+	}
+	text << wstring(topmax + 1, L'\n');
+
 	// parte iniziale
 	if (condition) {
 		text << L'x';
 		text << (CanBeNull and !ItsFromDenominator[0] ? L" <= " : L" < ");
 		text << roots[0];
+
 		if (roots > 1) {
 			text.SetBufferTextAttribute(8);
 			text << L" V ";
@@ -15486,6 +15568,8 @@ static void GetAlgebricSolution(
 			text.SetBufferTextAttribute(15);
 		}
 	}
+
+	text << wstring(bottommax + 1, L'\n');
 }
 
 // inizio di una disequazione parametrica
@@ -15493,7 +15577,7 @@ static bool ParamDisequationSetup(
 	polynomial<>& Num, polynomial<>& Den, polynomial<>& Sum,
 
 	tensor<bool>& FromDenominator,
-	tensor<long double>& AdditionalRoots,
+	tensor<radical>& AdditionalRoots,
 	factor<>& Parametric,
 
 	tensor<factor<>>& tops,
@@ -15540,7 +15624,7 @@ static bool ParamDisequationSetup(
 			if (Sum.empty()) ret false;
 		}
 	}
-	AdditionalRoots = RootExtractor(Parametrics);
+	AdditionalRoots = RealRootExtractor(Parametrics);
 	Parametric = PolynomialMultiply<long double>(Parametrics);
 
 	// calcolo zeri dei fattori
@@ -15581,13 +15665,13 @@ static void ParamDisequationMain(
 	polynomial<> Un,
 	tensor<factor<>> tops,
 	tensor<factor<>> bottoms,
-	tensor<long double> AdditionalRoots,
+	tensor<radical> AdditionalRoots,
 
 	size_t& Unisize,
 	tensor<tensor<factor<>>>& TableOfMains,
-	tensor<long double>& RootSet,
-	tensor<long double>& RootExamples,
-	tensor<wstring>& vals
+	tensor<radical>& RootSet,
+	tensor<radical>& RootExamples,
+	tensor<radical>& vals
 )
 {
 	// calcolo delle disequazioni principali
@@ -15603,15 +15687,15 @@ static void ParamDisequationMain(
 	if (FirstTable == TableOfMains) Unisize = 1;
 
 	// calcolo radici
-	RootSet = tensor<long double>{ RootExtractor(bottoms) };
+	RootSet = RealRadicalExtractor(bottoms);
 	if (Unisize > 1) for (auto& F : TableOfMains) for (auto& S : F)
-		RootSet += RootExtractor({ S });
+		RootSet += RealRadicalExtractor({ S });
 	RootSet += AdditionalRoots;
 
 	if (!RootSet.empty()) {
 
 		// ordinamento radici
-		long double RepeatedValue{ RootSet.last() };
+		auto RepeatedValue{ RootSet.last() };
 		for (size_t i = 0; i < RootSet; ++i)
 			for (size_t j = i + 1; j < RootSet; ++j)
 				if (RootSet[i] > RootSet[j])
@@ -15627,10 +15711,10 @@ static void ParamDisequationMain(
 		}
 
 		// calcolo intervalli
-		RootExamples << RootSet[0] - 1;
+		RootExamples << RootSet[0] - radical(1);
 		for (ptrdiff_t i = 0; i < RootSet.size() - 1; ++i)
-			RootExamples << (RootSet[i] + RootSet[i + 1]) / 2.0;
-		RootExamples << RootSet.last() + 1;
+			RootExamples << (RootSet[i] + RootSet[i + 1]) / radical(2);
+		RootExamples << RootSet.last() + radical(1);
 
 	}
 	else RootExamples = { 0 };
@@ -15673,8 +15757,8 @@ static void GetParametricSolution(
 	tensor<factor<>> tops, tensor<factor<>> bottoms,
 
 	tensor<tensor<factor<>>> TableOfMains,
-	tensor<long double> RootSet, tensor<long double> RootExamples,
-	tensor<wstring> vals
+	tensor<radical> RootSet, tensor<radical> RootExamples,
+	tensor<radical> vals
 )
 {
 	// calcolo intervalli dei parametri
@@ -15857,7 +15941,7 @@ static void DisequationSolutionPrinter(
 	if (Variables == L"x") {
 
 		// calcolo principale
-		tensor<wstring> roots;
+		tensor<radical> roots;
 		tensor<bool> ItsFromTheDenominator;
 		bool InitialSign, InvertTheSign;
 		FractDisequationMain(
@@ -15909,7 +15993,7 @@ static void DisequationSolutionPrinter(
 	wchar_t parameter{ Variables.at(1 - Vpos) };
 	polynomial<> Un;
 	tensor<bool> TermsFromDenominator;
-	tensor<long double> AdditionalRoots;
+	tensor<radical> AdditionalRoots;
 	factor<> Parametric;
 	tensor<factor<>> tops, bottoms;
 	bool InitialSign, InvertSign{ true };
@@ -15930,20 +16014,13 @@ static void DisequationSolutionPrinter(
 
 	// caso di un fattore
 	if (Un == 1 and Parametric == factor<>{ { 1, { 0, 0 } } }) {
-		tensor<RadComplx> MoreRoots;
-
-		tensor<wstring> vals{ EquationSolver(Un[0], MoreRoots) };
-		if (vals == 1) if (isalpha(vals[0].at(0)) and isalpha(vals[0].at(1))) {
-			if (vals[0].find(L'/') == wstring::npos) vals[0] += L'/';
-			vals[0] += parameter;
-		}
-		for (auto& val : vals) val.erase(0, 5);
 
 		// output
 		for (int i = 0; i < 4; ++i) if ((behaviour | (1 << i)) == behaviour) {
 			bool positive = i / 2;
 			if (PrintCondition) Output << dir[i] << L"\n\n";
 
+			auto vals{ RealRadicalExtractor(Un) };
 			GetAlgebricSolution(
 				Output,
 				vals,
@@ -15968,8 +16045,7 @@ static void DisequationSolutionPrinter(
 	// calcolo dei dati indipendenti dai segni
 	size_t Unisize;
 	tensor<tensor<factor<>>> TableOfMains;
-	tensor<long double> RootSet, RootExamples;
-	tensor<wstring> vals;
+	tensor<radical> RootSet, RootExamples, vals;
 	ParamDisequationMain(
 		Un,
 		tops,
@@ -15994,10 +16070,10 @@ static void DisequationSolutionPrinter(
 				vals,
 				TermsFromDenominator,
 				InitialSign,
-				(positive xor InvertSign) xor ChangeSign,
+				positive xor InvertSign xor ChangeSign,
 				i % 2 == 1
 			);
-			Output << L"\n";
+			Output << L'\n';
 		}
 
 		// caso comune
@@ -16021,7 +16097,7 @@ static void DisequationSolutionPrinter(
 			vals
 		);
 
-		if (PrintCondition) Output << L"\n";
+		if (PrintCondition) Output << L'\n';
 	}
 
 	if (PrintCondition) {
@@ -18769,15 +18845,15 @@ Difficoltà      |
 	*	 debug
 	*    fix bug nel redirector
 	*    fixes per il systemsolver
-	*	 suddivisione in più file
 	*	 radicali nelle disequazioni
+	*	 suddivisione in più file
+	*	 readme e outputs
 	**	 disequazioni parametriche con fattori di secondo grado
 	*	 sistemi di disequazioni
 	*	 C.E. corrette
 	**	 integrali
 	*	 ottimizzazioni nel redirector
 	*	 ottimizzazioni nell'inputer
-	*	 readme e outputs
 	**	 equazioni differenziali
 	*	 newton-raphson nei numeri complessi
 	***  ottimizzazioni nel grafico
