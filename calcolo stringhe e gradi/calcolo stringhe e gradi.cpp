@@ -58,7 +58,7 @@ RUIN UNOPT
 IMPROVE OPT
 #endif // BUGS
 
-// file header
+// file esterni
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -66,6 +66,8 @@ IMPROVE OPT
 #include <condition_variable>
 #include <conio.h>
 #include <ctime>
+#include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <io.h>
@@ -87,12 +89,19 @@ IMPROVE OPT
 #include <unordered_map>
 #include <utility>
 #include <Windows.h>
-#include "../tensor/tensor.cpp"
+
+// file interni
+#include "../include/big.h"
+#include "../include/buffer.h"
+#include "../include/complex.h"
+#include "../include/output_device.h"
+#include "../include/tensor.h"
 
 // namespace globali
 #define stddef using namespace std;
 using namespace std;
 using namespace _STD chrono;
+namespace fs = _STD filesystem;
 using Concurrency::parallel_for, this_thread::sleep_for;
 
 #pragma endregion
@@ -108,13 +117,14 @@ CONSOLE_CURSOR_INFO cursor{ 10, TRUE };
 CONSOLE_SCREEN_BUFFER_INFO csbi;
 
 // funzioni e variabili globali
-const int SizeLimit(60);
+const short SizeLimit(60);
 ptrdiff_t GlobalMax(0);
 const ptrdiff_t GLOBAL_CAP(5e10);
 static wchar_t charVariable(L'x');
 bool BOOLALPHA(true);
 bool PRINTN(true);
 double CORRECTION_RATIO(1.0);
+big LCM(1);
 
 // variabili globali e atomiche
 atomic_bool GlobalInterr(false);
@@ -318,1419 +328,6 @@ static ptrdiff_t BinarySearch(const tensor<T>& arr, const T target)
 	ret -1;
 }
 
-// output artificiali
-struct Console
-{
-	wstring Text;
-	WORD Attribute{ 15 };
-
-	void log() const
-	{
-		SetConsoleTextAttribute(hConsole, Attribute);
-		wcout << Text;
-		ResetAttribute();
-	}
-
-	bool operator!=(const Console& other) const
-	{
-		ret Text != other.Text and Attribute != other.Attribute;
-	}
-	friend wostream& operator<<(wostream& wos, const Console& T)
-	{
-		SetConsoleTextAttribute(hConsole, T.Attribute);
-		wos << T.Text;
-		ResetAttribute();
-		ret wos;
-	}
-};
-class ConsoleStream : public tensor<Console>
-{
-public:
-
-	// costruttori e operatori
-	ConsoleStream() {}
-	ConsoleStream(initializer_list<Console> init)
-	{
-		for (const auto& item : init)
-		{
-			(*this) << item;
-		}
-	}
-	ConsoleStream operator+(ConsoleStream other) const
-	{
-		auto This{ *this };
-		for (const auto& item : other)
-		{
-			This << item;
-		}
-		ret This;
-	}
-
-	// visualizzazione
-	inline void output() const
-	{
-		for (int i = 0; i < this->size(); ++i)
-		{
-			wcout << (*this)[i];
-		}
-	}
-	inline void log()
-	{
-		this->output();
-		this->clear();
-	}
-	friend wostream& operator<<(wostream& wos, const ConsoleStream& T)
-	{
-		for (int i = 0; i < T.size(); ++i)
-		{
-			wos << T[i];
-		}
-		ret wos;
-	}
-};
-ConsoleStream ConsoleText;
-class Buffer
-{
-	// definizioni
-private:
-	using Funct = void(*)(wostringstream&);
-	const int WindowHeight{ 40 };
-
-	// struttura
-	tensor<Funct> held;
-	tensor<tensor<wchar_t>> memory;
-	tensor<tensor<WORD>> attributes;
-	COORD CursorPosition;
-	WORD CurrentAttribute;
-	short WindowStep;
-
-	// ridimensionamento
-	void UpdateSize()
-	{
-		// cursore nella finestra di scrittura
-		if (CursorPosition.X < SizeLimit)
-		{
-			ret;
-		}
-
-		// spostamento a capo
-		CursorPosition.X = 0;
-		CursorPosition.Y++;
-
-		// cursore sempre all'interno della finestra
-		if (CursorPosition.Y < WindowHeight)
-		{
-			ret;
-		}
-
-		// slittamento della finestra
-		WindowStep++;
-
-		// finestra contenuta nel buffer
-		if (WindowStep + WindowHeight <= memory.size())
-		{
-			ret;
-		}
-
-		// aggiunta di memoria nel buffer
-		memory(memory.size() + 20, tensor<wchar_t>(SizeLimit, L'\0'));
-		attributes(attributes.size() + 20, tensor<WORD>(SizeLimit, 15));
-	}
-
-	// costruttore
-public:
-	Buffer() :
-		held(),
-		WindowStep(0),
-		CurrentAttribute(15),
-		CursorPosition(COORD{ 0, 0 }),
-		memory(tensor<tensor<wchar_t>>(40, tensor<wchar_t>(SizeLimit, L'\0'))),
-		attributes(tensor<tensor<WORD>>(40, tensor<WORD>(SizeLimit, 15)))
-	{}
-
-	// distruttore
-	void reset()
-	{
-		held.clear();
-		memory = tensor<tensor<wchar_t>>(
-			WindowHeight, tensor<wchar_t>(SizeLimit, L'\0')
-		);
-		attributes =
-			tensor<tensor<WORD>>(WindowHeight, tensor<WORD>(SizeLimit, 15));
-		CursorPosition = COORD{ 0, 0 };
-		CurrentAttribute = 15;
-		WindowStep = 0;
-	}
-
-	// assegnazione
-	void operator=(const Buffer& other)
-	{
-		if (this == &other)
-		{
-			ret;
-		}
-
-		held = other.held;
-		memory = other.memory;
-		attributes = other.attributes;
-		WindowStep = other.WindowStep;
-		CursorPosition = other.CursorPosition;
-		CurrentAttribute = other.CurrentAttribute;
-	}
-
-	// uguaglianze e disuguaglianze
-	bool AbsolutelyEqual(const Buffer& other) const
-	{
-		ret held == other.held and
-			memory == other.memory and
-			attributes == other.attributes and
-			CursorPosition.X == other.CursorPosition.X and
-			CursorPosition.Y == other.CursorPosition.Y and
-			CurrentAttribute == other.CurrentAttribute and
-			WindowStep == other.WindowStep;
-	}
-	bool operator==(const Buffer& other) const
-	{
-		ret held == other.held and
-			memory == other.memory and
-			attributes == other.attributes;
-	}
-	bool operator!=(const Buffer& other) const
-	{
-		ret !(*this == other);
-	}
-
-	// cambio attributo della console
-	void SetBufferTextAttribute(WORD attribute)
-	{
-		CurrentAttribute = attribute;
-	}
-
-	// riposizionamento cursore
-	void SetBufferCursorPosition(COORD position)
-	{
-		if (position.X < 0 or position.Y < 0)
-		{
-			ret;
-		}
-		if (position.X >= SizeLimit or position.Y >= WindowHeight)
-		{
-			ret;
-		}
-		CursorPosition = position;
-	}
-
-	// ottenimento di informazioni specifiche
-	void GetBufferInfo(PCONSOLE_SCREEN_BUFFER_INFO info) const
-	{
-		info->dwMaximumWindowSize = COORD{ SizeLimit, (short)WindowHeight };
-		info->dwSize = COORD{ SizeLimit, (short)WindowHeight };
-		info->wAttributes = CurrentAttribute;
-		info->srWindow = SMALL_RECT{
-			0, 0, static_cast<short>(SizeLimit - 1),
-			static_cast<short>(WindowHeight - 1)
-		};
-		info->dwCursorPosition = CursorPosition;
-	}
-
-	// applicazione delle funzioni
-	Buffer& operator<<(Funct function)
-	{
-		held << function;
-		ret *this;
-	}
-
-	// scrittura di un elemento
-	template<typename Arg> Buffer& operator<<(Arg written)
-	{
-		// conversione in stringa
-		wostringstream calculator;
-		for (auto& funct : held)
-		{
-			funct(calculator);
-		}
-		calculator << written;
-		auto text{ calculator.str() };
-		
-		// sostituzione dei tab con degli spazi
-		size_t pos = 0;
-		while ((pos = text.find(L'\t', pos)) != wstring::npos)
-		{
-			text.replace(pos, 1, wstring(1, 8));
-			pos += 8;
-		}
-
-		// scrittura del testo
-		for (const auto& ch : text)
-		{
-			// carattere non stampabile
-			if (ch < 32 or !isprint(ch))
-			{
-				continue;
-			}
-
-			// a capo
-			if (ch == L'\n')
-			{
-				CursorPosition.X = SizeLimit;
-				UpdateSize();
-				continue;
-			}
-
-			// aggiunta carattere
-			UpdateSize();
-			memory[CursorPosition.Y + WindowStep][CursorPosition.X] = ch;
-			attributes[CursorPosition.Y + WindowStep][CursorPosition.X] =
-				CurrentAttribute;
-			CursorPosition.X++;
-		}
-
-		ret *this;
-	}
-
-	// scrittura di un Console
-	Buffer& operator<<(Console text)
-	{
-		SetBufferTextAttribute(text.Attribute);
-		*this << text.Text;
-		SetBufferTextAttribute(15);
-		ret *this;
-	}
-
-	// scrittura di un radicale
-	Buffer& operator<<(radical Rad)
-	{
-		_GetCursorPos();
-		Rad.write(OutputDevice<Buffer>(*this), csbi.wAttributes);
-		SetBufferTextAttribute(csbi.wAttributes);
-		ret *this;
-	}
-
-	// scrittura del buffer intero
-	void output() const
-	{
-		// inizio
-		ResetAttribute();
-		WORD Attrib{ 15 };
-		wcout << L'\r';
-
-		// scrittura
-		short CharsSkipped{};
-		for (size_t i = 0; i < memory; ++i)
-		{
-			for (size_t j = 0; j < SizeLimit; ++j)
-			{
-				// carattere trasparente
-				if (memory[i][j] == L'\0')
-				{
-					CharsSkipped++;
-					continue;
-				}
-
-				// spostamento del cursore
-				if (CharsSkipped > 0)
-				{
-					// calcoli
-					_GetCursorPos();
-					auto position{ csbi.dwCursorPosition };
-					auto remaining{ SizeLimit - position.X };
-
-					// una sola riga da scrivere
-					if (CharsSkipped < remaining)
-					{
-						position.X += CharsSkipped;
-					}
-
-					// spostamento tra più righe
-					else
-					{
-						CharsSkipped -= remaining;
-						position.Y += CharsSkipped / SizeLimit + 1;
-						position.X = CharsSkipped % SizeLimit;
-					}
-
-					// impostazione
-					SetConsoleCursorPosition(hConsole, position);
-					CharsSkipped = 0;
-				}
-
-				// impostazione attributo
-				if (Attrib != attributes[i][j])
-				{
-					SetConsoleTextAttribute(hConsole, attributes[i][j]);
-				}
-				wcout << memory[i][j];
-				Attrib = attributes[i][j];
-			}
-
-			// nuova riga
-			if (CharsSkipped == 0)
-			{
-				wcout << L'\n';
-			}
-		}
-		ResetAttribute();
-	}
-
-	// trasferimento
-	void log()
-	{
-		output();
-		reset();
-	}
-
-	// output
-	friend wostream& operator<<(wostream& wos, const Buffer& buff)
-	{
-		_GetCursorPos();
-		auto attrib{ csbi.wAttributes };
-		buff.output();
-		SetConsoleTextAttribute(hConsole, attrib);
-		ret wos;
-	}
-};
-
-// funzioni di unificazione tra console e buffer
-template<typename T>class OutputDevice;
-template<>class OutputDevice<HANDLE>
-{
-public:
-	void SetCursorPosition(COORD pos)
-	{
-		SetConsoleCursorPosition(hConsole, pos);
-	}
-	static void SetTextAttribute(WORD attr)
-	{
-		SetConsoleTextAttribute(hConsole, attr);
-	}
-	void GetBufferInfo(PCONSOLE_SCREEN_BUFFER_INFO info) const
-	{
-		GetConsoleScreenBufferInfo(hConsole, info);
-	}
-	template<typename U> static void Print(U text)
-	{
-		wcout << text;
-	}
-};
-template<>class OutputDevice<Buffer>
-{
-private:
-	Buffer buff;
-public:
-	OutputDevice(Buffer entity) : buff(entity) {}
-
-	void SetCursorPosition(COORD pos)
-	{
-		buff.SetBufferCursorPosition(pos);
-	}
-	void SetTextAttribute(WORD attr)
-	{
-		buff.SetBufferTextAttribute(attr);
-	}
-	void GetBufferInfo(PCONSOLE_SCREEN_BUFFER_INFO info) const
-	{
-		buff.GetBufferInfo(info);
-	}
-	template<typename U> void Print(U text)
-	{
-		buff << text;
-	}
-};
-
-// numeri complessi
-template<typename T> T Sqrt(T val)
-{
-	if constexpr(is_integral_v<T>)
-	{
-		ret static_cast<T>(sqrt(static_cast<double>(val)));
-	}
-	else if constexpr(is_floating_point_v<T>)
-	{
-		ret sqrt(val);
-	}
-	else
-	{
-		throw invalid_argument("Unsupported type!");
-	}
-}
-class radical;
-template<typename Ty>class complex
-{
-public:
-
-	// dati
-	Ty RealPart;
-	Ty ImaginaryPart;
-	Ty norm() const
-	{
-		ret Sqrt(RealPart * RealPart + ImaginaryPart * ImaginaryPart);
-	}
-
-	// confronto
-	partial_ordering operator<=>(const complex& other) const
-	{
-		ret norm() <=> other.norm();
-	}
-	bool real() const
-	{
-		ret ImaginaryPart == 0;
-	}
-
-	// costruttori
-	complex() : RealPart(0), ImaginaryPart(0) {}
-	complex(Ty real) : RealPart(real), ImaginaryPart(0) {}
-	complex(Ty real, Ty imag) : RealPart(real), ImaginaryPart(imag) {}
-
-	// metodi matematici
-	inline complex conjugate() const
-	{
-		ret complex(RealPart, -ImaginaryPart);
-	}
-	inline complex opposite() const
-	{
-		ret complex(-RealPart, -ImaginaryPart);
-	}
-
-	// addizione
-	complex operator+(complex value) const
-	{
-		ret complex(
-			RealPart + value.RealPart,
-			ImaginaryPart + value.ImaginaryPart
-		);
-	}
-	inline complex& operator+=(complex value)
-	{
-		*this = *this + value;
-		ret *this;
-	}
-	inline complex& operator++()
-	{
-		*this = *this + 1;
-		ret *this;
-	}
-	inline complex& operator++(int)
-	{
-		*this = *this + 1;
-		ret *this;
-	}
-
-	// sottrazione
-	complex operator-(complex value) const
-	{
-		ret complex(
-			RealPart - value.RealPart,
-			ImaginaryPart - value.ImaginaryPart
-		);
-	}
-	inline complex& operator-=(complex value)
-	{
-		*this = *this - value;
-		ret *this;
-	}
-	inline complex& operator--()
-	{
-		*this = *this - 1;
-		ret *this;
-	}
-	inline complex& operator--(int)
-	{
-		*this = *this - 1;
-		ret *this;
-	}
-
-	// moltiplicazione e divisione
-	complex operator*(complex value) const
-	{
-		Ty a{ RealPart }, b{ ImaginaryPart };
-		Ty c{ value.RealPart }, d{ value.ImaginaryPart };
-
-		ret complex(
-			a * c - b * d,
-			b * c + a * d
-		);
-	}
-	inline complex& operator*=(complex value)
-	{
-		*this = *this * value;
-		ret *this;
-	}
-	complex operator/(complex value) const
-	{
-		Ty a{ RealPart }, b{ ImaginaryPart };
-		Ty c{ value.RealPart }, d{ value.ImaginaryPart };
-
-		ret complex(
-			(a * c + b * d) / (c * c + d * d),
-			(b * c - a * d) / (c * c + d * d)
-		);
-	}
-	inline complex operator/=(complex value)
-	{
-		*this = *this / value;
-		ret *this;
-	}
-
-	// output
-	template<typename T = Ty>
-	enable_if_t<!is_same_v<T, radical>, wstring> str() const
-	{
-		wostringstream output;
-		if (ImaginaryPart != 0)
-		{
-			output << setprecision(10) << L'(';
-		}
-		output << RealPart;
-		if (ImaginaryPart != 0)
-		{
-			ImaginaryPart > 0 ? output << L" + " : output << L" - ";
-			if (!integer(ImaginaryPart))
-			{
-				output << L'i';
-			}
-
-			if (fabs(ImaginaryPart) != 1)
-			{
-				output << fabs(ImaginaryPart);
-			}
-
-			if (integer(ImaginaryPart))
-			{
-				output << L'i';
-			}
-			output << L')';
-		}
-		ret output.str();
-	}
-};
-template<typename Ty> static complex<Ty> InitExponentialForm(Ty radius, Ty angle)
-{
-	ret complex<Ty>(radius * cos(angle), radius * sin(angle));
-}
-
-// algoritmo di cooley-tukey per la trasformata di fourier veloce
-tensor<complex<long double>> Omega;
-static void FFT(tensor<complex<long double>>& List, bool inverse = false)
-{
-	// invarianza
-	if (List == 1)
-	{
-		ret;
-	}
-
-	// calcolo di omega
-	auto N{ List.size() };
-	tensor<complex<long double>> Helper(N);
-	if (Omega < N)
-	{
-		auto omega{ Omega };
-		Omega.clear();
-		size_t Ratio = omega.empty() ? 1 : N / (2 * omega.size());
-		for (size_t i = 0; i < N / 2; ++i)
-		{
-			Omega << (i % Ratio == 0 and !omega.empty() ? omega[i / Ratio] :
-				InitExponentialForm<long double>(1, -2 * M_PI * i / N));
-		}
-	}
-
-	// bit reversal
-	for (size_t ind = 0; ind < N; ++ind)
-	{
-		size_t shifter{ 1 }, k{ 1 };
-		do
-		{
-			k <<= 1;
-			if ((ind | shifter) == ind)
-			{
-				k |= 1;
-			}
-		}
-		while ((shifter <<= 1) < N);
-		k -= N;
-
-		if (k > ind)
-		{
-			swap(List[k], List[ind]);
-		}
-	}
-
-	// calcolo FFT
-	for (size_t Size = 2; Size <= N; Size <<= 1)
-	{
-		auto OmegaStep = 2 * Omega.size() / Size;
-
-		for (size_t i = 0; i < N; i += Size)
-		{
-			// calcolo dati
-			for (size_t j = 0; j < Size / 2; ++j)
-			{
-				auto k{ i + j };
-				auto product = (
-					inverse ?
-					Omega[OmegaStep * j].conjugate() : Omega[OmegaStep * j]
-				) * List[k + Size / 2];
-
-				Helper[k] = List[k] + product;
-				Helper[k + Size / 2] = List[k] - product;
-			}
-
-			// trasferimento dati
-			for (size_t j = 0; j < Size; ++j)
-			{
-				auto k{ i + j };
-				List[k] = Helper[k];
-			}
-		}
-	}
-}
-
-// numeri grandi con precisione di long double
-class big
-{
-	// dati
-private:
-	tensor<int> Integer;
-	bool sign;
-	long double decimal;
-
-	// funzioni minori
-	void construct(ptrdiff_t param)
-	{
-		tensor<int> temp;
-		while (param > 0)
-		{
-			temp << param % 10;
-			param /= 10;
-		}
-		if (temp.empty())
-		{
-			temp = { 0 };
-		}
-		auto size{ temp.size() };
-
-		for (ptrdiff_t i = size - 1; i >= 0; --i)
-		{
-			Integer << temp[i];
-		}
-	}
-	bool compare(const big& A, const big& B) const
-	{
-		auto integ{ A.Integer };
-		auto oth_integ{ B.Integer };
-
-		while (integ > 1 and integ[0] == 0)
-		{
-			--integ;
-		}
-		while (oth_integ > 1 and oth_integ[0] == 0)
-		{
-			--oth_integ;
-		}
-
-		if (integ % oth_integ)
-		{
-			ret integ < oth_integ;
-		}
-		for (size_t i = 0; i < integ; ++i)
-		{
-			if (integ[i] != oth_integ[i])
-			{
-				ret integ[i] < oth_integ[i];
-			}
-		}
-
-		ret A.decimal < B.decimal;
-	}
-
-	// addizione e sottrazione
-	big Add(const big& __This, const big& __Val, bool changesign) const
-	{
-		big This = __This, Val = __Val;
-		if (changesign)
-		{
-			This.sign = !This.sign;
-		}
-		bool carry;
-
-		// ridimensionamento
-		if (This.Integer < Val.Integer)
-		{
-			swap(This.Integer, Val.Integer);
-			swap(This.decimal, Val.decimal);
-		}
-		Val.Integer.insert(
-			Val.Integer.begin(),
-			This.Integer.size() - Val.Integer.size(),
-			0
-		);
-
-		// somma
-		This.decimal += Val.decimal;
-		This.decimal -= (carry = This.decimal >= 1);
-		for (ptrdiff_t i = This.Integer.size() - 1; i >= 0; --i)
-		{
-			This.Integer[i] += Val.Integer[i] + carry;
-			This.Integer[i] -= 10 * (carry = This.Integer[i] >= 10);
-		}
-
-		// riporto
-		if (carry)
-		{
-			This.Integer >> 1;
-		}
-		ret This;
-	}
-	big Sub(const big& __This, const big& __Val, bool changesign) const
-	{
-		big This = __This, Val = __Val;
-		if (changesign)
-		{
-			This.sign = !This.sign;
-		}
-		bool carry;
-
-		// ridimensionamento
-		Val.Integer.insert(
-			Val.Integer.begin(),
-			This.Integer.size() - Val.Integer.size(),
-			0
-		);
-
-		// differenza
-		This.decimal -= Val.decimal;
-		This.decimal += (carry = This.decimal < 0);
-		for (ptrdiff_t i = This.Integer.size() - 1; i >= 0; --i)
-		{
-			This.Integer[i] -= Val.Integer[i] + carry;
-			This.Integer[i] += 10 * (carry = This.Integer[i] < 0);
-		}
-
-		// rimozione zeri iniziali
-		while (This.Integer > 1 and This.Integer[0] == 0)
-		{
-			--This.Integer;
-		}
-		ret This;
-	}
-	big AlgebricOperation1(const big& A, const big& B, bool Sign) const
-	{
-		// addendo nullo
-		if (B == 0)
-		{
-			ret A;
-		}
-		if (A == 0)
-		{
-			auto result{ B };
-			result.sign = Sign xor B.sign;
-			ret result;
-		}
-
-		// addizione tra valori assoluti
-		if (!(A.sign xor B.sign xor Sign))
-		{
-			ret Add(A, B, false);
-		}
-
-		// zero
-		if (A.Integer == B.Integer and A.decimal == B.decimal)
-		{
-			ret 0;
-		}
-
-		// sottrazione tra valori assoluti
-		ret compare(A, B) ? Sub(B, A, Sign) : Sub(A, B, false);
-	}
-
-	// moltiplicazione
-	big FFT_Multiplication(const big& value) const
-	{
-		// calcolo tensori dei decimali
-		tensor<int> decA, decB;
-		auto decimalA{ decimal };
-		auto decimalB{ value.decimal };
-		while (decimalA != 0)
-		{
-			decimalA *= 10;
-			decA << decimalA;
-			decimalA -= decA.last();
-		}
-		while (decimalB != 0)
-		{
-			decimalB *= 10;
-			decB << decimalB;
-			decimalB -= decB.last();
-		}
-
-		// calcolo variabili importanti
-		auto DA{ decA.size() };
-		auto DB{ decB.size() };
-		auto sizeA{ Integer.size() };
-		auto sizeB{ value.Integer.size() };
-		auto sumA{ sizeA + DA };
-		auto sumB{ sizeB + DB };
-		auto sizeT{ sumA + sumB };
-
-		// calcolo dimensione
-		size_t N{ 1 };
-		while (N < sizeT)
-		{
-			N <<= 1;
-		}
-
-		// aggiunta parte decimale
-		tensor<complex<long double>> A(N), B(N);
-		for (size_t i = 0; i < DA; ++i)
-		{
-			A[i] = complex<long double>(decA[DA - i - 1]);
-		}
-		for (size_t i = 0; i < DB; ++i)
-		{
-			B[i] = complex<long double>(decB[DB - i - 1]);
-		}
-
-		// preparazione tensori
-		for (size_t i = DA; i < sumA; ++i)
-		{
-			A[i] = complex<long double>(Integer[sumA - i - 1]);
-		}
-		for (size_t i = DB; i < sumB; ++i)
-		{
-			B[i] = complex<long double>(value.Integer[sumB - i - 1]);
-		}
-
-		// operazioni con le trasformate di fourier veloci
-		FFT(A);
-		FFT(B);
-		for (size_t i = 0; i < N; ++i)
-		{
-			A[i] *= B[i];
-		}
-		FFT(A, true);
-		for (auto& num : A)
-		{
-			num /= N;
-		}
-
-		// conversione
-		big result;
-		ptrdiff_t carry{};
-		result.Integer(N);
-		for (size_t i = 0; i < N; ++i)
-		{
-			ptrdiff_t cur = _STD round(A[i].RealPart) + carry;
-			carry = (cur += 10 * (cur < 0)) / 10;
-			result.Integer[N - i - 1] = cur % 10;
-		}
-
-		// calcolo parte decimale
-		auto& Int{ result.Integer };
-		auto& Dec{ result.decimal };
-		size_t decprecision{ DA + DB };
-		if (decprecision != 0)
-		{
-			for (ptrdiff_t i = 1; i <= decprecision; ++i)
-			{
-				Dec = (Dec + Int[N - i]) / 10;
-			}
-			Int.erase(N - decprecision);
-		}
-
-		// rimozione zeri inutili
-		auto it{ Int.begin() };
-		auto rend{ Int.end() };
-		while (*it == 0 and it != rend)
-		{
-			++it;
-		}
-		Int.erase(Int.begin(), it);
-
-		// tensore vuoto
-		if (Int.empty())
-		{
-			Int = { 0 };
-		}
-
-		// calcolo segno
-		result.sign = sign xor value.sign;
-		ret result;
-	}
-
-	// conversione
-public:
-	template<typename t> t Number()
-	{
-		if constexpr (is_same_v<t, size_t>)
-		{
-			ret nan("");
-		}
-		ptrdiff_t val{};
-
-		// calcolo parte intera
-		for (size_t i = 0; i < Integer; ++i)
-		{
-			val += Integer[i] * pow(10, Integer.size() - i - 1);
-			if (val != 0 and
-				(val < numeric_limits<t>::min() or val > numeric_limits<t>::max()))
-			{
-				ret nan("");
-			}
-		}
-		t res = val;
-
-		// parte decimale e segno
-		if constexpr (is_floating_point_v<t>)
-		{
-			res += decimal;
-		}
-		if constexpr (is_signed_v<t>)
-		{
-			if (sign == NEG)
-			{
-				res *= -1;
-			}
-		}
-		ret res;
-	}
-
-	// costruttori
-	big() : sign(POS), Integer({ 0 }), decimal(0) {}
-	big(int param) : sign(param < 0), Integer(0), decimal(0)
-	{
-		construct(abs(param));
-	}
-	big(ptrdiff_t param) : sign(param < 0), Integer(0), decimal(0)
-	{
-		construct(abs(param));
-	}
-	big(double param) : sign(param < 0), Integer(0), decimal(0)
-	{
-		param = _STD fabs(param);
-		auto Intpart{ static_cast<ptrdiff_t>(param) };
-		decimal = param - Intpart;
-		construct(Intpart);
-	}
-	big(long double param) : sign(param < 0), Integer(0), decimal(0)
-	{
-		param = _STD fabs(param);
-		auto Intpart{ static_cast<ptrdiff_t>(param) };
-		decimal = param - Intpart;
-		construct(Intpart);
-	}
-	big(tensor<int> Big) : sign(POS), Integer(Big), decimal(0)
-	{
-		if (Integer.empty())
-		{
-			Integer = { 0 };
-		}
-		while (Integer > 1 and Integer[0] == 0)
-		{
-			--Integer;
-		}
-	}
-	big(wstring wstr) : sign(POS), Integer(0), decimal(0)
-	{
-		tensor<int> Big;
-		for (auto c : wstr)
-		{
-			if (iswdigit(c))
-			{
-				Integer << c - L'0';
-			}
-		}
-	}
-
-	// confronto primario e assegnazione
-	big& operator=(const big& other)
-	{
-		if (this == &other)
-		{
-			ret *this;
-		}
-
-		sign = other.sign;
-		Integer = other.Integer;
-		decimal = other.decimal;
-		ret *this;
-	}
-	inline bool operator==(const big& other) const
-	{
-		ret sign == other.sign and Integer == other.Integer
-			and decimal == other.decimal;
-	}
-	inline bool operator!=(const big& other) const
-	{
-		ret !(*this == other);
-	}
-
-	// confronto secondario
-	bool operator<(const big& other) const
-	{
-		ret (sign xor other.sign) ? sign : (compare(*this, other) xor sign);
-	}
-	inline bool operator<=(const big& other) const
-	{
-		ret *this < other or *this == other;
-	}
-	inline bool operator>=(const big& other) const
-	{
-		ret !(*this < other);
-	}
-	inline bool operator>(const big& other) const
-	{
-		ret !(*this == other or *this < other);
-	}
-
-	// addizione
-	big operator+(const big& value) const
-	{
-		ret AlgebricOperation1(*this, value, POS);
-	}
-	inline big& operator+=(const big& value)
-	{
-		*this = *this + value;
-		ret *this;
-	}
-	inline big& operator++()
-	{
-		*this = *this + 1;
-		ret *this;
-	}
-	inline big& operator++(int)
-	{
-		*this = *this + 1;
-		ret *this;
-	}
-
-	// sottrazione
-	big operator-(const big& value) const
-	{
-		ret AlgebricOperation1(*this, value, NEG);
-	}
-	inline big& operator-=(const big& value)
-	{
-		*this = *this - value;
-		ret *this;
-	}
-	inline big& operator--()
-	{
-		*this = *this - 1;
-		ret *this;
-	}
-	inline big& operator--(int)
-	{
-		*this = *this - 1;
-		ret *this;
-	}
-
-	// shifting
-	big operator<<(int shift) const
-	{
-		big result = *this;
-		for (ptrdiff_t i = 0; i < shift; ++i)
-		{
-			result.decimal *= 10;
-			result.Integer << result.decimal;
-			result.decimal -= result.Integer.last();
-		}
-		ret result;
-	}
-	inline big& operator<<=(int shift)
-	{
-		for (ptrdiff_t i = 0; i < shift; ++i)
-		{
-			decimal *= 10;
-			Integer << decimal;
-			decimal -= Integer.last();
-		}
-		ret *this;
-	}
-	big operator>>(int shift) const
-	{
-		big result = *this;
-		for (ptrdiff_t i = 0; i < shift; ++i)
-		{
-			result.decimal += Integer.last();
-			result.decimal /= 10;
-		}
-		shift >= result.Integer.size() ?
-			result.Integer = { 0 } : result.Integer -= shift;
-		ret result;
-	}
-	inline big& operator>>=(int shift)
-	{
-		for (ptrdiff_t i = 0; i < shift; ++i)
-		{
-			decimal += Integer.last();
-			decimal /= 10;
-		}
-		shift >= Integer.size() ? Integer = { 0 } : Integer -= shift;
-		ret *this;
-	}
-
-	// moltiplicazione
-	big operator*(const big& value) const
-	{
-		// casi particolari
-		if (value == 0 or *this == 0)
-		{
-			big result;
-			result.sign = POS;
-			result.Integer = { 0 };
-			result.decimal = 0;
-			ret result;
-		}
-		ret FFT_Multiplication(value);
-	}
-	inline big& operator*=(const big& value)
-	{
-		*this = *this * value;
-		ret *this;
-	}
-
-	// divisione intera
-	big operator/(const big& value) const
-	{
-		if (value == 0)
-		{
-			throw invalid_argument("Division by zero!");
-		}
-		if (value == 1)
-		{
-			ret *this;
-		}
-		if (value == *this)
-		{
-			ret 1;
-		}
-
-		// metodo di newton-raphson
-		big result, old, New = 1;
-		for (;;)
-		{
-			bool FirstIter{ true };
-			old = result = New;
-			do
-			{
-				if (!FirstIter)
-				{
-					result >>= 1;
-				}
-
-				New = result * 2 - value * result * result;
-				FirstIter = false;
-			} while (New.sign or New == 0);
-
-			if ((New - old).fabs() < 1e-15)
-			{
-				break;
-			}
-		}
-
-		// rimozione zeri inutili
-		auto it{ result.Integer.begin() };
-		auto rend{ result.Integer.end() };
-		while (*it == 0 and it != rend)
-		{
-			++it;
-		}
-		result.Integer.erase(result.Integer.begin(), it);
-
-		// tensore vuoto
-		if (result.Integer.empty())
-		{
-			result.Integer = { 0 };
-		}
-		result.sign = sign xor value.sign;
-
-		// arrotondamento
-		auto output = value.Integer > 10 ? result : (*this) * result;
-		if (integer(output.decimal))
-		{
-			output.decimal = _STD round(output.decimal);
-			if (output.decimal == 1)
-			{
-				output.decimal = 0;
-				output++;
-			}
-		}
-		for (ptrdiff_t i = output.Integer.size() - 1; i > 0; --i)
-		{
-			if (output.Integer[i] < 10)
-			{
-				break;
-			}
-			output.Integer[i] = 0;
-			output.Integer[i - 1]++;
-		}
-		if (output.Integer[0] == 10)
-		{
-			output.Integer[0] = 0;
-			output.Integer >> 1;
-		}
-
-		ret output;
-	}
-	inline big& operator/=(const big& value)
-	{
-		*this = *this / value;
-		ret *this;
-	}
-
-	// modulo
-	big operator%(const big& value) const
-	{
-		if (value == 0)
-		{
-			throw invalid_argument("Modulo by zero!");
-		}
-
-		// segni
-		big This = *this, Val = value;
-		Val.sign = This.sign = POS;
-
-		// calcolo
-		while (This >= Val)
-		{
-			big temp = Val, factor = 1;
-
-			while ((temp << 1) <= This)
-			{
-				factor <<= 1;
-				temp <<= 1;
-			}
-			This -= temp;
-		}
-
-		ret This;
-	}
-	inline big& operator%=(const big& value)
-	{
-		*this = *this % value;
-		ret *this;
-	}
-
-	// potenza
-	big operator^(const big& exp) const
-	{
-		big power = 1, NewExp = exp + 1, NewBase = *this;
-		if (*this < 0)
-		{
-			NewBase.invert();
-		}
-		while (--NewExp > 0)
-		{
-			power *= NewBase;
-			if (power < 0)
-			{
-				ret - 1;
-			}
-		}
-		if (exp % 2 == 1 and *this < 0)
-		{
-			power.invert();
-		}
-		ret power;
-	}
-	inline big& operator^=(const big& exp)
-	{
-		*this = *this ^ exp;
-		ret *this;
-	}
-
-	// metodi matematici
-	inline size_t Size() const
-	{
-		ret Integer.size();
-	}
-	inline bool intg() const
-	{
-		ret decimal == 0;
-	}
-	inline big fabs() const
-	{
-		big other = *this;
-		other.sign = POS;
-		ret other;
-	}
-	inline big floor()
-	{
-		decimal = 0;
-		ret *this;
-	}
-	inline big ceil()
-	{
-		bool integ = decimal == 0;
-		decimal = 0;
-		if (integ)
-		{
-			(*this)++;
-		}
-		ret *this;
-	}
-	inline big round()
-	{
-		*this += _STD round(decimal);
-		decimal = 0;
-		ret *this;
-	}
-	inline big invert()
-	{
-		sign = !sign;
-		ret *this;
-	}
-	inline int log(int base)
-	{
-		for (int i = 0;; ++i)
-		{
-			if (*this < base)
-			{
-				ret i;
-			}
-			*this /= base;
-		}
-	}
-
-	// output
-	wostringstream c_str(int precision) const
-	{
-		wostringstream oss, result;
-		if (sign)
-		{
-			result << L'-';
-		}
-		for (size_t i = 0; i < Integer; ++i)
-		{
-			result << Integer[i];
-		}
-		if (precision > 0)
-		{
-			oss << setprecision(precision) << decimal;
-		}
-		auto str{ oss.str() };
-		str.erase(0, 1);
-		if (!str.empty())
-		{
-			result << str;
-		}
-		ret result;
-	}
-	inline wstring str() const
-	{
-		ret c_str(6).str();
-	}
-	friend wostream& operator<<(wostream& os, const big& obj)
-	{
-		os << obj.str();
-		ret os;
-	}
-};
-static big pow(big x, int y)
-{
-	ret x ^ y;
-}
-big LCM(1);
-
 // algoritmi di ordinamento veloci
 template<typename T, typename... Others> void GeneralizedHeapify
 (tensor<T>& arr, ptrdiff_t n, ptrdiff_t i, tensor<Others>&... others)
@@ -1768,7 +365,7 @@ void GeneralizedHeapSort(tensor<T>& arr, tensor<Others>&... others)
 }
 static void ClearArea(COORD WinCenter, COORD Dimensions);
 
-// rappresentazione di radicali3
+// rappresentazione di radicali
 static ptrdiff_t Gcd(ptrdiff_t A, ptrdiff_t B);
 template<typename T> static int Gcd(tensor<T> terms);
 static tensor<compost> DecomposeNumber(ptrdiff_t input);
@@ -1961,7 +558,7 @@ public:
 		ret Arg != 1 and abs(coefficient) != 1 ? line + 1 : line;
 	}
 	template<typename U>
-	void write(OutputDevice<U> device, WORD attrib = 15, bool NoSign = false) const
+	void output(OutputDevice<U> device, WORD attrib = 15, bool NoSign = false) const
 	{
 		// aggiunta di spazio
 		device.GetBufferInfo(&csbi);
@@ -2026,7 +623,7 @@ public:
 	}
 
 	// output
-	wstring str() const
+	_NODISCARD wstring str() const
 	{
 		wostringstream oss;
 		if (coefficient < 0)
@@ -2046,7 +643,7 @@ public:
 	friend wostream& operator<<(wostream& os, const RadicalUnit& obj)
 	{
 		_GetCursorPos();
-		obj.write(OutputDevice<HANDLE>(), csbi.wAttributes);
+		obj.output(OutputDevice<HANDLE>(), csbi.wAttributes);
 		SetConsoleTextAttribute(hConsole, csbi.wAttributes);
 		ret os;
 	}
@@ -2242,22 +839,22 @@ public:
 		}
 		ret elements[0].negative() ? line + 1 : line;
 	}
-	template<typename U> void write(OutputDevice<U> device, WORD attrib = 15) const
+	template<typename U> void output(OutputDevice<U> device, WORD attrib = 15) const
 	{
-		elements[0].write(device, attrib);
+		elements[0].output(device, attrib);
 		for (size_t i = 1; i < elements.size(); ++i)
 		{
 			device.SetTextAttribute(attrib);
 			device.Print(L' ');
 			device.Print(elements[i].negative() ? L'-' : L'+');
 			device.Print(L' ');
-			elements[i].write(device, attrib, true);
+			elements[i].output(device, attrib, true);
 		}
 		device.SetTextAttribute(attrib);
 	}
 
 	// output
-	wstring str() const
+	_NODISCARD wstring str() const
 	{
 		wostringstream oss;
 		for (size_t i = 0; i < elements; ++i)
@@ -2277,7 +874,7 @@ public:
 	friend wostream& operator<<(wostream& os, const RadicalExpr& obj)
 	{
 		_GetCursorPos();
-		obj.write(OutputDevice<HANDLE>(), csbi.wAttributes);
+		obj.output(OutputDevice<HANDLE>(), csbi.wAttributes);
 		SetConsoleTextAttribute(hConsole, csbi.wAttributes);
 		ret os;
 	}
@@ -2463,18 +1060,24 @@ public:
 		}
 
 		// numeratore e denominatore
-		ret coord{ top.intg() ? 1 : 2, bottom.intg() ? 1 : 2 };
+		ret coord{ top.intg() ? 1.0 : 2.0, bottom.intg() ? 1.0 : 2.0 };
 	}
 
 	// scrittura
+	int len()
+	{
+		int toplen{ top.len() };
+		int bottomlen{ bottom.len() };
+		ret toplen > bottomlen ? toplen : bottomlen;
+	}
 	template<typename U>
-	void write(OutputDevice<U> device, WORD wAttribute = 15) const
+	void output(OutputDevice<U> device, WORD wAttribute = 15) const
 	{
 		// denominatore vuoto
 		if (bottom.elements.size() == 1 and
 			bottom.elements[0].GetCoefficient() == 1)
 		{
-			top.write(device, wAttribute);
+			top.output(device, wAttribute);
 			ret;
 		}
 
@@ -2503,7 +1106,7 @@ public:
 		{
 			device.Print(wstring(diff, L' '));
 		}
-		top.write(device, wAttribute);
+		top.output(device, wAttribute);
 
 		// scrittura denominatore
 		int scale = bottom.intg() ? 1 : 2;
@@ -2512,14 +1115,14 @@ public:
 		{
 			device.Print(wstring(diff, L' '));
 		}
-		bottom.write(device, wAttribute);
+		bottom.output(device, wAttribute);
 
 		// riposizionamento cursore
 		device.SetCursorPosition({ short(CursorPos.X + maxlen), CursorPos.Y });
 	}
 
 	// output
-	wstring str() const
+	_NODISCARD wstring str() const
 	{
 		// radicale nullo
 		if (top.elements.empty())
@@ -2551,9 +1154,16 @@ public:
 	friend wostream& operator<<(wostream& os, const radical& obj)
 	{
 		_GetCursorPos();
-		obj.write(OutputDevice<HANDLE>(), csbi.wAttributes);
+		obj.output(OutputDevice<HANDLE>(), csbi.wAttributes);
 		SetConsoleTextAttribute(hConsole, csbi.wAttributes);
 		ret os;
+	}
+	friend Buffer& operator<<(Buffer& buff, const radical& obj)
+	{
+		buff.GetBufferInfo(&csbi);
+		obj.output(OutputDevice<Buffer>(buff), csbi.wAttributes);
+		buff.SetBufferTextAttribute(csbi.wAttributes);
+		ret buff;
 	}
 };
 
@@ -2623,7 +1233,7 @@ public:
 	}
 
 	// rappresentazione
-	_NODISCARD wstring str(int size = Variables.size()) const
+	_NODISCARD wstring str() const
 	{
 		// caso nullo
 		if (coefficient == 0)
@@ -2651,9 +1261,7 @@ public:
 		{
 			if (exp[i] != 0)
 			{
-				Monomial += size == Variables.size() ?
-					Variables.at(i) :
-					Variables.at(Variables.find(charVariable));
+				Monomial += Variables.at(i);
 				if (exp[i] > 1)
 				{
 					Monomial += L"^" + to_wstring((int)exp[i]);
@@ -2702,9 +1310,9 @@ public:
 	// ordinamento termini
 	void SortByDegree()
 	{
-		for (size_t i = 0; i < this->size(); ++i)
+		for (size_t i = 0; i < this->count; ++i)
 		{
-			for (size_t j = i + 1; j < this->size(); ++j)
+			for (size_t j = i + 1; j < this->count; ++j)
 			{
 				if (this->at(i).degree() < this->at(j).degree())
 				{
@@ -2720,9 +1328,9 @@ public:
 			ret;
 		}
 		size_t size{ Variables.size() };
-		for (size_t i = 0; i < this->size(); ++i)
+		for (size_t i = 0; i < this->count; ++i)
 		{
-			for (size_t j = i + 1; j < this->size(); ++j)
+			for (size_t j = i + 1; j < this->count; ++j)
 			{
 				bool swap{ false };
 				for (size_t k = 0; k < size; ++k)
@@ -2821,12 +1429,13 @@ public:
 	inline factor& operator*=(const factor& other);
 
 	// rappresentazione
-	_NODISCARD wstring str(int size = Variables.size()) override
+	_NODISCARD wstring str() const override
 	{
 		wstring polynomial;
-		for (const auto data : *this)
+		for (size_t i = 0; i < this->count; ++i)
 		{
-			polynomial += (data.coefficient > 0 ? L"+" : L"-") + data.str(size);
+			const auto& data{ (*this)[i] };
+			polynomial += (data.coefficient > 0 ? L"+" : L"-") + data.str();
 		}
 		if (polynomial.empty())
 		{
@@ -3009,20 +1618,21 @@ public:
 		ret offset;
 	}
 
-	// rappresentazione
-	_NODISCARD wstring str(int size = Variables.size()) override
+		// rappresentazione
+	_NODISCARD wstring str() const override
 	{
 		factor<T_int> traduction;
 		int _FirstPos = Variables.find(charVariable);
-		for (const auto& Monomial : *this)
+		for (size_t i = 0; i < this->count; ++i)
 		{
 			monomial<T_int> element;
+			auto& Monomial{ (*this)[i] };
 			element.coefficient = Monomial.coefficient;
 			element.exp(Variables.size(), 0);
 			element.exp[_FirstPos] = Monomial.degree;
 			traduction << element;
 		}
-		ret traduction.str(1);
+		ret traduction.str();
 	}
 
 	// output
@@ -3035,12 +1645,6 @@ public:
 static FACTOR<> Gcd(FACTOR<> A, FACTOR<> B);
 
 // radicali e numeri complessi
-template<typename Ty> enable_if_t<!is_same_v<Ty, radical>, wostream&>
-operator<<(wostream& os, const complex<Ty>& obj)
-{
-	os << obj.str();
-	ret os;
-}
 class RadComplx : public complex<radical>
 {
 	// costruttori
@@ -3074,7 +1678,7 @@ public:
 	}
 
 	// scrittura
-	void write(WORD wAttribute = 15) const
+	void output(WORD wAttribute = 15) const
 	{
 		// output parte reale
 		if (RealPart != radical(0))
@@ -3119,7 +1723,7 @@ public:
 	}
 
 	// output
-	wstring str() const
+	_NODISCARD wstring str() const
 	{
 		// aggiunta parte reale
 		wostringstream oss;
@@ -3136,7 +1740,7 @@ public:
 	friend wostream& operator<<(wostream& os, const RadComplx& obj)
 	{
 		_GetCursorPos();
-		obj.write(csbi.wAttributes);
+		obj.output(csbi.wAttributes);
 		ret os;
 	}
 };
@@ -3262,7 +1866,7 @@ public:
 					int setK = 0;
 					this->erase(this->begin() + j);
 					this->insert(this->begin() + i, { { 2, modifier } });
-					for (size_t k = 0; k < this->size(); ++k)
+					for (size_t k = 0; k < this->count; ++k)
 					{
 						if ((*this)[k] == CommonFactor)
 						{
@@ -3280,7 +1884,7 @@ public:
 	}
 
 	// rappresentazione
-	_NODISCARD wstring str(int size = Variables.size()) override
+	_NODISCARD wstring str() const override
 	{
 		if (this->count == 0)
 		{
@@ -3291,8 +1895,10 @@ public:
 		monomial<big> original{ 1, tensor<int>(Variables.size(), 0) };
 		auto CoeffToAdd{ original };
 		bool IsAModifier{ false };
-		for (auto T : *this)
+		for (size_t i = 0; i < this->count; ++i)
 		{
+			auto& T{ (*this)[i] };
+
 			// caso di monomio modificatore
 			if (!T[0].exp.empty()) if (T[0].exp[0] < 0)
 			{
@@ -3320,7 +1926,7 @@ public:
 			}
 
 			// caso con elevamento a potenza
-			auto xout{ T.str(size) };
+			auto xout{ T.str() };
 			if (IsAModifier)
 			{
 				xout = L"(" + xout + L")^" + exp;
@@ -3336,7 +1942,7 @@ public:
 			}
 			output += xout;
 		}
-		auto coeffstr{ CoeffToAdd.str(size) };
+		auto coeffstr{ CoeffToAdd.str() };
 
 		// aggiunta del denominatore
 		if (!output.empty())
@@ -3471,14 +2077,14 @@ public:
 	}
 
 	// rappresentazione
-	_NODISCARD wstring str(int size = Variables.size()) override
+	_NODISCARD wstring str() const override
 	{
 		polynomial<T_int> traduction;
-		for (const auto& vector : *this)
+		for (size_t i = 0; i < this->count; ++i)
 		{
-			traduction << ToXV(vector);
+			traduction << ToXV((*this)[i]);
 		}
-		ret traduction.str(1);
+		ret traduction.str();
 	}
 
 	// output
@@ -3749,7 +2355,7 @@ public:
 	}
 
 	// rappresentazione
-	wstring str()
+	_NODISCARD wstring str() const
 	{
 		// frazione semplice
 		if (den == polynomial<T>{ 1 })
@@ -3773,13 +2379,52 @@ public:
 		ret Num + L" / " + Den;
 	}
 
-	// output
+	// scrittura
+	coord height() const
+	{
+		if (den == polynomial<T>{ 1 })
+		{
+			ret coord();
+		}
+		ret coord(1, 1);
+	}
+	template<typename U>
+	void output(OutputDevice<U> device, WORD wAttribute = 15) const;
 	friend wostream& operator<<(wostream& os, const Fraction& obj)
 	{
-		os << obj.str();
+		_GetCursorPos();
+		obj.output(OutputDevice<HANDLE>(), csbi.wAttributes);
+		SetConsoleTextAttribute(hConsole, csbi.wAttributes);
 		ret os;
 	}
+	friend Buffer& operator<<(Buffer& buff, const Fraction& obj)
+	{
+		buff.GetBufferInfo(&csbi);
+		obj.output(OutputDevice<Buffer>(buff), csbi.wAttributes);
+		SetConsoleTextAttribute(hConsole, csbi.wAttributes);
+		ret buff;
+	}
 };
+template<typename U> static void PrintFractionaryResult(
+	OutputDevice<U> Device,
+
+	int NC, int DC, int& lines, Fraction<> Fract,
+
+	POLYNOMIAL<> NScomp = { {} }, POLYNOMIAL<> DScomp = { {} },
+
+	bool HasMoreVariables = true, bool correct = false,
+
+	tensor<double> roots = {}, tensor<POLYNOMIAL<>> Denominators = {}
+);
+template<typename T> template<typename U> void
+Fraction<T>::output(OutputDevice<U> device, WORD wAttribute) const
+{
+	int lines;
+	device.SetTextAttribute(wAttribute);
+	PrintFractionaryResult(
+		device, 1, 1, lines, *this, To1V(this->num), To1V(this->den), false
+	);
+}
 
 // classe per gestire termini polinomiali e frazioni annidati
 static tensor<Fraction<big>> GetManyFractions
@@ -8322,9 +6967,9 @@ static void FractDisequationMain(
 
 	bool& InitSign, bool& Invert
 );
-static void GetAlgebricSolution(
+template<typename Ty> static void GetAlgebricSolution(
 	Buffer& text,
-	tensor<radical> roots,
+	tensor<Ty> roots,
 	tensor<bool> ItsFromDenominator,
 
 	bool InitialSign,
@@ -8353,8 +6998,8 @@ static void ParamDisequationMain(
 	size_t& Unisize,
 	tensor<tensor<factor<>>>& TableOfMains,
 	tensor<radical>& RootSet,
-	tensor<radical>& RootExamples,
-	tensor<radical>& vals
+	tensor<long double>& RootExamples,
+	tensor<Fraction<>>& vals
 );
 static void GetParametricSolution(
 	Buffer& text,
@@ -8368,8 +7013,9 @@ static void GetParametricSolution(
 	tensor<factor<>> tops, tensor<factor<>> bottoms,
 
 	tensor<tensor<factor<>>> TableOfMains,
-	tensor<radical> RootSet, tensor<radical> RootExamples,
-	tensor<radical> vals
+	tensor<radical> RootSet,
+	tensor<long double> RootExamples,
+	tensor<Fraction<>> vals
 );
 #define LESS_THAN        1
 #define LESS_EQUAL_THAN (1 << 1)
@@ -8383,17 +7029,11 @@ static void DisequationSolutionPrinter(
 	bool ChangeSign,
 	bool PrintCondition = true
 );
-static void PrintFraction
-(int NC, int DC, int& LINE, bool WritePlus, Fraction<> fract);
-static void PrintFractionaryResult
-(
-	int NC, int DC, int& lines, Fraction<> Fract,
-
-	POLYNOMIAL<> NScomp = { {} }, POLYNOMIAL<> DScomp = { {} },
-
-	bool HasMoreVariables = true, bool correct = false,
-
-	tensor<double> roots = {}, tensor<POLYNOMIAL<>> Denominators = {}
+template<typename U> static void PrintFraction(
+	OutputDevice<U> Device,
+	int NC, int DC, int& LINE,
+	bool WritePlus,
+	Fraction<> fract
 );
 static void CodeToNumber(switchcase& argc);
 static wstring ExpandNumber(
@@ -8471,6 +7111,68 @@ int main()
 	switchcase option, Address{ switchcase::NotAssigned };
 	// //
 
+	// calcolo directories generali
+	int CodeLines{};
+	const string marker{ "// fine del codice" };
+	const size_t marker_len = marker.size();
+	tensor<string> extensions{ "h", "cpp", "natvis" };
+	fs::path base_path = "../";
+	tensor<fs::path> folders{
+		base_path / "debugger",
+		base_path / "include",
+		base_path / "src"
+	};
+
+	// conta delle righe dei file secondari
+	for (const auto& folder : folders) {
+		if (!fs::exists(folder)) continue;
+
+		for (const auto& entry : fs::directory_iterator(folder)) {
+
+			// calcolo directories
+			if (!entry.is_regular_file()) continue;
+			auto Path{ entry.path() };
+			auto path{ Path.filename().string() };
+			auto pos{ path.rfind('.') };
+			if (pos == string::npos) continue;
+			
+			// verifica estensione
+			bool found{ false };
+			for (const auto& ext : extensions) {
+
+				if (path.substr(pos + 1) == ext) {
+					found = true;
+					break;
+				}
+			}
+			if (!found) continue;
+
+			// conta delle righe in un file
+			ifstream file(Path);
+			if (!file) continue;
+			string line;
+			while (getline(file, line)) CodeLines++;
+		}
+	}
+
+	// calcolo versione finale del programma
+	ifstream MainFile(__FILE__);
+	if (MainFile) {
+		string line;
+		while (getline(MainFile, line)) {
+			if (line.size() >= marker_len and line.substr(0, marker_len) == marker)
+				break;
+			CodeLines++;
+		}
+	}
+
+	// conversione in stringa
+	if (CodeLines % 100 >= 85) CodeLines += 15;
+	CodeLines /= 100;
+	auto version{ to_wstring(CodeLines) };
+	if (version.size() > 1) for (ptrdiff_t i = version.size() - 2; i >= 0; --i)
+		version.insert(version.begin() + i + 1, L'.');
+
 	bool start{ true };
 	bool LockPrimeNumbersInput{ false };
 	ptrdiff_t global{ 1 };
@@ -8493,7 +7195,7 @@ int main()
 #ifndef BUGS
 			wcout << L' ';
 #endif // BUGS
-			wcout << L"1.9.7 ";
+			wcout << version << L' ';
 #ifdef BUGS
 			wcout << L"BETA ";
 #endif // BUGS
@@ -14614,20 +13316,23 @@ static void Simplify(Fraction<>& fr, int& ncoeff, int& dcoeff)
 }
 
 // stampa una frazione
-static void PrintFraction
-(int NC, int DC, int& LINE, bool WritePlus, Fraction<> fract)
+template<typename U> static void PrintFraction(
+	OutputDevice<U> Device,
+	int NC, int DC, int& LINE,
+	bool WritePlus,
+	Fraction<> fract
+)
 {
-
 	// aggiunta di spazio
 	tensor<int> null(Variables.size(), 0);
-	_GetCursorPos();
+	Device.GetBufferInfo(&csbi);
 	auto start{ csbi.dwCursorPosition };
-	wcout << wstring(10, L'\n');
-	_GetCursorPos();
+	Device.Print(wstring(10, L'\n'));
+	Device.GetBufferInfo(&csbi);
 	if (csbi.dwCursorPosition.Y >= start.Y)
 		start.Y -= 10 - csbi.dwCursorPosition.Y + start.Y;
-	SetConsoleCursorPosition(hConsole, start);
-
+	Device.SetCursorPosition(start);
+	
 	// calcolo numeratore
 	long double root{};
 	int I{ 1 }, Root{};
@@ -14789,40 +13494,41 @@ static void PrintFraction
 	if (LINE + spacing + WritePlus * 2 > csbi.dwSize.X) {
 		LINE = 0;
 		start.Y += 4;
-		SetConsoleCursorPosition(hConsole, start);
+		Device.SetCursorPosition(start);
 	}
 
 	// output segno
 	if (WritePlus or IsMinus) {
 		if (WritePlus) start.X++;
 		start.Y++;
-		SetConsoleCursorPosition(hConsole, start);
-		IsMinus ? wcout << L'-' : wcout << L'+';
+		Device.SetCursorPosition(start);
+		Device.Print(IsMinus ? L'-' : L'+');
 		start.X += 2;
 		LINE += 2;
 		start.Y--;
 	}
 
 	// output frazione
-	SetConsoleCursorPosition(hConsole, start);
-	wcout << num_;
+	Device.SetCursorPosition(start);
+	Device.Print(num_);
 	start.Y++;
-	SetConsoleCursorPosition(hConsole, start);
-	wcout << wstring(sizemax, L'-');
+	Device.SetCursorPosition(start);
+	Device.Print(wstring(sizemax, L'-'));
 	start.Y++;
-	SetConsoleCursorPosition(hConsole, start);
-	wcout << den_;
+	Device.SetCursorPosition(start);
+	Device.Print(den_);
 	start.Y -= 2;
 	start.X += sizemax;
-	SetConsoleCursorPosition(hConsole, start);
+	Device.SetCursorPosition(start);
 
 	// aggiornamento linea
 	LINE += sizemax + 1;
 }
 
 // stampa una frazione algebrica con la forma corretta
-static void PrintFractionaryResult
-(
+template<typename U> static void PrintFractionaryResult(
+	OutputDevice<U> Device,
+
 	int NC, int DC, int& lines, Fraction<> Fract,
 
 	POLYNOMIAL<> NScomp, POLYNOMIAL<> DScomp,
@@ -14841,9 +13547,10 @@ static void PrintFractionaryResult
 	Part.num = HasMoreVariables ? Fract.num : ToXV(NScomp);
 	Part.den = HasMoreVariables ? Fract.den : ToXV(DScomp);
 	if (correct) {
-		wcout << L"\n\n";
+		Device.Print(L"\n\n");
 		for (size_t i = 0; i < Denominators; ++i) {
 			PrintFraction(
+				Device,
 				NC,
 				DC,
 				lines,
@@ -14852,7 +13559,7 @@ static void PrintFractionaryResult
 			);
 			ShowPlus = true;
 		}
-		wcout << L"\n\n";
+		Device.Print(L"\n\n");
 		goto EndOfStatement;
 	}
 
@@ -14860,55 +13567,59 @@ static void PrintFractionaryResult
 	if (!Part.den.empty()) {
 		if (Part.den > 1 or Part.den[0] > 1 or Part.den[0][0].exp != null)
 		{
-			_GetCursorPos();
+			Device.GetBufferInfo(&csbi);
 			csbi.dwCursorPosition.Y--;
-			SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
+			Device.SetCursorPosition(csbi.dwCursorPosition);
 			PrintFraction(
+				Device,
 				NC,
 				DC,
 				lines,
 				false,
 				Part
 			);
-			wcout << L"\n\n";
+			Device.Print(L"\n\n");
 			goto EndOfStatement;
 		}
 	}
 
 	// caso di denominatore coefficiente
 	if (abs(DC) != 1 and !Part.num.empty()) {
-		_GetCursorPos();
+		Device.GetBufferInfo(&csbi);
 		csbi.dwCursorPosition.Y--;
-		SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
+		Device.SetCursorPosition(csbi.dwCursorPosition);
 		PrintFraction(
+			Device,
 			NC,
 			DC,
 			lines,
 			false,
 			{ Part.num, { { monomial<>{ 1, null } } } }
 		);
-		wcout << L"\n\n";
+		Device.Print(L"\n\n");
 	}
 
 	// caso di frazione normale
 	else if (abs(DC) != 1 and NScomp.empty()) {
-		_GetCursorPos();
+		Device.GetBufferInfo(&csbi);
 		csbi.dwCursorPosition.Y--;
-		SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
+		Device.SetCursorPosition(csbi.dwCursorPosition);
 		PrintFraction(
+			Device,
 			NC,
 			DC,
 			lines,
 			false,
 			{ { { { 1, null } } }, { { { 1, null } } } }
 		);
-		wcout << L"\n\n";
+		Device.Print(L"\n\n");
 	}
 
 	// caso costante
 	else if (NScomp.empty()) {
 		if (DC == -1) NC *= -1;
-		wcout << L' ' << NC;
+		Device.Print(L' ');
+		Device.Print(NC);
 	}
 
 	// caso fattore
@@ -14919,20 +13630,24 @@ static void PrintFractionaryResult
 		if (NScomp[0] > 1 and NC != 1) output = L'(' + output + L')';
 		if (abs(NC) != 1) output = to_wstring(NC) + output;
 		if (NC * DC == -1) output = L'-' + output;
-		wcout << L' ' << output;
+		Device.Print(L' ');
+		Device.Print(output);
 	}
 
 	// caso polinomio
-	else wcout << L' ' << (HasMoreVariables ? Fract.num.str() : NScomp.str());
+	else {
+		Device.Print(L' ');
+		Device.Print(HasMoreVariables ? Fract.num.str() : NScomp.str());
+	}
 
 EndOfStatement:
 
 	// reset cursore
-	_GetCursorPos();
+	Device.GetBufferInfo(&csbi);
 	auto cursorP{ csbi.dwCursorPosition };
 	cursorP.X = lines;
 	cursorP.Y--;
-	SetConsoleCursorPosition(hConsole, cursorP);
+	Device.SetCursorPosition(cursorP);
 }
 
 #pragma endregion
@@ -15336,7 +14051,7 @@ static tensor<long double> RootExtractor(polynomial<> vect)
 		if (fact.empty()) continue;
 
 		// modificatore
-		if (fact[0].exp[0] < 0 and fact[0].coefficient % 2 == 0) {
+		if (fact[0].exp[0] < 0 and (int)fact[0].coefficient % 2 == 0) {
 			repeat = true;
 			continue;
 		}
@@ -15379,7 +14094,7 @@ static tensor<radical> RealRadicalExtractor(polynomial<> vect)
 		if (fact.empty()) continue;
 
 		// modificatore
-		if (fact[0].exp[0] < 0 and fact[0].coefficient % 2) {
+		if (fact[0].exp[0] < 0 and (int)fact[0].coefficient % 2) {
 			repeat = true;
 			continue;
 		}
@@ -15473,10 +14188,11 @@ static void FractDisequationMain(
 }
 
 // parte dipendente dal segno di una disequazione normale
-static void GetAlgebricSolution(
+template<typename Ty> static void GetAlgebricSolution(
 	Buffer& text,
-	tensor<radical> roots,
+	tensor<Ty> roots,
 	tensor<bool> ItsFromDenominator,
+
 	bool InitialSign,
 	bool ExpectedSign,
 	bool CanBeNull
@@ -15624,7 +14340,7 @@ static bool ParamDisequationSetup(
 			if (Sum.empty()) ret false;
 		}
 	}
-	AdditionalRoots = RealRootExtractor(Parametrics);
+	AdditionalRoots = RealRadicalExtractor(Parametrics);
 	Parametric = PolynomialMultiply<long double>(Parametrics);
 
 	// calcolo zeri dei fattori
@@ -15670,8 +14386,8 @@ static void ParamDisequationMain(
 	size_t& Unisize,
 	tensor<tensor<factor<>>>& TableOfMains,
 	tensor<radical>& RootSet,
-	tensor<radical>& RootExamples,
-	tensor<radical>& vals
+	tensor<long double>& RootExamples,
+	tensor<Fraction<>>& vals
 )
 {
 	// calcolo delle disequazioni principali
@@ -15710,38 +14426,21 @@ static void ParamDisequationMain(
 			RepeatedValue = RootSet[i];
 		}
 
-		// calcolo intervalli
-		RootExamples << RootSet[0] - radical(1);
-		for (ptrdiff_t i = 0; i < RootSet.size() - 1; ++i)
-			RootExamples << (RootSet[i] + RootSet[i + 1]) / radical(2);
-		RootExamples << RootSet.last() + radical(1);
+		// calcolo approssimazioni
+		tensor<long double> RootApproximations;
+		for (const auto& rad : RootSet) RootApproximations << rad.approximation();
 
+		// calcolo intervalli
+		RootExamples << RootApproximations[0] - 1;
+		for (ptrdiff_t i = 0; i < RootApproximations.size() - 1; ++i)
+			RootExamples <<
+			(RootApproximations[i] + RootApproximations[i + 1]) / 2;
+		RootExamples << RootApproximations.last() + 1;
 	}
 	else RootExamples = { 0 };
 
-	// calcolo valori
-	for (size_t i = 0; i < Un; ++i) {
-		auto D = bottoms[i].empty() ? L"1" : bottoms[i].str();
-		auto DD{ D };
-		auto top{ tops[i] };
-		if (D == L"-1") {
-			D = L"1";
-			for (auto& mon : top) mon.coefficient *= -1;
-		}
-
-		auto N = top.empty() ? L"1" : top.str();
-		auto NN{ N };
-		if (issign(NN.at(0))) NN.erase(0, 1);
-		if (issign(DD.at(0))) DD.erase(0, 1);
-
-		if (NN.find(L'+') != wstring::npos or NN.find(L'-') != wstring::npos)
-			N = L'(' + N + L')';
-		if (DD.find(L'+') != wstring::npos or DD.find(L'-') != wstring::npos)
-			D = L'(' + D + L')';
-		auto str{ N };
-		if (D != L"1") str += L'/' + D;
-		vals << str;
-	}
+	for (size_t i = 0; i < tops; ++i)
+		vals << Fraction<>({ tops[i] }, { bottoms[i] });
 }
 
 // parte dipendente dal segno di una disequazione parametrica
@@ -15757,66 +14456,63 @@ static void GetParametricSolution(
 	tensor<factor<>> tops, tensor<factor<>> bottoms,
 
 	tensor<tensor<factor<>>> TableOfMains,
-	tensor<radical> RootSet, tensor<radical> RootExamples,
-	tensor<radical> vals
+	tensor<radical> RootSet,
+	tensor<long double> RootExamples,
+	tensor<Fraction<>> vals
 )
 {
-	// calcolo intervalli dei parametri
-	tensor<wstring> ParameterIntervals;
+	// calcolo lunghezze
+	tensor<int> lenghts;
 	for (size_t index = 0; index < RootExamples; ++index) {
+		lenghts << RootSet[0].len() + 4;
+		if (index == 0 or index + 1 == RootExamples) continue;
+
+		// lunghezze centrali
+		lenghts << RootSet[index - 1].len()
+			+ (CanBeNull and index - 1 < bottoms ? 4 : 3)
+			+ (CanBeNull and index < bottoms ? 4 : 3)
+			+ RootSet[index].len() + 1;
+	}
+
+	// calcolo lunghezza massima
+	int maxlen{ lenghts[0] };
+	for (size_t i = 1; i < lenghts; ++i) if (maxlen < lenghts[i])
+		maxlen = lenghts[i];
+
+	// calcolo di tutti gli intervalli
+	for (size_t index = 0; index < RootExamples; ++index) {
+		bool impossible{ false };
+		auto values{ vals };
 		auto interval{ RootExamples[index] };
+		auto ItsFromDenominator{ TermsFromDenominator };
+		tensor<int> SumOfGEQValues(bottoms.size(), 0);
 
 		// output intervallo iniziale
 		if (index == 0) {
-			ParameterIntervals << wstring(1, parameter);
-			ParameterIntervals[0] += L" < " + Handler(to_wstring(RootSet[0]));
-			goto add_spec;
+			text << parameter << L" < " << RootSet[0];
+			/// spazi...
+			/// newline...
+			goto comparison;
 		}
 
 		// output intervallo finale
 		if (index == RootSet) {
-			ParameterIntervals << wstring(1, parameter);
-			ParameterIntervals.last() +=
-				L" > " + Handler(to_wstring(RootSet.last()));
-			goto add_spec;
+			text << parameter << L" > " << RootSet.last();
+			/// spazi...
+			/// newline...
+			goto comparison;
 		}
 
 		// output intervalli centrali
-		ParameterIntervals << Handler(to_wstring(RootSet[index - 1]));
-		ParameterIntervals.last() +=
-			(CanBeNull and index - 1 < bottoms ? L" <= " : L" < ");
-		ParameterIntervals.last() += wstring(1, parameter);
-		ParameterIntervals.last() +=
-			(CanBeNull and index < bottoms ? L" <= " : L" < ");
-		ParameterIntervals.last() += Handler(to_wstring(RootSet[index]));
-		if (index == RootSet) break;
-		
-		// aggiunta valori speciali
-	add_spec:
-		ParameterIntervals << wstring(1, parameter) + L" = ";
-		ParameterIntervals.last() += Handler(to_wstring(RootSet[index]));
-	}
-
-	// riporto alla stessa dimensione
-	size_t sizemax{ ParameterIntervals[0].size() };
-	for (size_t i = 1; i < ParameterIntervals; ++i)
-		if (sizemax < ParameterIntervals[i].size())
-			sizemax = ParameterIntervals[i].size();
-	for (auto& word : ParameterIntervals) if (word.size() < sizemax)
-		word += wstring(sizemax - word.size(), L' ');
-
-	// output intervalli delle incognite
-	for (size_t index = 0; index < RootExamples; ++index) {
-		auto interval{ RootExamples[index] };
-		auto values{ vals };
-		auto ItsFromDenominator{ TermsFromDenominator };
-		tensor<int> SumOfGEQValues(bottoms.size(), 0);
-
-		// output intervalli dei parametri
-		text << ParameterIntervals[index];
-		if (Unisize == 1) goto skip_calculation;
+		text << RootSet[index - 1];
+		text << (CanBeNull and index - 1 < bottoms ? L" <= " : L" < ");
+		text << (CanBeNull and index < bottoms ? L" <= " : L" < ");
+		text << RootSet[index];
+		/// spazi...
 
 		// calcolo dei segni
+	comparison:
+		if (Unisize == 1) goto add_line;
 		for (size_t first = 0; first < SumOfGEQValues; ++first)
 			for (size_t second = first + 1; second < SumOfGEQValues; ++second)
 			{
@@ -15835,7 +14531,7 @@ static void GetParametricSolution(
 			}
 
 		// controllo legalità dei confronti
-		for (size_t i = 0; i < SumOfGEQValues; ++i)
+		for (size_t i = 0; i < SumOfGEQValues; ++i) {
 			for (size_t j = i + 1; j < SumOfGEQValues; ++j)
 				if (SumOfGEQValues[i] == SumOfGEQValues[j])
 				{
@@ -15844,10 +14540,16 @@ static void GetParametricSolution(
 					text.SetBufferTextAttribute(11);
 					text << L"impossibile";
 					text.SetBufferTextAttribute(15);
+					
+					impossible = true;
+					break;
 				}
 
+			if (impossible) break;
+		}
+
 		// confronto valori
-		for (size_t i = 0; i < SumOfGEQValues; ++i)
+		if (!impossible) for (size_t i = 0; i < SumOfGEQValues; ++i)
 			for (size_t j = i + 1; j < SumOfGEQValues; ++j)
 				if (SumOfGEQValues[i] > SumOfGEQValues[j])
 				{
@@ -15857,26 +14559,32 @@ static void GetParametricSolution(
 				}
 
 		// output intervalli della variabile
-	skip_calculation:
-		text.SetBufferTextAttribute(8);
-		text << L"  ->  ";
-		text.SetBufferTextAttribute(15);
-		GetAlgebricSolution(
-			text,
-			values,
-			ItsFromDenominator,
-			InitialSign,
-			ExpectedSign == Parametric(interval, 1 - Vpos, true),
-			CanBeNull
-		);
-		text << L'\n';
+	add_line:
+		if (!impossible) {
+			text.SetBufferTextAttribute(8);
+			text << L"  ->  ";
+			text.SetBufferTextAttribute(15);
+			GetAlgebricSolution(
+				text,
+				values,
+				ItsFromDenominator,
+				InitialSign,
+				ExpectedSign == Parametric(interval, 1 - Vpos, true),
+				CanBeNull
+			);
+		}
+		/// newline...
 		if (index == RootSet) break;
 
-		// aggiunta valori speciali
+		/// NON TESTARE QUESTA PARTE DI CODICE
+		/// CODICE RIMOSSO PER FARE COMPILARE IL PROGRAMMA
+
+		// output valori speciali
+		text << parameter << L" = " << RootSet[index];
 		auto numerator{ Num };
 		auto denominator{ Den };
-		for (auto& fact : numerator) fact = fact(RootSet[index], 1 - Vpos, 1);
-		for (auto& fact : denominator) fact = fact(RootSet[index], 1 - Vpos, 1);
+		/*for (auto& fact : numerator) fact = fact(RootSet[index], 1 - Vpos, 1);*/
+		/*for (auto& fact : denominator) fact = fact(RootSet[index], 1 - Vpos, 1);*/
 
 		// modifiche alla lista di variabili
 		if (Vpos == 1) {
@@ -15889,6 +14597,7 @@ static void GetParametricSolution(
 		Variables = L"x";
 
 		// aggiunta dei casi particolari
+		/// spazi...
 		text.SetBufferTextAttribute(8);
 		text << L"  ->  ";
 		text.SetBufferTextAttribute(15);
@@ -15899,13 +14608,13 @@ static void GetParametricSolution(
 			numerator,
 			denominator,
 			1 << (
-				2 * (ExpectedSign xor Parametric(RootSet[index], 1 - Vpos, true))
+				2 * (ExpectedSign /*xor Parametric(RootSet[index], 1 - Vpos, true)*/)
 				+ CanBeNull
 				),
 			false,
 			false
 		);
-		text << L'\n';
+		/// newline...
 		Variables = save;
 	}
 }
@@ -16045,7 +14754,9 @@ static void DisequationSolutionPrinter(
 	// calcolo dei dati indipendenti dai segni
 	size_t Unisize;
 	tensor<tensor<factor<>>> TableOfMains;
-	tensor<radical> RootSet, RootExamples, vals;
+	tensor<radical> RootSet;
+	tensor<long double> RootExamples;
+	tensor<Fraction<>> vals;
 	ParamDisequationMain(
 		Un,
 		tops,
@@ -17792,6 +16503,7 @@ static void DecompAndSolve(switchcase& argc)
 			SetConsoleTextAttribute(hConsole, 12);
 			int lines{};
 			PrintFractionaryResult(
+				OutputDevice<HANDLE>(),
 				NCOEFF,
 				DCOEFF,
 				lines,
@@ -17848,6 +16560,7 @@ static void DecompAndSolve(switchcase& argc)
 
 					// output frazione
 					PrintFraction(
+						OutputDevice<HANDLE>(),
 						1,
 						1,
 						lines,
@@ -18511,6 +17224,7 @@ static void DecompAndSolve(switchcase& argc)
 			SetConsoleTextAttribute(hConsole, 11);
 			wcout << Variables.at(i) << L" = ";
 			PrintFractionaryResult(
+				OutputDevice<HANDLE>(),
 				ncoeff,
 				dcoeff,
 				line,
@@ -18845,10 +17559,10 @@ Difficoltà      |
 	*	 debug
 	*    fix bug nel redirector
 	*    fixes per il systemsolver
-	*	 radicali nelle disequazioni
-	*	 suddivisione in più file
+	**	 radicali nelle disequazioni
+	**	 suddivisione in più file
 	*	 readme e outputs
-	**	 disequazioni parametriche con fattori di secondo grado
+	*	 disequazioni parametriche con fattori di secondo grado
 	*	 sistemi di disequazioni
 	*	 C.E. corrette
 	**	 integrali

@@ -13,29 +13,53 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="File interni">
+      <UniqueIdentifier>{721ee55e-5761-4408-ac13-87b3fd6e8915}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="File di inclusione">
+      <UniqueIdentifier>{3386943e-11c8-4d19-bb49-53b7d0237de3}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="calcolo stringhe e gradi.cpp">
       <Filter>File di origine</Filter>
     </ClCompile>
-    <ClCompile Include="..\tensor\tensor.cpp">
-      <Filter>File di intestazione</Filter>
+    <ClCompile Include="..\src\buffer.cpp">
+      <Filter>File interni</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\big.cpp">
+      <Filter>File interni</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\tensor_t.cpp">
+      <Filter>File interni</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <Natvis Include="..\tensor\tensor.natvis">
-      <Filter>File di intestazione</Filter>
-    </Natvis>
     <Natvis Include="..\debugger\factor.natvis">
       <Filter>File di intestazione</Filter>
     </Natvis>
     <Natvis Include="..\debugger\monomial.natvis">
       <Filter>File di intestazione</Filter>
     </Natvis>
+    <Natvis Include="..\debugger\tensor.natvis">
+      <Filter>File di intestazione</Filter>
+    </Natvis>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\tensor\tensor_impl.h">
-      <Filter>File di intestazione</Filter>
+    <ClInclude Include="..\include\buffer.h">
+      <Filter>File di inclusione</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\tensor.h">
+      <Filter>File di inclusione</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\complex.h">
+      <Filter>File di inclusione</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\big.h">
+      <Filter>File di inclusione</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\output_device.h">
+      <Filter>File di inclusione</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

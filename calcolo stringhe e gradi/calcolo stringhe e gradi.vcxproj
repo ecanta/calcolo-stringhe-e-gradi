@@ -141,16 +141,22 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\tensor\tensor.cpp" />
+    <ClCompile Include="..\src\big.cpp" />
+    <ClCompile Include="..\src\buffer.cpp" />
+    <ClCompile Include="..\src\tensor_t.cpp" />
     <ClCompile Include="calcolo stringhe e gradi.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="..\debugger\factor.natvis" />
     <Natvis Include="..\debugger\monomial.natvis" />
-    <Natvis Include="..\tensor\tensor.natvis" />
+    <Natvis Include="..\debugger\tensor.natvis" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\tensor\tensor_impl.h" />
+    <ClInclude Include="..\include\big.h" />
+    <ClInclude Include="..\include\buffer.h" />
+    <ClInclude Include="..\include\complex.h" />
+    <ClInclude Include="..\include\output_device.h" />
+    <ClInclude Include="..\include\tensor.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
