@@ -374,16 +374,19 @@ class RadicalUnit
 	// elementi primari
 private:
 	int coefficient;
+	long double decimal;
 	ptrdiff_t Arg;
 	tensor<int> primes;
 
 public:
 
 	// costruttori
-	RadicalUnit() : coefficient(0), Arg(1), primes({ 1 }) {}
-	RadicalUnit(int coeff) : coefficient(coeff), Arg(1), primes({ 1 }) {}
+	RadicalUnit() : coefficient(0), decimal(nan("")), Arg(1), primes({1}) {}
+	RadicalUnit(int coeff)
+		: coefficient(coeff), decimal(nan("")), Arg(1), primes({ 1 })
+	{}
 	RadicalUnit(int coeff, int arg)
-		: coefficient(coeff), Arg(arg), primes({ abs(arg) })
+		: coefficient(coeff), decimal(nan("")), Arg(arg), primes({ abs(arg) })
 	{
 		if (Arg < 0)
 		{
@@ -393,7 +396,7 @@ public:
 		normalize();
 	}
 	RadicalUnit(int coeff, int arg, bool off)
-		: coefficient(coeff), Arg(arg), primes({ abs(arg) })
+		: coefficient(coeff), decimal(nan("")), Arg(arg), primes({ abs(arg) })
 	{
 		if (Arg < 0)
 		{
@@ -401,19 +404,28 @@ public:
 			Arg *= -1;
 		}
 	}
+	RadicalUnit(long double number)
+		: coefficient((int)number), decimal(nan("")), Arg(1), primes({1})
+	{
+		if (!(integer(number)))
+		{
+			coefficient = 1;
+			decimal = number;
+		}
+	}
 
 	// getter-setter
 	int GetCoefficient() const
 	{
-		ret coefficient;
+		ret isnan(decimal) ? coefficient : decimal;
 	}
 	void SetCoefficient(int NewCoefficient)
 	{
-		coefficient = NewCoefficient;
+		isnan(decimal) ? coefficient = NewCoefficient : decimal = NewCoefficient;
 	}
 	void IncCoefficient(int increment)
 	{
-		coefficient += increment;
+		isnan(decimal) ? coefficient += increment : decimal += increment;
 	}
 	ptrdiff_t arg() const
 	{
@@ -421,12 +433,27 @@ public:
 	}
 	long double approximation() const
 	{
-		ret coefficient * sqrt(Arg);
+		ret isnan(decimal) ? coefficient * sqrt(Arg) : decimal;
+	}
+
+	// forma esatta o approssimata
+	bool exact() const
+	{
+		ret isnan(decimal);
 	}
 
 	// metodo di pulizia
 	bool normalize()
 	{
+		// se non c'è la forma esatta
+		if (!isnan(decimal))
+		{
+			Arg = 1;
+			coefficient = 1;
+			primes = { 1 };
+			ret false;
+		}
+
 		// overflow
 		auto value{ round(pow(approximation(), 2)) };
 		if (value >= GlobalMax)
@@ -489,6 +516,11 @@ public:
 	// moltiplicazione
 	RadicalUnit operator*(const RadicalUnit& other) const
 	{
+		if (!isnan(decimal) or !isnan(other.decimal))
+		{
+			ret approximation() * other.approximation();
+		}
+
 		auto This{ *this };
 		This.coefficient *= other.coefficient;
 		auto factors{ This.primes + other.primes };
@@ -532,10 +564,15 @@ public:
 	// scrittura
 	bool negative() const
 	{
-		ret coefficient < 0;
+		ret isnan(decimal) ? coefficient < 0 : decimal < 0;
 	}
 	int len() const
 	{
+		if (!isnan(decimal))
+		{
+			ret to_wstring(decimal).size();
+		}
+
 		// lunghezza radicale
 		int line{};
 		if (Arg != 1)
@@ -560,6 +597,12 @@ public:
 	template<typename U>
 	void output(OutputDevice<U> device, WORD attrib = 15, bool NoSign = false) const
 	{
+		if (!isnan(decimal))
+		{
+			device.Print(decimal);
+			ret;
+		}
+
 		// aggiunta di spazio
 		device.GetBufferInfo(&csbi);
 		if (csbi.dwCursorPosition.Y == 0)
@@ -625,6 +668,11 @@ public:
 	// output
 	_NODISCARD wstring str() const
 	{
+		if (!isnan(decimal))
+		{
+			ret to_wstring(decimal);
+		}
+
 		wostringstream oss;
 		if (coefficient < 0)
 		{
@@ -670,6 +718,7 @@ public:
 		{
 			--elements;
 		}
+		normalize();
 	}
 
 	// informazioni
@@ -688,6 +737,14 @@ public:
 		}
 		ret true;
 	}
+	bool exact() const
+	{
+		if (elements.empty())
+		{
+			ret true;
+		}
+		ret elements[0].exact();
+	}
 
 	// calcolo
 	long double approximation() const
@@ -699,10 +756,27 @@ public:
 		}
 		ret result;
 	}
+	void invert()
+	{
+		for (auto& rad : elements)
+		{
+			rad.SetCoefficient(-rad.GetCoefficient());
+		}
+	}
 
 	// metodi di pulizia
 	void normalize()
 	{
+		// approssimazione
+		for (const auto& term : elements)
+		{
+			if (!term.exact())
+			{
+				elements = { approximation() };
+				break;
+			}
+		}
+
 		// calcolo argomenti
 		tensor<int> args;
 		for (const auto& rad : elements)
@@ -762,6 +836,11 @@ public:
 	// addizione
 	RadicalExpr operator+(const RadicalExpr& other) const
 	{
+		if (!exact() or !other.exact())
+		{
+			ret RadicalUnit(approximation() + other.approximation());
+		}
+
 		auto This{ *this };
 		This.elements += other.elements;
 		This.normalize();
@@ -776,6 +855,11 @@ public:
 	// sottrazione
 	RadicalExpr operator-(const RadicalExpr& other) const
 	{
+		if (!exact() or !other.exact())
+		{
+			ret RadicalUnit(approximation() - other.approximation());
+		}
+
 		auto Other{ other };
 		for (auto& rad : Other.elements)
 		{
@@ -792,6 +876,11 @@ public:
 	// moltiplicazione
 	RadicalExpr operator*(const RadicalExpr& other) const
 	{
+		if (!exact() or !other.exact())
+		{
+			ret RadicalUnit(approximation() * other.approximation());
+		}
+
 		RadicalExpr result(tensor<RadicalUnit>{});
 		for (size_t i = 0; i < elements; ++i)
 		{
@@ -832,6 +921,11 @@ public:
 	// scrittura
 	int len() const
 	{
+		if (!exact())
+		{
+			ret elements[0].len();
+		}
+
 		int line{ elements[0].len() };
 		for (size_t i = 1; i < elements; ++i)
 		{
@@ -856,6 +950,11 @@ public:
 	// output
 	_NODISCARD wstring str() const
 	{
+		if (!exact())
+		{
+			ret elements[0].str();
+		}
+
 		wostringstream oss;
 		for (size_t i = 0; i < elements; ++i)
 		{
@@ -884,6 +983,7 @@ class radical
 	// dati
 private:
 	RadicalExpr top, bottom;
+	bool isnan;
 
 public:
 
@@ -898,11 +998,48 @@ public:
 	}
 
 	// costruttori
-	radical() : top(RadicalUnit(0)), bottom(RadicalUnit(1)) {}
-	radical(RadicalUnit Top) : top(Top), bottom(RadicalUnit(1)) {}
-	radical(RadicalExpr Top) : top(Top), bottom(RadicalUnit(1)) {}
-	radical(RadicalUnit Top, RadicalUnit Bottom) : top(Top), bottom(Bottom) {}
-	radical(RadicalExpr Top, RadicalExpr Bottom) : top(Top), bottom(Bottom) {}
+	radical() : top(RadicalUnit(0)), bottom(RadicalUnit(1)), isnan(false) {}
+	radical(RadicalUnit Top) : top(Top), bottom(RadicalUnit(1)), isnan(false)
+	{
+		if (!top.exact())
+		{
+			collapse();
+		}
+	}
+	radical(RadicalExpr Top) : top(Top), bottom(RadicalUnit(1)), isnan(false)
+	{
+		if (!top.exact())
+		{
+			collapse();
+		}
+	}
+	radical(RadicalUnit Top, RadicalUnit Bottom)
+		: top(Top), bottom(Bottom), isnan(false)
+	{
+		if (!top.exact() or !bottom.exact())
+		{
+			collapse();
+		}
+	}
+	radical(RadicalExpr Top, RadicalExpr Bottom)
+		: top(Top), bottom(Bottom), isnan(false)
+	{
+		if (!top.exact() or !bottom.exact())
+		{
+			collapse();
+		}
+	}
+
+	// forma approssimata
+	bool exact() const
+	{
+		ret top.exact() or bottom.exact();
+	}
+	void collapse()
+	{
+		top = RadicalUnit(approximation());
+		bottom = RadicalUnit(1);
+	}
 
 	// calcolo
 	long double approximation() const
@@ -910,9 +1047,25 @@ public:
 		auto Bottom{ bottom.approximation() };
 		if (Bottom == 0)
 		{
-			ret nan("");
+			ret ::nan("");
 		}
 		ret top.approximation() / Bottom;
+	}
+	void invert()
+	{
+		top.invert();
+	}
+
+	// not a number
+	radical nan()
+	{
+		radical res;
+		res.isnan = true;
+		ret res;
+	}
+	bool NotANumber() const
+	{
+		ret isnan;
 	}
 
 	// semplificazione
@@ -961,10 +1114,7 @@ public:
 		// segno
 		if (bottom.approximation() == -1)
 		{
-			for (auto& rad : top.elements)
-			{
-				rad.SetCoefficient(-rad.GetCoefficient());
-			}
+			top.invert();
 			bottom = RadicalUnit(1);
 		}
 	}
@@ -972,6 +1122,11 @@ public:
 	// addizione
 	radical operator+(const radical& other) const
 	{
+		if (!exact() or !other.exact())
+		{
+			ret RadicalUnit(approximation() + other.approximation());
+		}
+
 		auto This{ *this };
 		This.top = top * other.bottom + bottom * other.top;
 		This.bottom = bottom * other.bottom;
@@ -986,6 +1141,11 @@ public:
 	// sottrazione
 	radical operator-(const radical& other) const
 	{
+		if (!exact() or !other.exact())
+		{
+			ret RadicalUnit(approximation() - other.approximation());
+		}
+
 		auto This{ *this };
 		This.top = top * other.bottom - bottom * other.top;
 		This.bottom = bottom * other.bottom;
@@ -1000,6 +1160,11 @@ public:
 	// moltiplicazione
 	radical operator*(const radical& other) const
 	{
+		if (!exact() or !other.exact())
+		{
+			ret RadicalUnit(approximation() * other.approximation());
+		}
+
 		auto This{ *this };
 		This.top = top * other.top;
 		This.bottom = bottom * other.bottom;
@@ -1014,9 +1179,16 @@ public:
 	// divisione
 	radical operator/(const radical& other) const
 	{
+		if (!exact() or !other.exact())
+		{
+			ret RadicalUnit(approximation() / other.approximation());
+		}
+
 		auto This{ *this };
 		This.top = top * other.bottom;
 		This.bottom = bottom * other.top;
+
+		This.simplify();
 		ret This;
 	}
 	radical& operator/=(const radical& other)
@@ -1052,6 +1224,11 @@ public:
 	// estensione verticale
 	coord height() const
 	{
+		if (!exact())
+		{
+			ret coord();
+		}
+
 		// denominatore vuoto
 		if (bottom.elements.size() == 1 and
 			bottom.elements[0].GetCoefficient() == 1)
@@ -1066,6 +1243,11 @@ public:
 	// scrittura
 	int len()
 	{
+		if (!exact())
+		{
+			ret top.len();
+		}
+
 		int toplen{ top.len() };
 		int bottomlen{ bottom.len() };
 		ret toplen > bottomlen ? toplen : bottomlen;
@@ -1073,6 +1255,13 @@ public:
 	template<typename U>
 	void output(OutputDevice<U> device, WORD wAttribute = 15) const
 	{
+		// forma approssimata
+		if (!exact())
+		{
+			top.output(device, wAttribute);
+			ret;
+		}
+
 		// denominatore vuoto
 		if (bottom.elements.size() == 1 and
 			bottom.elements[0].GetCoefficient() == 1)
@@ -1124,6 +1313,12 @@ public:
 	// output
 	_NODISCARD wstring str() const
 	{
+		// radicale approssimato
+		if (!exact())
+		{
+			ret top.str();
+		}
+
 		// radicale nullo
 		if (top.elements.empty())
 		{
@@ -1236,14 +1431,14 @@ public:
 	_NODISCARD wstring str() const
 	{
 		// caso nullo
-		if (coefficient == 0)
+		if (coefficient == (T_int)0)
 		{
 			ret L"";
 		}
 
 		// aggiunta coefficiente
 		wstring Monomial;
-		if ((coefficient != 1 and coefficient != -1)
+		if ((coefficient != T_int(1) and coefficient != T_int(-1))
 			or exp == tensor<int>(exp.size(), 0))
 		{
 			if constexpr (is_integral_v<T_int> or is_floating_point_v<T_int>)
@@ -1412,6 +1607,7 @@ public:
 		}
 		ret y >= 0;
 	}
+	factor<radical> operator()(const radical& x, size_t Vpos) const;
 
 	// operazioni
 	inline factor neg() const
@@ -1526,7 +1722,9 @@ public:
 		{
 			for (int j = 1; j < (*this)[i - 1].degree - (*this)[i].degree; ++j)
 			{
-				this->insert(this->begin() + i, { (*this)[i - 1].degree - j, 0 });
+				this->insert(
+					this->begin() + i, { (*this)[i - 1].degree - j, (T_int)0 }
+				);
 			}
 		}
 
@@ -1535,19 +1733,19 @@ public:
 		{
 			for (size_t i = 0; i < s; ++i)
 			{
-				this->push_back({ (int)i, 0 });
+				this->push_back({ (int)i, (T_int)0 });
 			}
 		}
 		if (this->size() < s)
 		{
 			while ((*this)[0].degree < s - 1)
 			{
-				this->insert(this->begin(), { (*this)[0].degree + 1, 0 });
+				this->insert(this->begin(), { (*this)[0].degree + 1, (T_int)0 });
 			}
 
 			while ((*this)[this->size() - 1].degree > 0)
 			{
-				this->push_back({ (*this)[this->size() - 1].degree - 1, 0 });
+				this->push_back({ (*this)[this->size() - 1].degree - 1, (T_int)0 });
 			}
 		}
 	}
@@ -1746,13 +1944,13 @@ public:
 };
 
 // funzioni di conversione
-static factor<> ToXV(FACTOR<> vect)
+template<typename __T> static factor<__T> ToXV(FACTOR<__T> vect)
 {
-	factor<> output;
+	factor<__T> output;
 	int _FirstPos = Variables.find(charVariable);
 	for (const auto& Monomial : vect)
 	{
-		monomial<> element;
+		monomial<__T> element;
 		element.coefficient = Monomial.coefficient;
 		element.exp(Variables.size(), 0);
 		element.exp[_FirstPos] = Monomial.degree;
@@ -1760,13 +1958,13 @@ static factor<> ToXV(FACTOR<> vect)
 	}
 	ret output;
 }
-static FACTOR<> To1V(factor<> vect)
+template<typename __T> static FACTOR<__T> To1V(factor<__T> vect)
 {
-	FACTOR<> output;
+	FACTOR<__T> output;
 	int _FirstPos = Variables.find(charVariable);
 	for (const auto& Monomial : vect)
 	{
-		MONOMIAL<> element{ 0, 0 };
+		MONOMIAL<__T> element{ 0, (__T)0 };
 		element.coefficient = Monomial.coefficient;
 		if (_FirstPos != wstring::npos)
 		{
@@ -1886,129 +2084,137 @@ public:
 	// rappresentazione
 	_NODISCARD wstring str() const override
 	{
-		if (this->count == 0)
+		if constexpr (!is_same_v<T_int, radical>)
 		{
-			ret L"0";
-		}
-
-		wstring output, exp;
-		monomial<big> original{ 1, tensor<int>(Variables.size(), 0) };
-		auto CoeffToAdd{ original };
-		bool IsAModifier{ false };
-		for (size_t i = 0; i < this->count; ++i)
-		{
-			auto& T{ (*this)[i] };
-
-			// caso di monomio modificatore
-			if (!T[0].exp.empty()) if (T[0].exp[0] < 0)
+			if (this->count == 0)
 			{
-				if constexpr (is_integral_v<T_int> or is_floating_point_v<T_int>)
-				{
-					exp = to_wstring((int)T[0].coefficient);
-				}
-				else if constexpr (is_same_v<T_int, big>)
-				{
-					exp = T[0].coefficient.str();
-				}
-				IsAModifier = true;
-				continue;
+				ret L"0";
 			}
 
-			// caso coefficiente
-			if (T == 1)
+			wstring output, exp;
+			monomial<big> original{ 1, tensor<int>(Variables.size(), 0) };
+			auto CoeffToAdd{ original };
+			bool IsAModifier{ false };
+			for (size_t i = 0; i < this->count; ++i)
 			{
-				CoeffToAdd.coefficient *= T[0].coefficient;
-				for (size_t i = 0; i < Variables.size(); ++i)
-				{
-					CoeffToAdd.exp[i] += T[0].exp[i];
-				}
-				continue;
-			}
+				auto& T{ (*this)[i] };
 
-			// caso con elevamento a potenza
-			auto xout{ T.str() };
-			if (IsAModifier)
-			{
-				xout = L"(" + xout + L")^" + exp;
-				IsAModifier = false;
-				output += xout;
-				continue;
-			}
-
-			// caso comune
-			if ((int)this->size() - (CoeffToAdd != original) > 1)
-			{
-				xout = L"(" + xout + L")";
-			}
-			output += xout;
-		}
-		auto coeffstr{ CoeffToAdd.str() };
-
-		// aggiunta del denominatore
-		if (!output.empty())
-		{
-			output = L'[' + output + L']';
-		}
-		else if (LCM != 1)
-		{
-			output.clear();
-		}
-		else
-		{
-			ret ElabExponents(coeffstr);
-		}
-		if (LCM.fabs() != 1 or coeffstr != L"1")
-		{
-			// polinomio piccolo
-			if constexpr (is_integral_v<T_int> or is_floating_point_v<T_int>)
-			{
-				if (LCM.fabs() != 1)
+				// caso di monomio modificatore
+				if (!T[0].exp.empty()) if (T[0].exp[0] < 0)
 				{
-					output = L'/' + LCM.str() + L']' + output;
-				}
-				output = coeffstr + output;
-				if (LCM.fabs() != 1)
-				{
-					output = L'[' + output;
-				}
-			}
-
-			// polinomio grande
-			else if constexpr (is_same_v<T_int, big>)
-			{
-				if (LCM.fabs() != 1)
-				{
-					if (!output.empty())
+					if constexpr (is_integral_v<T_int> or
+						is_floating_point_v<T_int>)
 					{
-						output += L'/';
+						exp = to_wstring((int)T[0].coefficient);
 					}
-					output = output + L'[' + LCM.str() + L']';
+					else if constexpr (is_same_v<T_int, big>)
+					{
+						exp = T[0].coefficient.str();
+					}
+					IsAModifier = true;
+					continue;
 				}
-				output = coeffstr + output;
-			}
-		}
-		if (LCM < 0)
-		{
-			output = L'-' + output;
-		}
-		if (output == L"-" and coeffstr == L"1")
-		{
-			output = L"-1";
-		}
 
-		// eliminazioni parentesi quadre se non sono necessarie
-		else if (output.at(0) == L'[' and Last(output) == L']')
-		{
-			output.erase(0, 1);
-			output.pop_back();
-			if (output.find(L'[') != wstring::npos and
-				output.find(L']') != wstring::npos)
+				// caso coefficiente
+				if (T == 1)
+				{
+					CoeffToAdd.coefficient *= T[0].coefficient;
+					for (size_t i = 0; i < Variables.size(); ++i)
+					{
+						CoeffToAdd.exp[i] += T[0].exp[i];
+					}
+					continue;
+				}
+
+				// caso con elevamento a potenza
+				auto xout{ T.str() };
+				if (IsAModifier)
+				{
+					xout = L"(" + xout + L")^" + exp;
+					IsAModifier = false;
+					output += xout;
+					continue;
+				}
+
+				// caso comune
+				if ((int)this->size() - (CoeffToAdd != original) > 1)
+				{
+					xout = L"(" + xout + L")";
+				}
+				output += xout;
+			}
+			auto coeffstr{ CoeffToAdd.str() };
+
+			// aggiunta del denominatore
+			if (!output.empty())
 			{
 				output = L'[' + output + L']';
 			}
-		}
+			else if (LCM != 1)
+			{
+				output.clear();
+			}
+			else
+			{
+				ret ElabExponents(coeffstr);
+			}
+			if (LCM.fabs() != 1 or coeffstr != L"1")
+			{
+				// polinomio piccolo
+				if constexpr (is_integral_v<T_int> or is_floating_point_v<T_int>)
+				{
+					if (LCM.fabs() != 1)
+					{
+						output = L'/' + LCM.str() + L']' + output;
+					}
+					output = coeffstr + output;
+					if (LCM.fabs() != 1)
+					{
+						output = L'[' + output;
+					}
+				}
 
-		ret ElabExponents(output);
+				// polinomio grande
+				else if constexpr (is_same_v<T_int, big>)
+				{
+					if (LCM.fabs() != 1)
+					{
+						if (!output.empty())
+						{
+							output += L'/';
+						}
+						output = output + L'[' + LCM.str() + L']';
+					}
+					output = coeffstr + output;
+				}
+			}
+			if (LCM < 0)
+			{
+				output = L'-' + output;
+			}
+			if (output == L"-" and coeffstr == L"1")
+			{
+				output = L"-1";
+			}
+
+			// eliminazioni parentesi quadre se non sono necessarie
+			else if (output.at(0) == L'[' and Last(output) == L']')
+			{
+				output.erase(0, 1);
+				output.pop_back();
+				if (output.find(L'[') != wstring::npos and
+					output.find(L']') != wstring::npos)
+				{
+					output = L'[' + output + L']';
+				}
+			}
+
+			ret ElabExponents(output);
+		}
+		else
+		{
+			ret L"";
+		}
 	}
 
 	// output
@@ -2096,21 +2302,21 @@ public:
 };
 
 // funzioni di conversione
-static polynomial<> ToXV(POLYNOMIAL<> vect)
+template<typename __T> static polynomial<__T> ToXV(POLYNOMIAL<__T> vect)
 {
-	polynomial<> output;
+	polynomial<__T> output;
 	for (const auto& vector : vect)
 	{
-		output << ToXV(vector);
+		output << ToXV<__T>(vector);
 	}
 	ret output;
 }
-static POLYNOMIAL<> To1V(polynomial<> vect)
+template<typename __T> static POLYNOMIAL<__T> To1V(polynomial<__T> vect)
 {
-	POLYNOMIAL<> output;
+	POLYNOMIAL<__T> output;
 	for (const auto& vector : vect)
 	{
-		output << To1V(vector);
+		output << To1V<__T>(vector);
 	}
 	ret output;
 }
@@ -2153,6 +2359,23 @@ factor<T_int> factor<T_int>::operator()(T_int x, size_t Vpos, int) const
 		This[i].exp[Vpos] = 0;
 	}
 	ret PolynomialSum<T_int>(This);
+}
+template<typename T_int>
+factor<radical> factor<T_int>::operator()(const radical& x, size_t Vpos) const
+{
+	factor<radical> result;
+	for (size_t i = 0; i < this->size(); ++i)
+	{
+		result << monomial<radical>(
+			RadicalUnit(int((*this)[i].coefficient)), (*this)[i].exp
+		);
+		for (size_t j = 0; j < result[i].exp[Vpos]; ++j)
+		{
+			result[i].coefficient *= x;
+		}
+		result[i].exp[Vpos] = 0;
+	}
+	ret PolynomialSum<radical>(result);
 }
 
 template<typename T_int> inline factor<T_int>
@@ -6955,12 +7178,15 @@ template<typename T> static void CoordFractions
 (tensor<Fraction<T>>& fractions, tensor<wstring> OldVars, wstring vars);
 static FACTOR<> Complementary(POLYNOMIAL<> Polynomial, FACTOR<> factor, int exp);
 static void Simplify(Fraction<>& fr, int& ncoeff, int& dcoeff);
-static void Approximator(tensor<long double>& Equation, long double& root);
-static tensor<wstring> EquationSolver(factor<> Equation, tensor<RadComplx>& rads);
+template<typename T>
+static void Approximator(tensor<T>& Equation, long double& root);
+template<typename T>
+static tensor<wstring> EquationSolver(factor<T> Equation, tensor<RadComplx>& rads);
 static tensor<tensor<long double>> SystemSolver(tensor<factor<>> functions);
-static tensor<radical> RealRadicalExtractor(polynomial<> vect);
-static void FractDisequationMain(
-	polynomial<> Num, polynomial<> Den,
+template<typename T>
+static tensor<radical> RealRadicalExtractor(polynomial<T> vect);
+template<typename Ty> static void FractDisequationMain(
+	polynomial<Ty> Num, polynomial<Ty> Den,
 
 	tensor<radical>& Roots,
 	tensor<bool>& ItsFromDenominator,
@@ -7021,10 +7247,10 @@ static void GetParametricSolution(
 #define LESS_EQUAL_THAN (1 << 1)
 #define MORE_THAN       (1 << 2)
 #define MORE_EQUAL_THAN (1 << 3)
-static void DisequationSolutionPrinter(
+template<typename T> static void DisequationSolutionPrinter(
 	Buffer& Output,
-	polynomial<> Num,
-	polynomial<> Den,
+	polynomial<T> Num,
+	polynomial<T> Den,
 	int behaviour,
 	bool ChangeSign,
 	bool PrintCondition = true
@@ -7165,6 +7391,7 @@ int main()
 			CodeLines++;
 		}
 	}
+	MainFile.close();
 
 	// conversione in stringa
 	if (CodeLines % 100 >= 85) CodeLines += 15;
@@ -12401,7 +12628,7 @@ static factor<T_int> PolynomialSum(factor<T_int> vect)
 	if (ImgUnitPos != wstring::npos) for (auto& mon : vect) {
 		mon.exp[ImgUnitPos] %= 4;
 		if (mon.exp[ImgUnitPos] > 1) {
-			mon.coefficient *= -1;
+			mon.coefficient *= T_int(-1);
 			mon.exp[ImgUnitPos] -= 2;
 		}
 	}
@@ -12418,17 +12645,17 @@ static factor<T_int> PolynomialSum(factor<T_int> vect)
 
 				if (AreTheMonomialsSimiliar) {
 					vect[i].coefficient += vect[j].coefficient;
-					vect[j].coefficient = 0;
+					vect[j].coefficient = T_int();
 				}
 			}
 
 	// rimozione dei monomi simili
 	for (ptrdiff_t i = vect.size() - 1; i >= 0; --i)
-		if (vect[i].coefficient == 0) vect[i].exp.clear();
-	auto it = remove(vect.begin(), vect.end(), monomial<T_int>{ 0, {} });
+		if (vect[i].coefficient == T_int()) vect[i].exp.clear();
+	auto it = remove(vect.begin(), vect.end(), monomial<T_int>{ T_int(), {} });
 	vect.erase(it, vect.end());
 
-	if (vect.empty()) ret factor<T_int>(0);
+	if (vect.empty()) ret factor<T_int>(T_int());
 	ret vect;
 }
 
@@ -13656,12 +13883,16 @@ EndOfStatement:
 #pragma region Equations
 
 // calcola una soluzione di un equazione con il metodo di newton-raphson
-static void Approximator(tensor<long double>& Equation, long double& root)
+template<typename T>
+static void Approximator(tensor<T>& Equation, long double& root)
 {
 	// traduzione
 	FACTOR<> equation(Equation.size());
 	for (ptrdiff_t i = Equation.size() - 1; i >= 0; --i) {
-		equation[i].coefficient = Equation[i];
+		if constexpr (is_same_v<T, long double>)
+			equation[i].coefficient = Equation[i];
+		else if constexpr (is_same_v<T, radical>)
+			equation[i].coefficient = Equation[i].approximation();
 		equation[i].degree = Equation.size() - i - 1;
 	}
 	auto derivative{ equation.derivate() };
@@ -13696,12 +13927,13 @@ static void Approximator(tensor<long double>& Equation, long double& root)
 	equation[0].degree--;
 	equation--;
 
-	for (size_t i = 0; i < equation; ++i) Equation[i] = equation[i].coefficient;
+	for (size_t i = 0; i < equation; ++i) Equation[i] = (T)equation[i].coefficient;
 	Equation--;
 }
 
 // calcola gli zeri di un polinomio
-static tensor<wstring> EquationSolver(factor<> Equation, tensor<RadComplx>& rads)
+template<typename T>
+static tensor<wstring> EquationSolver(factor<T> Equation, tensor<RadComplx>& rads)
 {
 	// caso nullo
 	rads.clear();
@@ -13717,7 +13949,7 @@ static tensor<wstring> EquationSolver(factor<> Equation, tensor<RadComplx>& rads
 		// caso monomio
 		for (size_t i = 0; i < Variables.size(); ++i) if (Equation[0].exp[i] != 0) {
 			answer << wstring(1, Variables.at(i)) + L" != 0";
-			rads << RadComplx(radical(nan("")));
+			rads << RadComplx(radical().nan());
 		}
 		ret answer;
 	}
@@ -13729,24 +13961,29 @@ static tensor<wstring> EquationSolver(factor<> Equation, tensor<RadComplx>& rads
 	tensor<int> VKnownTerm;
 	tensor<tensor<int>> VDirectorSeq;
 	tensor<tensor<int>> VKnownSeq;
-	auto equation{
-		FromPolynomialToPos(
-			Equation,
-			StartIndex,
-			CorrectSizes,
-			VDirectorTerm,
-			VKnownTerm,
-			VDirectorSeq,
-			VKnownSeq
-		)
-	};
+	tensor<tensor<T>> equation;
+	if constexpr (is_same_v<T, long double>) equation = FromPolynomialToPos(
+		Equation,
+		StartIndex,
+		CorrectSizes,
+		VDirectorTerm,
+		VKnownTerm,
+		VDirectorSeq,
+		VKnownSeq
+	);
 
 	// caso di sicurezza
 	if (equation.empty() and Variables.size() == 1) {
-		FACTOR<> eq{ To1V(Equation) };
+
+		// traduzione iniziale
+		FACTOR<T> eq = To1V(Equation);
+
+		// completazioni
 		eq.sort();
 		eq.complete(eq[0].degree + 1);
-		tensor<long double> _eq;
+
+		// traduzione finale
+		tensor<T> _eq;
 		for (const auto& term : eq) _eq << term.coefficient;
 		equation = { _eq };
 		VDirectorSeq = { { 1 } };
@@ -13756,50 +13993,66 @@ static tensor<wstring> EquationSolver(factor<> Equation, tensor<RadComplx>& rads
 	// risoluzione dell'equazione
 	if (!equation.empty()) for (;;) {
 
-		if (equation[0] == 2) break;
+		// binomio con radicali
+		if (equation[0] == 2) if constexpr (is_same_v<T, radical>) {
+			answer << wstring(1, charVariable) + L"%";
+			radical ans{ equation[0][1] / equation[0][0] };
+			ans.invert();
+			rads << RadComplx(ans);
+		}
 
 		// equazione di secondo grado
 		if (equation[0] == 3) {
 
-			// ottenimento variabili
-			long double A, B, C;
-			A = equation[0][0];
-			B = equation[0][1];
-			C = equation[0][2];
-			int delta = B * B - 4 * A * C;
+			// trinomio con coefficienti radicali
+			if constexpr (is_same_v<T, radical>) {
 
-			// push degli indicatori di variabili
-			auto _push{ factor<>{ { 1, VDirectorSeq[0] } }.str() + L'%' };
-			if (VKnownSeq[0] != null)
-				_push += factor<>{ { 1, VKnownSeq[0] } }.str();
-			answer << _push << _push;
-
-			// radici reali
-			RadComplx rad1, rad2;
-			if (delta >= 0) {
-				rad1 = RadComplx(radical(
-					RadicalExpr({ -B, RadicalUnit(1, delta) }), RadicalUnit(2 * A)
-				));
-				rad2 = RadComplx(radical(
-					RadicalExpr({ -B, RadicalUnit(1, -delta) }), RadicalUnit(2 * A)
-				));
-			}
-
-			// radici complesse
-			else {
-				rad1 = RadComplx(
-					radical(RadicalUnit(-B), RadicalUnit(2 * A)),
-					radical(RadicalUnit(1, -delta), RadicalUnit(2 * A))
-				);
-				rad2 = RadComplx(
-					radical(RadicalUnit(-B), RadicalUnit(2 * A)),
-					radical(RadicalUnit(1, delta), RadicalUnit(2 * A))
-				);
 			}
 			
-			rad1.simplify();
-			rad2.simplify();
-			rads << rad1 << rad2;
+			// trinomio con coefficienti interi
+			if constexpr (is_same_v<T, long double>) {
+				T A, B, C;
+				A = equation[0][0];
+				B = equation[0][1];
+				C = equation[0][2];
+				int delta = B * B - 4 * A * C;
+
+				// push degli indicatori di variabili
+				auto _push{ factor<>{ { 1, VDirectorSeq[0] } }.str() + L'%' };
+				if (VKnownSeq[0] != null)
+					_push += factor<>{ { 1, VKnownSeq[0] } }.str();
+				answer << _push << _push;
+
+				// radici reali
+				RadComplx rad1, rad2;
+				if (delta >= 0) {
+					rad1 = RadComplx(radical(
+						RadicalExpr({ -B, RadicalUnit(1, delta) }),
+						RadicalUnit(2 * A)
+					));
+					rad2 = RadComplx(radical(
+						RadicalExpr({ -B, RadicalUnit(1, -delta) }),
+						RadicalUnit(2 * A)
+					));
+				}
+
+				// radici complesse
+				else {
+					rad1 = RadComplx(
+						radical(RadicalUnit(-B), RadicalUnit(2 * A)),
+						radical(RadicalUnit(1, -delta), RadicalUnit(2 * A))
+					);
+					rad2 = RadComplx(
+						radical(RadicalUnit(-B), RadicalUnit(2 * A)),
+						radical(RadicalUnit(1, delta), RadicalUnit(2 * A))
+					);
+				}
+			
+				rad1.simplify();
+				rad2.simplify();
+				rads << rad1 << rad2;
+			}
+
 			ret answer;
 		}
 
@@ -13812,100 +14065,104 @@ static tensor<wstring> EquationSolver(factor<> Equation, tensor<RadComplx>& rads
 		if (VKnownSeq[0] != null)
 			push += factor<>{ { 1, VKnownSeq[0] } }.str();
 		answer << push;
-		rads << RadComplx(radical(nan("")));
+		rads << RadComplx(radical().nan());
 	}
 
-	// caso binomio
-	if (Equation == 2) {
+	if constexpr (!is_same_v<T, radical>) {
+
+		// caso binomio
+		if (Equation == 2) {
 		
-		// semplificazione coefficienti
-		int gcd{ abs(Gcd(Equation)) };
-		Equation[0].coefficient /= gcd;
-		Equation[1].coefficient /= gcd;
+			// semplificazione coefficienti
+			int gcd{ abs(Gcd(Equation)) };
+			Equation[0].coefficient /= gcd;
+			Equation[1].coefficient /= gcd;
 
-		// semplificazione esponenti
-		for (size_t i = 0; i < Variables.size(); ++i) {
-			int min{ ::min(Equation[0].exp[i], Equation[1].exp[i]) };
-			Equation[0].exp[i] -= min;
-			Equation[1].exp[i] -= min;
+			// semplificazione esponenti
+			for (size_t i = 0; i < Variables.size(); ++i) {
+				int min{ ::min(Equation[0].exp[i], Equation[1].exp[i]) };
+				Equation[0].exp[i] -= min;
+				Equation[1].exp[i] -= min;
+			}
+			Equation.SortByExponents();
+
+			// semplificazione segni
+			auto coeff{ Equation[0].coefficient };
+			Equation[0].coefficient = 1;
+			if (coeff < 0) coeff *= -1;
+			else Equation[1].coefficient *= -1;
+
+			// push degli indicatori di variabili
+			auto _push{ factor<>{ Equation[0] }.str() + L'%' };
+			if (Equation[1].exp != null)
+				_push += factor<>{ { 1, Equation[1].exp } }.str();
+
+			rads = {
+				RadComplx(radical(
+					RadicalUnit(Equation[1].coefficient), RadicalUnit(coeff)
+				))
+			};
+			ret { _push };
 		}
-		Equation.SortByExponents();
 
-		// semplificazione segni
-		auto coeff{ Equation[0].coefficient };
-		Equation[0].coefficient = 1;
-		if (coeff < 0) coeff *= -1;
-		else Equation[1].coefficient *= -1;
+		// caso molto generico
+		factor<> top, bottom;
+		size_t Vpos{ Variables.find(L'x') };
+		if (Vpos == wstring::npos) Vpos = 0;
+		for (const auto& mon : Equation) if (mon.exp[Vpos] > 1)
+			ret { Equation.str() + L"!= 0" };
 
-		// push degli indicatori di variabili
-		auto _push{ factor<>{ Equation[0] }.str() + L'%' };
-		if (Equation[1].exp != null)
-			_push += factor<>{ { 1, Equation[1].exp } }.str();
-
-		rads = {
-			RadComplx(radical(
-				RadicalUnit(Equation[1].coefficient), RadicalUnit(coeff)
-			))
-		};
-		ret { _push };
-	}
-
-	// caso molto generico
-	factor<> top, bottom;
-	size_t Vpos{ Variables.find(L'x') };
-	if (Vpos == wstring::npos) Vpos = 0;
-	for (const auto& mon : Equation) if (mon.exp[Vpos] > 1)
-		ret { Equation.str() + L"!= 0" };
-
-	// caso con variabile e parametri
-	for (auto mon : Equation) {
-		if (mon.exp[Vpos] == 1) {
-			mon.exp[Vpos] = 0;
-			bottom << mon;
-			continue;
+		// caso con variabile e parametri
+		for (auto mon : Equation) {
+			if (mon.exp[Vpos] == 1) {
+				mon.exp[Vpos] = 0;
+				bottom << mon;
+				continue;
+			}
+			mon.coefficient *= -1;
+			top << mon;
 		}
-		mon.coefficient *= -1;
-		top << mon;
+
+		// ricerca variabili
+		tensor<bool> Used(Variables.size(), false);
+		for (const auto& mon : Equation)
+			for (size_t i = 0; i < Variables.size(); ++i) if (mon.exp[i] > 0)
+				Used[i] = true;
+
+		// calcolo stringhe
+		auto D = bottom.empty() ? L"1" : bottom.str();
+		auto DD{ D };
+		if (D == L"-1") {
+			D = L"1";
+			for (auto& mon : top) mon.coefficient *= -1;
+		}
+		auto N = top.empty() ? L"1" : top.str();
+		auto NN{ N };
+		if (issign(NN.at(0))) NN.erase(0, 1);
+		if (issign(DD.at(0))) DD.erase(0, 1);
+
+		// concatenazione stringhe
+		if (NN.find(L'+') != wstring::npos or NN.find(L'-') != wstring::npos)
+			N = L'(' + N + L')';
+		if (DD.find(L'+') != wstring::npos or DD.find(L'-') != wstring::npos)
+			D = L'(' + D + L')';
+		auto str{ N };
+
+		// controllo denominatore
+		if (D == L"-1") {
+			if (str.at(0) == L'(') str.erase(0, 1);
+			if (str.find(L'(') == wstring::npos) str.pop_back();
+			else str = L'(' + str;
+			str.at(0) == L'-' ? str.erase(0, 1) : str = L'-' + str;
+		}
+		if (D != L"1") str += L'/' + D;
+
+		rads = { RadComplx(radical().nan()) };
+		ret Used[Vpos] ?
+			tensor<wstring>{ wstring(1, Variables.at(Vpos)) + L" != " + str } :
+			tensor<wstring>{ str + L" != 0" };
 	}
-
-	// ricerca variabili
-	tensor<bool> Used(Variables.size(), false);
-	for (const auto& mon : Equation)
-		for (size_t i = 0; i < Variables.size(); ++i) if (mon.exp[i] > 0)
-			Used[i] = true;
-
-	// calcolo stringhe
-	auto D = bottom.empty() ? L"1" : bottom.str();
-	auto DD{ D };
-	if (D == L"-1") {
-		D = L"1";
-		for (auto& mon : top) mon.coefficient *= -1;
-	}
-	auto N = top.empty() ? L"1" : top.str();
-	auto NN{ N };
-	if (issign(NN.at(0))) NN.erase(0, 1);
-	if (issign(DD.at(0))) DD.erase(0, 1);
-
-	// concatenazione stringhe
-	if (NN.find(L'+') != wstring::npos or NN.find(L'-') != wstring::npos)
-		N = L'(' + N + L')';
-	if (DD.find(L'+') != wstring::npos or DD.find(L'-') != wstring::npos)
-		D = L'(' + D + L')';
-	auto str{ N };
-
-	// controllo denominatore
-	if (D == L"-1") {
-		if (str.at(0) == L'(') str.erase(0, 1);
-		if (str.find(L'(') == wstring::npos) str.pop_back();
-		else str = L'(' + str;
-		str.at(0) == L'-' ? str.erase(0, 1) : str = L'-' + str;
-	}
-	if (D != L"1") str += L'/' + D;
-
-	rads = { RadComplx(radical(nan(""))) };
-	ret Used[Vpos] ?
-		tensor<wstring>{ wstring(1, Variables.at(Vpos)) + L" != " + str } :
-		tensor<wstring>{ str + L" != 0" };
+	ret {};
 }
 
 // risolve un sistema non lineare con il metodo di newton-raphson
@@ -14086,7 +14343,7 @@ static tensor<long double> RootExtractor(polynomial<> vect)
 }
 
 // converte le soluzioni di un equazione in radicali
-static tensor<radical> RealRadicalExtractor(polynomial<> vect)
+template<typename T> static tensor<radical> RealRadicalExtractor(polynomial<T> vect)
 {
 	bool repeat{ false };
 	tensor<radical> Roots;
@@ -14094,7 +14351,11 @@ static tensor<radical> RealRadicalExtractor(polynomial<> vect)
 		if (fact.empty()) continue;
 
 		// modificatore
-		if (fact[0].exp[0] < 0 and (int)fact[0].coefficient % 2) {
+		int Coeff;
+		if constexpr (is_same_v<T, radical>)
+			Coeff = fact[0].coefficient.approximation();
+		else Coeff = (int)fact[0].coefficient;
+		if (fact[0].exp[0] < 0 and Coeff % 2) {
 			repeat = true;
 			continue;
 		}
@@ -14110,7 +14371,7 @@ static tensor<radical> RealRadicalExtractor(polynomial<> vect)
 			if (Strings[i].find(L'%') == wstring::npos) {
 				Strings[i].erase(0, Strings[i].find(L'!') + 3);
 
-				auto Rad{ radical(stoi(Strings[i])) };
+				auto Rad{ radical(stold(Strings[i])) };
 				if (repeat) Roots << Rad;
 				Roots << Rad;
 
@@ -14137,8 +14398,8 @@ static tensor<radical> RealRadicalExtractor(polynomial<> vect)
 #pragma region Disequations
 
 // parte indipendente dal segno di una disequazione normale
-static void FractDisequationMain(
-	polynomial<> Num, polynomial<> Den,
+template<typename Ty> static void FractDisequationMain(
+	polynomial<Ty> Num, polynomial<Ty> Den,
 
 	tensor<radical>& Roots,
 	tensor<bool>& ItsFromDenominator,
@@ -14147,8 +14408,8 @@ static void FractDisequationMain(
 )
 {
 	// calcolo del segno dei coefficienti
-	polynomial<> Un{ Num + Den };
-	long double Coeff{ 1 };
+	polynomial<Ty> Un{ Num + Den };
+	Ty Coeff{ 1 };
 	for (size_t i = 0; i < Un; ++i)
 		if (Un[i] == 1 and Un[i][0].exp == tensor<int>{ 0 })
 			Coeff *= Un[i][0].coefficient;
@@ -14340,7 +14601,7 @@ static bool ParamDisequationSetup(
 			if (Sum.empty()) ret false;
 		}
 	}
-	AdditionalRoots = RealRadicalExtractor(Parametrics);
+	AdditionalRoots = RealRadicalExtractor<long double>(Parametrics);
 	Parametric = PolynomialMultiply<long double>(Parametrics);
 
 	// calcolo zeri dei fattori
@@ -14403,9 +14664,9 @@ static void ParamDisequationMain(
 	if (FirstTable == TableOfMains) Unisize = 1;
 
 	// calcolo radici
-	RootSet = RealRadicalExtractor(bottoms);
+	RootSet = RealRadicalExtractor<long double>(bottoms);
 	if (Unisize > 1) for (auto& F : TableOfMains) for (auto& S : F)
-		RootSet += RealRadicalExtractor({ S });
+		RootSet += RealRadicalExtractor<long double>({ S });
 	RootSet += AdditionalRoots;
 
 	if (!RootSet.empty()) {
@@ -14576,15 +14837,11 @@ static void GetParametricSolution(
 		/// newline...
 		if (index == RootSet) break;
 
-		/// NON TESTARE QUESTA PARTE DI CODICE
-		/// CODICE RIMOSSO PER FARE COMPILARE IL PROGRAMMA
-
 		// output valori speciali
 		text << parameter << L" = " << RootSet[index];
-		auto numerator{ Num };
-		auto denominator{ Den };
-		/*for (auto& fact : numerator) fact = fact(RootSet[index], 1 - Vpos, 1);*/
-		/*for (auto& fact : denominator) fact = fact(RootSet[index], 1 - Vpos, 1);*/
+		polynomial<radical> numerator, denominator;
+		for (const auto& fact : Num) numerator << fact(RootSet[index], 1 - Vpos);
+		for (const auto& fact : Den) denominator << fact(RootSet[index], 1 - Vpos);
 
 		// modifiche alla lista di variabili
 		if (Vpos == 1) {
@@ -14601,14 +14858,16 @@ static void GetParametricSolution(
 		text.SetBufferTextAttribute(8);
 		text << L"  ->  ";
 		text.SetBufferTextAttribute(15);
-		if (numerator.empty()) numerator = polynomial<>{ { { 0, { 0 } } } };
-		if (denominator.empty()) denominator = polynomial<>{ { { 0, { 0 } } } };
+		if (numerator.empty()) numerator = polynomial<radical>{ { { 0, { 0 } } } };
+		if (denominator.empty())
+			denominator = polynomial<radical>{ { { 0, { 0 } } } };
 		DisequationSolutionPrinter(
 			text,
 			numerator,
 			denominator,
 			1 << (
-				2 * (ExpectedSign /*xor Parametric(RootSet[index], 1 - Vpos, true)*/)
+				2 * (ExpectedSign xor
+					Parametric(RootSet[index].approximation(), 1 - Vpos, true))
 				+ CanBeNull
 				),
 			false,
@@ -14620,10 +14879,10 @@ static void GetParametricSolution(
 }
 
 // risolve una disequazione fratta con un parametro
-static void DisequationSolutionPrinter(
+template<typename T> static void DisequationSolutionPrinter(
 	Buffer& Output,
-	polynomial<> Num,
-	polynomial<> Den,
+	polynomial<T> Num,
+	polynomial<T> Den,
 	int behaviour,
 	bool ChangeSign,
 	bool PrintCondition
@@ -14632,6 +14891,7 @@ static void DisequationSolutionPrinter(
 	// controlli iniziali
 	auto Vpos{ Variables.find(L'x') };
 	if (Variables.size() > 2 or Vpos == wstring::npos) ret;
+	if constexpr (!is_same_v<T, long double> and !is_same_v<T, radical>) ret;
 
 	// calcolo frasi
 	if (Num.empty() and Den.empty()) ret;
@@ -14647,7 +14907,8 @@ static void DisequationSolutionPrinter(
 	};
 
 	// disequazione normale
-	if (Variables == L"x") {
+	constexpr bool RadTemplate{ is_same_v<T, radical> };
+	if (Variables == L"x" or RadTemplate) {
 
 		// calcolo principale
 		tensor<radical> roots;
@@ -14696,128 +14957,128 @@ static void DisequationSolutionPrinter(
 		}
 		ret;
 	}
+
 	// disequazione parametrica
-
-	// parte principale
-	wchar_t parameter{ Variables.at(1 - Vpos) };
-	polynomial<> Un;
-	tensor<bool> TermsFromDenominator;
-	tensor<radical> AdditionalRoots;
-	factor<> Parametric;
-	tensor<factor<>> tops, bottoms;
-	bool InitialSign, InvertSign{ true };
-	if (
-		!ParamDisequationSetup(
-			Num,
-			Den,
-			Un,
-			TermsFromDenominator,
-			AdditionalRoots,
-			Parametric,
-			tops,
-			bottoms,
-			InitialSign,
-			InvertSign
-		)
-	) ret;
-
-	// caso di un fattore
-	if (Un == 1 and Parametric == factor<>{ { 1, { 0, 0 } } }) {
-
-		// output
-		for (int i = 0; i < 4; ++i) if ((behaviour | (1 << i)) == behaviour) {
-			bool positive = i / 2;
-			if (PrintCondition) Output << dir[i] << L"\n\n";
-
-			auto vals{ RealRadicalExtractor(Un) };
-			GetAlgebricSolution(
-				Output,
-				vals,
-				tensor<bool>(vals.size(), TermsFromDenominator[0]),
-				InitialSign,
-				(positive == InvertSign) xor ChangeSign,
-				i % 2 == 1
-			);
-
-			if (PrintCondition) Output << L"\n\n";
-		}
-
-		if (PrintCondition) {
-			Output.GetBufferInfo(&csbi);
-			COORD cursorP{ csbi.dwCursorPosition };
-			Output.SetBufferCursorPosition({ cursorP.X, short(cursorP.Y - 2) });
-			Output << L"\n----------";
-		}
-		ret;
-	}
-
-	// calcolo dei dati indipendenti dai segni
-	size_t Unisize;
-	tensor<tensor<factor<>>> TableOfMains;
-	tensor<radical> RootSet;
-	tensor<long double> RootExamples;
-	tensor<Fraction<>> vals;
-	ParamDisequationMain(
-		Un,
-		tops,
-		bottoms,
-		AdditionalRoots,
-		Unisize,
-		TableOfMains,
-		RootSet,
-		RootExamples,
-		vals
-	);
-
-	// output
-	for (int i = 0; i < 4; ++i) if ((behaviour | (1 << i)) == behaviour) {
-		bool positive = i / 2;
-		if (PrintCondition) Output << dir[i] << L"\n\n";
-
-		// nessuno zero trovato
-		if (RootSet.empty()) {
-			GetAlgebricSolution(
-				Output,
-				vals,
+	if constexpr (is_same_v<T, long double>) {
+		wchar_t parameter{ Variables.at(1 - Vpos) };
+		polynomial<> Un;
+		tensor<bool> TermsFromDenominator;
+		tensor<radical> AdditionalRoots;
+		factor<> Parametric;
+		tensor<factor<>> tops, bottoms;
+		bool InitialSign, InvertSign{ true };
+		if (
+			!ParamDisequationSetup(
+				Num,
+				Den,
+				Un,
 				TermsFromDenominator,
+				AdditionalRoots,
+				Parametric,
+				tops,
+				bottoms,
 				InitialSign,
-				positive xor InvertSign xor ChangeSign,
-				i % 2 == 1
-			);
-			Output << L'\n';
+				InvertSign
+			)
+		) ret;
+
+		// caso di un fattore
+		if (Un == 1 and Parametric == factor<>{ { 1, { 0, 0 } } }) {
+
+			// output
+			for (int i = 0; i < 4; ++i) if ((behaviour | (1 << i)) == behaviour) {
+				bool positive = i / 2;
+				if (PrintCondition) Output << dir[i] << L"\n\n";
+
+				auto vals{ RealRadicalExtractor(Un) };
+				GetAlgebricSolution(
+					Output,
+					vals,
+					tensor<bool>(vals.size(), TermsFromDenominator[0]),
+					InitialSign,
+					(positive == InvertSign) xor ChangeSign,
+					i % 2 == 1
+				);
+
+				if (PrintCondition) Output << L"\n\n";
+			}
+
+			if (PrintCondition) {
+				Output.GetBufferInfo(&csbi);
+				COORD cursorP{ csbi.dwCursorPosition };
+				Output.SetBufferCursorPosition({ cursorP.X, short(cursorP.Y - 2) });
+				Output << L"\n----------";
+			}
+			ret;
 		}
 
-		// caso comune
-		else GetParametricSolution(
-			Output,
-			parameter,
-			Unisize,
-			Vpos,
-			InitialSign,
-			(positive xor InvertSign) xor ChangeSign,
-			i % 2 == 1,
-			TermsFromDenominator,
-			Num,
-			Den,
-			Parametric,
+		// calcolo dei dati indipendenti dai segni
+		size_t Unisize;
+		tensor<tensor<factor<>>> TableOfMains;
+		tensor<radical> RootSet;
+		tensor<long double> RootExamples;
+		tensor<Fraction<>> vals;
+		ParamDisequationMain(
+			Un,
 			tops,
 			bottoms,
+			AdditionalRoots,
+			Unisize,
 			TableOfMains,
 			RootSet,
 			RootExamples,
 			vals
 		);
 
-		if (PrintCondition) Output << L'\n';
-	}
+		// output
+		for (int i = 0; i < 4; ++i) if ((behaviour | (1 << i)) == behaviour) {
+			bool positive = i / 2;
+			if (PrintCondition) Output << dir[i] << L"\n\n";
 
-	if (PrintCondition) {
-		Output.GetBufferInfo(&csbi);
-		COORD cursorP{ csbi.dwCursorPosition };
-		Output.SetBufferCursorPosition({ cursorP.X, short(cursorP.Y - 1) });
-		Output << L"\n----------";
+			// nessuno zero trovato
+			if (RootSet.empty()) {
+				GetAlgebricSolution(
+					Output,
+					vals,
+					TermsFromDenominator,
+					InitialSign,
+					positive xor InvertSign xor ChangeSign,
+					i % 2 == 1
+				);
+				Output << L'\n';
+			}
+
+			// caso comune
+			else GetParametricSolution(
+				Output,
+				parameter,
+				Unisize,
+				Vpos,
+				InitialSign,
+				(positive xor InvertSign) xor ChangeSign,
+				i % 2 == 1,
+				TermsFromDenominator,
+				Num,
+				Den,
+				Parametric,
+				tops,
+				bottoms,
+				TableOfMains,
+				RootSet,
+				RootExamples,
+				vals
+			);
+
+			if (PrintCondition) Output << L'\n';
+		}
+
+		if (PrintCondition) {
+			Output.GetBufferInfo(&csbi);
+			COORD cursorP{ csbi.dwCursorPosition };
+			Output.SetBufferCursorPosition({ cursorP.X, short(cursorP.Y - 1) });
+			Output << L"\n----------";
+		}
 	}
-	ret;
 }
 
 #pragma endregion
@@ -16634,10 +16895,11 @@ static void DecompAndSolve(switchcase& argc)
 
 			// traduzione di alcune delle soluzioni
 			for (size_t i = 0; i < radicals; ++i)
-				if (radicals[i] == RadComplx(radical(nan(""))))
+				if (radicals[i] == RadComplx(radical().nan()))
 				{
 					solutions[i].erase(0, solutions[i].find(L'!') + 3);
-					radicals[i] = RadComplx(radical(stold(solutions[i])));
+					radicals[i] =
+						RadComplx(radical(RadicalUnit(stold(solutions[i]))));
 				}
 
 			// output
