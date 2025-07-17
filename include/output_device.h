@@ -18,7 +18,7 @@ template<>class OutputDevice<Buffer>
 private:
 	Buffer* buff;
 public:
-	OutputDevice(Buffer entity);
+	OutputDevice(Buffer& entity);
 
 	void SetCursorPosition(COORD pos);
 	void SetTextAttribute(WORD attr);
@@ -47,7 +47,7 @@ template<typename U> inline void OutputDevice<HANDLE>::Print(U text)
 	wcout << text;
 }
 
-inline OutputDevice<Buffer>::OutputDevice(Buffer entity) : buff(&entity) {}
+inline OutputDevice<Buffer>::OutputDevice(Buffer& entity) : buff(&entity) {}
 inline void OutputDevice<Buffer>::SetCursorPosition(COORD pos)
 {
 	buff->SetBufferCursorPosition(pos);

@@ -137,17 +137,17 @@ template<typename Arg> Buffer& Buffer::operator<<(Arg written)
 	// scrittura del testo
 	for (const auto& ch : text)
 	{
-		// carattere non stampabile
-		if (ch < 32 or !isprint(ch))
-		{
-			continue;
-		}
-
 		// a capo
 		if (ch == L'\n')
 		{
 			CursorPosition.X = SizeLimit;
 			UpdateSize();
+			continue;
+		}
+
+		// carattere non stampabile
+		if (ch < 32 or !isprint(ch))
+		{
 			continue;
 		}
 
@@ -159,7 +159,7 @@ template<typename Arg> Buffer& Buffer::operator<<(Arg written)
 		CursorPosition.X++;
 	}
 
-	ret* this;
+	ret *this;
 }
 
 #endif // __BUFFER__

@@ -366,6 +366,7 @@ void GeneralizedHeapSort(tensor<T>& arr, tensor<Others>&... others)
 static void ClearArea(COORD WinCenter, COORD Dimensions);
 
 // rappresentazione di radicali
+class RadComplx;
 static ptrdiff_t Gcd(ptrdiff_t A, ptrdiff_t B);
 template<typename T> static int Gcd(tensor<T> terms);
 static tensor<compost> DecomposeNumber(ptrdiff_t input);
@@ -602,14 +603,7 @@ public:
 			device.Print(decimal);
 			ret;
 		}
-
-		// aggiunta di spazio
-		device.GetBufferInfo(&csbi);
-		if (csbi.dwCursorPosition.Y == 0)
-		{
-			device.Print(L'\n');
-		}
-
+		
 		// se è un numero intero
 		device.SetTextAttribute(attrib);
 		if (primes == tensor<int>{ 1 })
@@ -624,6 +618,13 @@ public:
 			}
 			device.Print(coeff);
 			ret;
+		}
+
+		// aggiunta di spazio
+		device.GetBufferInfo(&csbi);
+		if (csbi.dwCursorPosition.Y == 0)
+		{
+			device.Print(L'\n');
 		}
 
 		// a capo
@@ -763,6 +764,9 @@ public:
 			rad.SetCoefficient(-rad.GetCoefficient());
 		}
 	}
+
+	// semplificazione di radicali doppi
+	RadComplx GetDoubleRootExtraction() const;
 
 	// metodi di pulizia
 	void normalize()
@@ -1942,6 +1946,63 @@ public:
 		ret os;
 	}
 };
+RadComplx RadicalExpr::GetDoubleRootExtraction() const
+{
+	if (!exact())
+	{
+		auto value{ approximation() };
+		radical part(sqrt(abs(value)));
+		RadComplx res;
+		value > 0 ? res.RealPart = part : res.ImaginaryPart = part;
+		ret res;
+	}
+
+	if (elements > 2)
+	{
+		ret RadComplx(radical().nan());
+	}
+
+	int A, B;
+	if (!intg())
+	{
+		if (elements[0].arg() != 1 and elements[1].arg() != 1)
+		{
+			ret RadComplx(radical().nan());
+		}
+		if (elements[0].arg() == 1)
+		{
+			A = elements[0].GetCoefficient();
+			B = elements[1].GetCoefficient();
+		}
+		else
+		{
+			A = elements[1].GetCoefficient();
+			B = elements[0].GetCoefficient();
+		}
+	}
+	else
+	{
+		A = elements[0].GetCoefficient();
+		B = 0;
+	}
+
+	// costruzione radice
+	int InternDelta = A * A - B;
+	if (!integer(sqrt(abs(InternDelta))))
+	{
+		ret RadComplx(radical().nan());
+	}
+	int RootArg1{ A + InternDelta };
+	int RootArg2{ A - InternDelta };
+
+	// push a parte reale o immaginaria
+	RadComplx result;
+	RootArg1 > 0 ? result.RealPart += RadicalUnit(1, RootArg1) :
+		result.ImaginaryPart += RadicalUnit(1, -RootArg1);
+	RootArg2 > 0 ? result.RealPart += RadicalUnit(1, RootArg2) :
+		result.ImaginaryPart += RadicalUnit(1, -RootArg2);
+	ret result;
+}
 
 // funzioni di conversione
 template<typename __T> static factor<__T> ToXV(FACTOR<__T> vect)
@@ -13994,65 +14055,106 @@ static tensor<wstring> EquationSolver(factor<T> Equation, tensor<RadComplx>& rad
 	if (!equation.empty()) for (;;) {
 
 		// binomio con radicali
-		if (equation[0] == 2) if constexpr (is_same_v<T, radical>) {
-			answer << wstring(1, charVariable) + L"%";
-			radical ans{ equation[0][1] / equation[0][0] };
-			ans.invert();
-			rads << RadComplx(ans);
+		if (equation[0] == 2) {
+			if constexpr (is_same_v<T, radical>) {
+				answer << wstring(1, charVariable) + L"%";
+				radical ans{ equation[0][1] / equation[0][0] };
+				ans.invert();
+				rads << RadComplx(ans);
+			}
+			else break;
 		}
 
 		// equazione di secondo grado
 		if (equation[0] == 3) {
+			T A, B, C;
+			A = equation[0][0];
+			B = equation[0][1];
+			C = equation[0][2];
+			T delta{ B * B - A * C * T(4) };
+
+			// push degli indicatori di variabili
+			auto _push{ factor<>{ { 1, VDirectorSeq[0] } }.str() + L'%' };
+			if (VKnownSeq[0] != null)
+				_push += factor<>{ { 1, VKnownSeq[0] } }.str();
+			answer << _push << _push;
+			
+			// variabili
+			RadComplx rad1, rad2;
+			long double a, b, _delta;
 
 			// trinomio con coefficienti radicali
 			if constexpr (is_same_v<T, radical>) {
+				delta.simplify();
+				RadComplx numpart{ delta.GetTop().GetDoubleRootExtraction() };
+				RadComplx denpart{ delta.GetBottom().GetDoubleRootExtraction() };
+				
+				// forma esatta
+				if (!numpart.RealPart.NotANumber() and
+					!denpart.RealPart.NotANumber())
+				{
+					// calcolo del delta
+					RadComplx FinalDelta{ numpart / denpart };
+					FinalDelta.RealPart.simplify();
+					FinalDelta.ImaginaryPart.simplify();
 
+					// calcolo della prima soluzione
+					auto solution{ FinalDelta };
+					solution -= B;
+					solution /= A * radical(2);
+					rads << solution;
+
+					// calcolo della seconda soluzione
+					solution = FinalDelta;
+					solution.RealPart.invert();
+					solution.ImaginaryPart.invert();
+					solution -= B;
+					solution /= A * radical(2);
+					rads << solution;
+
+					ret answer;
+				}
+
+				// approssimazioni
+				a = A.approximation();
+				b = B.approximation();
+				_delta = delta.approximation();
 			}
 			
 			// trinomio con coefficienti interi
 			if constexpr (is_same_v<T, long double>) {
-				T A, B, C;
-				A = equation[0][0];
-				B = equation[0][1];
-				C = equation[0][2];
-				int delta = B * B - 4 * A * C;
-
-				// push degli indicatori di variabili
-				auto _push{ factor<>{ { 1, VDirectorSeq[0] } }.str() + L'%' };
-				if (VKnownSeq[0] != null)
-					_push += factor<>{ { 1, VKnownSeq[0] } }.str();
-				answer << _push << _push;
-
-				// radici reali
-				RadComplx rad1, rad2;
-				if (delta >= 0) {
-					rad1 = RadComplx(radical(
-						RadicalExpr({ -B, RadicalUnit(1, delta) }),
-						RadicalUnit(2 * A)
-					));
-					rad2 = RadComplx(radical(
-						RadicalExpr({ -B, RadicalUnit(1, -delta) }),
-						RadicalUnit(2 * A)
-					));
-				}
-
-				// radici complesse
-				else {
-					rad1 = RadComplx(
-						radical(RadicalUnit(-B), RadicalUnit(2 * A)),
-						radical(RadicalUnit(1, -delta), RadicalUnit(2 * A))
-					);
-					rad2 = RadComplx(
-						radical(RadicalUnit(-B), RadicalUnit(2 * A)),
-						radical(RadicalUnit(1, delta), RadicalUnit(2 * A))
-					);
-				}
-			
-				rad1.simplify();
-				rad2.simplify();
-				rads << rad1 << rad2;
+				a = A;
+				b = B;
+				_delta = delta;
 			}
 
+			// radici reali
+			if (_delta >= 0) {
+				rad1 = RadComplx(radical(
+					RadicalExpr({ -b, RadicalUnit(1, _delta) }),
+					RadicalUnit(2 * a)
+				));
+				rad2 = RadComplx(radical(
+					RadicalExpr({ -b, RadicalUnit(1, -_delta) }),
+					RadicalUnit(2 * a)
+				));
+			}
+
+			// radici complesse
+			else {
+				rad1 = RadComplx(
+					radical(RadicalUnit(-b), RadicalUnit(2 * a)),
+					radical(RadicalUnit(1, -_delta), RadicalUnit(2 * a))
+				);
+				rad2 = RadComplx(
+					radical(RadicalUnit(-b), RadicalUnit(2 * a)),
+					radical(RadicalUnit(1, _delta), RadicalUnit(2 * a))
+				);
+			}
+
+			rad1.simplify();
+			rad2.simplify();
+			rads << rad1 << rad2;
 			ret answer;
 		}
 
@@ -14371,6 +14473,13 @@ template<typename T> static tensor<radical> RealRadicalExtractor(polynomial<T> v
 			if (Strings[i].find(L'%') == wstring::npos) {
 				Strings[i].erase(0, Strings[i].find(L'!') + 3);
 
+				bool exit{ false };
+				for (const auto& ch : Strings[i]) if (isalpha(ch) or ch == L'/') {
+					exit = true;
+					break;
+				}
+				if (exit) continue;
+
 				auto Rad{ radical(stold(Strings[i])) };
 				if (repeat) Roots << Rad;
 				Roots << Rad;
@@ -14511,6 +14620,7 @@ template<typename Ty> static void GetAlgebricSolution(
 		if (bottommax < height.Y) bottommax = height.Y;
 	}
 	text << wstring(topmax + 1, L'\n');
+	charVariable = Variables.at(1 - Variables.find(charVariable));
 
 	// parte iniziale
 	if (condition) {
@@ -14546,6 +14656,7 @@ template<typename Ty> static void GetAlgebricSolution(
 		}
 	}
 
+	charVariable = Variables.at(1 - Variables.find(charVariable));
 	text << wstring(bottommax + 1, L'\n');
 }
 
@@ -14735,12 +14846,37 @@ static void GetParametricSolution(
 			+ RootSet[index].len() + 1;
 	}
 
+	// calcolo altezze
+	tensor<coord> heights;
+	for (const auto& root : RootSet) heights << root.height();
+
 	// calcolo lunghezza massima
 	int maxlen{ lenghts[0] };
 	for (size_t i = 1; i < lenghts; ++i) if (maxlen < lenghts[i])
 		maxlen = lenghts[i];
 
+	// calcolo altezze massime
+	coord ConstRootMax{};
+	for (const auto& val : vals) {
+		auto height{ val.height() };
+		if (height.X > ConstRootMax.X) ConstRootMax.X = height.X;
+		if (height.Y > ConstRootMax.Y) ConstRootMax.Y = height.Y;
+	}
+	tensor<coord> MaxHeights;
+	for (size_t i = 0; i < RootSet.size() - 1; ++i) MaxHeights << coord{
+		max({ ConstRootMax.X, heights[i].X, heights[i + 1].X }),
+		max({ ConstRootMax.Y, heights[i].Y, heights[i + 1].Y })
+	};
+	MaxHeights >> coord{
+		max(ConstRootMax.X, heights[0].X), max(ConstRootMax.Y, heights[0].Y)
+	};
+	MaxHeights << coord{
+		max(ConstRootMax.X, heights.last().X), max(ConstRootMax.Y, heights.last().Y)
+	};
+
 	// calcolo di tutti gli intervalli
+	text << wstring(MaxHeights[0].X + 1, L'\n');
+	charVariable = Variables.at(1 - Variables.find(charVariable));
 	for (size_t index = 0; index < RootExamples; ++index) {
 		bool impossible{ false };
 		auto values{ vals };
@@ -14751,16 +14887,20 @@ static void GetParametricSolution(
 		// output intervallo iniziale
 		if (index == 0) {
 			text << parameter << L" < " << RootSet[0];
-			/// spazi...
-			/// newline...
+			text.GetBufferInfo(&csbi);
+			text << wstring(maxlen - csbi.dwCursorPosition.X, L' ');
+
+			text << wstring(MaxHeights[index].X + MaxHeights[index + 1].Y, L'\n');
 			goto comparison;
 		}
 
 		// output intervallo finale
 		if (index == RootSet) {
 			text << parameter << L" > " << RootSet.last();
-			/// spazi...
-			/// newline...
+			text.GetBufferInfo(&csbi);
+			text << wstring(maxlen - csbi.dwCursorPosition.X, L' ');
+
+			text << wstring(MaxHeights[index].X + MaxHeights[index + 1].Y, L'\n');
 			goto comparison;
 		}
 
@@ -14769,7 +14909,8 @@ static void GetParametricSolution(
 		text << (CanBeNull and index - 1 < bottoms ? L" <= " : L" < ");
 		text << (CanBeNull and index < bottoms ? L" <= " : L" < ");
 		text << RootSet[index];
-		/// spazi...
+		text.GetBufferInfo(&csbi);
+		text << wstring(maxlen - csbi.dwCursorPosition.X, L' ');
 
 		// calcolo dei segni
 	comparison:
@@ -14834,7 +14975,7 @@ static void GetParametricSolution(
 				CanBeNull
 			);
 		}
-		/// newline...
+		text << wstring(MaxHeights[index].X + MaxHeights[index + 1].Y, L'\n');
 		if (index == RootSet) break;
 
 		// output valori speciali
@@ -14844,6 +14985,7 @@ static void GetParametricSolution(
 		for (const auto& fact : Den) denominator << fact(RootSet[index], 1 - Vpos);
 
 		// modifiche alla lista di variabili
+		charVariable = Variables.at(1 - Variables.find(charVariable));
 		if (Vpos == 1) {
 			for (auto& fact : numerator) for (auto& mon : fact)
 				mon.exp[0] = mon.exp[1];
@@ -14854,7 +14996,8 @@ static void GetParametricSolution(
 		Variables = L"x";
 
 		// aggiunta dei casi particolari
-		/// spazi...
+		text.GetBufferInfo(&csbi);
+		text << wstring(maxlen - csbi.dwCursorPosition.X, L' ');
 		text.SetBufferTextAttribute(8);
 		text << L"  ->  ";
 		text.SetBufferTextAttribute(15);
@@ -14873,9 +15016,14 @@ static void GetParametricSolution(
 			false,
 			false
 		);
-		/// newline...
+
+		charVariable = Variables.at(1 - Variables.find(charVariable));
+		text << wstring(MaxHeights[index].X + MaxHeights[index + 1].Y, L'\n');
 		Variables = save;
 	}
+
+	charVariable = Variables.at(1 - Variables.find(charVariable));
+	text << wstring(MaxHeights.last().Y + 1, L'\n');
 }
 
 // risolve una disequazione fratta con un parametro
@@ -14906,6 +15054,14 @@ template<typename T> static void DisequationSolutionPrinter(
 		Console(expr + L" >= 0  ALLORA", wAttribute)
 	};
 
+	// annullamento se c'è solo un segno
+	bool unlock{ false }, nullify{ true };
+	for (int i = 0; i < 4; ++i) if ((behaviour | (1 << i)) == behaviour) {
+		if (unlock) nullify = false;
+		unlock = true;
+	}
+	if (nullify) PrintCondition = false;
+
 	// disequazione normale
 	constexpr bool RadTemplate{ is_same_v<T, radical> };
 	if (Variables == L"x" or RadTemplate) {
@@ -14923,20 +15079,12 @@ template<typename T> static void DisequationSolutionPrinter(
 			InvertTheSign
 		);
 
-		// annullamento se c'è solo un segno 
-		bool unlock{ false }, nullify{ true };
-		for (int i = 0; i < 4; ++i) if ((behaviour | (1 << i)) == behaviour) {
-			if (unlock) nullify = false;
-			unlock = true;
-		}
-		if (nullify) PrintCondition = false;
-
 		// output
 		for (int i = 0; i < 4; ++i) if ((behaviour | (1 << i)) == behaviour) {
-
+			
 			bool positive = i / 2;
 			if (PrintCondition) Output << dir[i] << L"\n\n";
-
+			
 			GetAlgebricSolution(
 				Output,
 				roots,
@@ -14990,7 +15138,7 @@ template<typename T> static void DisequationSolutionPrinter(
 				bool positive = i / 2;
 				if (PrintCondition) Output << dir[i] << L"\n\n";
 
-				auto vals{ RealRadicalExtractor(Un) };
+				tensor<Fraction<>> vals{ Fraction<>({ tops[0] }, { bottoms[0] }) };
 				GetAlgebricSolution(
 					Output,
 					vals,
@@ -16549,7 +16697,7 @@ static void DecompAndSolve(switchcase& argc)
 					Fractions[0].num, Fractions[0].den,
 					code, NCOEFF < 0 or DCOEFF < 0
 				);
-				wcout << L'\n' << NewConsole << L'\n';
+				wcout << NewConsole << L'\n';
 
 				ResetAttribute();
 				Fractions.clear();

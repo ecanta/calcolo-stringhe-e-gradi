@@ -225,12 +225,23 @@ void Buffer::output() const
 	// inizio
 	ResetAttribute();
 	WORD Attrib{ 15 };
-	wcout << L'\r';
+	short CharsSkipped{};
 
 	// scrittura
-	short CharsSkipped{};
 	for (size_t i = 0; i < memory; ++i)
 	{
+		// aggiunta di altro spazio nella console
+		if (i % 10 == 0)
+		{
+			_GetCursorPos();
+			auto start{ csbi.dwCursorPosition };
+			wcout << wstring(11, L'\n');
+			_GetCursorPos();
+			if (csbi.dwCursorPosition.Y >= start.Y)
+				start.Y -= 11 - csbi.dwCursorPosition.Y + start.Y;
+			SetConsoleCursorPosition(hConsole, start);
+		}
+
 		for (size_t j = 0; j < SizeLimit; ++j)
 		{
 			// carattere trasparente
