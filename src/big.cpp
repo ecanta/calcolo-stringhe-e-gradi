@@ -659,3 +659,7 @@ big pow(big x, int y)
 {
 	ret x ^ y;
 }
+big abs(big x)
+{
+	ret x.fabs();
+}

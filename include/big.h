@@ -289,5 +289,6 @@ template<typename t> t big::Number()
 #pragma endregion
 
 big pow(big x, int y);
+big abs(big x);
 
 #endif // __BIG__

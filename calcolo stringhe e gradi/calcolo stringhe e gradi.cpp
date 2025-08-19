@@ -107,7 +107,7 @@ using Concurrency::parallel_for, this_thread::sleep_for;
 #pragma endregion
 #pragma region Globals
 
-int __NULL__ = 0;
+int __NULL__(0);
 
 // oggetti windows
 HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -368,7 +368,9 @@ static void ClearArea(COORD WinCenter, COORD Dimensions);
 // rappresentazione di radicali
 class RadComplx;
 static ptrdiff_t Gcd(ptrdiff_t A, ptrdiff_t B);
+static big Gcd(big A, big B);
 template<typename T> static int Gcd(tensor<T> terms);
+static big Gcd(tensor<big> terms);
 static tensor<compost> DecomposeNumber(ptrdiff_t input);
 class RadicalUnit
 {
@@ -1377,6 +1379,7 @@ template<typename T_int = long double>struct MONOMIAL
 			degree == other.degree;
 	}
 };
+static big Gcd(tensor<MONOMIAL<big>> terms);
 template<typename T_int = long double>class monomial
 {
 public:
@@ -1476,6 +1479,7 @@ public:
 		ret os;
 	}
 };
+static big Gcd(tensor<monomial<big>> terms);
 
 // fattori di polinomi
 template<typename T_int = long double>class factor : public tensor<monomial<T_int>>
@@ -1813,7 +1817,7 @@ public:
 	inline FACTOR& operator*=(const FACTOR& other);
 	inline double operator/=(const FACTOR& other)
 	{
-		double offset;
+		long double offset;
 		FACTOR<> div, rem;
 		PolynomialDivide(*this, other, div, rem, offset);
 		*this = div;
@@ -1845,6 +1849,8 @@ public:
 	}
 };
 static FACTOR<> Gcd(FACTOR<> A, FACTOR<> B);
+template<typename T_int = long double> static factor<T_int> Gcd
+(factor<T_int> A, factor<T_int> B);
 
 // radicali e numeri complessi
 class RadComplx : public complex<radical>
@@ -2491,6 +2497,8 @@ template<typename T> T ObjectOperations
 (wstring& errcode, tensor<T> list, tensor<wstring> ops, wstring disposition = L"");
 template<typename T = long double>class Fraction
 {
+	static T __NULL__;
+
 	// componenti
 public:
 	polynomial<T> num, den;
@@ -2513,6 +2521,101 @@ public:
 		num = { PolynomialMultiply<T>(num) };
 		den = { PolynomialMultiply<T>(den) };
 		ret *this;
+	}
+
+	// semplificazione avanzata
+	polynomial<T> UniversalSimplify(T& ncoeff = __NULL__, T& dcoeff = __NULL__)
+	{
+		tensor<int> null(Variables.size(), 0);
+		num.open();
+		den.open();
+		for (size_t i = 0; i < num; ++i) num[i].SortByExponents();
+		for (size_t i = 0; i < den; ++i) den[i].SortByExponents();
+		polynomial<T> waste;
+
+		// semplificazione fattori
+		int sign{ 1 };
+		T TotalNum{ 1 }, TotalDen{ 1 };
+		for (ptrdiff_t i = num.size() - 1; i >= 0; --i) {
+
+			// caso coefficiente
+			if (i >= num) continue;
+			if (num[i] == 1 and num[i][0].exp == null) continue;
+
+			for (ptrdiff_t j = den.size() - 1; j >= 0; --j) {
+
+				// caso coefficiente
+				if (j >= den) continue;
+				if (den[j] == 1 and den[j][0].exp == null) continue;
+
+				// divisione per gcd
+				auto TempGcd{ Gcd(num[i], den[j]) };
+				T DenMultiply, NumMultiply;
+				factor<T> quotient, rest;
+				PseudoDivide(num[i], TempGcd, quotient, rest, DenMultiply);
+				num[i] = quotient;
+				PseudoDivide(den[i], TempGcd, quotient, rest, NumMultiply);
+				den[i] = quotient;
+				waste << TempGcd;
+				
+				// altri coefficienti
+				auto G{ Gcd(NumMultiply, DenMultiply) };
+				NumMultiply /= G;
+				DenMultiply /= G;
+				TotalNum *= NumMultiply;
+				TotalDen *= DenMultiply;
+			}
+		}
+
+		// ricerca coefficenti
+		int FindN{ -1 }, FindD{ -1 };
+		T NCoeff{ 1 }, DCoeff{ 1 };
+		for (size_t i = 0; i < num; ++i) if (num[i] == 1) {
+			NCoeff = num[i][0].coefficient * sign;
+			if (num[i][0].exp == null and num != 1 and num[0] != 1)
+				num.erase(num.begin() + i);
+			else FindN = i;
+			break;
+		}
+		for (size_t i = 0; i < den; ++i) if (den[i] == 1) {
+			DCoeff = den[i][0].coefficient;
+			if (den[i][0].exp == null and den != 1 and den[0] != 1)
+				den.erase(den.begin() + i);
+			else FindD = i;
+			break;
+		}
+
+		// semplificazione coefficienti
+		NCoeff *= TotalNum;
+		DCoeff *= TotalDen;
+		auto GCD{ Gcd(abs(NCoeff), abs(DCoeff)) };
+		NCoeff /= GCD;
+		DCoeff /= GCD;
+		if (FindN >= 0) num[FindN][0].coefficient = 1;
+		if (FindD >= 0) den[FindD][0].coefficient = 1;
+		NCoeff *= sign;
+
+		// compressione polinomi
+		num.close();
+		den.close();
+		for (size_t i = 0; i < num.size(); ++i)
+			if (num[i] == factor<T>{ { (T)1, null } })
+				num.erase(num.begin() + i);
+		for (size_t i = 0; i < den.size(); ++i)
+			if (den[i] == factor<T>{ { (T)1, null } })
+				den.erase(den.begin() + i);
+
+		// aggiunta dei coefficienti semplificati
+		if (&ncoeff != &dcoeff) {
+			ncoeff = NCoeff;
+			dcoeff = DCoeff;
+			this->__NULL__ = 0;
+			ret {}; // non serve il gcd
+		}
+		num >> factor<T>{ { NCoeff, null } };
+		den >> factor<T>{ { DCoeff, null } };
+		this->__NULL__ = 0;
+		ret waste; // gcd ritornato
 	}
 
 	// derivazione
@@ -2544,12 +2647,19 @@ public:
 	// operazioni algebriche del primo ordine
 	Fraction operator+(const Fraction& other) const
 	{
-		Fraction res;
-		res.num = {
-			PolynomialMultiply<T>(num + other.den) -
-			PolynomialMultiply<T>(other.num + den).neg()
+		// calcolo denominatore
+		Fraction res, denominators{ den, other.den };
+		denominators.UniversalSimplify();
+		res.den = denominators.num + other.den;
+
+		// calcolo numeratore
+		Fraction numerators{ num + denominators.den, other.num + denominators.num };
+		auto CommonNumerator{ numerators.UniversalSimplify() };
+		res.num = CommonNumerator + polynomial<T>{
+			PolynomialMultiply<T>(numerators.num)
+				+ PolynomialMultiply<T>(numerators.den)
 		};
-		res.den = { PolynomialMultiply<T>(den + other.den) };
+
 		ret res;
 	}
 	Fraction operator+=(const Fraction& other)
@@ -2559,12 +2669,19 @@ public:
 	}
 	Fraction operator-(const Fraction& other) const
 	{
-		Fraction res;
-		res.num = {
-			PolynomialMultiply<T>(num + other.den) -
-			PolynomialMultiply<T>(other.num + den)
+		// calcolo denominatore
+		Fraction res, denominators{ den, other.den };
+		denominators.UniversalSimplify();
+		res.den = denominators.num + other.den;
+
+		// calcolo numeratore
+		Fraction numerators{ num + denominators.den, other.num + denominators.num };
+		auto CommonNumerator{ numerators.UniversalSimplify() };
+		res.num = CommonNumerator + polynomial<T>{
+			PolynomialMultiply<T>(numerators.num)
+				+ PolynomialMultiply<T>(numerators.den)
 		};
-		res.den = { PolynomialMultiply<T>(den + other.den) };
+
 		ret res;
 	}
 	Fraction operator-=(const Fraction& other)
@@ -2579,6 +2696,7 @@ public:
 		Fraction res;
 		res.num = { PolynomialMultiply<T>(num + other.num) };
 		res.den = { PolynomialMultiply<T>(den + other.den) };
+		res.UniversalSimplify();
 		ret res;
 	}
 	Fraction operator*=(const Fraction& other)
@@ -2598,6 +2716,7 @@ public:
 		Fraction res;
 		res.num = { PolynomialMultiply<T>(num + other.den) };
 		res.den = { PolynomialMultiply<T>(den + other.num) };
+		res.UniversalSimplify();
 		ret res;
 	}
 	Fraction operator/=(const Fraction& other)
@@ -2700,6 +2819,8 @@ template<typename U> static void PrintFractionaryResult(
 
 	tensor<double> roots = {}, tensor<POLYNOMIAL<>> Denominators = {}
 );
+
+// specializzazioni di vari metodi frazionari
 template<typename T> template<typename U> void
 Fraction<T>::output(OutputDevice<U> device, WORD wAttribute) const
 {
@@ -2709,6 +2830,8 @@ Fraction<T>::output(OutputDevice<U> device, WORD wAttribute) const
 		device, 1, 1, lines, *this, To1V(this->num), To1V(this->den), false
 	);
 }
+template<> long double Fraction<long double>::__NULL__ = 0.0L;
+template<> big Fraction<big>::__NULL__ = big(0);
 
 // classe per gestire termini polinomiali e frazioni annidati
 static tensor<Fraction<big>> GetManyFractions
@@ -7222,10 +7345,20 @@ static tensor<tensor<long double>> FromPolynomialToPos(
 	tensor<tensor<int>>& VDirectorSeq,
 	tensor<tensor<int>>& VKnownSeq
 );
+template<typename, typename> struct is_factor_of : false_type {};
+template<typename U> struct is_factor_of<factor<U>, U> : true_type {};
+template<typename U> struct is_factor_of<FACTOR<U>, U> : true_type {};
+template<typename F, typename T> requires is_factor_of<F, T>::value
+static void AdjustCoefficients(F& A, F& B, T& cden);
 static void PolynomialDivide
 (
 	FACTOR<> dividend, FACTOR<> divisor,
-	FACTOR<>& quotient, FACTOR<>& rest, double& CommonDenominator
+	FACTOR<>& quotient, FACTOR<>& rest, long double& CommonDenominator
+);
+template<typename T> static void PseudoDivide
+(
+	factor<T> dividend, factor<T> divisor,
+	factor<T>& quotient, factor<T>& rest, T& CommonDenominator
 );
 static polynomial<> Total(factor<> vect);
 static polynomial<> Partial(factor<> vect);
@@ -7814,7 +7947,7 @@ static ptrdiff_t Gcd(ptrdiff_t A, ptrdiff_t B)
 	ret A;
 }
 
-// massimo comune divisore tra polinomi
+// massimo comune divisore tra polinomi in una variabile
 static FACTOR<> Gcd(FACTOR<> A, FACTOR<> B)
 {
 	if (A.empty() or B.empty()) ret 1;
@@ -7849,7 +7982,7 @@ static FACTOR<> Gcd(FACTOR<> A, FACTOR<> B)
 		}
 
 		// algoritmo di euclide
-		double ratio;
+		long double ratio;
 		FACTOR<> rest, quotient;
 		PolynomialDivide(A, B, quotient, rest, ratio);
 		A = B;
@@ -7859,6 +7992,17 @@ static FACTOR<> Gcd(FACTOR<> A, FACTOR<> B)
 	// applicazione della formula dell'MCD
 	for (auto& mono : A) mono.coefficient *= CoeffGcd;
 	ret A;
+}
+
+// massimo comune divisore tra polinomi in più variabili
+template<typename T_int = long double> static factor<T_int> Gcd
+(factor<T_int> A, factor<T_int> B)
+{
+	// (a, b) = (b, r) but use pseudodivision
+	// (lc(a)p(a), lc(b)p(b)) = (lc(a), lc(b)) * (p(a), p(b))
+	// X -> Y -> Z (variable order)
+	// further investigation is needed
+	ret A + B; /// temporary
 }
 
 // massimo comune divisore tra due interi grandi
@@ -7910,6 +8054,30 @@ static big Gcd(tensor<big> terms)
 	auto gcd{ terms[0] };
 	for (const auto& term : terms) {
 		gcd = Gcd(gcd, term);
+		if (gcd == 1) break;
+	}
+	ret gcd;
+}
+
+// massimo comune divisore tra i coefficienti di polinomi univariati grandi
+static big Gcd(tensor<MONOMIAL<big>> terms)
+{
+	if (terms == 1) ret terms[0].coefficient;
+	auto gcd{ terms[0].coefficient };
+	for (const auto& term : terms) {
+		gcd = Gcd(gcd, term.coefficient);
+		if (gcd == 1) break;
+	}
+	ret gcd;
+}
+
+// massimo comune divisore tra i coefficienti di polinomi multivariati grandi
+static big Gcd(tensor<monomial<big>> terms)
+{
+	if (terms == 1) ret terms[0].coefficient;
+	auto gcd{ terms[0].coefficient };
+	for (const auto& term : terms) {
+		gcd = Gcd(gcd, term.coefficient);
 		if (gcd == 1) break;
 	}
 	ret gcd;
@@ -12751,11 +12919,28 @@ static factor<T_int> PolynomialMultiply(polynomial<T_int> Polynomial)
 	ret PolynomialSum(Polynomial[0]);
 }
 
-// esegue la divisione tra polinomi
+// normalizza i coefficienti per fare in modo che siano interi
+template<typename F, typename T> requires is_factor_of<F, T>::value
+static void AdjustCoefficients(F& A, F& B, T& cden)
+{
+	// amplificazione dei coefficienti
+	for (size_t i = 0; i < A; ++i) A[i].coefficient *= cden;
+	for (size_t i = 0; i < B; ++i) B[i].coefficient *= cden;
+
+	// contrazione dei coefficienti
+	auto gcd{ Gcd(A + B) };
+	gcd = abs(gcd);
+	if (gcd > cden) gcd = cden;
+	cden /= gcd;
+	for (size_t i = 0; i < A; ++i) A[i].coefficient /= gcd;
+	for (size_t i = 0; i < B; ++i) B[i].coefficient /= gcd;
+}
+
+// esegue la divisione tra polinomi in una variabile
 static void PolynomialDivide
 (
 	FACTOR<> dividend, FACTOR<> divisor,
-	FACTOR<>& quotient, FACTOR<>& rest, double& CommonDenominator
+	FACTOR<>& quotient, FACTOR<>& rest, long double& CommonDenominator
 )
 {
 	CommonDenominator = 1;
@@ -12779,27 +12964,122 @@ static void PolynomialDivide
 		CommonDenominator *= divisor[0].coefficient;
 
 		for (size_t i = 0; i < divide; ++i) {
-			divide[i].coefficient *= -rest_element;
+			divide[i].coefficient *= rest_element;
 			divide[i].degree += deg - _deg;
 		}
-		dividend = dividend - divide.neg();
+		dividend = dividend - divide;
 		dividend.complete(deg);
 		dividend.sort();
 		quotient << MONOMIAL<>{ deg - _deg, rest_element };
 	}
 	rest = dividend;
 
-	// amplificazione dei coefficienti
-	for (size_t i = 0; i < quotient; ++i)
-		quotient[i].coefficient *= CommonDenominator;
-	for (size_t i = 0; i < rest; ++i) rest[i].coefficient *= CommonDenominator;
+	AdjustCoefficients(quotient, rest, CommonDenominator);
+}
 
-	// contrazione dei coefficienti
-	int gcd{ abs(Gcd(quotient + rest)) };
-	if (gcd > CommonDenominator) gcd = CommonDenominator;
-	CommonDenominator /= gcd;
-	for (size_t i = 0; i < quotient; ++i) quotient[i].coefficient /= gcd;
-	for (size_t i = 0; i < rest; ++i) rest[i].coefficient /= gcd;
+// esegue la pseudodivisione tra polinomi di più variabili
+template<typename T> static void PseudoDivide
+(
+	factor<T> dividend, factor<T> divisor,
+	factor<T>& quotient, factor<T>& rest, T& CommonDenominator
+)
+{
+	tensor<int> null(Variables.size(), 0);
+
+	// caso base
+	if (dividend < divisor) swap(dividend, divisor);
+	if (divisor == 1) if (divisor[0].exp == null) {
+		quotient = dividend;
+		CommonDenominator = divisor[0].coefficient;
+		for (auto& mon : quotient) mon.coefficient /= CommonDenominator;
+		AdjustCoefficients(quotient, rest, CommonDenominator);
+		ret;
+	}
+	CommonDenominator = 1;
+
+	// aggiustamento polinomi
+	dividend.SortByExponents();
+	divisor.SortByExponents();
+	quotient.clear();
+
+	// confronto e scambio se necessario
+	size_t DividendExpIndex{}, DivisorExpIndex{}, Ind{};
+	size_t DividendDegree{}, DivisorDegree{};
+	for (size_t i = 0; i < Variables.size(); ++i)
+		if (dividend[0].exp[i] != 0)
+		{
+			DividendExpIndex = i;
+			DividendDegree = dividend[0].exp[i];
+			break;
+		}
+	for (size_t i = 0; i < Variables.size(); ++i)
+		if (divisor[0].exp[i] != 0)
+		{
+			DivisorExpIndex = i;
+			DivisorDegree = divisor[0].exp[i];
+			break;
+		}
+	if (DividendExpIndex != DivisorExpIndex) {
+		if (DividendExpIndex > DivisorExpIndex) {
+			Ind = DivisorExpIndex;
+			swap(dividend, divisor);
+		}
+		Ind = DividendExpIndex;
+		DivisorDegree = 0;
+	}
+	else if (DividendDegree < DivisorDegree) {
+		swap(dividend, divisor);
+		swap(DividendDegree, DivisorDegree);
+	}
+
+	// amplificazione dei coefficienti
+	tensor<factor<T>> Blocks(DividendDegree), DivBlocks(DivisorDegree);
+	auto lc{ pow(divisor[0].coefficient, DividendDegree - DivisorDegree + 1) };
+	for (auto& mon : dividend) mon.coefficient *= lc;
+
+	// estrazione dei coefficienti
+	for (auto& mon : dividend) {
+		auto exp{ mon.exp[Ind] };
+		mon.exp[Ind] = 0;
+		Blocks[exp] += factor<T>{ mon };
+	}
+	for (auto& mon : divisor) {
+		auto exp{ mon.exp[Ind] };
+		mon.exp[Ind] = 0;
+		DivBlocks[exp] += factor<T>{ mon };
+	}
+
+	// divisione
+	while (Blocks >= DivBlocks) {
+
+		// ricorsione per il calcolo del moltiplicatore
+		T cdmultiplier;
+		factor<T> multiplier, TempRest;
+		PseudoDivide(Blocks[0], DivBlocks[0], multiplier, TempRest, cdmultiplier);
+		CommonDenominator *= cdmultiplier;
+		quotient += multiplier;
+
+		// sottrazione
+		for (auto& mon : multiplier) {
+			int deg{ mon.exp[Ind] };
+			mon.exp[Ind] = 0;
+
+			for (size_t i = 0; i < Blocks; ++i)
+				for (ptrdiff_t j = 0; j < DivBlocks; ++j)
+				{
+					if (j - deg < 0 or j - deg >= DivBlocks) continue;
+					Blocks[i] -=
+						factor<T>{ { T(j - deg) * mon.coefficient, mon.exp } };
+				}
+		}
+	}
+
+	// calcolo del resto e normalizzazioni
+	for (size_t i = 0; i < Blocks; ++i) {
+		for (auto& monomials : Blocks[i]) monomials.exp[Ind] = i;
+		rest += Blocks[i];
+	}
+	AdjustCoefficients(quotient, rest, CommonDenominator);
 }
 
 #pragma endregion
@@ -13528,12 +13808,13 @@ static void Simplify(Fraction<>& fr, int& ncoeff, int& dcoeff)
 	for (ptrdiff_t i = num.size() - 1; i >= 0; --i) {
 
 		// caso coefficiente
+		if (i >= num) continue;
 		if (num[i] == 1 and num[i][0].exp == null) continue;
 
 		for (ptrdiff_t j = den.size() - 1; j >= 0; --j) {
-			if (i >= num or j >= den) continue;
 
 			// caso coefficiente
+			if (j >= den) continue;
 			if (den[j] == 1 and den[j][0].exp == null) continue;
 
 			// caso con polinomi uguali
@@ -16642,7 +16923,7 @@ static void DecompAndSolve(switchcase& argc)
 			tensor<int> null(Variables.size(), 0);
 
 			// semplificazione fattori
-			Simplify(fraction, NCOEFF, DCOEFF);
+			/*Universal*/Simplify(fraction, NCOEFF, DCOEFF);///
 			NCOEFF *= nummultiplier;
 			DCOEFF *= denmultiplier;
 			LCM = 1;
@@ -16828,7 +17109,7 @@ static void DecompAndSolve(switchcase& argc)
 			if (!skip) {
 
 				// divisione polinomi
-				double multiplier;
+				long double multiplier;
 				PolynomialDivide(
 					V1converter(PolynomialMultiply, NScomp),
 					V1converter(PolynomialMultiply, DScomp),
@@ -17620,9 +17901,9 @@ static void DecompAndSolve(switchcase& argc)
 			}
 
 			// scomposizione numeratore e denominatore
-			int ncoeff{ 1 }, dcoeff{ 1 };
+			long double ncoeff{ 1 }, dcoeff{ 1 };
 			auto& resolution{ solve[i - skipped] };
-			Simplify(resolution, ncoeff, dcoeff);
+			resolution.UniversalSimplify(ncoeff, dcoeff);
 			auto NScomp{ To1V(resolution.num) };
 			auto DScomp{ To1V(resolution.den) };
 			NScomp.close();
@@ -17966,23 +18247,22 @@ Difficoltà      |
 	|           |
 	v           |
 				V
-	*	 debug
-	*    fix bug nel redirector
-	*    fixes per il systemsolver
-	**	 radicali nelle disequazioni
-	**	 suddivisione in più file
-	*	 readme e outputs
-	*	 disequazioni parametriche con fattori di secondo grado
-	*	 sistemi di disequazioni
-	*	 C.E. corrette
-	**	 integrali
-	*	 ottimizzazioni nel redirector
-	*	 ottimizzazioni nell'inputer
-	**	 equazioni differenziali
-	*	 newton-raphson nei numeri complessi
-	***  ottimizzazioni nel grafico
-	**	 OCR da immagine a testo
-	***	 sistemi di equazioni parametriche con AI
+	*	 debug (D)
+	*    fix bug nel redirector (D)
+	*    fixes per il systemsolver (D)
+	*	 ottimizzazioni nell'inputer (A1)
+	**	 suddivisione in più file (P)
+	*	 readme e outputs (P)
+	*	 disequazioni parametriche con fattori di secondo grado (A2)
+	*	 sistemi di disequazioni (A2)
+	*	 C.E. corrette (D)
+	**	 integrali (A3)
+	*	 ottimizzazioni nel redirector (OP)
+	**	 equazioni differenziali (A3)
+	*	 newton-raphson nei numeri complessi (A3)
+	***  ottimizzazioni nel grafico (+++)
+	**	 OCR da immagine a testo (+++)
+	***	 sistemi di equazioni parametriche con AI (+++)
 	**** sistemi di disequazioni parametriche con AI (???)
  
 * = easy or medium level
